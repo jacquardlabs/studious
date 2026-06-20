@@ -2,7 +2,7 @@
 name: review-product-health
 description: Periodic product review — evaluate product coherence, scope drift, and roadmap alignment
 tools: Read, Glob, Grep, Bash, Write
-model: inherit
+model: opus
 ---
 
 # Product health review

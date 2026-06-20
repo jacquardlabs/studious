@@ -2,7 +2,7 @@
 name: review-architecture
 description: Deep architecture review — evaluate system structure, boundaries, and evolution path
 tools: Read, Glob, Grep, Bash, Write
-model: inherit
+model: opus
 ---
 
 # Architecture review

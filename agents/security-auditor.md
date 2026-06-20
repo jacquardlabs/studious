@@ -2,7 +2,7 @@
 name: security-auditor
 description: Comprehensive security analysis. OWASP Top 10, injection, auth, secrets, headers.
 tools: Read, Grep, Glob, Bash
-model: inherit
+model: opus
 ---
 
 # Security Audit

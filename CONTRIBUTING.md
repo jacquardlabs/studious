@@ -46,6 +46,15 @@ Names encode two things — whether something is an action or a role, and what s
 - **Agents are either a 1:1 reviewer or a role.** Periodic, project-scoped reviewers share their command's `review-*` name (currently spawned by `/deep-review`). Changeset specialists spawned by a fan-out command (`/audit`, the gates) are named by role: `<domain>-auditor` for technical/rule checks (security, code, doc, architecture), `<domain>-reviewer` for human-judgment checks (product, ux, frontend).
 - **One fan-out command, many subagents.** Parallel checks belong to subagents under a single entry point (`/audit`, `/deep-review`), not to their own top-level commands. Don't add a command per check.
 
+## Model assignments
+
+Pin by stakes, not by habit. An agent's `model` is `opus` when its core job is high-stakes reasoning or human judgment — where a weaker model ships worse decisions — and `inherit` (the session model) for mechanical, rule-based, or inventory work.
+
+- **`opus`** — security, architecture, and product/UX judgment: `security-auditor`, `architecture-auditor`, `product-reviewer`, `ux-reviewer`, `review-architecture`, `review-product-health`.
+- **`inherit`** — code hygiene, docs, frontend code, inventory sweeps, and triage: `code-auditor`, `doc-auditor`, `frontend-reviewer`, `review-codebase-health`, `review-frontend-health`, `review-readme`, `backlog-priorities`, `backlog-hygiene`.
+
+Don't pin to a bare tier like `sonnet` — use `inherit` so the agent tracks the user's session model.
+
 ## What we won't merge
 
 - Changes that make agents modify issues, PRs, or external state without explicit user action
