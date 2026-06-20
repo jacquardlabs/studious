@@ -43,13 +43,18 @@ If PRODUCT.md doesn't exist, create it from the template:
 <!-- 3-5 principles that guide product decisions. Format: "Principle name — explanation" -->
 <!-- Example: "Speed over completeness — a fast approximate answer beats a slow perfect one" -->
 
-## Feature map
+## Feature tracker
 
-<!-- What exists today. Format: Feature name — what users can do — current state -->
+<!-- If this project uses an issue tracker (GitHub Issues, Linear, Jira, etc.), replace this section with a link:
+     Issue tracker: [GitHub Issues](https://github.com/org/repo/issues)
 
-| Feature | What users can do | Status |
-|---------|-------------------|--------|
-| | | |
+     The tracker owns individual features. PRODUCT.md owns strategic context only.
+
+     If no issue tracker, list major capability areas here (not a per-release inventory):
+     | Capability | What users can do |
+     |------------|-------------------|
+     |            |                   |
+-->
 
 ## Critical user journeys
 

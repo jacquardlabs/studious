@@ -1,6 +1,6 @@
 ---
 description: Periodic product review — evaluate product coherence, scope drift, and roadmap alignment
-allowed-tools: Read, Glob, Grep, Task
+allowed-tools: Read, Glob, Grep, Bash, Task
 ---
 
 # Product health review
@@ -9,17 +9,29 @@ A periodic check on the product itself, not the code. Run this monthly or when y
 
 Read PRODUCT.md first. This review evaluates whether PRODUCT.md is still accurate and whether the product is evolving coherently.
 
+## Detect issue tracker
+
+Before reviewing the feature map, determine whether this project has a live issue tracker:
+
+- **GitHub Issues**: run `gh issue list --limit 1 2>/dev/null` — exit 0 means GitHub Issues is active
+- **PRODUCT.md**: check if PRODUCT.md has a `## Feature tracker` section with an explicit tracker link
+- **Fallback**: if neither signal is present, assume no tracker
+
+**If a tracker is active:** PRODUCT.md is not the source of truth for individual features — the tracker owns that. Adjust Part 1.3 accordingly (see below).
+
 ## Part 1 — Is PRODUCT.md still true?
 
 1. **Persona check.** Read the personas in PRODUCT.md, then scan the recent feature history (git log, recent commits). Are we still building for the stated personas, or have we drifted toward building for ourselves / edge cases / hypothetical users?
 
 2. **Principles check.** Read the product principles. For each one, find one recent feature decision that honored it and one that bent it. Are the principles still the right principles, or has the product evolved past them?
 
-3. **Feature map accuracy.** Compare the feature map in PRODUCT.md against what actually exists in the codebase. Are there shipped features missing from the map? Are there features listed that were removed or never completed?
+3. **Feature inventory check.**
+   - *Tracker active:* The tracker owns individual features — PRODUCT.md should not contain a feature table. If it has a stale Feature map section, flag it as a sync hazard and recommend removing it. Instead, scan the tracker: run `gh issue list --state open 2>/dev/null` and check recent closed issues. Are there shipped features that conflict with PRODUCT.md's principles or "not building" list? Are there open issues requesting things that are explicitly out of scope?
+   - *No tracker:* Compare any Feature map in PRODUCT.md against what actually exists in the codebase. Are there shipped features missing from the map? Are there features listed that were removed or never completed?
 
-4. **"Not building" check.** Has anything from the "what we're NOT building" list crept in? Check recent features for scope that arguably crosses those boundaries.
+4. **"Not building" check.** Has anything from the "what we're NOT building" list crept in? Check recent commits and, if a tracker is active, scan open issues for out-of-scope requests that are being entertained.
 
-5. **Known problems freshness.** Are the known problems still the real problems? Have any been fixed but not removed from the list? Are there new problems that should be added?
+5. **Known problems freshness.** Are the known problems still the real problems? Have any been fixed but not removed? If a tracker is active, cross-reference with open bug issues — problems tracked there but absent from PRODUCT.md should be evaluated for inclusion.
 
 ## Part 2 — Product coherence
 
@@ -33,13 +45,18 @@ Read PRODUCT.md first. This review evaluates whether PRODUCT.md is still accurat
 
 ## Part 3 — Update PRODUCT.md
 
-Based on this review, propose specific updates to PRODUCT.md:
+PRODUCT.md owns the strategic layer — personas, principles, product direction, critical journeys, and explicit scope boundaries. It does not track individual features when a tracker is active.
+
+Propose specific updates:
 
 - Personas that need updating (changed needs, new context)
 - Principles that need revision or addition
-- Features to add or remove from the map
-- Items to add or remove from "not building"
+- Items to add or remove from "what we're NOT building"
 - Known problems to add, remove, or reprioritize
+- **If PRODUCT.md has a stale Feature map and a tracker is active:** propose removing the Feature map section and replacing it with a `## Feature tracker` link
+
+If no tracker is active, also propose:
+- Features to add or remove from the feature map
 
 Present the changes as a diff against the current PRODUCT.md. Don't apply them — present them for review.
 

@@ -22,7 +22,18 @@ Before touching the code, check for context that already exists:
 
 Extract a first-draft understanding of what this product claims to be.
 
-## Step 2 — Map the feature surface
+## Step 2 — Detect issue tracker
+
+Before mapping features, check whether this project has a live issue tracker:
+
+- Run `gh issue list --limit 1 2>/dev/null` — exit 0 means GitHub Issues is active
+- Check for a GitHub remote: `git remote get-url origin 2>/dev/null | grep github.com`
+
+**If a tracker is active:** skip Step 3 (feature surface mapping). In Step 9, write a `## Feature tracker` section with a link to the tracker (`gh repo view --json url --jq .url 2>/dev/null`) instead of a Feature map table. The tracker is the source of truth for individual features.
+
+**If no tracker:** continue with the full feature map in Step 3.
+
+## Step 3 — Map the feature surface (skip if tracker active)
 
 Discover what users can actually do by examining:
 
@@ -45,7 +56,7 @@ Discover what users can actually do by examining:
 
 Write the feature map as: feature name > what users can do > current state (shipped/beta/hidden/broken).
 
-## Step 3 — Identify the users
+## Step 4 — Identify the users
 
 Look for evidence of who uses this product:
 
@@ -68,7 +79,7 @@ Look for evidence of who uses this product:
 
 Draft the persona based on what the code reveals, not what you think it should be.
 
-## Step 4 — Discover the business model
+## Step 5 — Discover the business model
 
 Look for revenue and pricing signals:
 
@@ -82,7 +93,7 @@ Look for revenue and pricing signals:
 
 If none found, note "No monetization logic found in codebase."
 
-## Step 5 — Trace the critical user journeys
+## Step 6 — Trace the critical user journeys
 
 Identify the 2-3 most important flows by looking at:
 
@@ -103,7 +114,7 @@ Identify the 2-3 most important flows by looking at:
 
 Document each journey as: trigger > steps > outcome.
 
-## Step 6 — Find what's NOT being built
+## Step 7 — Find what's NOT being built
 
 Look for explicit boundaries:
 
@@ -121,7 +132,7 @@ Also infer boundaries from what's absent:
 
 Note these as "Likely out of scope (inferred)" vs "Explicitly out of scope (documented)."
 
-## Step 7 — Identify known problems
+## Step 8 — Identify known problems
 
 Scan for evidence of things that are broken or painful:
 
@@ -134,7 +145,7 @@ Scan for evidence of things that are broken or painful:
 
 Prioritize by likely user impact, not code severity.
 
-## Step 8 — Write PRODUCT.md
+## Step 9 — Write PRODUCT.md
 
 Populate each section with what you found. For each section:
 
