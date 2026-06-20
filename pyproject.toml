@@ -1,0 +1,10 @@
+[tool.semantic_release]
+version_variables = [".claude-plugin/plugin.json:version"]
+tag_format = "v{version}"
+commit_message = "chore(release): v{version} [skip ci]"
+major_on_zero = false
+build_command = ""
+upload_to_vcs_release = true
+
+[tool.semantic_release.branches.main]
+match = "main"
