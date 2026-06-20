@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.4.0 (2026-06-20)
+
+### Features
+
+- Add a PR-time gate reminder hook ([#22](https://github.com/jacquardlabs/jaqal/pull/22),
+  [`36663d4`](https://github.com/jacquardlabs/jaqal/commit/36663d4c34ff6c58b7856b4ee06b953c13ea9055))
+
+
 ## v1.3.0 (2026-06-20)
 
 ### Continuous Integration
