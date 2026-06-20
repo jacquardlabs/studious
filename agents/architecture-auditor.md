@@ -1,5 +1,5 @@
 ---
-name: architect-reviewer
+name: architecture-auditor
 description: Architecture auditor. Reviews a changeset for structural fit, coupling, complexity, and scalability. Stays in its lane — audits and reports, does not fix or orchestrate.
 tools: Read, Grep, Glob, Bash
 model: inherit

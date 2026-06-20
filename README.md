@@ -70,16 +70,16 @@ Separate from the feature flow: periodic reviews that assess overall project hea
 
 `/deep-review` dispatches all 5 review agents in parallel and compiles a master summary: it cross-references findings across reviews, produces a prioritized action plan, and proposes updates to your context docs for approval. Metrics are captured each run for trend tracking.
 
-Run any review on its own when you don't need the full sweep:
+Aim it at one area when you don't need the full sweep — each review has its own natural cadence:
 
-| Review | What it checks | Cadence |
-|--------|----------------|---------|
-| `/review-codebase-health` | Architecture coherence, tech debt, dependencies, test gaps | Weekly or pre-milestone |
-| `/review-frontend-health` | Design drift, accessibility, component quality | Monthly or post-UI work |
-| `/review-architecture` | Module boundaries, complexity, evolution readiness | Quarterly or pre-major-feature |
-| `/review-product-health` | PRODUCT.md accuracy, persona drift, scope creep | Monthly or when it feels off |
-| `/review-readme` | README drift: stale claims, broken commands, voice | After a release or feature batch |
-| `/deep-review` | All 5, plus a compiled summary | Monthly |
+| Area | What it checks | Cadence | Run it |
+|------|----------------|---------|--------|
+| Codebase health | Architecture coherence, tech debt, dependencies, test gaps | Weekly or pre-milestone | `/deep-review codebase` |
+| Frontend health | Design drift, accessibility, component quality | Monthly or post-UI work | `/deep-review frontend` |
+| Architecture | Module boundaries, complexity, evolution readiness | Quarterly or pre-major-feature | `/deep-review architecture` |
+| Product health | PRODUCT.md accuracy, persona drift, scope creep | Monthly or when it feels off | `/deep-review product` |
+| README drift | Stale claims, broken commands, voice | After a release or feature batch | `/deep-review readme` |
+| Everything | All 5, cross-referenced into one summary | Monthly | `/deep-review` |
 
 `/backlog-hygiene` scans open GitHub issues against recent commits, PRODUCT.md, and review reports, then flags the ones that are resolved/obsolete/duplicated. Run it after a `/deep-review` to catch what that cycle's fixes resolved. It reports, never modifies.
 
@@ -89,9 +89,9 @@ Everything in Jaqal reads from 3 files in your project root. `/jaqal-init` creat
 
 | Document | What it holds | Updated by |
 |----------|---------------|------------|
-| PRODUCT.md | Personas, principles, known problems, "not building" list | You + `/review-product-health` |
-| DESIGN.md | Colors, typography, spacing, component patterns | You + `/review-frontend-health` |
-| CLAUDE.md | Technical conventions, review workflow reference | You + `/review-architecture` |
+| PRODUCT.md | Personas, principles, known problems, "not building" list | You + `/deep-review product` |
+| DESIGN.md | Colors, typography, spacing, component patterns | You + `/deep-review frontend` |
+| CLAUDE.md | Technical conventions, review workflow reference | You + `/deep-review architecture` |
 
 Reviews propose updates to these docs. They never apply them. You review and approve. If a doc goes stale, the reviews tell you. That's the point.
 

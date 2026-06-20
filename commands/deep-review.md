@@ -1,37 +1,43 @@
 ---
-description: Run all five periodic reviews in parallel — codebase health, frontend health, architecture, product health, and README drift — then compile a master summary with prioritized actions
+description: Run the periodic review suite — all five reviews with a compiled master summary, or a single area. Codebase health, frontend health, architecture, product health, README drift.
 allowed-tools: Read, Glob, Grep, Bash, Task, Write, Edit
 ---
 
-# Deep review — full periodic review suite
+# Deep review — periodic review suite
 
-Run every periodic review against the current codebase on main. This is the "run everything" command for maintenance cycles.
+Run periodic reviews against the current codebase on main. With no argument, runs all five and compiles a master summary — the "run everything" maintenance cycle. With an area argument, runs just that one review at its own cadence (e.g. architecture quarterly without the other four).
 
 Read CLAUDE.md, PRODUCT.md, and DESIGN.md first.
 
-## Phase 1 — Run all five reviews in parallel
+## Area argument
 
-Spawn all five as subagents simultaneously using the Agent tool — do not run them sequentially.
+`$ARGUMENTS` — optional. Empty means the full sweep. Otherwise match it to one area:
 
-Use these exact `subagent_type` values:
+| Keyword | `subagent_type` | What it reviews | Report path |
+|---------|-----------------|-----------------|-------------|
+| `codebase` (or `health`) | `review-codebase-health` | Architecture coherence, tech debt, dependency health, test health, API consistency | `docs/jaqal/health-reviews/YYYY-MM-DD-health-review.md` |
+| `frontend` | `review-frontend-health` | Design system consistency, accessibility, frontend code quality, responsive spot-check | `docs/jaqal/frontend-reviews/YYYY-MM-DD-frontend-review.md` |
+| `architecture` (or `arch`) | `review-architecture` | Dependency map, boundaries, complexity, evolution readiness, data layer | `docs/jaqal/architecture-reviews/YYYY-MM-DD-architecture-review.md` |
+| `product` | `review-product-health` | PRODUCT.md accuracy, product coherence, onboarding path, proposed PRODUCT.md updates | `docs/jaqal/product-reviews/YYYY-MM-DD-product-review.md` |
+| `readme` | `review-readme` | README drift: stale claims, missing features, broken commands/paths/links, voice drift, proposed diff | `docs/jaqal/readme-reviews/YYYY-MM-DD-readme-review.md` |
 
-1. **`review-codebase-health`** — Architecture coherence, technical debt inventory, dependency health, test health, API consistency. Saves to `docs/jaqal/health-reviews/YYYY-MM-DD-health-review.md`.
+If `$ARGUMENTS` is non-empty but matches no keyword, list the valid keywords and stop.
 
-2. **`review-frontend-health`** — Design system consistency, accessibility audit, frontend code quality, responsive spot-check. Saves to `docs/jaqal/frontend-reviews/YYYY-MM-DD-frontend-review.md`.
+## Single-area run (argument given)
 
-3. **`review-architecture`** — Map dependencies, evaluate boundaries/complexity/evolution readiness/data layer. Saves to `docs/jaqal/architecture-reviews/YYYY-MM-DD-architecture-review.md`.
+Spawn the one matching agent via the Agent tool. It already knows its full workflow — just tell it the project path and today's date. When it returns, surface its report. Skip Phase 2 — there's nothing to cross-reference in a single review.
 
-4. **`review-product-health`** — PRODUCT.md accuracy, product coherence, onboarding path, proposed PRODUCT.md updates. Saves to `docs/jaqal/product-reviews/YYYY-MM-DD-product-review.md`.
+## Full sweep (no argument)
 
-5. **`review-readme`** — README drift against PRODUCT.md and the codebase: stale claims, missing features, broken commands/paths/links, voice drift, structure gaps, proposed README diff. Saves to `docs/jaqal/readme-reviews/YYYY-MM-DD-readme-review.md`.
+### Phase 1 — Run all five reviews in parallel
 
-Each agent already knows its full workflow — just tell it the project path and today's date. Run all five with `run_in_background: true`.
+Spawn all five as subagents simultaneously using the Agent tool — do not run them sequentially. Use the `subagent_type` values from the table above. Each agent already knows its full workflow — just tell it the project path and today's date. Run all five with `run_in_background: true`.
 
-## Phase 2 — Compile master summary
+### Phase 2 — Compile master summary
 
 After all five reviews complete, read all five reports and synthesize a single master summary.
 
-### Cross-review findings
+#### Cross-review findings
 
 Identify findings that appear in multiple reviews. These are systemic issues, not isolated ones — they get elevated priority. For example:
 - Architecture review flags coupling AND codebase health flags related tech debt = systemic issue
@@ -39,7 +45,7 @@ Identify findings that appear in multiple reviews. These are systemic issues, no
 - Frontend review flags design drift AND product review flags persona drift = alignment problem
 - README review flags a documented feature that no longer exists AND product review flags scope creep = the product moved and nothing tracked it
 
-### Prioritized action plan
+#### Prioritized action plan
 
 Compile a single prioritized list across all five reviews:
 
@@ -52,7 +58,7 @@ All important findings, grouped by theme rather than by which review found them.
 **Track (next review cycle)**
 Items to monitor. Note which review surfaced each one so you know where to check progress.
 
-### Context doc updates
+#### Context doc updates
 
 Based on the reviews, list specific updates needed for each context doc (per the maintenance workflow):
 - **PRODUCT.md** — changes proposed by product health review
@@ -62,7 +68,7 @@ Based on the reviews, list specific updates needed for each context doc (per the
 
 Do NOT apply these changes. Present them as proposed diffs for the user to review and approve.
 
-### Metrics dashboard
+#### Metrics dashboard
 
 Pull the metrics snapshots from the codebase health and frontend health reports into a single table for easy trend tracking:
 

@@ -38,6 +38,14 @@ templates/    — Scaffold files created by /jaqal-init
 - Review reports save to `docs/jaqal/` subdirectories in the user's project, not to the plugin itself.
 - Commands that produce output are recommend-only — they report, never modify external state (issues, PRs, files outside `docs/jaqal/`).
 
+## Naming conventions
+
+Names encode two things — whether something is an action or a role, and what scope it works at. Follow the existing shape; the prefix/suffix split is deliberate, not drift.
+
+- **Commands are actions** — an action prefix plus its target: `gate-` (per-change checkpoints), `review-`/`deep-review` (periodic health), `extract-` (one-time scaffolding), `backlog-` (issue triage). The verb goes in front.
+- **Agents are either a 1:1 reviewer or a role.** Periodic, project-scoped reviewers share their command's `review-*` name (currently spawned by `/deep-review`). Changeset specialists spawned by a fan-out command (`/audit`, the gates) are named by role: `<domain>-auditor` for technical/rule checks (security, code, doc, architecture), `<domain>-reviewer` for human-judgment checks (product, ux, frontend).
+- **One fan-out command, many subagents.** Parallel checks belong to subagents under a single entry point (`/audit`, `/deep-review`), not to their own top-level commands. Don't add a command per check.
+
 ## What we won't merge
 
 - Changes that make agents modify issues, PRs, or external state without explicit user action

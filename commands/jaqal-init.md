@@ -133,7 +133,7 @@ Then run `/extract-design-system` to populate it from the codebase.
 
 ## Step 4 — Create README.md (if needed)
 
-If README.md already exists, skip this step — leave it alone and tell the user to run `/review-readme` to check it for drift. Never overwrite an existing README.
+If README.md already exists, skip this step — leave it alone and tell the user to run `/deep-review readme` to check it for drift. Never overwrite an existing README.
 
 If README.md doesn't exist, generate one now. PRODUCT.md exists at this point, so draw from it directly:
 
@@ -182,12 +182,12 @@ Add this section:
 
 | Review | Cadence | Command |
 |--------|---------|---------|
-| Codebase health | Weekly or pre-milestone | `/review-codebase-health` |
-| Frontend health | Monthly or post-UI-sprint | `/review-frontend-health` |
-| Architecture | Quarterly or pre-major-feature | `/review-architecture` |
-| Product health | Monthly | `/review-product-health` |
-| README drift | After a release or feature batch | `/review-readme` |
-| All reviews | As needed | `/deep-review` |
+| Codebase health | Weekly or pre-milestone | `/deep-review codebase` |
+| Frontend health | Monthly or post-UI-sprint | `/deep-review frontend` |
+| Architecture | Quarterly or pre-major-feature | `/deep-review architecture` |
+| Product health | Monthly | `/deep-review product` |
+| README drift | After a release or feature batch | `/deep-review readme` |
+| All reviews + summary | As needed | `/deep-review` |
 
 ### After each review
 
@@ -195,10 +195,10 @@ Add this section:
 2. File **important** findings as tasks to address this cycle
 3. Track **minor** findings — they compound if ignored
 4. Update context docs if the review surfaced changes:
-   - `/review-product-health` updates PRODUCT.md
-   - `/review-frontend-health` updates DESIGN.md
-   - `/review-architecture` updates CLAUDE.md
-   - `/review-readme` proposes a README.md diff
+   - `/deep-review product` updates PRODUCT.md
+   - `/deep-review frontend` updates DESIGN.md
+   - `/deep-review architecture` updates CLAUDE.md
+   - `/deep-review readme` proposes a README.md diff
 ```
 
 ## Step 7 — Summary
