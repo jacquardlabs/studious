@@ -31,6 +31,7 @@ Open an issue for bugs, unclear documentation, or suggestions. Include:
 agents/       — Agent definitions (name, description, tools, model in frontmatter)
 commands/     — Slash commands (description, allowed-tools in frontmatter)
 skills/       — Natural-language trigger shims (skills/<name>/SKILL.md)
+hooks/        — Shipped hook scripts (e.g. the PR-time gate reminder)
 templates/    — Scaffold files created by /jaqal-init
 ```
 

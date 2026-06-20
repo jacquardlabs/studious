@@ -201,7 +201,34 @@ Add this section:
    - `/deep-review readme` proposes a README.md diff
 ```
 
-## Step 7 — Summary
+## Step 7 — Wire the PR-time gate reminder hook
+
+Add a `PreToolUse` hook so opening a pull request prompts a reminder to run the gates. It's a non-blocking confirmation — it asks, it never hard-blocks — and it's unconditional: it always asks at `gh pr create` time rather than trying to detect whether a gate ran.
+
+Read `.claude/settings.json` if it exists (create the `.claude/` directory and the file if not). Merge in the hook below — preserve any existing `hooks` and other settings, and don't add it twice if an equivalent entry is already present:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(gh pr create *)",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/gate-reminder.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+If a `PreToolUse` array already exists, append this entry rather than replacing the array. Tell the user the hook was added and that they can delete it from `.claude/settings.json` if they don't want the reminder.
+
+## Step 8 — Summary
 
 Report what was created, what was populated, and what the user should review:
 - PRODUCT.md — auto-populated sections and sections that need human input
@@ -209,5 +236,6 @@ Report what was created, what was populated, and what the user should review:
 - README.md — created from scratch, or skipped because one already exists
 - CLAUDE.md — sections added
 - Review directories created
+- PR-time gate reminder hook — added to `.claude/settings.json`
 
 Suggest the user review PRODUCT.md first (product principles and "not building" sections need human judgment), then DESIGN.md (anti-patterns section needs human input), then README.md if one was generated.
