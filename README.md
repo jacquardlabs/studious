@@ -8,8 +8,18 @@ It handles the **what** and the **whether** — what to work on, whether a desig
 
 ## Getting started
 
+Install via the Jacquard Labs marketplace:
+
 ```bash
-claude install github:jacquardlabs/jaqal
+/plugin marketplace add jacquardlabs/marketplace
+/plugin install jaqal@jacquardlabs-marketplace
+```
+
+Or install this plugin directly:
+
+```bash
+/plugin marketplace add jacquardlabs/jaqal
+/plugin install jaqal@jaqal
 ```
 
 Then, in any project:
