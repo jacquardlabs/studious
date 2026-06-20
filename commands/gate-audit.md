@@ -9,9 +9,11 @@ Run every auditor in parallel against the current branch. This combines the back
 
 Read CLAUDE.md, PRODUCT.md, and DESIGN.md first.
 
+Establish the changeset under review before spawning anyone: compute the merge-base with the default branch (`git merge-base HEAD origin/main`, falling back to `origin/master` or the repo's default branch) and treat the diff from that base to `HEAD` as the changeset. Pass this explicit scope to every auditor so "this branch" / "this changeset" means the same diff for all of them.
+
 ## Launch all auditors in parallel
 
-Spawn auditors 1–6 as subagents simultaneously — do not run them sequentially. Auditor 7 is an inline external check, described below.
+Spawn auditors 1–6 as subagents simultaneously — do not run them sequentially. Auditor 7 is an inline external check, described below. If the changeset has no frontend changes (no modified template, component, CSS, or JS files), skip auditors 5–7 and note "No frontend changes detected — frontend audits skipped."
 
 ### Backend auditors
 
@@ -29,11 +31,23 @@ Spawn auditors 1–6 as subagents simultaneously — do not run them sequentiall
 
 6. **@agent-frontend-reviewer** — Review frontend code changes for component architecture, state management patterns, data fetching, render performance, and bundle impact.
 
-7. **Web Interface Guidelines (external, optional)** — This check depends on the `web-design-guidelines` skill, which ships separately, not with Jaqal. If it's installed, run `/web-interface-guidelines` against all modified frontend files (components, pages, layouts) to check accessibility, keyboard support, form behavior, focus management, semantic HTML, and animation. Unlike auditors 1–6, this runs inline rather than as a parallel subagent. If the skill isn't available, note "accessibility check skipped — web-design-guidelines not installed" and move on.
+7. **Web Interface Guidelines (external, optional)** — This check depends on the `web-design-guidelines` skill, which ships separately, not with Jaqal. If it's installed, invoke the `web-design-guidelines` skill against all modified frontend files (components, pages, layouts) to check accessibility, keyboard support, form behavior, focus management, semantic HTML, and animation. Unlike auditors 1–6, this runs inline rather than as a parallel subagent. If the skill isn't available, note "accessibility check skipped — web-design-guidelines not installed" and move on.
 
 ## After all auditors return
 
-Compile a unified audit report:
+The auditors don't share a severity vocabulary — map each one's labels into the report's three tiers before compiling:
+
+| Auditor | → Critical (blocks merge) | → Important (should fix) | → Minor (track) |
+|---------|---------------------------|--------------------------|-----------------|
+| security-auditor | Critical, High | Medium | Low |
+| code-auditor | Critical | High, Medium | Low |
+| architecture-auditor | Critical | High, Medium | Low |
+| doc-auditor | — (docs rarely block; escalate only if a wrong command/path ships) | High | Medium, Low |
+| ux-reviewer | VISUAL BUG | INCONSISTENCY, IMPROVEMENT | SUGGESTION |
+| frontend-reviewer | BUG | PERFORMANCE, ARCHITECTURE | CLEANUP |
+| web-design-guidelines (a11y) | blocking a11y failures (no keyboard access, contrast failures on core flows) | other a11y gaps | polish |
+
+Then compile a unified audit report:
 
 ### Summary
 One line per auditor: agent name, number of findings by severity, pass/fail.
@@ -42,7 +56,7 @@ One line per auditor: agent name, number of findings by severity, pass/fail.
 All findings classified as critical/blocking across all auditors, grouped by file. If multiple auditors flag the same file, consolidate their findings together.
 
 ### Important findings (should fix)
-All non-critical but important findings, grouped by category (security, code quality, UX, accessibility, architecture).
+All non-critical but important findings, grouped by category (security, code quality, documentation, architecture, UX, frontend, accessibility).
 
 ### Minor findings (track for later)
 Everything else. Don't expand on these — just list them.
@@ -52,5 +66,3 @@ Based on the findings, recommend one of:
 - **PASS** — No critical findings. Safe to proceed to product acceptance gate.
 - **FIX AND RE-AUDIT** — Critical findings listed. Fix these, then re-run `/gate-audit`.
 - **NEEDS DISCUSSION** — Architectural or product-level concerns that aren't simple fixes.
-
-If the branch has no frontend changes (no modified template, component, CSS, or JS files), skip auditors 5-7 and note "No frontend changes detected — frontend audits skipped."

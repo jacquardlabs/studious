@@ -41,12 +41,12 @@ Evaluate against these questions:
 
 ## Output format
 
-Classify every finding as:
+Classify every finding by severity (stage-neutral — the gate that invoked you maps these to its own verdict):
 
-- **BLOCKS SHIP**: This will confuse, frustrate, or lose users. Must fix before merge.
-- **SHOULD FIX**: Noticeable quality gap. Fix in this cycle if possible.
+- **BLOCKER**: Fundamental — a user will be confused, frustrated, or lost. Must be resolved before this work proceeds (before implementation in a design review; before merge in an acceptance review).
+- **SHOULD FIX**: Noticeable quality gap. Address this cycle.
 - **MINOR**: Polish item. Track for later.
-- **OBSERVATION**: Not a problem — just something to be aware of for future features.
+- **OBSERVATION**: Not a problem — just something to be aware of for future work.
 
 For each finding, reference the specific product principle, persona, or journey it relates to. Never give abstract feedback — always ground it in the product context.
 

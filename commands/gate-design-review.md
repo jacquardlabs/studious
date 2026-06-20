@@ -1,13 +1,18 @@
 ---
 description: Product review of a design doc before implementation begins
-allowed-tools: Read, Glob, Grep, Task
+allowed-tools: Read, Glob, Grep, Bash, Task
 ---
 
 # Does this design serve users?
 
 Read PRODUCT.md at the project root first.
 
-Then find the most recent design doc or spec for the current feature branch.
+Then find the design doc or spec under review:
+- Check the branch's added/changed docs: `git diff --name-only $(git merge-base HEAD origin/main)...HEAD` and look for design/spec Markdown (e.g. under `docs/`, `specs/`, `design/`).
+- If nothing turns up there, take the most recently modified Markdown under those locations.
+- If still ambiguous or there are several candidates, ask the user which doc to review rather than guessing.
+
+Pass the resolved doc path explicitly into the product review below.
 
 ## Part 1 — Product review
 
@@ -28,10 +33,8 @@ Be honest. If any step feels forced or unnatural, say so.
 
 ## Part 3 — Verdict
 
-Synthesize the product-reviewer findings and the persona walkthrough into a clear recommendation:
+Synthesize the product-reviewer findings and the persona walkthrough into a clear recommendation. Map the product-reviewer's severities to this gate's verdict:
 
-- **PROCEED TO PLAN** — design is sound, no product concerns
-- **REVISE** — specific issues need to be addressed before implementation (list them)
-- **RETHINK** — fundamental product misalignment, go back to brainstorm (explain why)
-
-If the recommendation is REVISE, list the specific changes needed in priority order.
+- **PROCEED TO PLAN** — design is sound; only MINOR/OBSERVATION findings.
+- **REVISE** — one or more SHOULD FIX findings, or a BLOCKER that's a fixable design flaw (missing state, confusing step). List the specific changes needed in priority order.
+- **RETHINK** — a BLOCKER rooted in problem validity, principle conflict, or scope ("what we're NOT building"). Go back to brainstorm and explain why.

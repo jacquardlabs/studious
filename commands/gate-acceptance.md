@@ -29,8 +29,10 @@ Walk through every user-facing change on this branch:
 
 ## Part 3 — Verdict
 
-- **SHIP** — implementation delivers the intended experience, no user-facing issues
-- **FIX AND RE-CHECK** — specific user-facing issues to address (list them with severity), then re-run this gate
-- **HOLD** — fundamental gap between design intent and implementation, needs rework beyond quick fixes
+Map the product-reviewer's severities to this gate's verdict:
+
+- **SHIP** — implementation delivers the intended experience; only MINOR/OBSERVATION findings.
+- **FIX AND RE-CHECK** — one or more SHOULD FIX findings, or a BLOCKER fixable with targeted work. List them with severity, then re-run this gate.
+- **HOLD** — a BLOCKER that's a fundamental gap between design intent and implementation, needing rework beyond quick fixes.
 
 For FIX AND RE-CHECK items, be specific enough that they can go directly into the engineering chain as fix tasks.

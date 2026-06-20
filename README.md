@@ -34,7 +34,7 @@ Then, in any project:
 /jaqal-init
 ```
 
-This creates your context documents (PRODUCT.md and DESIGN.md, extracted from the codebase as it actually is), scaffolds the `docs/jaqal/` review directories, wires the workflow reference into CLAUDE.md so every future session knows the process, and installs a non-blocking hook that reminds you to run the gates when you open a PR. Review PRODUCT.md first. The extraction is evidence-based, but product principles and your "not building" list need your voice.
+This creates your context documents (PRODUCT.md and DESIGN.md, extracted from the codebase as it actually is), scaffolds the `docs/jaqal/` review directories, and wires the workflow reference into CLAUDE.md so every future session knows the process. Review PRODUCT.md first. The extraction is evidence-based, but product principles and your "not building" list need your voice.
 
 ## Building a feature
 

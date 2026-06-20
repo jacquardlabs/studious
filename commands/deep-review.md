@@ -25,13 +25,13 @@ If `$ARGUMENTS` is non-empty but matches no keyword, list the valid keywords and
 
 ## Single-area run (argument given)
 
-Spawn the one matching agent via the Agent tool. It already knows its full workflow — just tell it the project path and today's date. When it returns, surface its report. Skip Phase 2 — there's nothing to cross-reference in a single review.
+Spawn the one matching agent with the Task tool. It already knows its full workflow — just tell it the project path and today's date. When it returns, surface its report. Skip Phase 2 — there's nothing to cross-reference in a single review.
 
 ## Full sweep (no argument)
 
 ### Phase 1 — Run all five reviews in parallel
 
-Spawn all five as subagents simultaneously using the Agent tool — do not run them sequentially. Use the `subagent_type` values from the table above. Each agent already knows its full workflow — just tell it the project path and today's date. Run all five with `run_in_background: true`.
+Spawn all five subagents simultaneously with the Task tool — do not run them sequentially. Use the `subagent_type` values from the table above. Each agent already knows its full workflow — just tell it the project path and today's date. Run all five with `run_in_background: true`.
 
 ### Phase 2 — Compile master summary
 
@@ -72,16 +72,21 @@ Do NOT apply these changes. Present them as proposed diffs for the user to revie
 
 Pull the metrics snapshots from the codebase health and frontend health reports into a single table for easy trend tracking:
 
-| Metric | Value | Trend vs last review |
-|--------|-------|---------------------|
-| Lines of code | — | — |
-| Test coverage | — | — |
-| TODO/FIXME count | — | — |
-| Outdated deps | — | — |
-| Known vulnerabilities | — | — |
-| Component count | — | — |
-| Bundle size | — | — |
-| Design system deviations | — | — |
+| Metric | Value | Trend vs last review | Source |
+|--------|-------|---------------------|--------|
+| Lines of code | — | — | codebase health |
+| Test coverage | — | — | codebase health |
+| TODO/FIXME count | — | — | codebase health |
+| Outdated deps | — | — | codebase health |
+| Known vulnerabilities | — | — | codebase health |
+| Largest file (lines) | — | — | codebase health |
+| Deepest dependency chain | — | — | codebase health |
+| Component count | — | — | frontend health |
+| Largest CSS file | — | — | frontend health |
+| Accessibility issues (by severity) | — | — | frontend health |
+| Design system deviations | — | — | frontend health |
+
+Every row maps to a metric one of the two health reports actually emits — don't add rows no agent produces.
 
 If previous review reports exist in the `docs/jaqal/` subdirectories, compare against the most recent one and fill in the trend column. Otherwise mark as "baseline".
 

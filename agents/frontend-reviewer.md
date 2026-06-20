@@ -68,6 +68,6 @@ For each finding, name the file, describe the problem, and show the fix.
 ## What you do NOT review
 
 - Visual design, layout, spacing, colors — ux-reviewer handles this
-- Accessibility, ARIA, keyboard navigation — accessibility plugins handle this
+- Accessibility, ARIA, keyboard navigation — the web-design-guidelines accessibility check (auditor 7 in `/gate-audit`) handles this
 - Backend code — out of scope
 - Product decisions — product-reviewer handles this

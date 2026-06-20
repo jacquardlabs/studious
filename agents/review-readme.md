@@ -1,7 +1,7 @@
 ---
 name: review-readme
 description: README drift review — compare README against PRODUCT.md and the codebase, flag stale claims, broken commands, and voice drift, propose a diff. Recommend-only, never writes README.
-tools: Read, Glob, Grep, Bash
+tools: Read, Glob, Grep, Bash, Write
 model: inherit
 ---
 

@@ -14,7 +14,7 @@ Find documentation gaps.
 ### Code Comments
 - Missing JSDoc/TSDoc/docstrings on exported functions
 - Outdated comments that don't match code
-- TODO/FIXME/HACK comments needing action
+- TODO/FIXME/HACK comments needing action (judge whether each is actionable/stale; code-auditor owns the raw count)
 - Complex logic without explanatory comments
 
 ### API Documentation
