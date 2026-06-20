@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.2.0 (2026-06-20)
+
+### Features
+
+- Include /review-readme in /deep-review and flag README drift in /audit
+  ([#7](https://github.com/jacquardlabs/jaqal/pull/7),
+  [`f0222e3`](https://github.com/jacquardlabs/jaqal/commit/f0222e34d3602b14337cb4c725b6f398fcbfca24))
+
+
 ## v1.1.0 (2026-06-20)
 
 ### Documentation
