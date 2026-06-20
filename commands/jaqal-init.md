@@ -12,6 +12,7 @@ Set up the full product review workflow in this project. This creates the contex
 Before creating anything, check what already exists:
 - Does PRODUCT.md exist? Is it populated or empty?
 - Does DESIGN.md exist? Is it populated or empty?
+- Does README.md exist?
 - Does CLAUDE.md exist?
 - Do any `docs/` review directories exist?
 
@@ -130,17 +131,31 @@ If DESIGN.md doesn't exist, create it from the template:
 
 Then run `/extract-design-system` to populate it from the codebase.
 
-## Step 4 — Scaffold review directories
+## Step 4 — Create README.md (if needed)
+
+If README.md already exists, skip this step — leave it alone and tell the user to run `/review-readme` to check it for drift. Never overwrite an existing README.
+
+If README.md doesn't exist, generate one now. PRODUCT.md exists at this point, so draw from it directly:
+
+- **Source the content** from PRODUCT.md (what the product does, who it's for), the codebase (install/run commands, real file paths, config, `.env.example`), and the package manifest (name, scripts, license).
+- **Match the project's voice.** Follow CLAUDE.md's writing-style guidance if present. Lead with what the product does and why. Keep it lean and direct.
+- **No template decoration.** No emoji headers, no decorative badges, no marketing fluff. Standard Markdown, real headers, code blocks with language labels.
+- **Only claim what's true.** Every command, path, and filename must match the codebase. Don't invent placeholders or aspirational features.
+
+Cover, at minimum: what it is, install, a runnable usage example, and license. Write the file, then flag it for the user's review — the same way PRODUCT.md needs a human pass.
+
+## Step 5 — Scaffold review directories
 
 Create these directories if they don't exist:
 - `docs/jaqal/health-reviews/`
 - `docs/jaqal/frontend-reviews/`
 - `docs/jaqal/architecture-reviews/`
 - `docs/jaqal/product-reviews/`
+- `docs/jaqal/readme-reviews/`
 
 Add a `.gitkeep` to each empty directory so they're tracked in git.
 
-## Step 5 — Update CLAUDE.md
+## Step 6 — Update CLAUDE.md
 
 If CLAUDE.md exists, append the review workflow section (if not already present). If it doesn't exist, create it with just this section. Check for existing content first — don't duplicate.
 
@@ -171,6 +186,7 @@ Add this section:
 | Frontend health | Monthly or post-UI-sprint | `/review-frontend-health` |
 | Architecture | Quarterly or pre-major-feature | `/review-architecture` |
 | Product health | Monthly | `/review-product-health` |
+| README drift | After a release or feature batch | `/review-readme` |
 | All reviews | As needed | `/deep-review` |
 
 ### After each review
@@ -184,12 +200,13 @@ Add this section:
    - `/review-architecture` updates CLAUDE.md
 ```
 
-## Step 6 — Summary
+## Step 7 — Summary
 
 Report what was created, what was populated, and what the user should review:
 - PRODUCT.md — auto-populated sections and sections that need human input
 - DESIGN.md — auto-populated sections and inconsistencies found
+- README.md — created from scratch, or skipped because one already exists
 - CLAUDE.md — sections added
 - Review directories created
 
-Suggest the user review PRODUCT.md first (product principles and "not building" sections need human judgment), then DESIGN.md (anti-patterns section needs human input).
+Suggest the user review PRODUCT.md first (product principles and "not building" sections need human judgment), then DESIGN.md (anti-patterns section needs human input), then README.md if one was generated.

@@ -78,6 +78,7 @@ Run any review on its own when you don't need the full sweep:
 | `/review-frontend-health` | Design drift, accessibility, component quality | Monthly or post-UI work |
 | `/review-architecture` | Module boundaries, complexity, evolution readiness | Quarterly or pre-major-feature |
 | `/review-product-health` | PRODUCT.md accuracy, persona drift, scope creep | Monthly or when it feels off |
+| `/review-readme` | README drift: stale claims, broken commands, voice | After a release or feature batch |
 | `/deep-review` | All 4, plus a compiled summary | Monthly |
 
 `/backlog-hygiene` scans open GitHub issues against recent commits, PRODUCT.md, and review reports, then flags the ones that are resolved/obsolete/duplicated. Run it after a `/deep-review` to catch what that cycle's fixes resolved. It reports, never modifies.
