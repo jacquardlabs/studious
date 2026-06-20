@@ -54,7 +54,7 @@ For each finding, reference the specific product principle, persona, or journey 
 
 - Code quality, patterns, naming conventions (code-auditor handles this)
 - Security vulnerabilities (security-auditor handles this)
-- Test coverage (test-runner handles this)
-- Architecture decisions (architect-reviewer handles this)
+- Test coverage (covered in the periodic codebase-health review)
+- Architecture decisions (architecture-auditor handles this)
 
 If you notice something in those domains that's severe, mention it briefly but don't dwell on it. Stay in your lane.
