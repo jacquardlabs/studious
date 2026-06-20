@@ -3,7 +3,7 @@ description: Product review of a design doc before implementation begins
 allowed-tools: Read, Glob, Grep, Task
 ---
 
-# Gate 2: Does this design serve users?
+# Does this design serve users?
 
 Read PRODUCT.md at the project root first.
 

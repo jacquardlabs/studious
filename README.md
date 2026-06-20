@@ -43,7 +43,7 @@ Jaqal wraps feature development in quality gates. Between them you build, and Ja
 - Pick what to build with `/backlog-priorities` (ranks your open GitHub issues by severity/alignment/unblocking potential) or `/gate-should-we-build [idea]` (scores a raw idea against PRODUCT.md and the smallest version worth shipping). Catches building the wrong thing.
 - Gate the design with `/gate-design-review`. It walks your design doc as your primary persona would and flags where they'd get confused or frustrated. Catches a bad design before you spend build effort on it.
 - Build it with your own workflow. Superpowers gives you plan/execute with TDD and review checkpoints. Jaqal steps back here.
-- Audit before merge with `/audit`: 6 auditors in parallel (security, code quality, docs, architecture, UX, frontend), each staying in its lane, plus an accessibility pass via the Web Interface Guidelines skill when it's installed. Frontend auditors skip automatically on branches with no frontend changes.
+- Audit before merge with `/gate-audit`: 6 auditors in parallel (security, code quality, docs, architecture, UX, frontend), each staying in its lane, plus an accessibility pass via the Web Interface Guidelines skill when it's installed. Frontend auditors skip automatically on branches with no frontend changes.
 - Gate acceptance with `/gate-acceptance`. Product review, not code review: does the implementation actually deliver the experience? It walks every user-facing change, checks error states for human-friendly messaging, and regression-tests the critical journeys in PRODUCT.md.
 
 ```
@@ -55,14 +55,14 @@ Jaqal wraps feature development in quality gates. Between them you build, and Ja
          ↓
    implement
          ↓
-   /audit
+   /gate-audit
          ↓
    /gate-acceptance
          ↓
        merge
 ```
 
-You don't need every gate every time. For small fixes, `/audit` alone is enough. The gates exist to catch building the wrong thing or shipping a bad experience. Use judgment about when that risk applies.
+You don't need every gate every time. For small fixes, `/gate-audit` alone is enough. The gates exist to catch building the wrong thing or shipping a bad experience. Use judgment about when that risk applies.
 
 ## Keeping the project healthy
 

@@ -3,7 +3,7 @@ description: Evaluate whether a feature idea is worth building before any engine
 allowed-tools: Read, Glob, Grep
 ---
 
-# Gate 1: Should we build this?
+# Should we build this?
 
 Read PRODUCT.md at the project root before doing anything else. You need the full product context — personas, principles, known problems, what we're not building.
 

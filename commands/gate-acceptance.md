@@ -3,7 +3,7 @@ description: Product acceptance review after implementation, before merge
 allowed-tools: Read, Glob, Grep, Bash, Task
 ---
 
-# Gate 3: Does the result deliver?
+# Does the result deliver?
 
 Code is built, tests pass, audits are clean. This gate checks whether the implementation actually delivers the intended experience. Clean code that ships a bad feature is still a bad feature.
 

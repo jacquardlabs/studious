@@ -175,7 +175,7 @@ Add this section:
 |------|------|---------|
 | Should we build? | Before any engineering | `/gate-should-we-build [idea]` |
 | Design review | After design doc, before implementation | `/gate-design-review` |
-| Audit | After implementation, before acceptance | `/audit` |
+| Audit | After implementation, before acceptance | `/gate-audit` |
 | Acceptance | After audit passes, before merge | `/gate-acceptance` |
 
 ### Periodic reviews

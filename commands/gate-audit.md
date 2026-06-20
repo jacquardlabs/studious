@@ -3,7 +3,7 @@ description: Run the audit suite — security, code quality, docs, architecture,
 allowed-tools: Read, Glob, Grep, Bash, Task, Write
 ---
 
-# Full audit — all agents
+# Audit gate — all auditors
 
 Run every auditor in parallel against the current branch. This combines the backend audit suite, frontend audit suite, and accessibility checks into a single pass.
 
@@ -50,7 +50,7 @@ Everything else. Don't expand on these — just list them.
 ### Verdict
 Based on the findings, recommend one of:
 - **PASS** — No critical findings. Safe to proceed to product acceptance gate.
-- **FIX AND RE-AUDIT** — Critical findings listed. Fix these, then re-run `/audit`.
+- **FIX AND RE-AUDIT** — Critical findings listed. Fix these, then re-run `/gate-audit`.
 - **NEEDS DISCUSSION** — Architectural or product-level concerns that aren't simple fixes.
 
 If the branch has no frontend changes (no modified template, component, CSS, or JS files), skip auditors 5-7 and note "No frontend changes detected — frontend audits skipped."
