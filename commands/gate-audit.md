@@ -70,3 +70,16 @@ Based on the findings, recommend one of:
 - **PASS** — No critical findings. Safe to proceed to product acceptance gate.
 - **FIX AND RE-AUDIT** — Critical findings listed. Fix these, then re-run `/gate-audit`.
 - **NEEDS DISCUSSION** — Architectural or product-level concerns that aren't simple fixes.
+
+## Record the verdict
+
+After stating the verdict, record it to the local gate ledger so the PR-time reminder
+can be specific. Run (substituting the verdict token you just assigned — `PASS`,
+`FIX AND RE-AUDIT`, or `NEEDS DISCUSSION`):
+
+```bash
+gate-ledger record --gate audit --verdict "PASS"
+```
+
+The ledger is local and gitignored — it never enters the repo. If the `gate-ledger`
+command is unavailable, skip this step.
