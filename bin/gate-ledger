@@ -66,8 +66,11 @@ cmd_status() {
   for entry in "${gates[@]}"; do
     gate="${entry%%:*}"
     pass="${entry##*:}"
-    v=$(jq -r ".gates.$gate.verdict // empty" "$file")
-    s=$(jq -r ".gates.$gate.sha // empty" "$file")
+    # Use --arg + bracket index: dot-syntax (.gates.$gate) parses '-' as
+    # subtraction and compile-errors on hyphenated gate names (e.g. the
+    # planned should-we-build / design-review gates).
+    v=$(jq -r --arg g "$gate" '.gates[$g].verdict // empty' "$file")
+    s=$(jq -r --arg g "$gate" '.gates[$g].sha // empty' "$file")
     if [ -z "$v" ]; then
       msgs+=("$gate never ran on this branch")
     elif [ "$s" != "$head" ]; then
@@ -78,7 +81,21 @@ cmd_status() {
   done
 
   if [ "${#msgs[@]}" -eq 0 ]; then
-    printf 'audit (PASS) and acceptance (SHIP) ran on this branch at HEAD — proceed.'
+    # Build pass summary from the gate table so adding a gate auto-updates
+    # this message. Output for current table: "audit (PASS) and acceptance (SHIP)"
+    local pass_parts=()
+    for entry in "${gates[@]}"; do
+      pass_parts+=("${entry%%:*} (${entry##*:})")
+    done
+    local pass_str=""
+    if [ "${#pass_parts[@]}" -gt 0 ]; then
+      pass_str="${pass_parts[0]}"
+      local i
+      for (( i=1; i<${#pass_parts[@]}; i++ )); do
+        pass_str="$pass_str and ${pass_parts[$i]}"
+      done
+    fi
+    printf '%s ran on this branch at HEAD — proceed.' "$pass_str"
   else
     local joined; joined=$(printf '%s; ' "${msgs[@]}"); joined=${joined%; }
     printf 'Studious gate check — %s. Proceed anyway?' "$joined"
