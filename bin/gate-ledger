@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# gate-ledger — read/write Studious's per-branch gate ledger.
+#
+# Local, gitignored state at .studious/gates/<branch-slug>.json in the consuming
+# project. Written by /gate-audit and /gate-acceptance (via `record`); read by the
+# PR-time hook (via `status`). Degrades silently when git or jq is unavailable.
+set -uo pipefail
+
+LEDGER_DIR=".studious/gates"
+
+branch_name() { git rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD; }
+branch_slug() { local b; b=$(branch_name); printf '%s' "${b//\//-}"; }
+head_sha()    { git rev-parse --short HEAD 2>/dev/null || echo ""; }
+now_iso()     { date -u +%Y-%m-%dT%H:%M:%SZ; }
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+ensure_gitignore() {
+  # Self-heal: keep .studious/ out of the user's git status, even for projects
+  # initialized before the ledger existed.
+  local root gi
+  root=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
+  gi="$root/.gitignore"
+  if [ ! -f "$gi" ] || ! grep -qxF '.studious/' "$gi" 2>/dev/null; then
+    printf '\n# Studious local gate ledger (do not commit)\n.studious/\n' >> "$gi"
+  fi
+}
+
+cmd_record() {
+  local gate="" verdict=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --gate)    gate="$2"; shift 2 ;;
+      --verdict) verdict="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  [ -n "$gate" ] && [ -n "$verdict" ] || { echo "gate-ledger: --gate and --verdict required" >&2; return 2; }
+  have jq && have git || { echo "gate-ledger: jq/git unavailable; skipping ledger write" >&2; return 0; }
+
+  ensure_gitignore
+  mkdir -p "$LEDGER_DIR"
+  local file; file="$LEDGER_DIR/$(branch_slug).json"
+  [ -f "$file" ] || printf '{"branch":"","gates":{}}' > "$file"
+
+  local tmp; tmp=$(mktemp)
+  jq --arg b "$(branch_name)" --arg g "$gate" --arg v "$verdict" \
+     --arg s "$(head_sha)" --arg t "$(now_iso)" \
+     '.branch = $b | .gates[$g] = {verdict: $v, sha: $s, ranAt: $t}' \
+     "$file" > "$tmp" && mv "$tmp" "$file"
+}
+
+cmd_status() {
+  have jq && have git || return 0
+  local file; file="$LEDGER_DIR/$(branch_slug).json"
+  [ -f "$file" ] || return 0
+
+  local head a_v a_s c_v c_s
+  head=$(head_sha)
+  a_v=$(jq -r '.gates.audit.verdict // empty' "$file")
+  a_s=$(jq -r '.gates.audit.sha // empty' "$file")
+  c_v=$(jq -r '.gates.acceptance.verdict // empty' "$file")
+  c_s=$(jq -r '.gates.acceptance.sha // empty' "$file")
+
+  local msgs=()
+  [ -z "$a_v" ] && msgs+=("audit never ran on this branch")
+  [ -z "$c_v" ] && msgs+=("acceptance never ran on this branch")
+  [ -n "$a_v" ] && [ "$a_s" != "$head" ] && msgs+=("audit ran at $a_s but HEAD is $head — re-run before merging")
+  [ -n "$c_v" ] && [ "$c_s" != "$head" ] && msgs+=("acceptance ran at $c_s but HEAD is $head — re-run before merging")
+  [ -n "$a_v" ] && [ "$a_s" = "$head" ] && [ "$a_v" != "PASS" ] && msgs+=("audit returned $a_v")
+  [ -n "$c_v" ] && [ "$c_s" = "$head" ] && [ "$c_v" != "SHIP" ] && msgs+=("acceptance returned $c_v")
+
+  if [ "${#msgs[@]}" -eq 0 ]; then
+    printf 'audit (PASS) and acceptance (SHIP) ran on this branch at HEAD — proceed.'
+  else
+    local joined; joined=$(printf '%s; ' "${msgs[@]}"); joined=${joined%; }
+    printf 'Studious gate check — %s. Proceed anyway?' "$joined"
+  fi
+}
+
+case "${1:-}" in
+  record) shift; cmd_record "$@" ;;
+  status) shift; cmd_status "$@" ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V | status}" >&2; exit 2 ;;
+esac
