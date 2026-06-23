@@ -36,7 +36,7 @@ cmd_record() {
     esac
   done
   [ -n "$gate" ] && [ -n "$verdict" ] || { echo "gate-ledger: --gate and --verdict required" >&2; return 2; }
-  have jq && have git || { echo "gate-ledger: jq/git unavailable; skipping ledger write" >&2; return 0; }
+  have jq && have git || return 0
 
   ensure_gitignore
   mkdir -p "$LEDGER_DIR"
