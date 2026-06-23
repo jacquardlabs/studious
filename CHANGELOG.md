@@ -2,6 +2,20 @@
 
 <!-- version list -->
 
+## v2.3.1 (2026-06-23)
+
+### Bug Fixes
+
+- Register all 5 deep-review agents (over-long descriptions) (#48)
+  ([#50](https://github.com/jacquardlabs/studious/pull/50),
+  [`514d12a`](https://github.com/jacquardlabs/studious/commit/514d12acf93929e907e57eba5dfb0739fa3cad59))
+
+### Documentation
+
+- Add CLAUDE.md for repo guidance ([#49](https://github.com/jacquardlabs/studious/pull/49),
+  [`db2b8fb`](https://github.com/jacquardlabs/studious/commit/db2b8fbf677e3a2a37ac52c7ef0fb5eb300e0b74))
+
+
 ## v2.3.0 (2026-06-23)
 
 ### Bug Fixes
