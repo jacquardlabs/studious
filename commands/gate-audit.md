@@ -82,4 +82,5 @@ gate-ledger record --gate audit --verdict "PASS"
 ```
 
 The ledger is local and gitignored — it never enters the repo. If the `gate-ledger`
-command is unavailable, skip this step.
+command is not found (the plugin's `bin/` may not be on your PATH), tell the user the
+verdict could not be recorded to the gate ledger — do not skip silently.
