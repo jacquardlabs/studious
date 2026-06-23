@@ -74,7 +74,13 @@ cmd_status() {
     if [ -z "$v" ]; then
       msgs+=("$gate never ran on this branch")
     elif [ "$s" != "$head" ]; then
-      msgs+=("$gate ran at $s but HEAD is $head — re-run before merging")
+      n=$(git rev-list --count "$s..$head" 2>/dev/null || git rev-list --count "$s..HEAD" 2>/dev/null)
+      if [ -n "$n" ] && [ "$n" -gt 0 ] 2>/dev/null; then
+        if [ "$n" -eq 1 ]; then unit=commit; else unit=commits; fi
+        msgs+=("$gate ran $n $unit ago — re-run before merging")
+      else
+        msgs+=("$gate ran at $s but HEAD is $head — re-run before merging")
+      fi
     elif [ "$v" != "$pass" ]; then
       msgs+=("$gate returned $v")
     fi
