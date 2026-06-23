@@ -13,7 +13,11 @@ Establish the changeset under review before spawning anyone: compute the merge-b
 
 ## Launch all auditors in parallel
 
-Spawn auditors 1–6 as subagents simultaneously — do not run them sequentially. Auditor 7 is an inline external check, described below. If the changeset has no frontend changes (no modified template, component, CSS, or JS files), skip auditors 5–7 and note "No frontend changes detected — frontend audits skipped."
+Spawn auditors 1–6 as subagents simultaneously — do not run them sequentially. Auditor 7 is an inline external check, described below.
+
+Auditors 5–7 (ux, frontend, accessibility) are web-specific. Skip them when either condition holds:
+- **Project-level:** DESIGN.md has a `## Surfaces` table that lists no web surface, **and the repo confirms it** — no `web`-surface signal as defined in `/extract-design-system` Step 1 (that list is canonical; don't restate it here, to avoid drift). Both must hold. Note "No web surface (DESIGN.md + repo agree) — frontend audits skipped." Their cross-surface and per-surface consistency is covered by `/deep-review interface`, not by this gate. Require the repo check because the `## Surfaces` table can be stale: if it claims no web surface but the repo shows web-framework signal, the doc is wrong — do NOT skip; run the auditors and flag the doc for re-extraction. If DESIGN.md has no `## Surfaces` table at all (a doc predating this format), assume a web surface may exist and fall through to the per-changeset check. Default to running, not skipping.
+- **Per-changeset:** the changeset has no frontend changes (no modified template, component, CSS, or JS files). Note "No frontend changes detected — frontend audits skipped."
 
 ### Backend auditors
 

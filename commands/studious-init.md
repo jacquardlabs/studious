@@ -20,116 +20,27 @@ Report what you found and what you'll create vs skip.
 
 ## Step 2 — Create PRODUCT.md (if needed)
 
-If PRODUCT.md doesn't exist, create it from the template:
+If PRODUCT.md doesn't exist, create it by copying the template that ships with the plugin. Copy it verbatim rather than inlining a second copy here — `templates/PRODUCT.md` is the single source of truth:
 
-```markdown
-# Product context
-
-## Why this product exists
-
-<!-- What problem does this solve? For whom? What's the origin story? -->
-
-## Who uses it
-
-### Primary persona
-
-<!-- Name, role, context, goals, frustrations, what success looks like for them -->
-
-### Secondary persona (if applicable)
-
-<!-- Same structure as primary -->
-
-## Product principles
-
-<!-- 3-5 principles that guide product decisions. Format: "Principle name — explanation" -->
-<!-- Example: "Speed over completeness — a fast approximate answer beats a slow perfect one" -->
-
-## Feature tracker
-
-<!-- If this project uses an issue tracker (GitHub Issues, Linear, Jira, etc.), replace this section with a link:
-     Issue tracker: [GitHub Issues](https://github.com/org/repo/issues)
-
-     The tracker owns individual features. PRODUCT.md owns strategic context only.
-
-     If no issue tracker, list major capability areas here (not a per-release inventory):
-     | Capability | What users can do |
-     |------------|-------------------|
-     |            |                   |
--->
-
-## Critical user journeys
-
-<!-- The 2-3 most important flows. Format: trigger > step > step > outcome -->
-
-## What we're NOT building
-
-<!-- Explicit boundaries. Things that are out of scope and why. -->
-
-## Current known problems
-
-<!-- What's broken or painful, ordered by user impact. -->
-
-## Business model
-
-<!-- How this makes money (or will). Pricing, plans, monetization approach. -->
+```bash
+cp "${CLAUDE_PLUGIN_ROOT}/templates/PRODUCT.md" PRODUCT.md
 ```
+
+(`${CLAUDE_PLUGIN_ROOT}` is substituted to the plugin's install path before you read this. If the copy fails because it didn't resolve, locate `templates/PRODUCT.md` inside the plugin install with Glob and copy its contents — do not re-inline a template here.)
 
 Then populate it as part of init — run the `/extract-product-context` workflow inline now. Don't stop and hand this back as a separate step; extract the product context from the codebase and continue. (Users can re-run `/extract-product-context` on its own later to refresh.)
 
 ## Step 3 — Create DESIGN.md (if needed)
 
-If DESIGN.md doesn't exist, create it from the template:
+If DESIGN.md doesn't exist, create it by copying the template that ships with the plugin (`templates/DESIGN.md`, the single source of truth — copy it verbatim rather than inlining a second copy here). DESIGN.md documents the product's *interface* conventions — the user-facing surface, whatever it is (web UI, CLI, TUI, REST API, HTML/email report) — not just visual design. It is distinct from CLAUDE.md, which documents how the code is written internally.
 
-```markdown
-# Design system
-
-## Stack
-
-<!-- Framework, styling approach, component library, icon set, fonts -->
-
-## Color palette
-
-### Backgrounds
-### Text
-### Borders
-### Accents
-### Semantic (success, warning, error, info)
-
-## Typography
-
-### Font families
-### Type scale
-### Font weights
-
-## Spacing
-
-### Base unit
-### Spacing scale
-### Container widths
-
-## Component patterns
-
-### Buttons
-### Form inputs
-### Cards
-### Navigation
-### Tables
-### Loading states
-### Empty states
-### Error states
-
-## Responsive breakpoints
-
-## Animation and motion
-
-## Accessibility baseline
-
-## Anti-patterns (do NOT do these)
-
-<!-- Fill in as you discover patterns that hurt the product -->
+```bash
+cp "${CLAUDE_PLUGIN_ROOT}/templates/DESIGN.md" DESIGN.md
 ```
 
-Then populate it as part of init — run the `/extract-design-system` workflow inline now. Don't stop and hand this back as a separate step; extract the design system from the codebase and continue. (Users can re-run `/extract-design-system` on its own later to refresh.)
+(Same fallback as Step 2: if `${CLAUDE_PLUGIN_ROOT}` didn't resolve and the copy fails, locate `templates/DESIGN.md` inside the plugin install with Glob and copy its contents — do not re-inline a template here.)
+
+Then populate it as part of init — run the `/extract-design-system` workflow inline now. It detects which surfaces the product actually has and extracts the conventions for each; a non-visual product (CLI, API, plugin) gets a real interface doc, and a pure library gets an honest minimal one. Don't stop and hand this back as a separate step; extract and continue. (Users can re-run `/extract-design-system` on its own later to refresh.)
 
 ## Step 4 — Create README.md (if needed)
 
@@ -148,7 +59,7 @@ Cover, at minimum: what it is, install, a runnable usage example, and license. W
 
 Create these directories if they don't exist:
 - `docs/studious/health-reviews/`
-- `docs/studious/frontend-reviews/`
+- `docs/studious/interface-reviews/`
 - `docs/studious/architecture-reviews/`
 - `docs/studious/product-reviews/`
 - `docs/studious/readme-reviews/`
@@ -167,7 +78,7 @@ Add this section:
 ### Context documents
 
 - **PRODUCT.md** — product context, personas, principles, feature map. Read before any product decision.
-- **DESIGN.md** — design system, colors, typography, component patterns. Read before any UI work.
+- **DESIGN.md** — the interface design system: the product's user-facing surface(s) — web UI, CLI, TUI, API, or report — covering the semantic palette, vocabulary, formatting, and per-surface conventions. Read before changing anything users see. (CLAUDE.md owns *how the code is written*; DESIGN.md owns *the user-facing surface*.)
 
 ### Code conventions
 
@@ -191,7 +102,7 @@ Language conventions `code-auditor` enforces at `/gate-audit`. Document the rule
 | Review | Cadence | Command |
 |--------|---------|---------|
 | Codebase health | Weekly or pre-milestone | `/deep-review codebase` |
-| Frontend health | Monthly or post-UI-sprint | `/deep-review frontend` |
+| Interface health | Monthly or post-UI-sprint | `/deep-review interface` |
 | Architecture | Quarterly or pre-major-feature | `/deep-review architecture` |
 | Product health | Monthly | `/deep-review product` |
 | README drift | After a release or feature batch | `/deep-review readme` |
@@ -204,7 +115,7 @@ Language conventions `code-auditor` enforces at `/gate-audit`. Document the rule
 3. Track **minor** findings — they compound if ignored
 4. Update context docs if the review surfaced changes:
    - `/deep-review product` updates PRODUCT.md
-   - `/deep-review frontend` updates DESIGN.md
+   - `/deep-review interface` updates DESIGN.md
    - `/deep-review architecture` updates CLAUDE.md
    - `/deep-review readme` proposes a README.md diff
 ```

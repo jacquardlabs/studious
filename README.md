@@ -43,7 +43,7 @@ Studious wraps feature development in quality gates. Between them you build, and
 - Pick what to build with `/backlog-priorities` (ranks your open GitHub issues by severity/alignment/unblocking potential) or `/gate-should-we-build [idea]` (scores a raw idea against PRODUCT.md and the smallest version worth shipping). Catches building the wrong thing.
 - Gate the design with `/gate-design-review`. It walks your design doc as your primary persona would and flags where they'd get confused or frustrated. Catches a bad design before you spend build effort on it.
 - Build it with your own workflow. Superpowers gives you plan/execute with TDD and review checkpoints. Studious steps back here.
-- Audit before merge with `/gate-audit`: 6 auditors in parallel (security, code quality, docs, architecture, UX, frontend), each staying in its lane, plus an accessibility pass via the Web Interface Guidelines skill when it's installed. Frontend auditors skip automatically on branches with no frontend changes.
+- Audit before merge with `/gate-audit`: 6 auditors in parallel (security, code quality, docs, architecture, UX, frontend), each staying in its lane, plus an accessibility pass via the `web-design-guidelines` skill (Web Interface Guidelines) when it's installed. The 3 web auditors skip automatically on projects with no web surface and on branches with no frontend changes.
 - Gate acceptance with `/gate-acceptance`. Product review, not code review: does the implementation actually deliver the experience? It walks every user-facing change, checks error states for human-friendly messaging, and regression-tests the critical journeys in PRODUCT.md.
 
 ```
@@ -77,7 +77,7 @@ Aim it at one area when you don't need the full sweep — each review has its ow
 | Area | What it checks | Cadence | Run it |
 |------|----------------|---------|--------|
 | Codebase health | Architecture coherence, tech debt, dependencies, test gaps | Weekly or pre-milestone | `/deep-review codebase` |
-| Frontend health | Design drift, accessibility, component quality | Monthly or post-UI work | `/deep-review frontend` |
+| Interface health | Cross-surface consistency, design drift, accessibility (web), interface code quality | Monthly or post-UI work | `/deep-review interface` |
 | Architecture | Module boundaries, complexity, evolution readiness | Quarterly or pre-major-feature | `/deep-review architecture` |
 | Product health | PRODUCT.md accuracy, persona drift, scope creep | Monthly or when it feels off | `/deep-review product` |
 | README drift | Stale claims, broken commands, voice | After a release or feature batch | `/deep-review readme` |
@@ -92,7 +92,7 @@ Everything in Studious reads from 3 files in your project root. `/studious-init`
 | Document | What it holds | Updated by |
 |----------|---------------|------------|
 | PRODUCT.md | Personas, principles, known problems, "not building" list | You + `/deep-review product` |
-| DESIGN.md | Colors, typography, spacing, component patterns | You + `/deep-review frontend` |
+| DESIGN.md | Your interface conventions — the user-facing surface(s), whether web UI, CLI, TUI, API, or report | You + `/deep-review interface` |
 | CLAUDE.md | Technical conventions, review workflow reference | You + `/deep-review architecture` |
 
 Reviews propose updates to these docs. They never apply them. You review and approve. If a doc goes stale, the reviews tell you. That's the point.

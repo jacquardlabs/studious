@@ -1,5 +1,5 @@
 ---
-description: Run the periodic review suite — all five reviews with a compiled master summary, or a single area. Codebase health, frontend health, architecture, product health, README drift.
+description: Run the periodic review suite — all five reviews with a compiled master summary, or a single area. Codebase health, interface health, architecture, product health, README drift.
 allowed-tools: Read, Glob, Grep, Bash, Task, Write, Edit
 ---
 
@@ -16,12 +16,17 @@ Read CLAUDE.md, PRODUCT.md, and DESIGN.md first.
 | Keyword | `subagent_type` | What it reviews | Report path |
 |---------|-----------------|-----------------|-------------|
 | `codebase` (or `health`) | `review-codebase-health` | Architecture coherence, tech debt, dependency health, test health, API consistency | `docs/studious/health-reviews/YYYY-MM-DD-health-review.md` |
-| `frontend` | `review-frontend-health` | Design system consistency, accessibility, frontend code quality, responsive spot-check | `docs/studious/frontend-reviews/YYYY-MM-DD-frontend-review.md` |
+| `interface` (or `frontend`) | `review-interface-health` | Cross-surface consistency, design-system adherence per surface, accessibility (web), interface code quality | `docs/studious/interface-reviews/YYYY-MM-DD-interface-review.md` |
 | `architecture` (or `arch`) | `review-architecture` | Dependency map, boundaries, complexity, evolution readiness, data layer | `docs/studious/architecture-reviews/YYYY-MM-DD-architecture-review.md` |
 | `product` | `review-product-health` | PRODUCT.md accuracy, product coherence, onboarding path, proposed PRODUCT.md updates | `docs/studious/product-reviews/YYYY-MM-DD-product-review.md` |
 | `readme` | `review-readme` | README drift: stale claims, missing features, broken commands/paths/links, voice drift, proposed diff | `docs/studious/readme-reviews/YYYY-MM-DD-readme-review.md` |
 
 If `$ARGUMENTS` is non-empty but matches no keyword, list the valid keywords and stop.
+
+<!-- `interface` is the canonical keyword; `frontend` is kept as a back-compat alias so older
+     muscle memory and docs still resolve. Both map to subagent_type `review-interface-health`.
+     New reports write to `docs/studious/interface-reviews/`; the agent also reads the legacy
+     `docs/studious/frontend-reviews/` for trend history from before the rename. -->
 
 ## Single-area run (argument given)
 
@@ -41,8 +46,8 @@ After all five reviews complete, read all five reports and synthesize a single m
 
 Identify findings that appear in multiple reviews. These are systemic issues, not isolated ones — they get elevated priority. For example:
 - Architecture review flags coupling AND codebase health flags related tech debt = systemic issue
-- Product review flags a feature as low-value AND frontend review flags its code as complex = removal candidate
-- Frontend review flags design drift AND product review flags persona drift = alignment problem
+- Product review flags a feature as low-value AND interface review flags its code as complex = removal candidate
+- Interface review flags design drift AND product review flags persona drift = alignment problem
 - README review flags a documented feature that no longer exists AND product review flags scope creep = the product moved and nothing tracked it
 
 #### Prioritized action plan
@@ -62,7 +67,7 @@ Items to monitor. Note which review surfaced each one so you know where to check
 
 Based on the reviews, list specific updates needed for each context doc (per the maintenance workflow):
 - **PRODUCT.md** — changes proposed by product health review
-- **DESIGN.md** — changes proposed by frontend health review
+- **DESIGN.md** — changes proposed by interface health review
 - **CLAUDE.md** — changes proposed by architecture review
 - **README.md** — diff proposed by README drift review
 
@@ -70,7 +75,7 @@ Do NOT apply these changes. Present them as proposed diffs for the user to revie
 
 #### Metrics dashboard
 
-Pull the metrics snapshots from the codebase health and frontend health reports into a single table for easy trend tracking:
+Pull the metrics snapshots from the codebase health and interface health reports into a single table for easy trend tracking:
 
 | Metric | Value | Trend vs last review | Source |
 |--------|-------|---------------------|--------|
@@ -81,10 +86,11 @@ Pull the metrics snapshots from the codebase health and frontend health reports 
 | Known vulnerabilities | — | — | codebase health |
 | Largest file (lines) | — | — | codebase health |
 | Deepest dependency chain | — | — | codebase health |
-| Component count | — | — | frontend health |
-| Largest CSS file | — | — | frontend health |
-| Accessibility issues (by severity) | — | — | frontend health |
-| Design system deviations | — | — | frontend health |
+| Surfaces reviewed | — | — | interface health |
+| Cross-surface inconsistencies | — | — | interface health |
+| Design system deviations | — | — | interface health |
+| Web: component count / largest CSS file | — | — | interface health (web surface only) |
+| Web: accessibility issues (by severity) | — | — | interface health (web surface only) |
 
 Every row maps to a metric one of the two health reports actually emits — don't add rows no agent produces.
 

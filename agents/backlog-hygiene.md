@@ -13,7 +13,7 @@ Identify open GitHub issues that should be closed because they've been resolved,
 
 1. Read PRODUCT.md and CLAUDE.md for product context.
 2. Fetch all open issues via `gh issue list --json number,title,body,labels,createdAt`.
-3. Read the most recent review reports in `docs/studious/health-reviews/`, `docs/studious/architecture-reviews/`, `docs/studious/product-reviews/`, `docs/studious/frontend-reviews/`, `docs/studious/readme-reviews/` for context on what's been addressed.
+3. Read the most recent review reports in `docs/studious/health-reviews/`, `docs/studious/architecture-reviews/`, `docs/studious/product-reviews/`, `docs/studious/interface-reviews/`, `docs/studious/readme-reviews/` for context on what's been addressed.
 4. For each open issue, evaluate:
    - **Resolved?** Search `git log --oneline -200` for commits that reference the issue number or describe fixing the stated problem. Check whether the code, behavior, or file referenced in the issue body now reflects the desired state (via Grep/Read on the specific files mentioned).
    - **Obsolete?** Compare against PRODUCT.md "what we're NOT building" list — does the issue request something we've decided not to build? Check if the feature area has been replaced or redesigned since the issue was filed. Check if the issue describes a problem with code that no longer exists.

@@ -16,7 +16,7 @@ Read PRODUCT.md and CLAUDE.md first for product context.
 Spawn @agent-backlog-hygiene to:
 
 1. Fetch all open issues via `gh issue list`.
-2. Read the most recent review reports in `docs/studious/health-reviews/`, `docs/studious/architecture-reviews/`, `docs/studious/product-reviews/`, `docs/studious/frontend-reviews/`, `docs/studious/readme-reviews/` for context on what's been addressed.
+2. Read the most recent review reports in `docs/studious/health-reviews/`, `docs/studious/architecture-reviews/`, `docs/studious/product-reviews/`, `docs/studious/interface-reviews/`, `docs/studious/readme-reviews/` for context on what's been addressed.
 3. For each open issue, check:
    - **Resolved?** — Search git log for commits that reference the issue or fix the stated problem. Check if the code now reflects the desired state.
    - **Obsolete?** — Compare against PRODUCT.md "what we're NOT building." Check if the feature area has been replaced or redesigned.

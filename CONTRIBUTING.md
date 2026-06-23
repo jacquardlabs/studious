@@ -56,7 +56,7 @@ Names encode two things — whether something is an action or a role, and what s
 Pin by stakes, not by habit. An agent's `model` is `opus` when its core job is high-stakes reasoning or human judgment — where a weaker model ships worse decisions — and `inherit` (the session model) for mechanical, rule-based, or inventory work.
 
 - **`opus`** — security, architecture, and product/UX judgment: `security-auditor`, `architecture-auditor`, `product-reviewer`, `ux-reviewer`, `review-architecture`, `review-product-health`.
-- **`inherit`** — code hygiene, docs, frontend code, inventory sweeps, and triage: `code-auditor`, `doc-auditor`, `frontend-reviewer`, `review-codebase-health`, `review-frontend-health`, `review-readme`, `backlog-priorities`, `backlog-hygiene`.
+- **`inherit`** — code hygiene, docs, frontend code, inventory sweeps, and triage: `code-auditor`, `doc-auditor`, `frontend-reviewer`, `review-codebase-health`, `review-interface-health`, `review-readme`, `backlog-priorities`, `backlog-hygiene`.
 
 Don't pin to a bare tier like `sonnet` — use `inherit` so the agent tracks the user's session model.
 
