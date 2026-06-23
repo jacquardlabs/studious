@@ -110,9 +110,9 @@ Language conventions `code-auditor` enforces at `/gate-audit`. Document the rule
 
 ### After each review
 
-1. Fix any **critical** findings before the next feature
-2. File **important** findings as tasks to address this cycle
-3. Track **minor** findings — they compound if ignored
+1. Fix any **Critical** findings before the next feature
+2. File **Important** findings as tasks to address this cycle
+3. Log **Track** findings (lowest tier — revisit next cycle); they compound if ignored
 4. Update context docs if the review surfaced changes:
    - `/deep-review product` updates PRODUCT.md
    - `/deep-review interface` updates DESIGN.md
