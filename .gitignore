@@ -2,3 +2,6 @@
 .DS_Store
 .gg/
 __pycache__/
+
+# Studious local gate ledger (do not commit)
+.studious/
