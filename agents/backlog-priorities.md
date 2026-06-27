@@ -19,7 +19,11 @@ Help the user decide what to work on next by curating a ranked shortlist from op
 1. Read PRODUCT.md and CLAUDE.md for product context. If PRODUCT.md is absent, fall back to README.md as the product proxy and note it.
 2. Fetch all open issues via `gh issue list --json number,title,body,labels,createdAt`.
 3. Read the most recent deep review summary (`docs/studious/health-reviews/*-deep-review-summary.md`) and any individual review reports for cross-referencing severity and findings.
-4. **Determine the intent.** If an intent argument was supplied (tech debt / maintenance / polish / new initiative), proceed with it and skip the prompt. Ask only when it is absent:
+4. **Determine the mode.**
+   - **Deep-dive mode** — intent argument supplied (tech-debt / maintenance / polish / new-initiative): proceed through steps 5–8 for that intent and present the full ranked list. Do not ask the user to pick.
+   - **Overview mode** — no argument: run steps 5–8 for **all 4 intents** using the same issue data fetched in step 2. Pick the top-1 ranked item per intent. Do not ask the user to pick an intent. Present the overview output.
+
+   Intent definitions for filtering (used in steps 6–8 regardless of mode):
    - **Tech debt** — code quality, refactoring, dependency upgrades, test coverage gaps, architectural cleanup
    - **Maintenance** — bug fixes, security patches, performance improvements, accessibility fixes
    - **Polish existing feature** — finish, adjust, or improve something already shipped
@@ -36,7 +40,7 @@ Help the user decide what to work on next by curating a ranked shortlist from op
 
 ## Output
 
-For each ranked item: **rank** · **issue #** + title · **intent-fit** (high/med/low) · **effort** (S/M/L) · **impact** (H/M/L) · **rationale** (1 line naming the dominant factor + the PRODUCT.md principle or review finding it ties to) · **confidence** (Confirmed | Potential).
+**Deep-dive mode** — for each ranked item: **rank** · **issue #** + title · **intent-fit** (high/med/low) · **effort** (S/M/L) · **impact** (H/M/L) · **rationale** (1 line naming the dominant factor + the PRODUCT.md principle or review finding it ties to) · **confidence** (Confirmed | Potential).
 
 ```markdown
 ## Intent: [tech debt | maintenance | polish | new initiative]
@@ -49,6 +53,29 @@ For each ranked item: **rank** · **issue #** + title · **intent-fit** (high/me
 ```
 
 Close with a **What I couldn't assess** line — effort estimates are rough (blast radius is inferred, not measured), and any flagged steering text or close-candidates deferred to hygiene. **Calibrate, don't suppress:** a strong-fit issue ranks even on thin evidence — mark it Potential rather than dropping it. If the backlog is empty or low-signal (no open issues, or none matching the intent), say so plainly and suggest the nearest adjacent intent rather than manufacturing a ranking.
+
+**Overview mode** — one entry per intent area:
+
+```markdown
+## Backlog overview
+
+**Tech debt** — #N [title] · effort: X · impact: Y
+  [1 line: dominant factor]
+
+**Maintenance** — #N [title] · effort: X · impact: Y
+  [1 line: dominant factor]
+
+**Polish** — #N [title] · effort: X · impact: Y
+  [1 line: dominant factor]
+
+**New initiative** — #N [title] · effort: X · impact: Y
+  [1 line: dominant factor]
+
+---
+Run `/backlog-priorities [area]` for a full ranked list.
+```
+
+If a category has no matching issues, write "No matching issues" for that row rather than omitting it or fabricating a pick. Close with the same **What I couldn't assess** note.
 
 ## What this agent does NOT do
 
