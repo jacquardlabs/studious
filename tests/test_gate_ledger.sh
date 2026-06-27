@@ -92,5 +92,11 @@ hook_noop=$(cd "$d6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
   bash "$HOOK" <<<'{"tool_input":{"command":"ls -la"}}')
 check "hook ignores non-PR commands" "" "$hook_noop"
 
+# --- command prompts invoke the ledger via ${CLAUDE_PLUGIN_ROOT}, not a bare name ---
+# Plugins don't add bin/ to PATH, so a bare `gate-ledger ...` in a command prompt
+# is "command not found" at runtime. Every invocation must resolve the script path.
+bare=$(grep -rnE '^[[:space:]]*gate-ledger ' "$ROOT/commands" 2>/dev/null || true)
+check "no command invokes gate-ledger without \${CLAUDE_PLUGIN_ROOT}" "" "$bare"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

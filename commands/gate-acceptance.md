@@ -44,9 +44,9 @@ can be specific. Run (substituting the verdict token you just assigned — `SHIP
 `FIX AND RE-CHECK`, or `HOLD`):
 
 ```bash
-gate-ledger record --gate acceptance --verdict "SHIP"
+"${CLAUDE_PLUGIN_ROOT}/bin/gate-ledger" record --gate acceptance --verdict "SHIP"
 ```
 
-The ledger is local and gitignored — it never enters the repo. If the `gate-ledger`
-command is not found (the plugin's `bin/` may not be on your PATH), tell the user the
-verdict could not be recorded to the gate ledger — do not skip silently.
+The ledger is local and gitignored — it never enters the repo. If `${CLAUDE_PLUGIN_ROOT}`
+did not resolve or the script is not found, tell the user the verdict could not be
+recorded to the gate ledger — do not skip silently.
