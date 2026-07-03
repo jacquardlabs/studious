@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.7.0 (2026-07-03)
+
+### Features
+
+- Idiom feedback loop reads code-auditor's own recurring findings
+  ([#70](https://github.com/jacquardlabs/studious/pull/70),
+  [`bbd5dda`](https://github.com/jacquardlabs/studious/commit/bbd5dda33db76ed0681916af44ed898f04a06cd0))
+
+- Propose idiom-file additions from recurring codebase-health findings
+  ([#70](https://github.com/jacquardlabs/studious/pull/70),
+  [`bbd5dda`](https://github.com/jacquardlabs/studious/commit/bbd5dda33db76ed0681916af44ed898f04a06cd0))
+
+
 ## v2.6.0 (2026-07-03)
 
 ### Features
