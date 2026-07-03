@@ -92,6 +92,16 @@ hook_noop=$(cd "$d6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
   bash "$HOOK" <<<'{"tool_input":{"command":"ls -la"}}')
 check "hook ignores non-PR commands" "" "$hook_noop"
 
+# --- hook matches spacing variants that would evade a literal-string grep ---
+hook_spacing=$(cd "$d6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
+  bash "$HOOK" <<<'{"tool_input":{"command":"gh  pr   create"}}')
+contains "hook matches gh pr create with irregular spacing" '"permissionDecision": "ask"' "$hook_spacing"
+
+# --- hook still matches when the phrase is embedded in a longer command ---
+hook_embedded=$(cd "$d6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
+  bash "$HOOK" <<<'{"tool_input":{"command":"git log --grep=\"gh pr create\""}}')
+contains "hook matches gh pr create embedded in a longer command" '"permissionDecision": "ask"' "$hook_embedded"
+
 # --- command prompts invoke the ledger via ${CLAUDE_PLUGIN_ROOT}, not a bare name ---
 # Plugins don't add bin/ to PATH, so a bare `gate-ledger ...` in a command prompt
 # is "command not found" at runtime. Every invocation must resolve the script path.
