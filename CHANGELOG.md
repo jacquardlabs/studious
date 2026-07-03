@@ -2,6 +2,37 @@
 
 <!-- version list -->
 
+## v2.5.0 (2026-07-03)
+
+### Bug Fixes
+
+- Vendor a minimal accessibility rubric so gate-time a11y isn't a no-op
+  ([#76](https://github.com/jacquardlabs/studious/pull/76),
+  [`3674da0`](https://github.com/jacquardlabs/studious/commit/3674da05d49fa0e00037f52d9959986fa8057b39))
+
+### Continuous Integration
+
+- Pin dependencies, add push trigger, add macOS ledger runner
+  ([#81](https://github.com/jacquardlabs/studious/pull/81),
+  [`5ceda9f`](https://github.com/jacquardlabs/studious/commit/5ceda9f49f84270225ef81d2c55a48e13aaf2b47))
+
+- Pin dependencies, add push trigger, add macOS ledger runner
+  ([#71](https://github.com/jacquardlabs/studious/pull/71),
+  [`ca35d5a`](https://github.com/jacquardlabs/studious/commit/ca35d5a1bd5e182800bff16188382e8d2ee0a2d6))
+
+### Features
+
+- Golden-fixture behavioral evals for gate-audit
+  ([#81](https://github.com/jacquardlabs/studious/pull/81),
+  [`5ceda9f`](https://github.com/jacquardlabs/studious/commit/5ceda9f49f84270225ef81d2c55a48e13aaf2b47))
+
+### Refactoring
+
+- Extract shared prompt contract and severity rubric into reference/
+  ([#76](https://github.com/jacquardlabs/studious/pull/76),
+  [`3674da0`](https://github.com/jacquardlabs/studious/commit/3674da05d49fa0e00037f52d9959986fa8057b39))
+
+
 ## v2.4.3 (2026-07-03)
 
 ### Bug Fixes
