@@ -20,14 +20,7 @@ Invoke @agent-product-reviewer to review the design doc against PRODUCT.md. This
 
 ## Part 2 — Persona walkthrough
 
-Now walk through the design as the primary persona from PRODUCT.md would experience it. Narrate their experience step by step:
-
-- How do they discover this feature exists?
-- What's their first interaction with it?
-- What are they thinking and feeling at each step?
-- Where might they get confused, frustrated, or surprised?
-- Does it feel like it belongs in this product, or does it feel bolted on?
-- Is there a moment where they'd think "what?" or reach for a help doc?
+Now walk through the design as the primary persona from PRODUCT.md would experience it, narrating their experience step by step (discovery → first interaction → each step's thoughts and feelings → where they'd get confused, frustrated, or surprised). Ground the narration in @agent-product-reviewer's "When reviewing a DESIGN DOC" checklist (`agents/product-reviewer.md`) — Part 1 already ran that checklist as a subagent; don't re-derive the questions here, just narrate the persona living through them.
 
 Be honest. If any step feels forced or unnatural, say so.
 

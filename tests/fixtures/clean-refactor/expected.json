@@ -1,0 +1,6 @@
+{
+  "description": "Small additive, well-tested, well-typed change with no planted findings. The 'a clean result is valid' control case.",
+  "verdict_any_of": ["PASS"],
+  "max_critical_findings": 0,
+  "max_important_findings": 0
+}
