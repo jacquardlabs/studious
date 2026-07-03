@@ -80,13 +80,11 @@ Structure the report:
 **Critical**, **Important**, **Track** — findings grouped by tier.
 **Metrics snapshot** — the numbers below. These key names are a **contract with `/deep-review`'s dashboard** (`commands/deep-review.md`) — do not rename them:
 
-- Lines of code
 - Test coverage
 - TODO/FIXME count
 - Outdated deps
 - Known vulnerabilities
 - Largest file (lines)
-- Deepest dependency chain
 - Coupling / circular-dependency count
 - Dead-code symbol count
 - Endpoint-convention-violation count

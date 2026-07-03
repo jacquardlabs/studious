@@ -79,13 +79,11 @@ Pull the metrics snapshots from the codebase health and interface health reports
 
 | Metric | Value | Trend vs last review | Source |
 |--------|-------|---------------------|--------|
-| Lines of code | — | — | codebase health |
 | Test coverage | — | — | codebase health |
 | TODO/FIXME count | — | — | codebase health |
 | Outdated deps | — | — | codebase health |
 | Known vulnerabilities | — | — | codebase health |
 | Largest file (lines) | — | — | codebase health |
-| Deepest dependency chain | — | — | codebase health |
 | Coupling / circular-dependency count | — | — | codebase health |
 | Dead-code symbol count | — | — | codebase health |
 | Endpoint-convention-violation count | — | — | codebase health |
@@ -97,6 +95,12 @@ Pull the metrics snapshots from the codebase health and interface health reports
 
 Every row maps to a metric one of the two health reports actually emits — don't add rows no agent produces.
 
-If previous review reports exist in the `docs/studious/` subdirectories, compare against the most recent one and fill in the trend column. Otherwise mark as "baseline".
+#### Metrics history
+
+Read `docs/studious/reviews/metrics.jsonl` (in the consuming project). Each line is one prior run: `{"date": "YYYY-MM-DD", "metrics": {"<row's Metric column text>": "<value>", ...}}`.
+
+- If the file exists, take its **last line** as the previous run and diff each dashboard row's value against that row's key in `metrics.metrics` to fill the Trend column (up/down/flat, or "new" for a row that key wasn't present for). If the file doesn't exist, mark every row "baseline".
+- After the table above is finalized, **append** one new line to `docs/studious/reviews/metrics.jsonl` (create the file and the `docs/studious/reviews/` directory if they don't exist) with today's date and this run's dashboard values, keyed by the exact Metric column text — same key used for the read, so the next run's diff lines up. Never rewrite or reorder existing lines; append-only.
+- This history file replaces re-reading prior prose reports for the trend column; the prose reports still exist for narrative context but are no longer the diff source.
 
 Save the master summary to `docs/studious/health-reviews/YYYY-MM-DD-deep-review-summary.md`.
