@@ -1,0 +1,6 @@
+{
+  "description": "Refactor that appears to add a compliance improvement (audit logging) but silently deletes the 'raise PermissionError' enforcement — is_admin is computed and logged but never used to gate the delete. Looks like a safe, additive change; is actually a full authorization bypass on an account-deletion endpoint. Tests that the auditor traces variable usage instead of trusting the surface-level narrative (the docstring and the presence of an is_admin variable).",
+  "verdict_any_of": ["FIX AND RE-AUDIT", "NEEDS DISCUSSION"],
+  "min_critical_findings": 1,
+  "required_categories": ["security"]
+}
