@@ -1,0 +1,85 @@
+name: Gate audit (CI)
+
+# Runs /gate-audit non-interactively against each PR's diff and posts the
+# report as a PR comment. Skips PRs above CHANGED_FILES_LIMIT: the fan-out
+# spawns 6-7 parallel auditors, each reviewing the full changeset, so cost
+# scales with changed-file count x auditor count. Studious's own merged PR
+# history tops out at 21 changed files (#35, the Jaqal->Studious rename);
+# 40 leaves headroom above every real PR to date while still capping a
+# pathological diff (e.g. a vendored dependency bump or generated-file dump).
+#
+# Restricted to same-repo PRs. GitHub withholds repository secrets (other than
+# GITHUB_TOKEN) from `pull_request` runs triggered by a fork, so ANTHROPIC_API_KEY
+# would be absent and the job would just fail; skip forks rather than run a
+# guaranteed-broken check. This also keeps the non-interactive agent loop, which
+# reads the PR diff as untrusted content via Bash/Grep, scoped to contributors
+# who already have write access rather than to arbitrary external PR content.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  CHANGED_FILES_LIMIT: 40
+
+jobs:
+  gate-audit:
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Count changed files
+        id: scope
+        run: |
+          changed=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" | wc -l | tr -d ' ')
+          echo "changed_files=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Skip — diff too large to sample affordably
+        if: fromJSON(steps.scope.outputs.changed_files) > fromJSON(env.CHANGED_FILES_LIMIT)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "**Gate audit (CI) skipped.** This PR changes ${{ steps.scope.outputs.changed_files }} files, over the ${{ env.CHANGED_FILES_LIMIT }}-file sampling limit set to keep the 6-7-agent audit fan-out affordable on large diffs. Run \`/gate-audit\` locally instead."
+
+      - name: Set up Node
+        if: fromJSON(steps.scope.outputs.changed_files) <= fromJSON(env.CHANGED_FILES_LIMIT)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Claude Code
+        if: fromJSON(steps.scope.outputs.changed_files) <= fromJSON(env.CHANGED_FILES_LIMIT)
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run gate-audit headlessly
+        if: fromJSON(steps.scope.outputs.changed_files) <= fromJSON(env.CHANGED_FILES_LIMIT)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude -p "/gate-audit" \
+            --plugin-dir "$GITHUB_WORKSPACE" \
+            --allowedTools "Read Glob Grep Bash Task Write" \
+            --output-format text \
+            --no-session-persistence \
+            > audit-report.md
+
+      - name: Post report as PR comment
+        if: fromJSON(steps.scope.outputs.changed_files) <= fromJSON(env.CHANGED_FILES_LIMIT)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" \
+            --body-file audit-report.md
