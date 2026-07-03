@@ -35,7 +35,7 @@ Auditors 5–7 (ux, frontend, accessibility) are web-specific. Skip them when ei
 
 6. **@agent-frontend-reviewer** — Review frontend code changes for component architecture, state management patterns, data fetching, render performance, and bundle impact.
 
-7. **Web Interface Guidelines (external, optional)** — This check depends on the `web-design-guidelines` skill, which ships separately, not with Studious. If it's installed, invoke the `web-design-guidelines` skill against all modified frontend files (components, pages, layouts) to check accessibility, keyboard support, form behavior, focus management, semantic HTML, and animation. Unlike auditors 1–6, this runs inline rather than as a parallel subagent. If the skill isn't available, note "accessibility check skipped — web-design-guidelines not installed" and move on.
+7. **Web Interface Guidelines (external, optional, with vendored fallback)** — This check depends on the `web-design-guidelines` skill, which ships separately, not with Studious. If it's installed, invoke the `web-design-guidelines` skill against all modified frontend files (components, pages, layouts) to check accessibility, keyboard support, form behavior, focus management, semantic HTML, and animation. Unlike auditors 1–6, this runs inline rather than as a parallel subagent. If the skill isn't installed, fall back to `reference/accessibility-checklist.md` and review the same modified frontend files against its keyboard access, contrast, focus management, and semantic HTML sections directly — don't skip the pass. Note which path ran ("via web-design-guidelines skill" or "via vendored accessibility-checklist.md fallback") in the summary.
 
 ## After all auditors return
 
