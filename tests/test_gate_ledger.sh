@@ -98,5 +98,58 @@ check "hook ignores non-PR commands" "" "$hook_noop"
 bare=$(grep -rnE '^[[:space:]]*gate-ledger ' "$ROOT/commands" 2>/dev/null || true)
 check "no command invokes gate-ledger without \${CLAUDE_PLUGIN_ROOT}" "" "$bare"
 
+# --- record from a subdirectory still anchors the ledger at the repo root (#55) ---
+d7=$(sandbox)
+mkdir -p "$d7/sub/dir"
+( cd "$d7/sub/dir" && "$LEDGER" record --gate audit --verdict PASS )
+check "record from a subdirectory writes the ledger at the repo root" "yes" \
+  "$([ -f "$d7/.studious/gates/feat-foo.json" ] && echo yes || echo no)"
+check "record from a subdirectory does not write under the subdirectory" "no" \
+  "$([ -f "$d7/sub/dir/.studious/gates/feat-foo.json" ] && echo yes || echo no)"
+out=$(cd "$d7" && "$LEDGER" status)
+contains "status run from repo root sees a ledger written from a subdirectory" "acceptance never ran" "$out"
+
+# --- record stamps schemaVersion, and preserves it on upsert (#55) ---
+f7="$d7/.studious/gates/feat-foo.json"
+check "record sets schemaVersion on the new file" "1" "$(jq -r '.schemaVersion' "$f7")"
+( cd "$d7/sub/dir" && "$LEDGER" record --gate acceptance --verdict SHIP )
+check "record preserves schemaVersion on upsert" "1" "$(jq -r '.schemaVersion' "$f7")"
+
+# --- status treats a branch-slug collision as no record, not a stale/wrong verdict (#41) ---
+d9=$(sandbox)
+( cd "$d9" && "$LEDGER" record --gate audit --verdict PASS )
+( cd "$d9" && "$LEDGER" record --gate acceptance --verdict SHIP )
+f9="$d9/.studious/gates/feat-foo.json"
+# Simulate the collision: feat/foo and feat-foo both slug to feat-foo.json. Rewrite
+# the stored .branch to a different branch than the one we're actually on.
+tmp9=$(mktemp)
+jq '.branch = "feat-foo"' "$f9" > "$tmp9" && mv "$tmp9" "$f9"
+out=$(cd "$d9" && "$LEDGER" status)
+contains "branch-slug collision reports audit as never ran" "audit never ran on this branch" "$out"
+contains "branch-slug collision reports acceptance as never ran" "acceptance never ran on this branch" "$out"
+
+# --- gc prunes ledgers for branches that no longer exist, keeps live ones (#42) ---
+d10=$(sandbox)
+( cd "$d10" && "$LEDGER" record --gate audit --verdict PASS )
+stale10="$d10/.studious/gates/ghost-branch.json"
+printf '{"schemaVersion":1,"branch":"ghost/branch","gates":{}}' > "$stale10"
+out=$(cd "$d10" && "$LEDGER" gc)
+contains "gc reports the removed stale ledger" "removed stale ledger: ghost-branch.json (branch ghost/branch no longer exists)" "$out"
+check "gc deletes the stale ledger file" "no" "$([ -f "$stale10" ] && echo yes || echo no)"
+check "gc keeps the ledger for a live branch" "yes" \
+  "$([ -f "$d10/.studious/gates/feat-foo.json" ] && echo yes || echo no)"
+
+# --- record signals on stderr (but still returns 0) when jq is unavailable (#43) ---
+d11=$(sandbox)
+fakebin=$(mktemp -d)
+for tool in bash git date mktemp grep mv mkdir rm cat; do
+  src=$(command -v "$tool" 2>/dev/null) || continue
+  ln -sf "$src" "$fakebin/$tool"
+done
+stderr11=$(cd "$d11" && PATH="$fakebin" "$LEDGER" record --gate audit --verdict PASS 2>&1 1>/dev/null)
+contains "record signals on stderr when jq is unavailable" "gate-ledger: record skipped (jq and git required)" "$stderr11"
+check "record does not create a ledger file when jq is unavailable" "no" \
+  "$([ -f "$d11/.studious/gates/feat-foo.json" ] && echo yes || echo no)"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

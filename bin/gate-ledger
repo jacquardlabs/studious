@@ -6,14 +6,24 @@
 # PR-time hook (via `status`). Degrades silently when git or jq is unavailable.
 set -uo pipefail
 
-LEDGER_DIR=".studious/gates"
-
 branch_name() { git rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD; }
 branch_slug() { local b; b=$(branch_name); printf '%s' "${b//\//-}"; }
 head_sha()    { git rev-parse --short HEAD 2>/dev/null || echo ""; }
 now_iso()     { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
+
+ledger_dir() {
+  # Anchor to the repo root (same resolution ensure_gitignore uses) so the
+  # ledger location doesn't depend on the caller's CWD. Degrade to a
+  # CWD-relative path if we're not in a git repo at all.
+  local root
+  if root=$(git rev-parse --show-toplevel 2>/dev/null); then
+    printf '%s/.studious/gates' "$root"
+  else
+    printf '.studious/gates'
+  fi
+}
 
 ensure_gitignore() {
   # Self-heal: keep .studious/ out of the user's git status, even for projects
@@ -39,28 +49,41 @@ cmd_record() {
     echo "gate-ledger: --gate and --verdict required" >&2
     return 2
   fi
-  if ! have jq || ! have git; then return 0; fi
+  if ! have jq || ! have git; then
+    echo "gate-ledger: record skipped (jq and git required)" >&2
+    return 0
+  fi
 
   ensure_gitignore
-  mkdir -p "$LEDGER_DIR"
-  local file; file="$LEDGER_DIR/$(branch_slug).json"
-  [ -f "$file" ] || printf '{"branch":"","gates":{}}' > "$file"
+  local dir; dir=$(ledger_dir)
+  mkdir -p "$dir"
+  local file; file="$dir/$(branch_slug).json"
+  [ -f "$file" ] || printf '{"schemaVersion":1,"branch":"","gates":{}}' > "$file"
 
-  local tmp; tmp=$(mktemp "$LEDGER_DIR/.tmp.XXXXXX")
+  local tmp; tmp=$(mktemp "$dir/.tmp.XXXXXX")
   trap 'rm -f "$tmp"' RETURN
   jq --arg b "$(branch_name)" --arg g "$gate" --arg v "$verdict" \
      --arg s "$(head_sha)" --arg t "$(now_iso)" \
-     '.branch = $b | .gates[$g] = {verdict: $v, sha: $s, ranAt: $t}' \
+     '.schemaVersion = (.schemaVersion // 1) | .branch = $b | .gates[$g] = {verdict: $v, sha: $s, ranAt: $t}' \
      "$file" > "$tmp" && mv "$tmp" "$file"
 }
 
 cmd_status() {
   if ! have jq || ! have git; then return 0; fi
-  local file; file="$LEDGER_DIR/$(branch_slug).json"
+  local dir; dir=$(ledger_dir)
+  local file; file="$dir/$(branch_slug).json"
   [ -f "$file" ] || return 0
 
-  local head
+  local head cur_branch stored_branch branch_mismatch
   head=$(head_sha)
+  cur_branch=$(branch_name)
+  stored_branch=$(jq -r '.branch // empty' "$file")
+  branch_mismatch=0
+  # branch_slug() collapses '/' to '-', so e.g. feat/foo and feat-foo share a
+  # ledger file. If the branch recorded in the file isn't the branch we're
+  # actually on, the file was written by the other branch — don't trust its
+  # verdicts, report as if nothing was ever recorded for this branch.
+  [ "$stored_branch" = "$cur_branch" ] || branch_mismatch=1
 
   # Gate→pass-token table: "gate:PASS_TOKEN" entries, audit-then-acceptance order preserved.
   local gates=("audit:PASS" "acceptance:SHIP")
@@ -69,11 +92,16 @@ cmd_status() {
   for entry in "${gates[@]}"; do
     gate="${entry%%:*}"
     pass="${entry##*:}"
-    # Use --arg + bracket index: dot-syntax (.gates.$gate) parses '-' as
-    # subtraction and compile-errors on hyphenated gate names (e.g. the
-    # planned should-we-build / design-review gates).
-    v=$(jq -r --arg g "$gate" '.gates[$g].verdict // empty' "$file")
-    s=$(jq -r --arg g "$gate" '.gates[$g].sha // empty' "$file")
+    if [ "$branch_mismatch" -eq 1 ]; then
+      v=""
+      s=""
+    else
+      # Use --arg + bracket index: dot-syntax (.gates.$gate) parses '-' as
+      # subtraction and compile-errors on hyphenated gate names (e.g. the
+      # planned should-we-build / design-review gates).
+      v=$(jq -r --arg g "$gate" '.gates[$g].verdict // empty' "$file")
+      s=$(jq -r --arg g "$gate" '.gates[$g].sha // empty' "$file")
+    fi
     if [ -z "$v" ]; then
       msgs+=("$gate never ran on this branch")
     elif [ "$s" != "$head" ]; then
@@ -111,8 +139,24 @@ cmd_status() {
   fi
 }
 
+cmd_gc() {
+  if ! have jq || ! have git; then return 0; fi
+  local dir; dir=$(ledger_dir)
+  local f branch
+  for f in "$dir"/*.json; do
+    [ -e "$f" ] || continue
+    branch=$(jq -r '.branch // empty' "$f" 2>/dev/null)
+    [ -n "$branch" ] || continue
+    if ! git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1; then
+      rm -f "$f"
+      printf 'removed stale ledger: %s (branch %s no longer exists)\n' "$(basename "$f")" "$branch"
+    fi
+  done
+}
+
 case "${1:-}" in
   record) shift; cmd_record "$@" ;;
   status) shift; cmd_status "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V | status}" >&2; exit 2 ;;
+  gc)     shift; cmd_gc "$@" ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V | status | gc}" >&2; exit 2 ;;
 esac
