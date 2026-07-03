@@ -2,6 +2,35 @@
 
 <!-- version list -->
 
+## v2.4.3 (2026-07-03)
+
+### Bug Fixes
+
+- Gate-reminder hook no longer evades whitespace-variant PR commands
+  ([#79](https://github.com/jacquardlabs/studious/pull/79),
+  [`c6ce58a`](https://github.com/jacquardlabs/studious/commit/c6ce58af214e05b050d1ab02a8f43e8219de4813))
+
+- Harden gate-ledger CWD resolution, GC, collision detection, and write-side signal
+  ([#67](https://github.com/jacquardlabs/studious/pull/67),
+  [`db64a01`](https://github.com/jacquardlabs/studious/commit/db64a01f908a7ddd4b91ec334e23501741364533))
+
+- Scan skills/ and recognize more skill-reference phrasings in check_references.py
+  ([#73](https://github.com/jacquardlabs/studious/pull/73),
+  [`6a78030`](https://github.com/jacquardlabs/studious/commit/6a78030350c0e3eb33de5a8f288908b374f4cbc4))
+
+### Documentation
+
+- Ship go/rust/ruby idiom rubrics to match code-auditor's claimed coverage
+  ([#68](https://github.com/jacquardlabs/studious/pull/68),
+  [`25af83a`](https://github.com/jacquardlabs/studious/commit/25af83a5e018777e77aff659baed3f81793a18bf))
+
+### Refactoring
+
+- Extract shared prompt contract and severity rubric into reference/
+  ([#74](https://github.com/jacquardlabs/studious/pull/74),
+  [`89f3673`](https://github.com/jacquardlabs/studious/commit/89f36736d749606c308350569dd28bedb25551de))
+
+
 ## v2.4.2 (2026-06-27)
 
 ### Bug Fixes
