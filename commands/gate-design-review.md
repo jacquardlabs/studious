@@ -11,8 +11,9 @@ Then find the design doc or spec under review:
 - Check the branch's added/changed docs: `git diff --name-only $(git merge-base HEAD origin/main)...HEAD` and look for design/spec Markdown (e.g. under `docs/`, `specs/`, `design/`).
 - If nothing turns up there, take the most recently modified Markdown under those locations.
 - If still ambiguous or there are several candidates, ask the user which doc to review rather than guessing.
+- If no candidate doc exists at all, say so and point at `templates/design-doc.md` as a starting scaffold rather than guessing at content that isn't there.
 
-Pass the resolved doc path explicitly into the product review below.
+Pass the resolved doc path explicitly into the product review below. The doc is expected to satisfy the contract in `reference/design-doc-contract.md` — a section the contract requires but the doc omits is itself a finding, not something to infer.
 
 ## Part 1 — Product review
 
