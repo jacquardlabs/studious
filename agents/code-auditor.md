@@ -66,6 +66,7 @@ Escalate an egregious cross-lane issue you stumble on — e.g. an obvious inject
 - Code that contradicts a documented CLAUDE.md convention is a Consistency finding
 
 ### Idiomatic style
+**Invariant: the `reference/idioms/` file set must track the linter list below** — adding a language's linter here without shipping its `reference/idioms/<language>.md` reopens the same coverage gap.
 CLAUDE.md's documented conventions are authoritative and override everything below. Then:
 - Detect the changed files' language(s) by extension.
 - **Run the language's idiom linter read-only** if one is configured or available, and fold its findings in. Never pass a fix/`--fix` flag — this audit reports, it doesn't modify. Examples: Python — `ruff check --select C4,SIM,PERF,B,RUF,PIE`; JS/TS — `eslint` or `biome check`; Go — `golangci-lint run`; Rust — `cargo clippy`; Ruby — `rubocop`. If no linter is available, say so and recommend adding one.
