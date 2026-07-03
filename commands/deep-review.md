@@ -30,13 +30,13 @@ If `$ARGUMENTS` is non-empty but matches no keyword, list the valid keywords and
 
 ## Single-area run (argument given)
 
-Spawn the one matching agent with the Task tool. It already knows its full workflow — just tell it the project path and today's date. When it returns, surface its report. Skip Phase 2 — there's nothing to cross-reference in a single review.
+Spawn the one matching agent with the Task tool. It already knows its full workflow — just tell it the project path and today's date. When it returns, surface its report. If the area is `codebase`/`health`, also run the **idiom feedback step** below before finishing. Skip Phase 2 — there's nothing to cross-reference in a single review.
 
 ## Full sweep (no argument)
 
 ### Phase 1 — Run all five reviews in parallel
 
-Spawn all five subagents simultaneously with the Task tool — do not run them sequentially. Use the `subagent_type` values from the table above. Each agent already knows its full workflow — just tell it the project path and today's date. Run all five with `run_in_background: true`.
+Spawn all five subagents simultaneously with the Task tool — do not run them sequentially. Use the `subagent_type` values from the table above. Each agent already knows its full workflow — just tell it the project path and today's date. Run all five with `run_in_background: true`. Once `review-codebase-health` returns, also run the **idiom feedback step** below.
 
 ### Phase 2 — Compile master summary
 
@@ -100,3 +100,17 @@ Every row maps to a metric one of the two health reports actually emits — don'
 If previous review reports exist in the `docs/studious/` subdirectories, compare against the most recent one and fill in the trend column. Otherwise mark as "baseline".
 
 Save the master summary to `docs/studious/health-reviews/YYYY-MM-DD-deep-review-summary.md`.
+
+## Idiom feedback step (codebase-health lane only)
+
+Propose-only, per this repo's recommend-only posture (CLAUDE.md: "Commands report; they never modify external state") — this step never writes to `reference/idioms/<lang>.md`. It only prints a proposed addition as output text for the user to copy in by hand.
+
+- Read the prior reports already saved under `docs/studious/health-reviews/` (everything except the one just produced this run). If fewer than 2 prior reports exist, print `Idiom feedback: insufficient review history (need 2+ prior cycles) — skipped.` and stop here.
+- Otherwise, scan this cycle's and the prior cycles' findings for a code-quality/idiomatic pattern that recurs across 3 or more cycles (or 3+ distinct locations within the current report) — e.g. the same non-idiomatic construct, naming inconsistency, or missed-stdlib pattern flagged repeatedly rather than a one-off.
+- For each recurring pattern found, print:
+  - The target file (`reference/idioms/<language>.md`, matching the language of the flagged code).
+  - A proposed rubric line in that file's existing style (e.g. `X → Y`).
+  - The finding history backing it — which cycles/reports it appeared in.
+- If nothing recurs, say so plainly — a clean result is a valid outcome here too.
+
+**Known limitation to disclose in the output:** `code-auditor`'s idiomatic-style findings surface at gate time (`/gate-audit`, per changeset) and aren't currently persisted anywhere under `docs/studious/`, so this step's recurrence detection is limited to whatever `review-codebase-health`'s own reports capture cycle over cycle. Note this constraint rather than silently under-detecting.
