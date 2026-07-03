@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v2.9.0 (2026-07-03)
+
+### Features
+
+- CI-mode gate-audit (dormant — manual trigger, docs in README)
+  ([#75](https://github.com/jacquardlabs/studious/pull/75),
+  [`74e187d`](https://github.com/jacquardlabs/studious/commit/74e187dd5219b8c7b03b306e8258d4351907e4ee))
+
+- Run gate-audit non-interactively on pull_request
+  ([#75](https://github.com/jacquardlabs/studious/pull/75),
+  [`74e187d`](https://github.com/jacquardlabs/studious/commit/74e187dd5219b8c7b03b306e8258d4351907e4ee))
+
+- Ship CI-mode gate-audit dormant, document setup in README
+  ([#75](https://github.com/jacquardlabs/studious/pull/75),
+  [`74e187d`](https://github.com/jacquardlabs/studious/commit/74e187dd5219b8c7b03b306e8258d4351907e4ee))
+
+
 ## v2.8.0 (2026-07-03)
 
 ### Features
