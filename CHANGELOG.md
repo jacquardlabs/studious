@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v2.5.1 (2026-07-03)
+
+### Bug Fixes
+
+- Commit install-dev.sh, cover skills/hooks/bin, fix empty-glob bug, add --remove
+  ([#80](https://github.com/jacquardlabs/studious/pull/80),
+  [`eb3defd`](https://github.com/jacquardlabs/studious/commit/eb3defd6c82d4d42ddb196792bf66d777b0ae057))
+
+### Continuous Integration
+
+- Pin dependencies, add push trigger, add macOS ledger runner
+  ([#80](https://github.com/jacquardlabs/studious/pull/80),
+  [`eb3defd`](https://github.com/jacquardlabs/studious/commit/eb3defd6c82d4d42ddb196792bf66d777b0ae057))
+
+
 ## v2.5.0 (2026-07-03)
 
 ### Bug Fixes
