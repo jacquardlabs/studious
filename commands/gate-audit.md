@@ -39,17 +39,7 @@ Auditors 5–7 (ux, frontend, accessibility) are web-specific. Skip them when ei
 
 ## After all auditors return
 
-The auditors don't share a severity vocabulary — map each one's labels into the report's three tiers before compiling:
-
-| Auditor | → Critical (blocks merge) | → Important (should fix) | → Minor (track) |
-|---------|---------------------------|--------------------------|-----------------|
-| security-auditor | Critical, High | Medium | Low |
-| code-auditor | Critical | High, Medium | Low |
-| architecture-auditor | Critical | High, Medium | Low |
-| doc-auditor | — (docs rarely block; escalate only if a wrong command/path ships) | High | Medium, Low |
-| ux-reviewer | VISUAL BUG | INCONSISTENCY, IMPROVEMENT | SUGGESTION |
-| frontend-reviewer | BUG | PERFORMANCE, ARCHITECTURE | CLEANUP |
-| web-design-guidelines (a11y) | blocking a11y failures (no keyboard access, contrast failures on core flows) | other a11y gaps | polish |
+The auditors don't share a severity vocabulary — map each one's labels into the report's three tiers before compiling, per the canonical ladder and per-auditor mapping in `reference/severity-rubric.md`; consult it, don't restate it.
 
 Then compile a unified audit report:
 
@@ -62,7 +52,7 @@ All findings classified as critical/blocking across all auditors, grouped by fil
 ### Important findings (should fix)
 All non-critical but important findings, grouped by category (security, code quality, documentation, architecture, UX, frontend, accessibility).
 
-### Minor findings (track for later)
+### Track findings (revisit later)
 Everything else. Don't expand on these — just list them.
 
 ### Verdict

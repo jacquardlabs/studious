@@ -43,24 +43,21 @@ listing all gate vocabularies would prevent a command and its skill drifting apa
 
 ### Severity tiers
 
-Findings across audits and reviews sort into three tiers:
+Findings across audits and reviews sort into three tiers, named consistently everywhere:
+`Critical` · `Important` · `Track`. The canonical ladder and the per-auditor label→tier
+mapping (e.g. `VISUAL BUG`, `BUG`, `PERFORMANCE`, `CLEANUP`, `SUGGESTION`, `INCONSISTENCY`,
+`IMPROVEMENT`) live in `reference/severity-rubric.md`, cited by `commands/gate-audit.md`
+rather than restated there. `deep-review` and the `review-*` agents already emit directly
+in this vocabulary and need no mapping.
 
-| Surface | Tier vocabulary | Source |
-|---------|-----------------|--------|
-| `gate-audit` | `Critical` · `Important` · `Minor` | `commands/gate-audit.md` |
-| `deep-review` + all `review-*` agents | `Critical` · `Important` · `Track` | `commands/deep-review.md`, `agents/review-*.md` |
-
-The first two tiers are stable; the third drifts — **`Minor` (audit) vs `Track` (reviews)**
-for the same concept. <!-- deviation: pick one name for the lowest tier. -->
-
-Per-auditor labels (e.g. `VISUAL BUG`, `BUG`, `PERFORMANCE`, `CLEANUP`, `SUGGESTION`,
-`INCONSISTENCY`, `IMPROVEMENT`) are mapped into these three tiers by the table in
-`commands/gate-audit.md`; that table is the source of truth for the mapping.
+The shared audit/review posture — injection-defense, read-only/diff-scope, output-row
+schema, and the calibrate-don't-suppress closer — lives in `reference/prompt-contract.md`,
+cited by the auditor/reviewer agents rather than restated per-agent.
 
 ## Formatting
 
 - **Report structure** — Summary first, then findings grouped by severity tier (Critical →
-  Important → Minor/Track), then a final **Verdict** line carrying one of the command's
+  Important → Track), then a final **Verdict** line carrying one of the command's
   verdict tokens. Used by `gate-audit`, `gate-acceptance`, and the review agents.
 - **Summary line** — "one line per auditor/review: name, findings by severity, pass/fail."
 - **Report file paths** — periodic reviews write to `docs/studious/<area>-reviews/YYYY-MM-DD-<area>-review.md`.
@@ -82,6 +79,15 @@ Per-auditor labels (e.g. `VISUAL BUG`, `BUG`, `PERFORMANCE`, `CLEANUP`, `SUGGEST
 - **Propose, never apply** — reviews emit proposed diffs to context docs; they never write
   them. The human approves.
 
+## Model assignments
+
+Pin by stakes, not by habit. An agent's `model` is `opus` when its core job is high-stakes
+reasoning or human judgment — where a weaker model ships worse decisions — and `inherit`
+(the session model) for mechanical, rule-based, or inventory work. Don't pin to a bare tier
+like `sonnet` — use `inherit` so the agent tracks the user's session model. Full policy and
+the current per-agent assignments live in `CONTRIBUTING.md` §Model assignments; this section
+documents the policy for the interface surface, it does not restate the per-agent list.
+
 ## Anti-patterns (do NOT do these)
 
 <!-- Fill in based on intent. Candidates surfaced during extraction, for your judgment:
@@ -93,8 +99,10 @@ Per-auditor labels (e.g. `VISUAL BUG`, `BUG`, `PERFORMANCE`, `CLEANUP`, `SUGGEST
 
 ## Top inconsistencies (extraction findings)
 
-1. **Third severity tier is named two ways** — `Minor` in `gate-audit`, `Track` in
-   `deep-review` and the review agents. Same concept, two labels.
+1. ~~**Third severity tier is named two ways** — `Minor` in `gate-audit`, `Track` in
+   `deep-review` and the review agents. Same concept, two labels.~~ Resolved: unified on
+   `Track` everywhere; the canonical ladder and per-auditor mapping now live in
+   `reference/severity-rubric.md`.
 2. **No shared source for gate verdict vocabularies** — each command and its skill shim
    restate the tokens independently, so a command and its trigger can drift apart.
 3. **`gate-audit` has no skill shim** while the other three gates do (`evaluate-feature-idea`,
