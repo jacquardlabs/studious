@@ -71,3 +71,33 @@ def test_flags_reference_placeholder_with_missing_directory(tmp_path: Path) -> N
     )
     errors = find_broken(tmp_path)
     assert any("reference/ghosts" in e for e in errors)
+
+
+def test_resolves_skill_reference_inside_skill_md(tmp_path: Path) -> None:
+    (tmp_path / "skills" / "real-skill").mkdir(parents=True)
+    _write(
+        tmp_path / "skills" / "shim" / "SKILL.md",
+        "Invoke the `/gate-x` command, which delegates to the `real-skill` skill.",
+    )
+    assert find_broken(tmp_path) == []
+
+
+def test_flags_broken_skill_reference_inside_skill_md(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "skills" / "shim" / "SKILL.md",
+        "This routes to the `ghost-skill` skill.",
+    )
+    errors = find_broken(tmp_path)
+    assert any("skills/ghost-skill/ missing" in e for e in errors)
+
+
+def test_recognizes_invoke_backtick_phrasing(tmp_path: Path) -> None:
+    _write(tmp_path / "commands" / "gate.md", "invoke `ghost-skill` before continuing")
+    errors = find_broken(tmp_path)
+    assert any("skills/ghost-skill/ missing" in e for e in errors)
+
+
+def test_recognizes_skill_name_backtick_phrasing(tmp_path: Path) -> None:
+    _write(tmp_path / "commands" / "gate.md", "delegates to skill `ghost-skill`")
+    errors = find_broken(tmp_path)
+    assert any("skills/ghost-skill/ missing" in e for e in errors)

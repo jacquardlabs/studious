@@ -9,7 +9,7 @@
 
 input=$(cat)
 
-printf '%s' "$input" | grep -q 'gh pr create' || exit 0
+printf '%s' "$input" | grep -Eq 'gh[[:space:]]+pr[[:space:]]+create' || exit 0
 
 default_reason="Studious: opening a PR. Did /gate-audit and /gate-acceptance run on this branch? Proceed if the gates passed or don't apply to this change."
 

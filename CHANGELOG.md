@@ -2,6 +2,66 @@
 
 <!-- version list -->
 
+## v2.5.0 (2026-07-03)
+
+### Bug Fixes
+
+- Vendor a minimal accessibility rubric so gate-time a11y isn't a no-op
+  ([#76](https://github.com/jacquardlabs/studious/pull/76),
+  [`3674da0`](https://github.com/jacquardlabs/studious/commit/3674da05d49fa0e00037f52d9959986fa8057b39))
+
+### Continuous Integration
+
+- Pin dependencies, add push trigger, add macOS ledger runner
+  ([#81](https://github.com/jacquardlabs/studious/pull/81),
+  [`5ceda9f`](https://github.com/jacquardlabs/studious/commit/5ceda9f49f84270225ef81d2c55a48e13aaf2b47))
+
+- Pin dependencies, add push trigger, add macOS ledger runner
+  ([#71](https://github.com/jacquardlabs/studious/pull/71),
+  [`ca35d5a`](https://github.com/jacquardlabs/studious/commit/ca35d5a1bd5e182800bff16188382e8d2ee0a2d6))
+
+### Features
+
+- Golden-fixture behavioral evals for gate-audit
+  ([#81](https://github.com/jacquardlabs/studious/pull/81),
+  [`5ceda9f`](https://github.com/jacquardlabs/studious/commit/5ceda9f49f84270225ef81d2c55a48e13aaf2b47))
+
+### Refactoring
+
+- Extract shared prompt contract and severity rubric into reference/
+  ([#76](https://github.com/jacquardlabs/studious/pull/76),
+  [`3674da0`](https://github.com/jacquardlabs/studious/commit/3674da05d49fa0e00037f52d9959986fa8057b39))
+
+
+## v2.4.3 (2026-07-03)
+
+### Bug Fixes
+
+- Gate-reminder hook no longer evades whitespace-variant PR commands
+  ([#79](https://github.com/jacquardlabs/studious/pull/79),
+  [`c6ce58a`](https://github.com/jacquardlabs/studious/commit/c6ce58af214e05b050d1ab02a8f43e8219de4813))
+
+- Harden gate-ledger CWD resolution, GC, collision detection, and write-side signal
+  ([#67](https://github.com/jacquardlabs/studious/pull/67),
+  [`db64a01`](https://github.com/jacquardlabs/studious/commit/db64a01f908a7ddd4b91ec334e23501741364533))
+
+- Scan skills/ and recognize more skill-reference phrasings in check_references.py
+  ([#73](https://github.com/jacquardlabs/studious/pull/73),
+  [`6a78030`](https://github.com/jacquardlabs/studious/commit/6a78030350c0e3eb33de5a8f288908b374f4cbc4))
+
+### Documentation
+
+- Ship go/rust/ruby idiom rubrics to match code-auditor's claimed coverage
+  ([#68](https://github.com/jacquardlabs/studious/pull/68),
+  [`25af83a`](https://github.com/jacquardlabs/studious/commit/25af83a5e018777e77aff659baed3f81793a18bf))
+
+### Refactoring
+
+- Extract shared prompt contract and severity rubric into reference/
+  ([#74](https://github.com/jacquardlabs/studious/pull/74),
+  [`89f3673`](https://github.com/jacquardlabs/studious/commit/89f36736d749606c308350569dd28bedb25551de))
+
+
 ## v2.4.2 (2026-06-27)
 
 ### Bug Fixes

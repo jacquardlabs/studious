@@ -1,0 +1,6 @@
+{
+  "description": "Bug fix (clamp discount_percent to avoid negative totals) that ships with no regression test, directly contradicting CLAUDE.md's 'bug fixes require regression tests' convention. No other findings are planted. The discriminating signal is the code-quality/consistency finding itself, not the exact verdict token: PASS is expected per gate-audit.md's rule (no critical findings), but FIX AND RE-AUDIT is also accepted in case the auditor escalates the missing test to Critical.",
+  "verdict_any_of": ["PASS", "FIX AND RE-AUDIT"],
+  "min_important_findings": 1,
+  "required_categories": ["code quality"]
+}
