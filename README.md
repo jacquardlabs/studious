@@ -70,6 +70,18 @@ You don't need every gate every time. For small fixes, `/gate-audit` alone is en
 
 The three product gates also fire from natural language, not just the slash command — asking "should we build this?", "review this design before I build it", or "does this actually deliver?" routes to the matching gate. Triggers are deliberately conservative, so you'll still reach for the commands directly most of the time.
 
+## CI mode (optional)
+
+`.github/workflows/gate-audit-pr.yml` runs `/gate-audit` non-interactively against a PR and posts the report as a PR comment — the same 6-7 auditor fan-out you'd get locally, without anyone having to remember to run it. It ships **dormant** (manual `workflow_dispatch` trigger only): pick a PR, run the workflow from the Actions tab with that PR's number as input, and it audits that PR and comments on it. It does not fire automatically on every PR yet.
+
+To set it up:
+
+1. Add `ANTHROPIC_API_KEY` as a repository secret (Settings → Secrets and variables → Actions). Without it, the job fails at the "Run gate-audit headlessly" step.
+2. Test it manually first: `workflow_dispatch` it against a real, non-draft, same-repo PR and read the comment it posts before trusting it further.
+3. To make it run automatically on every PR instead of by hand, change the workflow's `on:` block from `workflow_dispatch` (with the `pr_number` input) to `pull_request: types: [opened, synchronize, reopened, ready_for_review]`, and swap every `inputs.pr_number` reference for `github.event.pull_request.number` (and the head/base SHA resolution step can be dropped in favor of `github.event.pull_request.head.sha` / `.base.sha` directly).
+
+It refuses draft PRs and fork PRs (no repository secrets are available to fork-triggered runs, and this keeps the agent's Bash access scoped to contributors who already have write access), and skips diffs over 40 changed files to keep the fan-out's cost bounded — see the workflow file's own comments for the full reasoning.
+
 ## Keeping the project healthy
 
 Separate from the feature flow: periodic reviews that assess overall project health. These run against main, not feature branches.

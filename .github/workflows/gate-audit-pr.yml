@@ -1,0 +1,116 @@
+name: Gate audit (CI)
+
+# Runs /gate-audit non-interactively against a PR's diff and posts the report as a
+# PR comment. Deliberately workflow_dispatch only for now — not wired to fire
+# automatically on every PR yet. See README.md "CI mode (optional)" for what
+# adding the `pull_request` trigger back gets you, the ANTHROPIC_API_KEY secret
+# it needs, and why this shipped dormant first (untested in a real Actions run
+# at the time it was written).
+#
+# Skips PRs above CHANGED_FILES_LIMIT: the fan-out spawns 6-7 parallel auditors,
+# each reviewing the full changeset, so cost scales with changed-file count x
+# auditor count. Studious's own merged PR history tops out at 21 changed files
+# (#35, the Jaqal->Studious rename); 40 leaves headroom above every real PR to
+# date while still capping a pathological diff (e.g. a vendored dependency bump
+# or generated-file dump).
+#
+# Refuses fork-originated and draft PRs. GitHub withholds repository secrets
+# (other than GITHUB_TOKEN) from `pull_request` runs triggered by a fork, so
+# ANTHROPIC_API_KEY would be absent and the job would just fail; refusing avoids
+# running a guaranteed-broken check. This also keeps the non-interactive agent
+# loop, which reads the PR diff as untrusted content via Bash/Grep, scoped to
+# contributors who already have write access rather than to arbitrary external
+# PR content.
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to audit"
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  CHANGED_FILES_LIMIT: 40
+
+jobs:
+  gate-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve PR info
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr_json=$(gh pr view "${{ inputs.pr_number }}" --repo "${{ github.repository }}" \
+            --json headRefOid,baseRefOid,isDraft,headRepositoryOwner,number)
+          echo "head_sha=$(echo "$pr_json" | jq -r .headRefOid)" >> "$GITHUB_OUTPUT"
+          echo "base_sha=$(echo "$pr_json" | jq -r .baseRefOid)" >> "$GITHUB_OUTPUT"
+
+          is_draft=$(echo "$pr_json" | jq -r .isDraft)
+          if [ "$is_draft" = "true" ]; then
+            echo "PR #${{ inputs.pr_number }} is a draft — refusing to audit it." >&2
+            exit 1
+          fi
+
+          head_owner=$(echo "$pr_json" | jq -r .headRepositoryOwner.login)
+          base_owner="${{ github.repository_owner }}"
+          if [ "$head_owner" != "$base_owner" ]; then
+            echo "PR #${{ inputs.pr_number }} is from a fork ($head_owner) — refusing to audit it (no repo secrets available on fork PRs, and this keeps agent Bash access scoped to write-access contributors)." >&2
+            exit 1
+          fi
+
+      - name: Checkout PR head
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ steps.pr.outputs.head_sha }}
+          fetch-depth: 0
+
+      - name: Count changed files
+        id: scope
+        run: |
+          changed=$(git diff --name-only "${{ steps.pr.outputs.base_sha }}" "${{ steps.pr.outputs.head_sha }}" | wc -l | tr -d ' ')
+          echo "changed_files=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Skip — diff too large to sample affordably
+        if: fromJSON(steps.scope.outputs.changed_files) > fromJSON(env.CHANGED_FILES_LIMIT)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment "${{ inputs.pr_number }}" \
+            --repo "${{ github.repository }}" \
+            --body "**Gate audit (CI) skipped.** This PR changes ${{ steps.scope.outputs.changed_files }} files, over the ${{ env.CHANGED_FILES_LIMIT }}-file sampling limit set to keep the 6-7-agent audit fan-out affordable on large diffs. Run \`/gate-audit\` locally instead."
+
+      - name: Set up Node
+        if: fromJSON(steps.scope.outputs.changed_files) <= fromJSON(env.CHANGED_FILES_LIMIT)
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+
+      - name: Install Claude Code
+        if: fromJSON(steps.scope.outputs.changed_files) <= fromJSON(env.CHANGED_FILES_LIMIT)
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run gate-audit headlessly
+        if: fromJSON(steps.scope.outputs.changed_files) <= fromJSON(env.CHANGED_FILES_LIMIT)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          claude -p "/gate-audit" \
+            --plugin-dir "$GITHUB_WORKSPACE" \
+            --allowedTools "Read Glob Grep Bash Task Write" \
+            --output-format text \
+            --no-session-persistence \
+            > audit-report.md
+
+      - name: Post report as PR comment
+        if: fromJSON(steps.scope.outputs.changed_files) <= fromJSON(env.CHANGED_FILES_LIMIT)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment "${{ inputs.pr_number }}" \
+            --repo "${{ github.repository }}" \
+            --body-file audit-report.md
