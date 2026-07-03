@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v2.8.0 (2026-07-03)
+
+### Features
+
+- Define the design-doc contract gate-design-review expects
+  ([#72](https://github.com/jacquardlabs/studious/pull/72),
+  [`1a24476`](https://github.com/jacquardlabs/studious/commit/1a24476b71da74db3a334cc7da5e60aaa0e2738a))
+
+
 ## v2.7.0 (2026-07-03)
 
 ### Features
