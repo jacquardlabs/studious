@@ -1,6 +1,8 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -9,18 +11,18 @@ jobs:
     name: markdownlint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
-      - run: npx -y markdownlint-cli2
+      - run: npx -y markdownlint-cli2@0.23.0
 
   python-checks:
     name: link-check + schema + unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
       - name: Link-check references
         run: uv run --no-project python scripts/check_references.py
       - name: Validate plugin manifest
@@ -30,9 +32,22 @@ jobs:
 
   ledger:
     name: gate-ledger tests
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Ensure git and jq are available
+        run: |
+          command -v git >/dev/null || { echo "git is required but not found" >&2; exit 1; }
+          if ! command -v jq >/dev/null; then
+            if [ "$RUNNER_OS" = "macOS" ]; then
+              brew install jq
+            else
+              sudo apt-get update && sudo apt-get install -y jq
+            fi
+          fi
       - name: Gate-ledger integration tests
         run: bash tests/test_gate_ledger.sh
 
@@ -40,5 +55,11 @@ jobs:
     name: shellcheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: shellcheck bin/gate-ledger hooks/gate-reminder.sh tests/test_gate_ledger.sh
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Install shellcheck 0.11.0
+        run: |
+          curl -fsSL -o /tmp/shellcheck.tar.xz \
+            https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz
+          tar -xJf /tmp/shellcheck.tar.xz -C /tmp
+          sudo install /tmp/shellcheck-v0.11.0/shellcheck /usr/local/bin/shellcheck
+      - run: shellcheck bin/gate-ledger hooks/gate-reminder.sh tests/test_gate_ledger.sh scripts/install-dev.sh

@@ -1,0 +1,40 @@
+name: gate-audit golden fixtures
+
+# Deliberately workflow_dispatch only, not per-PR: this exercises /gate-audit
+# against synthetic fixtures with a live model, so LLM cost and nondeterminism
+# stay out of the merge path. Run by hand after editing any of the 6 audit
+# agents or commands/gate-audit.md to catch a verdict/category regression.
+on:
+  workflow_dispatch:
+
+jobs:
+  golden-fixtures:
+    name: run /gate-audit against golden fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run /gate-audit against every fixture
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          uv run --no-project python scripts/run_gate_audit_fixtures.py \
+            --artifacts-dir gate-audit-fixture-results
+
+      - name: Upload raw audit reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: gate-audit-fixture-results
+          path: gate-audit-fixture-results/
+          if-no-files-found: warn

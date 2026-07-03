@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify every @agent-*, internal-skill, and reference/ path in commands/ and agents/ resolves.
+"""Verify every @agent-*, internal-skill, and reference/ path in commands/, agents/, and skills/ resolves.
 
 Run from CI to catch broken cross-references (e.g. an agent rename that orphans a
 command's @agent-* reference). Standard library only.
@@ -11,10 +11,18 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-SCAN_DIRS = ("commands", "agents")
+SCAN_DIRS = ("commands", "agents", "skills")
 AGENT_RE = re.compile(r"@agent-([a-z0-9-]+)")
-# "the `<name>` skill" is the codebase's phrasing for a skill reference.
-SKILL_RE = re.compile(r"the `([a-z0-9-]+)` skill")
+# Recognized phrasings for a skill reference, e.g. "the `<name>` skill" (also
+# matches the possessive "the `<name>` skill's ..."), "invoke `<name>`"/"invoke
+# the `<name>`", and "skill `<name>`". Commands (`` `/gate-x` ``) and agents
+# (`@agent-x`) use their own distinct prefixes, so a bare backtick-wrapped
+# lowercase-dash token after "invoke" or "skill" is unambiguously a skill name.
+SKILL_RES = (
+    re.compile(r"the `([a-z0-9-]+)` skill"),
+    re.compile(r"invoke (?:the )?`([a-z0-9-]+)`"),
+    re.compile(r"skill `([a-z0-9-]+)`"),
+)
 # Curated rubric paths agents cite, e.g. `reference/security-checklist.md` or the
 # template `reference/idioms/<language>.md`. Angle-bracket placeholders are allowed.
 REFERENCE_RE = re.compile(r"reference/[A-Za-z0-9_./<>-]+\.md")
@@ -36,7 +44,8 @@ def find_broken(root: Path) -> list[str]:
                     errors.append(
                         f"@agent-{name} referenced in {rel} but agents/{name}.md missing"
                     )
-            for name in sorted(set(SKILL_RE.findall(text))):
+            skill_names = {name for regex in SKILL_RES for name in regex.findall(text)}
+            for name in sorted(skill_names):
                 if name in EXTERNAL_SKILLS:
                     continue
                 if not (root / "skills" / name).is_dir():
