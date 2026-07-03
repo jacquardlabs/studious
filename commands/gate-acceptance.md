@@ -15,17 +15,9 @@ Invoke @agent-product-reviewer to review the implementation on the current branc
 
 ## Part 2 — Implementation walkthrough
 
-Walk through every user-facing change on this branch:
+Walk through every user-facing change on this branch yourself, using @agent-product-reviewer's "When reviewing an IMPLEMENTATION" checklist (`agents/product-reviewer.md`) as the lens — Part 1 already ran that checklist as a subagent; don't re-derive the questions here, just apply them directly as you walk the branch.
 
-1. **Experience check.** For each user-facing change — what does the user see? Does it match what the design doc intended? Call out any gaps between intent and result.
-
-2. **Error states.** Find every error path, empty state, and edge case in the changeset. For each one: is the message helpful and human, or technical and confusing? "Something went wrong, please try again" beats "Error: invalid payload" every time.
-
-3. **Journey regression.** Check every critical user journey listed in PRODUCT.md. With this feature present, walk through each one. Flag anything that feels different, slower, or requires an extra step — even subtly.
-
-4. **First-time user test.** Read the feature as someone with zero context. No knowledge of the design doc, no familiarity with the codebase. Is it self-explanatory? Or does it assume knowledge they wouldn't have?
-
-5. **One complaint.** What's the single thing a real user would complain about if we shipped this as-is? Be specific. There's always something.
+Close with one gate-specific question the checklist doesn't ask: **One complaint** — what's the single thing a real user would complain about if we shipped this as-is? Be specific. There's always something.
 
 ## Part 3 — Verdict
 
