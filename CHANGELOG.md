@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v2.6.0 (2026-07-03)
+
+### Features
+
+- Persist deep-review metrics for trend tracking
+  ([#69](https://github.com/jacquardlabs/studious/pull/69),
+  [`1e5f5fe`](https://github.com/jacquardlabs/studious/commit/1e5f5fe60bf5da279fd0ae749548d992b606ec87))
+
+
 ## v2.5.1 (2026-07-03)
 
 ### Bug Fixes
