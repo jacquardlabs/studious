@@ -2,6 +2,36 @@
 
 <!-- version list -->
 
+## v2.10.0 (2026-07-05)
+
+### Bug Fixes
+
+- Skip cross-branch registers found via fallback; register-integrity in rubric row
+  ([#82](https://github.com/jacquardlabs/studious/pull/82),
+  [`8eec1f4`](https://github.com/jacquardlabs/studious/commit/8eec1f43aafd11c335de5b8371cc5f393ae573e8))
+
+### Features
+
+- Add premortem-auditor agent ([#82](https://github.com/jacquardlabs/studious/pull/82),
+  [`8eec1f4`](https://github.com/jacquardlabs/studious/commit/8eec1f43aafd11c335de5b8371cc5f393ae573e8))
+
+- Generate pre-mortem register in gate-design-review
+  ([#82](https://github.com/jacquardlabs/studious/pull/82),
+  [`8eec1f4`](https://github.com/jacquardlabs/studious/commit/8eec1f43aafd11c335de5b8371cc5f393ae573e8))
+
+- Pre-mortem register — record failure modes at design time, verify them at merge time
+  ([#82](https://github.com/jacquardlabs/studious/pull/82),
+  [`8eec1f4`](https://github.com/jacquardlabs/studious/commit/8eec1f43aafd11c335de5b8371cc5f393ae573e8))
+
+- Verify product-lane pre-mortem items in gate-acceptance
+  ([#82](https://github.com/jacquardlabs/studious/pull/82),
+  [`8eec1f4`](https://github.com/jacquardlabs/studious/commit/8eec1f43aafd11c335de5b8371cc5f393ae573e8))
+
+- Verify technical-lane pre-mortem items in gate-audit
+  ([#82](https://github.com/jacquardlabs/studious/pull/82),
+  [`8eec1f4`](https://github.com/jacquardlabs/studious/commit/8eec1f43aafd11c335de5b8371cc5f393ae573e8))
+
+
 ## v2.9.0 (2026-07-03)
 
 ### Features
