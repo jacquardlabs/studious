@@ -15,7 +15,7 @@ Invoke @agent-product-reviewer to review the implementation on the current branc
 
 ## Part 2 — Pre-mortem verification (runs only when a register exists)
 
-Locate the register: look for `docs/studious/premortems/*.md` in the branch diff (`git diff --name-only $(git merge-base HEAD origin/main)...HEAD`); if none, take the most recently modified file under `docs/studious/premortems/`; if there are several candidates, ask the user which one rather than guessing. If no register exists at all, note "No pre-mortem register on this branch — pre-mortem verification skipped." and continue to Part 3.
+Locate the register: look for `docs/studious/premortems/*.md` in the branch diff (`git diff --name-only $(git merge-base HEAD origin/main)...HEAD`); if none, take the most recently modified file under `docs/studious/premortems/`; if there are several candidates, ask the user which one rather than guessing. A register found via the fallback (not the branch diff) counts only if its `Branch:` header matches the current branch — on mismatch it is another feature's register; treat this branch as having no register. If no register exists at all, note "No pre-mortem register on this branch — pre-mortem verification skipped." and continue to Part 3.
 
 Invoke @agent-premortem-auditor to verify the register at the resolved path against this branch. Lane: `product`. It reports a per-item verdict (NOT REALIZED / REALIZED / CAN'T VERIFY) with evidence; the `technical`-lane items belong to `/gate-audit`, not this gate.
 

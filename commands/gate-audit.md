@@ -39,7 +39,7 @@ Auditors 5–7 (ux, frontend, accessibility) are web-specific. Skip them when ei
 
 ### Pre-mortem verification (runs only when a register exists)
 
-Locate the register before spawning: look for `docs/studious/premortems/*.md` in the changeset diff; if none, take the most recently modified file under `docs/studious/premortems/`; if there are several candidates, ask the user which one rather than guessing. If no register exists at all, note "No pre-mortem register on this branch — pre-mortem verification skipped." and move on.
+Locate the register before spawning: look for `docs/studious/premortems/*.md` in the changeset diff; if none, take the most recently modified file under `docs/studious/premortems/`; if there are several candidates, ask the user which one rather than guessing. A register found via the fallback (not the changeset diff) counts only if its `Branch:` header matches the current branch — on mismatch it is another feature's register; treat this branch as having no register. If no register exists at all, note "No pre-mortem register on this branch — pre-mortem verification skipped." and move on.
 
 8. **@agent-premortem-auditor** — Verify the pre-mortem register at the resolved path against this changeset. Lane: `technical`. Report a per-item verdict (NOT REALIZED / REALIZED / CAN'T VERIFY) with evidence; the `product`-lane items belong to `/gate-acceptance`, not this gate.
 
