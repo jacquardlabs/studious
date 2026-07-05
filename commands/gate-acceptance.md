@@ -13,15 +13,21 @@ Read PRODUCT.md first.
 
 Invoke @agent-product-reviewer to review the implementation on the current branch against the original design doc and PRODUCT.md. This is a post-implementation product acceptance review.
 
-## Part 2 — Implementation walkthrough
+## Part 2 — Pre-mortem verification (runs only when a register exists)
+
+Locate the register: look for `docs/studious/premortems/*.md` in the branch diff (`git diff --name-only $(git merge-base HEAD origin/main)...HEAD`); if none, take the most recently modified file under `docs/studious/premortems/`; if there are several candidates, ask the user which one rather than guessing. A register found via the fallback (not the branch diff) counts only if its `Branch:` header matches the current branch — on mismatch it is another feature's register; treat this branch as having no register. If no register exists at all, note "No pre-mortem register on this branch — pre-mortem verification skipped." and continue to Part 3.
+
+Invoke @agent-premortem-auditor to verify the register at the resolved path against this branch. Lane: `product`. It reports a per-item verdict (NOT REALIZED / REALIZED / CAN'T VERIFY) with evidence; the `technical`-lane items belong to `/gate-audit`, not this gate.
+
+## Part 3 — Implementation walkthrough
 
 Walk through every user-facing change on this branch yourself, using @agent-product-reviewer's "When reviewing an IMPLEMENTATION" checklist (`agents/product-reviewer.md`) as the lens — Part 1 already ran that checklist as a subagent; don't re-derive the questions here, just apply them directly as you walk the branch.
 
 Close with one gate-specific question the checklist doesn't ask: **One complaint** — what's the single thing a real user would complain about if we shipped this as-is? Be specific. There's always something.
 
-## Part 3 — Verdict
+## Part 4 — Verdict
 
-Map the product-reviewer's severities to this gate's verdict:
+Map the product-reviewer's severities — and the premortem-auditor's REALIZED findings, which use the same BLOCKER / SHOULD FIX vocabulary — to this gate's verdict:
 
 - **SHIP** — implementation delivers the intended experience; only MINOR/OBSERVATION findings.
 - **FIX AND RE-CHECK** — one or more SHOULD FIX findings, or a BLOCKER fixable with targeted work. List them with severity, then re-run this gate.
