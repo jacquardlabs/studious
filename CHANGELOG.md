@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v2.11.1 (2026-07-06)
+
+### Bug Fixes
+
+- Invoke gate-ledger by bare name, not via ${CLAUDE_PLUGIN_ROOT}
+  ([#85](https://github.com/jacquardlabs/studious/pull/85),
+  [`26cda7e`](https://github.com/jacquardlabs/studious/commit/26cda7e98034946bf4c492c5b46421d17017522e))
+
+
 ## v2.11.0 (2026-07-06)
 
 ### Features
