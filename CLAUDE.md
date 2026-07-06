@@ -44,14 +44,14 @@ The directory layout encodes a role split (full version in `CONTRIBUTING.md`):
 - `skills/<name>/SKILL.md` — natural-language **trigger shims**. A tightly-scoped `description` lets a gate fire from plain language; the body delegates to the matching command and must not duplicate its logic.
 - `reference/` — curated rubrics agents read at audit time (`reference/security-checklist.md`, `reference/idioms/<lang>.md`). Agents consult these instead of restating them inline — keep depth in `reference/`, keep agents pointing at it.
 - `hooks/` — shipped hook scripts + `hooks.json`. The one live hook is a non-blocking PreToolUse reminder before `gh pr create`.
-- `bin/gate-ledger` — reads/writes the per-branch gate ledger.
+- `bin/gate-ledger` — reads/writes the per-branch gate ledger and the per-feature `/work-on` work files.
 - `templates/` — PRODUCT.md / DESIGN.md scaffolds created by `/studious-init` in the consuming project.
 
 Key invariants when adding or changing prompts:
 
 - **Stay in lane.** One agent = one concern. The security auditor owns the security rubric; other auditors escalate but don't hunt security issues. Don't bundle concerns into one agent.
 - **One fan-out command, many subagents.** Parallel checks live as subagents under a single entry point (`/gate-audit`, `/deep-review`) — never add a top-level command per check.
-- **Recommend-only.** Commands report; they never modify external state (issues, PRs, files outside `docs/studious/` in the consuming project). The sole exception: gate commands record verdicts to a local, gitignored `.studious/` ledger.
+- **Recommend-only.** Commands report; they never modify external state (issues, PRs, files outside `docs/studious/` in the consuming project). The sole exception: gate commands record verdicts, and `/work-on` records flow position, to local, gitignored `.studious/` state.
 - **Reviews write to the consuming project, not here.** Review reports land in the user's `docs/studious/` subdirectories. This plugin repo never accumulates them.
 - **Every agent/command reads PRODUCT.md, DESIGN.md, or CLAUDE.md** for project context. The 14 review/audit agents share a standardized prompt contract (posture, output format, calibration) — match it when adding an agent.
 
@@ -59,7 +59,7 @@ Key invariants when adding or changing prompts:
 
 These are enforced by convention, not tooling — follow the existing shape (details in `CONTRIBUTING.md`):
 
-- **Commands are actions:** an action prefix + target — `gate-`, `review-`/`deep-review`, `extract-`, `backlog-`.
+- **Commands are actions:** an action prefix + target — `gate-`, `review-`/`deep-review`, `extract-`, `backlog-`, `work-on`.
 - **Agents are a 1:1 reviewer or a role:** periodic project-scoped reviewers share their command's `review-*` name; changeset specialists are `<domain>-auditor` (rule/technical checks) or `<domain>-reviewer` (human-judgment checks).
 - **Skills are named for the intent they detect**, not the command they call. Keep `description` triggers conservative — list what they should NOT match so a gate never fires unwanted.
 - **Pin `model` by stakes:** `opus` for high-stakes reasoning/human judgment (security, architecture, product/UX). `inherit` for mechanical, rule-based, or inventory work. Never pin a bare tier like `sonnet` — use `inherit` so the agent tracks the session model.

@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
-# gate-ledger — read/write Studious's per-branch gate ledger.
+# gate-ledger — read/write Studious's local, gitignored .studious/ state.
 #
-# Local, gitignored state at .studious/gates/<branch-slug>.json in the consuming
-# project. Written by /gate-audit and /gate-acceptance (via `record`); read by the
-# PR-time hook (via `status`). Degrades silently when git or jq is unavailable.
+# Two stores in the consuming project:
+#   .studious/gates/<branch-slug>.json  — per-branch gate verdicts. Written by the
+#     gate commands (via `record`); read by the PR-time hook (via `status`) and by
+#     /work-on's evidence check (via `gate-get`) — never read as a raw file by callers.
+#   .studious/work/<feature-slug>.json  — per-feature flow position for /work-on
+#     (written via `work-set` / `work-log`; read via `work-get` / `work-list`).
+# Degrades silently when git or jq is unavailable.
 set -uo pipefail
 
 branch_name() { git rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD; }
-branch_slug() { local b; b=$(branch_name); printf '%s' "${b//\//-}"; }
+branch_slug() { local b; b="${1:-$(branch_name)}"; printf '%s' "${b//\//-}"; } # optional arg: slug for a given branch instead of the current one
 head_sha()    { git rev-parse --short HEAD 2>/dev/null || echo ""; }
 now_iso()     { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
@@ -23,6 +27,22 @@ ledger_dir() {
   else
     printf '.studious/gates'
   fi
+}
+
+work_dir() {
+  # Same root-anchoring as ledger_dir, different store.
+  local root
+  if root=$(git rev-parse --show-toplevel 2>/dev/null); then
+    printf '%s/.studious/work' "$root"
+  else
+    printf '.studious/work'
+  fi
+}
+
+slugify() {
+  # Feature title/slug → filesystem- and JSON-safe key: lowercase, runs of
+  # anything outside [a-z0-9] collapse to '-', edges trimmed.
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-*//; s/-*$//'
 }
 
 ensure_gitignore() {
@@ -139,6 +159,142 @@ cmd_status() {
   fi
 }
 
+cmd_gate_get() {
+  local branch=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --branch) branch="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  local slug; slug=$(branch_slug "$branch")
+  local file; file="$(ledger_dir)/$slug.json"
+  [ -f "$file" ] || return 0
+  cat "$file"
+}
+
+work_file_init() { # slug → ensures the work file exists, echoes its path
+  local slug="$1"
+  local dir; dir=$(work_dir)
+  mkdir -p "$dir"
+  local file; file="$dir/$slug.json"
+  [ -f "$file" ] || printf '{"schemaVersion":1,"slug":"%s","history":[]}' "$slug" > "$file"
+  printf '%s' "$file"
+}
+
+cmd_work_set() {
+  local slug="" title="" src="" branch="" doc="" phase=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --slug)       slug="$2"; shift 2 ;;
+      --title)      title="$2"; shift 2 ;;
+      --source)     src="$2"; shift 2 ;;
+      --branch)     branch="$2"; shift 2 ;;
+      --design-doc) doc="$2"; shift 2 ;;
+      --phase)      phase="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug required" >&2
+    return 2
+  fi
+  if ! have jq || ! have git; then
+    echo "gate-ledger: work-set skipped (jq and git required)" >&2
+    return 0
+  fi
+
+  slug=$(slugify "$slug")
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug reduced to nothing after slugify" >&2
+    return 2
+  fi
+
+  ensure_gitignore
+  local file; file=$(work_file_init "$slug")
+  local dir; dir=$(work_dir)
+  local tmp; tmp=$(mktemp "$dir/.tmp.XXXXXX")
+  trap 'rm -f "$tmp"' RETURN
+  jq --arg title "$title" --arg src "$src" --arg branch "$branch" \
+     --arg doc "$doc" --arg phase "$phase" --arg t "$(now_iso)" \
+     '.schemaVersion = (.schemaVersion // 1)
+      | .createdAt = (.createdAt // $t)
+      | .updatedAt = $t
+      | (if $title  != "" then .title     = $title  else . end)
+      | (if $src    != "" then .source    = $src    else . end)
+      | (if $branch != "" then .branch    = $branch else . end)
+      | (if $doc    != "" then .designDoc = $doc    else . end)
+      | (if $phase  != "" then .phase     = $phase  else . end)' \
+     "$file" > "$tmp" && mv "$tmp" "$file"
+}
+
+cmd_work_log() {
+  local slug="" step="" outcome="" phase=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --slug)    slug="$2"; shift 2 ;;
+      --step)    step="$2"; shift 2 ;;
+      --outcome) outcome="$2"; shift 2 ;;
+      --phase)   phase="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$slug" ] || [ -z "$step" ] || [ -z "$outcome" ]; then
+    echo "gate-ledger: --slug, --step, and --outcome required" >&2
+    return 2
+  fi
+  if ! have jq || ! have git; then
+    echo "gate-ledger: work-log skipped (jq and git required)" >&2
+    return 0
+  fi
+
+  slug=$(slugify "$slug")
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug reduced to nothing after slugify" >&2
+    return 2
+  fi
+
+  ensure_gitignore
+  local file; file=$(work_file_init "$slug")
+  local dir; dir=$(work_dir)
+  local tmp; tmp=$(mktemp "$dir/.tmp.XXXXXX")
+  trap 'rm -f "$tmp"' RETURN
+  jq --arg step "$step" --arg outcome "$outcome" --arg phase "$phase" \
+     --arg s "$(head_sha)" --arg t "$(now_iso)" \
+     '.history = ((.history // []) + [{step: $step, outcome: $outcome, sha: $s, at: $t}])
+      | .updatedAt = $t
+      | (if $phase != "" then .phase = $phase else . end)' \
+     "$file" > "$tmp" && mv "$tmp" "$file"
+}
+
+cmd_work_get() {
+  local slug=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --slug) slug="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug required" >&2
+    return 2
+  fi
+  slug=$(slugify "$slug")
+  local file; file="$(work_dir)/$slug.json"
+  [ -f "$file" ] || return 0
+  cat "$file"
+}
+
+cmd_work_list() {
+  if ! have jq; then return 0; fi
+  local dir; dir=$(work_dir)
+  local f
+  for f in "$dir"/*.json; do
+    [ -e "$f" ] || continue
+    jq -r '[(.slug // "?"), (.phase // "?"), (.branch // "-"), (.title // "-")] | @tsv' "$f" 2>/dev/null
+  done
+}
+
 cmd_gc() {
   if ! have jq || ! have git; then return 0; fi
   local dir; dir=$(ledger_dir)
@@ -152,11 +308,29 @@ cmd_gc() {
       printf 'removed stale ledger: %s (branch %s no longer exists)\n' "$(basename "$f")" "$branch"
     fi
   done
+
+  # Work files: prune only those tied to a branch that's gone. A work file with
+  # no branch yet (decide/design phases happen before one exists) is kept.
+  local wdir; wdir=$(work_dir)
+  for f in "$wdir"/*.json; do
+    [ -e "$f" ] || continue
+    branch=$(jq -r '.branch // empty' "$f" 2>/dev/null)
+    [ -n "$branch" ] || continue
+    if ! git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1; then
+      rm -f "$f"
+      printf 'removed stale work file: %s (branch %s no longer exists)\n' "$(basename "$f")" "$branch"
+    fi
+  done
 }
 
 case "${1:-}" in
-  record) shift; cmd_record "$@" ;;
-  status) shift; cmd_status "$@" ;;
-  gc)     shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V | status | gc}" >&2; exit 2 ;;
+  record)    shift; cmd_record "$@" ;;
+  status)    shift; cmd_status "$@" ;;
+  gate-get)  shift; cmd_gate_get "$@" ;;
+  work-set)  shift; cmd_work_set "$@" ;;
+  work-log)  shift; cmd_work_log "$@" ;;
+  work-get)  shift; cmd_work_get "$@" ;;
+  work-list) shift; cmd_work_list "$@" ;;
+  gc)        shift; cmd_gc "$@" ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | gc}" >&2; exit 2 ;;
 esac

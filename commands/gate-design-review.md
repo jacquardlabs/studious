@@ -64,3 +64,17 @@ If and only if the verdict is PROCEED TO PLAN, write the pre-mortem to `docs/stu
 ```
 
 Tell the user the register was written and that `/gate-audit` (technical lane) and `/gate-acceptance` (product lane) will verify it at the end of the build; committing the file is their call. On REVISE or RETHINK, do not write the file — the re-run after revision regenerates the pre-mortem.
+
+## Record the verdict
+
+After stating the verdict, record it to the local gate ledger so `/work-on` and later
+gates can see where the feature stands. Run (substituting the verdict token you just
+assigned — `PROCEED TO PLAN`, `REVISE`, or `RETHINK`):
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/bin/gate-ledger" record --gate design-review --verdict "PROCEED TO PLAN"
+```
+
+The ledger is local and gitignored — it never enters the repo. If `${CLAUDE_PLUGIN_ROOT}`
+did not resolve or the script is not found, tell the user the verdict could not be
+recorded to the gate ledger — do not skip silently.
