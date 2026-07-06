@@ -120,11 +120,15 @@ hook_embedded=$(cd "$d6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
   bash "$HOOK" <<<'{"tool_input":{"command":"git log --grep=\"gh pr create\""}}')
 contains "hook matches gh pr create embedded in a longer command" '"permissionDecision": "ask"' "$hook_embedded"
 
-# --- command prompts invoke the ledger via ${CLAUDE_PLUGIN_ROOT}, not a bare name ---
-# Plugins don't add bin/ to PATH, so a bare `gate-ledger ...` in a command prompt
-# is "command not found" at runtime. Every invocation must resolve the script path.
-bare=$(grep -rnE '^[[:space:]]*gate-ledger ' "$ROOT/commands" 2>/dev/null || true)
-check "no command invokes gate-ledger without \${CLAUDE_PLUGIN_ROOT}" "" "$bare"
+# --- command prompts invoke the ledger by its bare name, not via ${CLAUDE_PLUGIN_ROOT} ---
+# ${CLAUDE_PLUGIN_ROOT} only expands in JSON-config-driven processes (hooks.json,
+# MCP/LSP configs) that the harness spawns directly — never in commands/*.md body
+# text, which the model runs verbatim through the Bash tool (upstream Claude Code
+# limitation, anthropics/claude-code#9354). A plugin's bin/ IS added to the Bash
+# tool's PATH while the plugin is enabled, so the bare name is what actually
+# resolves at runtime (see #83).
+prefixed=$(grep -rnF "\${CLAUDE_PLUGIN_ROOT}/bin/gate-ledger" "$ROOT/commands" 2>/dev/null || true)
+check "no command invokes gate-ledger via \${CLAUDE_PLUGIN_ROOT}" "" "$prefixed"
 
 # --- record from a subdirectory still anchors the ledger at the repo root (#55) ---
 d7=$(sandbox)
