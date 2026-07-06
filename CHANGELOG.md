@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v2.11.0 (2026-07-06)
+
+### Features
+
+- Add /work-on — navigate the feature flow one piece at a time
+  ([#84](https://github.com/jacquardlabs/studious/pull/84),
+  [`9716a2c`](https://github.com/jacquardlabs/studious/commit/9716a2cc3f8949a765ffb43f1337ec83c18817df))
+
+
 ## v2.10.0 (2026-07-05)
 
 ### Bug Fixes
