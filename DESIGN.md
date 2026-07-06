@@ -31,15 +31,15 @@ the same tokens.
 
 | Command | Verdict tokens (canonical) | Source of truth | Consumers |
 |---------|----------------------------|-----------------|-----------|
-| `gate-should-we-build` | `BUILD` · `BUILD SMALLER` · `DEFER` · `DON'T BUILD` | `commands/gate-should-we-build.md` | skill `evaluate-feature-idea` |
-| `gate-design-review` | `PROCEED TO PLAN` · `REVISE` · `RETHINK` | `commands/gate-design-review.md` | skill `review-design-before-build` |
-| `gate-audit` | `PASS` · `FIX AND RE-AUDIT` · `NEEDS DISCUSSION` | `commands/gate-audit.md` | (no skill shim) |
-| `gate-acceptance` | `SHIP` · `FIX AND RE-CHECK` · `HOLD` | `commands/gate-acceptance.md` | skill `acceptance-check-before-merge` |
+| `gate-should-we-build` | `BUILD` · `BUILD SMALLER` · `DEFER` · `DON'T BUILD` | `commands/gate-should-we-build.md` | skill `evaluate-feature-idea` · `/work-on` |
+| `gate-design-review` | `PROCEED TO PLAN` · `REVISE` · `RETHINK` | `commands/gate-design-review.md` | skill `review-design-before-build` · `/work-on` |
+| `gate-audit` | `PASS` · `FIX AND RE-AUDIT` · `NEEDS DISCUSSION` | `commands/gate-audit.md` | `/work-on` (no skill shim) |
+| `gate-acceptance` | `SHIP` · `FIX AND RE-CHECK` · `HOLD` | `commands/gate-acceptance.md` | skill `acceptance-check-before-merge` · `/work-on` |
 
 Each vocabulary is three or four tokens: one "proceed," one "fix and retry," and (most)
-one "stop/rethink." There is **no shared source-of-truth file** — every command defines its
-own tokens inline, and the skill shims restate them. <!-- deviation: a single reference
-listing all gate vocabularies would prevent a command and its skill drifting apart. -->
+one "stop/rethink." The canonical listing and per-gate breakdown now live in
+`reference/gate-vocabulary.md`, cited by `commands/work-on.md` rather than restated there —
+this table should mirror that file, not diverge from it.
 
 ### Severity tiers
 
@@ -68,7 +68,7 @@ cited by the auditor/reviewer agents rather than restated per-agent.
 
 - **Command naming** — `verb`-prefixed families: `gate-*` (per-feature quality gates),
   `deep-review` (periodic reviews), `backlog-*` (issue triage), `extract-*` (context-doc
-  population), `studious-init` (setup). All lowercase, hyphenated.
+  population), `studious-init` (setup), `work-on` (feature-flow navigation). All lowercase, hyphenated.
 - **Frontmatter** — commands carry `description` + `allowed-tools`; agents carry `name` +
   `description` + `tools` + `model`. Descriptions are one line, imperative.
 - **Skills as trigger shims** — `skills/<name>/SKILL.md` holds a tightly-scoped `description`
@@ -103,8 +103,10 @@ documents the policy for the interface surface, it does not restate the per-agen
    `deep-review` and the review agents. Same concept, two labels.~~ Resolved: unified on
    `Track` everywhere; the canonical ladder and per-auditor mapping now live in
    `reference/severity-rubric.md`.
-2. **No shared source for gate verdict vocabularies** — each command and its skill shim
-   restate the tokens independently, so a command and its trigger can drift apart.
+2. **No shared source for gate verdict vocabularies** — partially addressed: the canonical
+   listing now lives in `reference/gate-vocabulary.md`, and `/work-on` cites it rather than
+   restating token definitions. The three skill shims still restate their gate's tokens
+   independently in a one-line summary and haven't been repointed at the reference file yet.
 3. **`gate-audit` has no skill shim** while the other three gates do (`evaluate-feature-idea`,
    `review-design-before-build`, `acceptance-check-before-merge`) — natural-language access
    is inconsistent across the gate family.

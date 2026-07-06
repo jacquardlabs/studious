@@ -1,6 +1,6 @@
 ---
 description: Evaluate whether a feature idea is worth building before any engineering begins
-allowed-tools: Read, Glob, Grep
+allowed-tools: Read, Glob, Grep, Bash
 ---
 
 # Should we build this?
@@ -26,3 +26,17 @@ Now evaluate honestly:
 Do not be a yes-man. If this is a bad idea, say so plainly and suggest what we should build instead based on the known problems list. If it's a good idea but scoped too big, say that and describe the smaller version.
 
 End with a clear recommendation: **BUILD**, **BUILD SMALLER** (with the scoped-down version), **DEFER** (with what to prioritize instead), or **DON'T BUILD** (with why).
+
+## Record the verdict
+
+After stating the recommendation, record it to the local gate ledger so `/work-on`
+and later gates can see where the feature stands. Run (substituting the verdict
+token you just assigned — `BUILD`, `BUILD SMALLER`, `DEFER`, or `DON'T BUILD`):
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/bin/gate-ledger" record --gate should-we-build --verdict "BUILD"
+```
+
+The ledger is local and gitignored — it never enters the repo. If `${CLAUDE_PLUGIN_ROOT}`
+did not resolve or the script is not found, tell the user the verdict could not be
+recorded to the gate ledger — do not skip silently.

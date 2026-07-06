@@ -68,7 +68,11 @@ When you run `gh pr create`, a PR-time hook reads the gate verdicts recorded to 
 
 You don't need every gate every time. For small fixes, `/gate-audit` alone is enough. The gates exist to catch building the wrong thing or shipping a bad experience. Use judgment about when that risk applies.
 
-The three product gates also fire from natural language, not just the slash command — asking "should we build this?", "review this design before I build it", or "does this actually deliver?" routes to the matching gate. Triggers are deliberately conservative, so you'll still reach for the commands directly most of the time.
+The three product gates also fire from natural language, not just the slash command — asking "should we build this?", "review this design before I build it", or "does this actually deliver?" routes to the matching gate. So does flow continuation — "do the next piece" resumes `/work-on` (below). Triggers are deliberately conservative, so you'll still reach for the commands directly most of the time.
+
+### Or have Studious navigate
+
+`/work-on [idea or issue]` walks a feature through that same sequence one piece at a time. Each invocation runs exactly one step — a gate, or a handoff at the two steps Studious doesn't own (design doc, build) — then stops and tells you what the next piece is. There is no auto-advance. When you're ready, `/work-on` with no argument (or just "next", or "do the next piece") runs it; you never have to remember which gate comes after which. Position is tracked per feature in the same local, gitignored `.studious/` state as the gate ledger, so the flow survives across sessions and picks up where the feature actually stands — including gates you ran by hand.
 
 ## CI mode (optional)
 
