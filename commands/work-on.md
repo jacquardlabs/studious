@@ -32,7 +32,7 @@ For the gate pieces, run that slash command's workflow now, with the flow's cont
 Flow position lives in a per-feature work file, `.studious/work/<slug>.json`, read and written only through the ledger tool (see Record keeping). See what's in flight with:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/gate-ledger" work-list
+gate-ledger work-list
 ```
 
 - **`$ARGUMENTS` is empty — "do the next piece."** If a work file's branch matches the current branch, that's the feature. Otherwise, if exactly one work file is active (phase not `done`/`stopped`), use it. If several are active, list them and ask which — don't guess. If none exist, say there's no feature in flight and invite `/work-on [idea or issue]`.
@@ -40,14 +40,14 @@ Flow position lives in a per-feature work file, `.studious/work/<slug>.json`, re
 - **Anything else starts a new feature** — a raw idea or an issue reference. For an issue, fetch its title and body with `gh issue view` and use them as the gate input. Derive a short slug from the title, then create the work file at phase `decide`:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/gate-ledger" work-set --slug "<slug>" --title "<title>" --source "<issue #N or: idea>" --phase decide
+gate-ledger work-set --slug "<slug>" --title "<title>" --source "<issue #N or: idea>" --phase decide
 ```
 
 ## Find the next piece — evidence first
 
 The work file's `phase` names the next piece, but verify it against evidence before running anything, and correct the file when they disagree — evidence wins:
 
-- **Gate verdicts** — read via the ledger tool, never the raw file: `"${CLAUDE_PLUGIN_ROOT}/bin/gate-ledger" gate-get` prints the current branch's recorded verdicts as JSON (`.gates.<gate>.verdict` / `.gates.<gate>.sha`); empty output means nothing recorded yet. For audit and acceptance a passing verdict counts only at the current HEAD sha; commits since mean that gate is due again.
+- **Gate verdicts** — read via the ledger tool, never the raw file: `gate-ledger gate-get` prints the current branch's recorded verdicts as JSON (`.gates.<gate>.verdict` / `.gates.<gate>.sha`); empty output means nothing recorded yet. For audit and acceptance a passing verdict counts only at the current HEAD sha; commits since mean that gate is due again.
 - **Design doc** — the `designDoc` path in the work file, else discover a candidate the way `/gate-design-review` does. When found, record it: `work-set --design-doc "<path>"`.
 - **Pre-mortem register** — `docs/studious/premortems/<doc-slug>.md`, where `<doc-slug>` is the recorded `designDoc`'s filename without its extension — `/gate-design-review` names the register after the design doc, not the feature slug, so don't reuse this flow's `<slug>` here. A register found at that path with a `Branch:` header matching the current branch is evidence design-review already returned **PROCEED TO PLAN**.
 - **Build progress** — implementation commits since the design-review sha. If the phase says `build` and there are none, the build piece isn't done: say so rather than advancing (re-offering the handoff is fine).
@@ -67,7 +67,7 @@ Run `/gate-should-we-build` with the feature as its argument, then set the next 
 - **DEFER** / **DON'T BUILD** → phase `stopped`; surface the gate's reasoning and end the flow (the user can explicitly restart it later)
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/gate-ledger" work-log --slug "<slug>" --step decide --outcome "<verdict>" --phase "<next phase>"
+gate-ledger work-log --slug "<slug>" --step decide --outcome "<verdict>" --phase "<next phase>"
 ```
 
 ### 2 · design — handoff
@@ -140,4 +140,4 @@ Then stop. Do not start the next piece, do part of it "to save time," or ask whe
 
 ## Record keeping
 
-All flow state goes through `"${CLAUDE_PLUGIN_ROOT}/bin/gate-ledger"` — `work-set`, `work-log`, `work-get`, `work-list` for this flow's own state, and `gate-get` to read gate verdicts — never hand-edit the JSON or read either store's files directly. The files are local and gitignored; they never enter the repo. If `${CLAUDE_PLUGIN_ROOT}` did not resolve or the script is not found, tell the user flow position can't be recorded — do not skip silently — and navigate from evidence alone for this session.
+All flow state goes through `gate-ledger` — `work-set`, `work-log`, `work-get`, `work-list` for this flow's own state, and `gate-get` to read gate verdicts — never hand-edit the JSON or read either store's files directly. The files are local and gitignored; they never enter the repo. If `gate-ledger` is not found (the plugin's `bin/` isn't on `PATH` in this environment), tell the user flow position can't be recorded — do not skip silently — and navigate from evidence alone for this session.

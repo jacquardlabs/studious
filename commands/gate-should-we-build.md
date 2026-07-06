@@ -34,9 +34,9 @@ and later gates can see where the feature stands. Run (substituting the verdict
 token you just assigned — `BUILD`, `BUILD SMALLER`, `DEFER`, or `DON'T BUILD`):
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/gate-ledger" record --gate should-we-build --verdict "BUILD"
+gate-ledger record --gate should-we-build --verdict "BUILD"
 ```
 
-The ledger is local and gitignored — it never enters the repo. If `${CLAUDE_PLUGIN_ROOT}`
-did not resolve or the script is not found, tell the user the verdict could not be
-recorded to the gate ledger — do not skip silently.
+The ledger is local and gitignored — it never enters the repo. If `gate-ledger` is not
+found (the plugin's `bin/` isn't on `PATH` in this environment), tell the user the
+verdict could not be recorded to the gate ledger — do not skip silently.
