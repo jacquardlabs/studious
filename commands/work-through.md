@@ -1,27 +1,31 @@
 ---
 description: Drive a whole milestone or epic through the gate flow with dispatched agents — plan once for approval, then run everything runnable, stopping only for judgment calls
 argument-hint: "[milestone, epic issue, or label] (omit to keep driving the epic in flight)"
-allowed-tools: Read, Glob, Grep, Bash, Task, Write
+allowed-tools: Read, Glob, Grep, Bash, Task, Write, Workflow
 ---
 
 # Work through an epic
 
 Drive a whole milestone through the same gate flow `/work-on` walks one piece at a
-time. This command owns scheduling — which stories run, in what order, and when a
-verdict escalates to the user — never the gates' judgments and never the how of
-building. Two modes, resolved by state rather than flags: no epic in flight → the plan
-piece; an approved epic → the driver.
+time. This command owns state assembly and reporting; a deterministic Workflow script
+owns scheduling (which stories run, in what order, retry caps, merge order); dispatched
+agents own every judgment. Code owns bookkeeping; prompts own judgment. Two modes,
+resolved by state rather than flags: no epic in flight → the plan piece; an approved
+epic → the driver.
 
 **The posture — non-negotiable:**
 
-- **Gates are unbypassable.** Run the gate commands' workflows verbatim; never soften,
-  reinterpret, or skip a verdict. Tokens are canonical in `reference/gate-vocabulary.md`.
-- **Lanes stay separate.** Gate agents never build; worker agents never gate; the two
-  never share context. A gate judges the diff and the doc, never a worker's transcript.
+- **Gates are unbypassable.** Gate agents run the gate commands' workflows verbatim;
+  never soften, reinterpret, or skip a verdict. Tokens are canonical in
+  `reference/gate-vocabulary.md`.
+- **Lanes stay separate.** Gate agents never build; worker agents never gate
+  (`reference/worker-contract.md`); the two never share context. A gate judges the
+  diff and the doc, never a worker's transcript.
 - **GitHub is read-only.** Never create or edit issues; never open PRs — after the
   finale the branch is the user's (`gh pr create`).
 - **Judgment verdicts always stop the story** and wait for the user. Autonomy never
-  absorbs a RETHINK, NEEDS DISCUSSION, or HOLD.
+  absorbs a RETHINK, NEEDS DISCUSSION, or HOLD; unknown verdicts park too, never
+  advance.
 - **Nothing runs before the user approves the plan.**
 
 Read PRODUCT.md at the project root first. If `gate-ledger` is not on `PATH`, stop —
@@ -66,11 +70,13 @@ supervised, evidence-first flow instead.
 
    - Write the epic pre-mortem register to `docs/studious/premortems/<slug>-epic.md`
      and record it: `gate-ledger epic-set --slug "<slug>" --premortem "<path>"`.
-   - Create the integration branch and its dedicated worktree — never touch the user's
-     checkout:
+   - Create the integration branch **from the default branch — never from whatever
+     happens to be checked out** — and give it its own worktree, leaving the user's
+     checkout untouched:
 
      ```bash
-     git branch "epic/<slug>"
+     default=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+     git branch "epic/<slug>" "${default:-main}"
      git worktree add ".studious/worktrees/<slug>/__epic" "epic/<slug>"
      ```
 
@@ -80,100 +86,121 @@ supervised, evidence-first flow instead.
 ## Driver — every later invocation
 
 If the epic's status is still `approved`, mark the run started:
-`gate-ledger epic-set --slug "<slug>" --status running`. Then loop steps 1–4 until
-nothing is runnable without the user.
+`gate-ledger epic-set --slug "<slug>" --status running`.
 
 ### 1 · Reconcile — evidence first
 
-For every story, recorded state must match evidence; evidence wins, and the files get
-corrected when they disagree:
+Recorded state must match evidence before anything is dispatched; evidence wins, and
+the files get corrected (via `gate-ledger`, never by hand) when they disagree:
 
-- Phase: `gate-ledger work-get --slug "<story>"`.
+- Epic and stories: `gate-ledger epic-get --slug "<slug>"`; per-story phase:
+  `gate-ledger work-get --slug "<story>"`.
 - Verdicts: `gate-ledger gate-get --branch "epic/<slug>--<story>"` — a passing verdict
   counts only at that branch's HEAD sha.
-- Design doc: the work file's `designDoc` path exists on disk.
+- Design docs: each recorded `designDoc` path exists in its story worktree.
 - Landed: the story's merge is actually on the epic branch
   (`git -C .studious/worktrees/<slug>/__epic log --oneline`); a story marked `landed`
   without its merge isn't landed.
 
-### 2 · Schedule
+From the reconciled state, derive each unfinished story's **next phase** (first phase
+in its gate profile whose evidence is missing).
 
-Runnable = status `pending` or `running` ∧ every dep `landed` ∧ concurrent stories ≤
-the epic's `concurrency`. `parked` and `dropped` stories never schedule; their
-dependents wait.
+### 2 · Run the driver script (primary mode)
 
-### 3 · Dispatch — one agent, one phase, one story
-
-On a story's first dispatch, create its work file, branch, and worktree:
+The scheduler is code, not prose. Resolve the plugin root (the plugin's `bin/` is on
+`PATH`, so the ledger's location reveals it):
 
 ```bash
-gate-ledger work-set --slug "<story>" --title "<story title>" --source "epic:<slug>" \
-  --branch "epic/<slug>--<story>" --phase design
-git branch "epic/<slug>--<story>" "epic/<slug>"
-git worktree add ".studious/worktrees/<slug>/<story>" "epic/<slug>--<story>"
+plugin_root="$(cd "$(dirname "$(command -v gate-ledger)")/.." && pwd)"
+# driver script: $plugin_root/workflows/epic-driver.js
 ```
 
-Dispatch independent stories' phases in parallel — one message, multiple Task calls.
-Each dispatched agent gets its story's context (title, criteria, design doc path,
-worktree path) and nothing about other stories. Per phase:
+Call the Workflow tool with `scriptPath` set to that file and `args`:
 
-- **design** — a worker agent authors a design doc in the story worktree satisfying
-  `reference/design-doc-contract.md`, grounded in PRODUCT.md and the story's acceptance
-  criteria. Record it: `gate-ledger work-set --slug "<story>" --design-doc "<path>"`.
-- **design-review / audit / acceptance** — run that gate command's workflow as the
-  agent, against the story worktree; the gate records its own verdict to the story
-  branch's ledger, as always.
-- **build** — a worker agent implements the design doc in the story worktree, following
-  CLAUDE.md conventions, committing to the story branch. If Superpowers is installed
-  the worker uses its plan/execute workflow; otherwise it builds directly.
+```json
+{
+  "epic": "<the epic-get JSON, verbatim>",
+  "phases": { "<story>": "<next phase>" },
+  "repoRoot": "<absolute path of the main working tree>",
+  "defaultBranch": "<resolved default branch>",
+  "timestamp": "<current ISO time>"
+}
+```
 
-### 4 · Advance on the verdict
+The script schedules the DAG under the concurrency cap, dispatches workers
+(`reference/worker-contract.md`) and gates, applies the verdict rules mechanically
+(fix-and-retry verdicts: fixer + fresh-eyes gate re-run, capped; judgment verdicts:
+park immediately), merges each story when its **final profiled gate** returns its
+proceed token, and runs the epic finale when everything has landed or been dropped.
+Every state mutation is written by the agent that caused it, via `gate-ledger` — the
+script's memory is a working copy, so a killed run resumes by re-running this command:
+reconcile, re-invoke, nothing duplicated or lost.
 
-The three-outcome shape in `reference/gate-vocabulary.md` drives every transition; log
-each with `gate-ledger work-log --slug "<story>" --step <gate> --outcome "<verdict>"`:
+Render the script's return value in the fixed report shape below. Do not re-derive or
+second-guess its scheduling; anything it parked is the user's, not yours to retry.
 
-- **Proceed** (`PROCEED TO PLAN`, `PASS`, `SHIP`) → the story's next profiled phase, no
-  pause. A `SHIP` at story HEAD → merge: in the `__epic` worktree,
-  `git merge --no-ff "epic/<slug>--<story>"`. On conflict, one merge-fixer agent
-  attempt in that worktree; still conflicted → `git merge --abort`, park the story with
-  reason `merge-conflict`. Merged →
-  `gate-ledger epic-story-set --epic "<slug>" --slug "<story>" --status landed` and
+### Fallback driver — use only when the Workflow tool is unavailable
+
+Semantics are identical to the script's (defined once in the design doc; the two modes
+are interchangeable mid-epic): walk each runnable story's next phase with dispatched
+agents — runnable = every dependency `landed` ∧ not `parked`/`dropped` ∧ under the
+epic's cap — dispatching independent stories in parallel (one message, multiple Task
+calls). Workers follow `reference/worker-contract.md`; gate agents run the gate
+command workflows and record their own verdicts from inside the story worktree; log
+every step with
+`gate-ledger work-log --slug "<story>" --step <phase> --outcome "<token>" --phase "<next phase>"`.
+Apply verdicts exactly as the script does:
+
+- **Proceed** → the story's next profiled phase; when the **final profiled gate**
+  proceeds at story HEAD (SHIP for a full profile; whatever its last gate's proceed
+  token is for a trimmed one), merge in the `__epic` worktree (`git merge --no-ff`,
+  one merge-fix attempt, abort → park), then
+  `epic-story-set --epic "<slug>" --slug "<story>" --status landed` and
   `git worktree remove ".studious/worktrees/<slug>/<story>"` (keep the branch).
-- **Fix and retry** (`REVISE`, `FIX AND RE-AUDIT`, `FIX AND RE-CHECK`) → first bump:
-  `gate-ledger epic-story-set --epic "<slug>" --slug "<story>" --bump-retry <gate>`.
-  If the counter now exceeds 2, park with reason `<gate>: retry cap`. Otherwise
-  dispatch a fixer agent with the gate's findings (the fixer never re-runs the gate),
-  then re-run the gate with a fresh agent.
-- **Judgment** (`RETHINK`, `NEEDS DISCUSSION`, `HOLD`) → park immediately, no retry, no
-  workaround: `epic-story-set --status parked --reason "<gate>: <verdict> — <one-line
-  gate reasoning>"`. These verdicts exist to reach the user.
+- **Fix and retry** → `epic-story-set --epic "<slug>" --slug "<story>" --bump-retry
+  <gate>`; park once the recorded counter exceeds 2; otherwise a fixer agent (never
+  re-runs the gate), then a fresh gate agent.
+- **Judgment or unknown** → park immediately:
+  `epic-story-set --status parked --reason "<gate>: <verdict> — <one clause>"`.
 
 ## Epic finale
 
-When every story is `landed` or `dropped`, in the `__epic` worktree:
+When every story is `landed` or `dropped` (the script runs this itself; in fallback
+mode, run it in the `__epic` worktree):
 
-1. `/gate-audit` across the full epic diff (against the merge-base with the default
-   branch) — the cross-story integration pass no per-story audit saw.
+1. The audit fan-out across the full epic diff (against the merge-base with the
+   default branch) — the cross-story integration pass no per-story audit saw.
 2. `/gate-acceptance` against the epic goal statement, not any single story.
 3. `@agent-premortem-auditor` over the epic pre-mortem register.
 
 Verdicts record to the epic branch's ledger — the PR-time hook reads the same file.
-Mechanical failures get the same bounded fix cycle (2, then stop and surface). All
-pass → `gate-ledger epic-set --slug "<slug>" --status ready`: recap every story's
-verdict trail and remind the user the PR is theirs (`gh pr create` from the epic
-branch).
+All pass → `gate-ledger epic-set --slug "<slug>" --status ready`, then release the
+integration checkout so the branch is checkoutable from the user's clone:
+`git worktree remove ".studious/worktrees/<slug>/__epic"`. Recap every story's verdict
+trail and remind the user the PR is theirs (`gh pr create` from the epic branch).
 
-## Skips and amendments
+## Skips, amendments, and un-parking
 
 Gate profiles fixed at plan time are the only built-in skip mechanism. Mid-flight,
 skip a gate only on the user's explicit say-so — log it
 (`work-log --step <gate> --outcome SKIPPED`) and never on your own initiative.
 
-Amendments go through the driver, never hand-edited state: dropping a story →
-`epic-story-set --status dropped` (then re-evaluate dependents — a dependent of a
-dropped story needs the user to confirm it still makes sense); adding a story → a
-scoped plan piece for just that story (a `/gate-should-we-build` pass plus explicit
-approval of its DAG placement) before it joins the schedule.
+Amendments go through this command, never hand-edited state:
+
+- **Un-park** — the driver never un-parks on its own. When the user resolves a parked
+  story (answers the question, revises the design, accepts a risk), record it so the
+  next run schedules the story with fresh fix cycles:
+
+  ```bash
+  gate-ledger epic-story-set --epic "<slug>" --slug "<story>" \
+    --status pending --reason "resolved: <one clause>" --reset-retry <gate>
+  ```
+
+- **Drop** — `epic-story-set --status dropped`, remove the story's worktree if one
+  exists, then re-evaluate dependents: a dependent of a dropped story needs the user
+  to confirm it still makes sense.
+- **Add** — a scoped plan piece for just that story (a `/gate-should-we-build` pass
+  plus explicit approval of its DAG placement) before it joins the schedule.
 
 ## Close every invocation the same way
 
@@ -189,14 +216,16 @@ Run /work-through when you're ready, or resolve the queue first.
 
 Omit `Needs you:` when nothing is parked. When the epic reaches `ready`, the last line
 becomes the `gh pr create` handoff; `stopped` states what ended it. A parked story is
-always also a valid `/work-on` feature — say so when the queue is non-empty, so the
-user knows they can take any story over by hand.
+always also a valid `/work-on` feature — say so when the queue is non-empty; taking a
+story over by hand happens inside its worktree (the story branch is checked out
+there), or after `git worktree remove` on it.
 
 ## Record keeping
 
 All state goes through `gate-ledger` — `epic-set`, `epic-get`, `epic-list`,
 `epic-story-set` for the epic; `work-set`, `work-log`, `work-get` for stories;
-`gate-get` for verdicts. Never hand-edit or directly read the JSON files. Worktrees
-live under `.studious/worktrees/<slug>/` — gitignored, one per running story plus
-`__epic`, removed as stories land; `git worktree list` is the recovery tool when state
-and disk disagree.
+`gate-get` for verdicts. State lives in the MAIN working tree's `.studious/` no matter
+which worktree an agent writes from — the ledger anchors there itself. Never hand-edit
+or directly read the JSON files. Worktrees live under `.studious/worktrees/<slug>/` —
+gitignored, one per running story plus `__epic`, removed as stories land and at
+`ready`; `git worktree list` is the recovery tool when state and disk disagree.
