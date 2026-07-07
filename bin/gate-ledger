@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # gate-ledger — read/write Studious's local, gitignored .studious/ state.
 #
-# Two stores in the consuming project:
+# Three stores in the consuming project:
 #   .studious/gates/<branch-slug>.json  — per-branch gate verdicts. Written by the
 #     gate commands (via `record`); read by the PR-time hook (via `status`) and by
 #     /work-on's evidence check (via `gate-get`) — never read as a raw file by callers.
 #   .studious/work/<feature-slug>.json  — per-feature flow position for /work-on
 #     (written via `work-set` / `work-log`; read via `work-get` / `work-list`).
+#   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /work-through (written via epic-set / epic-story-set; read via epic-get / epic-list).
 # Degrades silently when git or jq is unavailable.
 set -uo pipefail
 
@@ -36,6 +37,16 @@ work_dir() {
     printf '%s/.studious/work' "$root"
   else
     printf '.studious/work'
+  fi
+}
+
+epic_dir() {
+  # Same root-anchoring as ledger_dir, different store.
+  local root
+  if root=$(git rev-parse --show-toplevel 2>/dev/null); then
+    printf '%s/.studious/epics' "$root"
+  else
+    printf '.studious/epics'
   fi
 }
 
@@ -285,6 +296,83 @@ cmd_work_get() {
   cat "$file"
 }
 
+epic_file_init() { # slug → ensures the epic file exists, echoes its path
+  local slug="$1"
+  local dir; dir=$(epic_dir)
+  mkdir -p "$dir"
+  local file; file="$dir/$slug.json"
+  [ -f "$file" ] || printf '{"schemaVersion":1,"slug":"%s","status":"planning","stories":{}}' "$slug" > "$file"
+  printf '%s' "$file"
+}
+
+cmd_epic_set() {
+  local slug="" title="" src="" goal="" branch="" premortem="" concurrency="" status=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --slug)        slug="$2"; shift 2 ;;
+      --title)       title="$2"; shift 2 ;;
+      --source)      src="$2"; shift 2 ;;
+      --goal)        goal="$2"; shift 2 ;;
+      --branch)      branch="$2"; shift 2 ;;
+      --premortem)   premortem="$2"; shift 2 ;;
+      --concurrency) concurrency="$2"; shift 2 ;;
+      --status)      status="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug required" >&2
+    return 2
+  fi
+  if ! have jq || ! have git; then
+    echo "gate-ledger: epic-set skipped (jq and git required)" >&2
+    return 0
+  fi
+
+  slug=$(slugify "$slug")
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug reduced to nothing after slugify" >&2
+    return 2
+  fi
+
+  ensure_gitignore
+  local file; file=$(epic_file_init "$slug")
+  local dir; dir=$(epic_dir)
+  local tmp; tmp=$(mktemp "$dir/.tmp.XXXXXX")
+  trap 'rm -f "$tmp"' RETURN
+  jq --arg title "$title" --arg src "$src" --arg goal "$goal" --arg branch "$branch" \
+     --arg pm "$premortem" --arg conc "$concurrency" --arg status "$status" --arg t "$(now_iso)" \
+     '.schemaVersion = (.schemaVersion // 1)
+      | .createdAt = (.createdAt // $t)
+      | .updatedAt = $t
+      | (if $title  != "" then .title       = $title  else . end)
+      | (if $src    != "" then .source      = $src    else . end)
+      | (if $goal   != "" then .goal        = $goal   else . end)
+      | (if $branch != "" then .branch      = $branch else . end)
+      | (if $pm     != "" then .premortem   = $pm     else . end)
+      | (if $conc   != "" then .concurrency = ($conc | tonumber) else . end)
+      | (if $status != "" then .status      = $status else . end)' \
+     "$file" > "$tmp" && mv "$tmp" "$file"
+}
+
+cmd_epic_get() {
+  local slug=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --slug) slug="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug required" >&2
+    return 2
+  fi
+  slug=$(slugify "$slug")
+  local file; file="$(epic_dir)/$slug.json"
+  [ -f "$file" ] || return 0
+  cat "$file"
+}
+
 cmd_work_list() {
   if ! have jq; then return 0; fi
   local dir; dir=$(work_dir)
@@ -331,6 +419,8 @@ case "${1:-}" in
   work-log)  shift; cmd_work_log "$@" ;;
   work-get)  shift; cmd_work_get "$@" ;;
   work-list) shift; cmd_work_list "$@" ;;
+  epic-set)  shift; cmd_epic_set "$@" ;;
+  epic-get)  shift; cmd_epic_get "$@" ;;
   gc)        shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | gc}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-get --slug S | gc}" >&2; exit 2 ;;
 esac

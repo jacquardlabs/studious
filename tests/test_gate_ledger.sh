@@ -233,5 +233,39 @@ contains "work-set signals on stderr when jq is unavailable" "gate-ledger: work-
 check "work-set does not create a work file when jq is unavailable" "no" \
   "$([ -f "$d14/.studious/work/x.json" ] && echo yes || echo no)"
 
+# --- epic-set creates a slugged epic file with fields and defaults ---
+d15=$(sandbox)
+( cd "$d15" && "$LEDGER" epic-set --slug "Checkout Revamp!!" --title "Checkout revamp" \
+    --source "milestone 4" --goal "Users can pay without leaving the cart" \
+    --branch epic/checkout-revamp --concurrency 3 --status approved )
+ef15="$d15/.studious/epics/checkout-revamp.json"
+check "epic-set slugs the filename" "yes" "$([ -f "$ef15" ] && echo yes || echo no)"
+check "epic-set stores title" "Checkout revamp" "$(jq -r '.title' "$ef15")"
+check "epic-set stores goal" "Users can pay without leaving the cart" "$(jq -r '.goal' "$ef15")"
+check "epic-set stores branch" "epic/checkout-revamp" "$(jq -r '.branch' "$ef15")"
+check "epic-set stores concurrency as a number" "3" "$(jq '.concurrency' "$ef15")"
+check "epic-set stores status" "approved" "$(jq -r '.status' "$ef15")"
+check "epic-set initializes empty stories" "{}" "$(jq -c '.stories' "$ef15")"
+check "epic-set stamps schemaVersion" "1" "$(jq -r '.schemaVersion' "$ef15")"
+check "epic-set stamps createdAt" "yes" "$([ "$(jq -r '.createdAt' "$ef15")" != "null" ] && echo yes || echo no)"
+contains "epic-set self-heals .gitignore" ".studious/" "$(cat "$d15/.gitignore")"
+
+# --- epic-set upserts: later fields land, earlier fields survive ---
+( cd "$d15" && "$LEDGER" epic-set --slug checkout-revamp --status running )
+check "epic-set upsert moves status" "running" "$(jq -r '.status' "$ef15")"
+check "epic-set upsert keeps title" "Checkout revamp" "$(jq -r '.title' "$ef15")"
+
+# --- epic-get prints the epic file; empty when absent ---
+out=$(cd "$d15" && "$LEDGER" epic-get --slug checkout-revamp)
+contains "epic-get prints the epic file" '"slug": "checkout-revamp"' "$out"
+check "epic-get empty when no epic exists" "" "$(cd "$d15" && "$LEDGER" epic-get --slug nope)"
+
+# --- epic-set signals on stderr (but still returns 0) when jq is unavailable ---
+d16=$(sandbox)
+stderr16=$(cd "$d16" && PATH="$fakebin" "$LEDGER" epic-set --slug x 2>&1 1>/dev/null)
+contains "epic-set signals on stderr when jq is unavailable" "gate-ledger: epic-set skipped (jq and git required)" "$stderr16"
+check "epic-set does not create an epic file when jq is unavailable" "no" \
+  "$([ -f "$d16/.studious/epics/x.json" ] && echo yes || echo no)"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi
