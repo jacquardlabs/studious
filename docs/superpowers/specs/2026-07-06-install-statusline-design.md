@@ -62,7 +62,12 @@ pass-token table). Outputs a single terse line, or nothing:
 4. If step 3's output is non-empty, appends it to the last line of step 2's output with
    a ` | ` separator (or emits it alone if step 2 produced nothing).
 
-**`commands/install-statusline.md`** (new command, `/install-statusline`)
+**`bin/studious-statusline-install`** (new executable, `install`/`remove`)
+
+Mechanical work lives here rather than inline in the command prompt, so it's unit
+testable with the same bash-sandbox pattern as `gate-ledger` — `commands/install-statusline.md`
+is a thin delegator that just invokes it by bare name (same PATH-injection precedent as
+`gate-ledger` itself, commit `26cda7e`).
 
 - Resolves the *effective* current `statusLine.command` by checking, in order:
   `.claude/settings.local.json` → `.claude/settings.json` → `~/.claude/settings.json`.
@@ -79,9 +84,14 @@ pass-token table). Outputs a single terse line, or nothing:
   no such path resolves, fall back to directly replaying
   `.studious/statusline-prev-command` inline, so a disabled/removed plugin degrades to
   the user's original statusline instead of going blank.
-- `/install-statusline remove`: rewrite `.claude/settings.local.json`'s `statusLine` back
-  to the saved previous command (or delete the key entirely if there wasn't one), then
-  delete `.studious/statusline-prev-command`.
+- `remove`: rewrite `.claude/settings.local.json`'s `statusLine` back to the saved
+  previous command (or delete the key entirely if there wasn't one), then delete
+  `.studious/statusline-prev-command`.
+
+**`commands/install-statusline.md`** (new command, `/install-statusline`)
+
+Prompt body just runs `studious-statusline-install` (or `studious-statusline-install
+remove` when `$ARGUMENTS` is `remove`) and reports its output verbatim.
 
 ### Format
 
@@ -110,17 +120,22 @@ command's output.
 ## Testing
 
 - Extend `tests/test_gate_ledger.sh`: `statusline` subcommand — pass/stale/never-run/
-  branch-mismatch/no-ledger-dir cases.
-- New bash test for `studious-statusline`: compose-with-previous-command, fallback when
-  gate segment is empty, fallback when no previous command was saved.
-- `shellcheck bin/studious-statusline` alongside the existing `bin/gate-ledger` lint.
+  branch-mismatch/no-ledger-dir/no-jq cases.
+- New `tests/test_studious_statusline.sh`: `studious-statusline` compose-with-previous-command
+  and fallback behavior, plus `studious-statusline-install` install/remove/idempotency
+  cases (isolated via a sandboxed `$HOME` so tests never touch the real global settings).
+- `shellcheck bin/studious-statusline bin/studious-statusline-install
+  tests/test_studious_statusline.sh` alongside the existing `bin/gate-ledger` lint.
 
 ## Files touched
 
 - `bin/gate-ledger` (new `statusline` subcommand)
 - `bin/studious-statusline` (new file)
+- `bin/studious-statusline-install` (new file)
 - `commands/install-statusline.md` (new file)
 - `tests/test_gate_ledger.sh` (extended)
+- `tests/test_studious_statusline.sh` (new file)
+- `.github/workflows/ci.yml` (wire new test file + shellcheck targets)
 - `CLAUDE.md`, `README.md` (doc updates)
 
 ## What does not change
