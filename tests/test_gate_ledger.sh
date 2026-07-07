@@ -260,6 +260,21 @@ out=$(cd "$d15" && "$LEDGER" epic-get --slug checkout-revamp)
 contains "epic-get prints the epic file" '"slug": "checkout-revamp"' "$out"
 check "epic-get empty when no epic exists" "" "$(cd "$d15" && "$LEDGER" epic-get --slug nope)"
 
+# --- epic-set rejects a non-integer --concurrency before touching any file ---
+derr=$(sandbox)
+err=$(cd "$derr" && "$LEDGER" epic-set --slug x --concurrency banana 2>&1 1>/dev/null; echo "rc=$?")
+contains "epic-set rejects non-integer --concurrency" "gate-ledger: --concurrency must be a positive integer" "$err"
+contains "epic-set --concurrency banana exits 2" "rc=2" "$err"
+check "epic-set does not create an epic file for a rejected --concurrency" "no" \
+  "$([ -f "$derr/.studious/epics/x.json" ] && echo yes || echo no)"
+
+# --- epic-set rejects zero --concurrency ---
+err0=$(cd "$derr" && "$LEDGER" epic-set --slug x --concurrency 0 2>&1 1>/dev/null; echo "rc=$?")
+contains "epic-set rejects zero --concurrency" "gate-ledger: --concurrency must be a positive integer" "$err0"
+contains "epic-set --concurrency 0 exits 2" "rc=2" "$err0"
+check "epic-set does not create an epic file for --concurrency 0" "no" \
+  "$([ -f "$derr/.studious/epics/x.json" ] && echo yes || echo no)"
+
 # --- epic-set signals on stderr (but still returns 0) when jq is unavailable ---
 d16=$(sandbox)
 stderr16=$(cd "$d16" && PATH="$fakebin" "$LEDGER" epic-set --slug x 2>&1 1>/dev/null)
@@ -300,10 +315,32 @@ check "story upsert keeps title" "Cart API" "$(jq -r '.stories["cart-api"].title
 ( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug cart-api --bump-retry audit )
 check "bump-retry increments the gate counter" "2" "$(jq '.stories["cart-api"].retries.audit' "$ef15")"
 
+# --- reset-retry zeroes a bumped gate counter ---
+( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug cart-api --reset-retry audit )
+check "reset-retry zeroes the gate counter" "0" "$(jq '.stories["cart-api"].retries.audit' "$ef15")"
+
+# --- reset-retry on a never-bumped gate yields 0 without error ---
+( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug cart-api --reset-retry design )
+check "reset-retry on a never-bumped gate yields 0" "0" "$(jq '.stories["cart-api"].retries.design' "$ef15")"
+
 # --- epic-list summarizes landed/total per epic ---
 ( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug checkout-ui --status landed )
 out=$(cd "$d15" && "$LEDGER" epic-list)
 contains "epic-list reports slug, status, and landed count" "$(printf 'checkout-revamp\trunning\t1/2')" "$out"
+
+# --- state anchors to the main working tree across linked worktrees ---
+d17=$(sandbox)
+( cd "$d17" && git worktree add -q "$d17/.studious/worktrees/e/s" -b epic/e--s )
+( cd "$d17/.studious/worktrees/e/s" && "$LEDGER" record --gate audit --verdict PASS )
+check "record from a linked worktree writes the MAIN root ledger" "yes" \
+  "$([ -f "$d17/.studious/gates/epic-e--s.json" ] && echo yes || echo no)"
+check "record from a linked worktree does not write under the worktree" "no" \
+  "$([ -f "$d17/.studious/worktrees/e/s/.studious/gates/epic-e--s.json" ] && echo yes || echo no)"
+out=$(cd "$d17" && "$LEDGER" gate-get --branch epic/e--s)
+contains "gate-get from the main root sees the worktree-recorded verdict" '"verdict": "PASS"' "$out"
+check "self-heal touched only the main .gitignore" "no" \
+  "$([ -f "$d17/.studious/worktrees/e/s/.gitignore" ] && echo yes || echo no)"
+contains "main .gitignore self-healed" ".studious/" "$(cat "$d17/.gitignore")"
 
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

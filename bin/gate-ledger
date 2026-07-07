@@ -8,6 +8,9 @@
 #   .studious/work/<feature-slug>.json  — per-feature flow position for /work-on
 #     (written via `work-set` / `work-log`; read via `work-get` / `work-list`).
 #   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /work-through (written via epic-set / epic-story-set; read via epic-get / epic-list).
+# All three stores are anchored to the MAIN working tree (see repo_root), so
+# agents running in linked worktrees (e.g. /work-through story worktrees)
+# share one .studious/ store instead of fragmenting it per worktree.
 # Degrades silently when git or jq is unavailable.
 set -uo pipefail
 
@@ -18,12 +21,24 @@ now_iso()     { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+repo_root() {
+  # Anchor state to the MAIN working tree so agents running in linked
+  # worktrees (e.g. /work-through story worktrees) share one .studious/ store.
+  local common
+  common=$(git rev-parse --git-common-dir 2>/dev/null) || return 1
+  common=$(cd "$common" 2>/dev/null && pwd) || return 1  # may be relative ".git"
+  case "$common" in
+    */.git) printf '%s' "${common%/.git}" ;;
+    *) git rev-parse --show-toplevel 2>/dev/null ;;  # bare/odd layouts: old behavior
+  esac
+}
+
 ledger_dir() {
-  # Anchor to the repo root (same resolution ensure_gitignore uses) so the
-  # ledger location doesn't depend on the caller's CWD. Degrade to a
-  # CWD-relative path if we're not in a git repo at all.
+  # Anchor to the main working tree root so the ledger location doesn't
+  # depend on the caller's CWD or which linked worktree it's running in.
+  # Degrade to a CWD-relative path if we're not in a git repo at all.
   local root
-  if root=$(git rev-parse --show-toplevel 2>/dev/null); then
+  if root=$(repo_root); then
     printf '%s/.studious/gates' "$root"
   else
     printf '.studious/gates'
@@ -33,7 +48,7 @@ ledger_dir() {
 work_dir() {
   # Same root-anchoring as ledger_dir, different store.
   local root
-  if root=$(git rev-parse --show-toplevel 2>/dev/null); then
+  if root=$(repo_root); then
     printf '%s/.studious/work' "$root"
   else
     printf '.studious/work'
@@ -43,7 +58,7 @@ work_dir() {
 epic_dir() {
   # Same root-anchoring as ledger_dir, different store.
   local root
-  if root=$(git rev-parse --show-toplevel 2>/dev/null); then
+  if root=$(repo_root); then
     printf '%s/.studious/epics' "$root"
   else
     printf '.studious/epics'
@@ -58,9 +73,11 @@ slugify() {
 
 ensure_gitignore() {
   # Self-heal: keep .studious/ out of the user's git status, even for projects
-  # initialized before the ledger existed.
+  # initialized before the ledger existed. Anchored to the main working tree
+  # (see repo_root) so a linked worktree self-heals the main .gitignore, not
+  # its own.
   local root gi
-  root=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
+  root=$(repo_root) || return 0
   gi="$root/.gitignore"
   if [ ! -f "$gi" ] || ! grep -qxF '.studious/' "$gi" 2>/dev/null; then
     printf '\n# Studious local gate ledger (do not commit)\n.studious/\n' >> "$gi"
@@ -324,6 +341,10 @@ cmd_epic_set() {
     echo "gate-ledger: --slug required" >&2
     return 2
   fi
+  case "$concurrency" in
+    '') ;; # not provided: fine, left unset in the jq update
+    *[!0-9]*|0) echo "gate-ledger: --concurrency must be a positive integer" >&2; return 2 ;;
+  esac
   if ! have jq || ! have git; then
     echo "gate-ledger: epic-set skipped (jq and git required)" >&2
     return 0
@@ -374,20 +395,21 @@ cmd_epic_get() {
 }
 
 cmd_epic_story_set() {
-  local epic="" slug="" title="" src="" criteria="" deps="" gates_csv="" status="" reason="" worktree="" bump=""
+  local epic="" slug="" title="" src="" criteria="" deps="" gates_csv="" status="" reason="" worktree="" bump="" reset=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --epic)       epic="$2"; shift 2 ;;
-      --slug)       slug="$2"; shift 2 ;;
-      --title)      title="$2"; shift 2 ;;
-      --source)     src="$2"; shift 2 ;;
-      --criteria)   criteria="$2"; shift 2 ;;
-      --deps)       deps="$2"; shift 2 ;;
-      --gates)      gates_csv="$2"; shift 2 ;;
-      --status)     status="$2"; shift 2 ;;
-      --reason)     reason="$2"; shift 2 ;;
-      --worktree)   worktree="$2"; shift 2 ;;
-      --bump-retry) bump="$2"; shift 2 ;;
+      --epic)        epic="$2"; shift 2 ;;
+      --slug)        slug="$2"; shift 2 ;;
+      --title)       title="$2"; shift 2 ;;
+      --source)      src="$2"; shift 2 ;;
+      --criteria)    criteria="$2"; shift 2 ;;
+      --deps)        deps="$2"; shift 2 ;;
+      --gates)       gates_csv="$2"; shift 2 ;;
+      --status)      status="$2"; shift 2 ;;
+      --reason)      reason="$2"; shift 2 ;;
+      --worktree)    worktree="$2"; shift 2 ;;
+      --bump-retry)  bump="$2"; shift 2 ;;
+      --reset-retry) reset="$2"; shift 2 ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
@@ -418,7 +440,7 @@ cmd_epic_story_set() {
   trap 'rm -f "$tmp"' RETURN
   jq --arg s "$slug" --arg title "$title" --arg src "$src" --arg criteria "$criteria" \
      --arg deps "$deps" --arg gates "$gates_csv" --arg status "$status" --arg reason "$reason" \
-     --arg wt "$worktree" --arg bump "$bump" --arg t "$(now_iso)" \
+     --arg wt "$worktree" --arg bump "$bump" --arg reset "$reset" --arg t "$(now_iso)" \
      '.updatedAt = $t
       | .stories[$s] = ((.stories[$s] // {status: "pending", deps: [], retries: {}})
         | (if $title    != "" then .title    = $title    else . end)
@@ -429,7 +451,8 @@ cmd_epic_story_set() {
         | (if $status   != "" then .status   = $status   else . end)
         | (if $reason   != "" then .reason   = $reason   else . end)
         | (if $wt       != "" then .worktree = $wt       else . end)
-        | (if $bump     != "" then .retries[$bump] = ((.retries[$bump] // 0) + 1) else . end))' \
+        | (if $bump     != "" then .retries[$bump]  = ((.retries[$bump]  // 0) + 1) else . end)
+        | (if $reset    != "" then .retries[$reset] = 0 else . end))' \
      "$file" > "$tmp" && mv "$tmp" "$file"
 }
 
@@ -496,5 +519,5 @@ case "${1:-}" in
   epic-story-set) shift; cmd_epic_story_set "$@" ;;
   epic-list)      shift; cmd_epic_list "$@" ;;
   gc)             shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] | epic-get --slug S | epic-list | gc}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-list | gc}" >&2; exit 2 ;;
 esac
