@@ -103,7 +103,10 @@ the files get corrected (via `gate-ledger`, never by hand) when they disagree:
   without its merge isn't landed.
 
 From the reconciled state, derive each unfinished story's **next phase** (first phase
-in its gate profile whose evidence is missing).
+in its gate profile whose evidence is missing). One special value: if every profiled
+gate has already proceeded at the story branch's HEAD and only the merge onto the epic
+branch is missing, the next phase is the sentinel `merge` — the script jumps straight
+to landing the story instead of re-running its profile.
 
 ### 2 · Run the driver script (primary mode)
 
@@ -207,7 +210,7 @@ Amendments go through this command, never hand-edited state:
 End with exactly this shape and nothing after it:
 
 ```text
-Epic: <slug> — <landed>/<total> landed, <parked> parked, <n> runnable next.
+Epic: <slug> — <landed>/<total> landed, <parked> parked, <blocked> blocked on them.
 Needs you:
   - <story>: <gate> returned <verdict> — <one clause: what's needed>
 Landed this run: <story — verdict trail>
