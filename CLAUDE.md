@@ -51,7 +51,7 @@ Key invariants when adding or changing prompts:
 
 - **Stay in lane.** One agent = one concern. The security auditor owns the security rubric; other auditors escalate but don't hunt security issues. Don't bundle concerns into one agent.
 - **One fan-out command, many subagents.** Parallel checks live as subagents under a single entry point (`/gate-audit`, `/deep-review`) — never add a top-level command per check.
-- **Recommend-only.** Commands report; they never modify external state (issues, PRs, files outside `docs/studious/` in the consuming project). The sole exception: gate commands record verdicts, and `/work-on` records flow position, to local, gitignored `.studious/` state.
+- **Recommend-only.** Commands report; they never modify external state (issues, PRs, files outside `docs/studious/` in the consuming project). Two exceptions: gate commands record verdicts, and `/work-on` records flow position, to local, gitignored `.studious/` state; `/install-statusline` writes to `.claude/settings.local.json` (Claude Code's own config, gitignored but outside `.studious/`) to wire its optional statusline segment.
 - **Reviews write to the consuming project, not here.** Review reports land in the user's `docs/studious/` subdirectories. This plugin repo never accumulates them.
 - **Every agent/command reads PRODUCT.md, DESIGN.md, or CLAUDE.md** for project context. The 14 review/audit agents share a standardized prompt contract (posture, output format, calibration) — match it when adding an agent.
 

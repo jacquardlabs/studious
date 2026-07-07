@@ -66,6 +66,8 @@ Studious wraps feature development in quality gates. Between them you build, and
 
 When you run `gh pr create`, a PR-time hook reads the gate verdicts recorded to a local `.studious/` ledger (which Studious adds to your `.gitignore` on first run) and gives a specific reminder — naming gates that never ran, ran on an older commit, or didn't pass — while staying non-blocking.
 
+Optionally, `/install-statusline` wires the same gate state into your Claude Code statusline as a terse segment (`audit✓ acceptance—`) so it's visible without asking. It's per-project (writes only to a gitignored `.claude/settings.local.json`, never your global config) and preserves whatever statusline command you already have — `/install-statusline remove` reverses it.
+
 You don't need every gate every time. For small fixes, `/gate-audit` alone is enough. The gates exist to catch building the wrong thing or shipping a bad experience. Use judgment about when that risk applies.
 
 The three product gates also fire from natural language, not just the slash command — asking "should we build this?", "review this design before I build it", or "does this actually deliver?" routes to the matching gate. So does flow continuation — "do the next piece" resumes `/work-on` (below). Triggers are deliberately conservative, so you'll still reach for the commands directly most of the time.
