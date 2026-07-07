@@ -74,6 +74,22 @@ The three product gates also fire from natural language, not just the slash comm
 
 `/work-on [idea or issue]` walks a feature through that same sequence one piece at a time. Each invocation runs exactly one step — a gate, or a handoff at the two steps Studious doesn't own (design doc, build) — then stops and tells you what the next piece is. There is no auto-advance. When you're ready, `/work-on` with no argument (or just "next", or "do the next piece") runs it; you never have to remember which gate comes after which. Position is tracked per feature in the same local, gitignored `.studious/` state as the gate ledger, so the flow survives across sessions and picks up where the feature actually stands — including gates you ran by hand.
 
+### Or run a whole milestone
+
+`/work-through [milestone, epic issue, or label]` scales the flow up a level. The first
+run reads the milestone's issues (read-only) and proposes a story plan — dependency
+order, acceptance criteria per story, which gates each story needs, an epic-level
+pre-mortem — then stops for your approval; nothing runs before it. Every run after
+that drives: agents design, build, and gate stories in parallel worktrees (3 at once
+by default), stories that pass their gates merge into an `epic/<name>` integration
+branch, and fix-it verdicts get at most 2 repair cycles with a fresh auditor each
+time. Judgment verdicts — RETHINK, NEEDS DISCUSSION, HOLD — never retry: that story
+parks for you while independent stories keep moving. When everything lands, the whole
+epic diff gets a final audit plus an acceptance check against the epic's goal, and the
+branch is yours (`gh pr create` — same ledger, same PR-time hook). Any parked story is
+a normal `/work-on` feature, so you can always take one over by hand. Fair warning: an
+epic run spends tokens like the 5–10 supervised flows it replaces.
+
 ## CI mode (optional)
 
 `.github/workflows/gate-audit-pr.yml` runs `/gate-audit` non-interactively against a PR and posts the report as a PR comment — the same 6-7 auditor fan-out you'd get locally, without anyone having to remember to run it. It ships **dormant** (manual `workflow_dispatch` trigger only): pick a PR, run the workflow from the Actions tab with that PR's number as input, and it audits that PR and comments on it. It does not fire automatically on every PR yet.

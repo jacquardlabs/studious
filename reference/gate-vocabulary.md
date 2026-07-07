@@ -27,8 +27,10 @@ retry state.
 Update this table first when a gate's tokens change, then update these consumers:
 
 - The matching skill shim (`skills/evaluate-feature-idea`, `skills/review-design-before-build`,
-  `skills/acceptance-check-before-merge`) — each mentions its gate's tokens in one line.
+  `skills/acceptance-check-before-merge`, `skills/run-the-milestone`) — each mentions its gate's tokens in one line.
 - `commands/work-on.md`'s per-piece phase-transition mapping (`## Run exactly one piece`) —
   reacts to every token to decide the next phase.
+- `commands/work-through.md`'s driver — advances on proceed tokens, bounds retries on
+  fix-and-retry tokens, and parks the story on stop/rethink tokens.
 - `DESIGN.md`'s "Gate verdict vocabularies" table — documents this same mapping for readers of
   the interface contract; keep it a mirror of this file, not an independent listing.
