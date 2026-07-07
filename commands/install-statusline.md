@@ -27,8 +27,9 @@ studious-statusline-install remove
 ```
 
 Report the tool's own output to the user verbatim — it already states what
-happened (installed fresh, wrapped an existing command, already installed,
-restored, or nothing to remove).
+happened (installed fresh, installed but found a shared statusLine it wouldn't
+wrap, wrapped an existing local command, already installed, restored, or
+nothing to remove).
 
 If `studious-statusline-install` is not found (the plugin's `bin/` isn't on
 `PATH` in this environment), tell the user the install couldn't run — do not

@@ -112,13 +112,13 @@ out=$(cd "$d7" && HOME="$fakehome7" "$INSTALL")
 contains "install reports wrapping an existing statusLine" "wrapped your existing statusLine" "$out"
 check "install saves the previous command" "echo mine" "$(cat "$d7/.studious/statusline-prev-command")"
 
-# --- install ignores a checked-in, shared .claude/settings.json (security) ---
+# --- install ignores a checked-in, shared .claude/settings.json (security), but says so honestly ---
 d7s=$(sandbox)
 fakehome7s=$(mktemp -d); mkdir -p "$fakehome7s/.claude"
 mkdir -p "$d7s/.claude"
 printf '{"statusLine":{"type":"command","command":"echo attacker-controlled"}}' > "$d7s/.claude/settings.json"
 out=$(cd "$d7s" && HOME="$fakehome7s" "$INSTALL")
-contains "install ignores a shared, checked-in settings.json statusLine" "no previous statusLine found" "$out"
+contains "install reports the shared statusLine was found but not wrapped" "found a statusLine in the committed .claude/settings.json" "$out"
 check "install does not capture the checked-in statusLine command" "" "$(cat "$d7s/.studious/statusline-prev-command")"
 
 # --- install warns (but does not mutate the git index) when the prev-command file is already tracked ---

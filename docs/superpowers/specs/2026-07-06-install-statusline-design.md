@@ -70,7 +70,12 @@ is a thin delegator that just invokes it by bare name (same PATH-injection prece
 `gate-ledger` itself, commit `26cda7e`).
 
 - Resolves the *effective* current `statusLine.command` by checking, in order:
-  `.claude/settings.local.json` → `.claude/settings.json` → `~/.claude/settings.json`.
+  `.claude/settings.local.json` → `~/.claude/settings.json`. **Deliberately excludes**
+  the shared, checked-in `.claude/settings.json` — capturing from it would let a repo
+  author smuggle an arbitrary command into the persisted `.studious/statusline-prev-command`
+  that later executes on every render (added post-review, `/gate-audit` finding). If a
+  statusline is found only in the checked-in file, it's neither captured nor wrapped —
+  install says so honestly rather than reporting "no previous statusLine found."
 - If that command already contains `studious-statusline` (our own installed signature —
   the glob snippet always names it literally), report "already installed" and stop —
   idempotent re-run, never double-wraps.

@@ -55,6 +55,14 @@ current_statusline_command() {
   return 0
 }
 
+# Only used to give an honest install message — never as a capture source
+# (see current_statusline_command above for why the checked-in file is
+# deliberately excluded from capture).
+shared_statusline_command() {
+  [ -f "$root/.claude/settings.json" ] || return 0
+  jq -r '.statusLine.command // empty' "$root/.claude/settings.json" 2>/dev/null
+}
+
 # A .gitignore entry doesn't untrack a file some earlier commit already added
 # (or that an attacker deliberately committed). The render-time guard (see
 # bin/studious-statusline) already refuses to replay a tracked prev-command
@@ -106,6 +114,8 @@ cmd_install() {
 
   if [ -n "$prev" ]; then
     echo "studious-statusline-install: wrapped your existing statusLine and added the gate segment"
+  elif [ -n "$(shared_statusline_command)" ]; then
+    echo "studious-statusline-install: installed the gate segment — found a statusLine in the committed .claude/settings.json, but did not wrap it (a shared, checked-in file could smuggle a command into what runs on every render); it will be shadowed while the segment is installed. Configure your own in .claude/settings.local.json to have it wrapped instead."
   else
     echo "studious-statusline-install: installed the gate segment (no previous statusLine found)"
   fi
