@@ -54,6 +54,11 @@ Key invariants when adding or changing prompts:
 - **Recommend-only.** Commands report; they never modify external state (issues, PRs, files outside `docs/studious/` in the consuming project). The sole exception: gate commands record verdicts, and `/work-on` records flow position, to local, gitignored `.studious/` state.
 - **Reviews write to the consuming project, not here.** Review reports land in the user's `docs/studious/` subdirectories. This plugin repo never accumulates them.
 - **Every agent/command reads PRODUCT.md, DESIGN.md, or CLAUDE.md** for project context. The 14 review/audit agents share a standardized prompt contract (posture, output format, calibration) — match it when adding an agent.
+- **Code owns bookkeeping; prompts own judgment.** Schedulers, DAG order, retry caps, and ledgers live in code (`bin/gate-ledger`, `workflows/epic-driver.js`); prompts carry decomposition, verdicts, and briefs. Retry counting or cap math inside a command prompt is a defect.
+
+## Repo boundaries
+
+Layers of the delivery discipline — story, epic, initiative, worker — are directories and entrypoints of **this** repo, never separate repos. Their contracts co-evolve, and the gates can only audit changes they can see whole: one diff domain. Stand up a separate repo only if at least one holds: (a) a different license/commercial regime; (b) an independent audience whose users never install the rest; (c) a lifecycle/runtime that makes shared CI harmful; (d) a security/visibility boundary. Decision record: `docs/initiative-altitude.md` (2026-07-07) — the brigade repo was absorbed under this rule; winnow (a, b) and gauntlet (b) remain separate under it.
 
 ## Naming and model conventions
 
