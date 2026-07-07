@@ -15,8 +15,11 @@ cwd=$(printf '%s' "$input" | jq -r '.workspace.current_dir // .cwd // empty' 2>/
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 prev_file="$repo_root/.studious/statusline-prev-command"
 
+# Never replay a git-tracked prev-command file — a repo could otherwise ship
+# an attacker-controlled command that runs on every render with no install
+# step required from the victim.
 prev_out=""
-if [ -s "$prev_file" ]; then
+if [ -s "$prev_file" ] && ! git -C "$repo_root" ls-files --error-unmatch -- "$prev_file" >/dev/null 2>&1; then
   prev_out=$(printf '%s' "$input" | bash -c "$(cat "$prev_file")" 2>/dev/null)
 fi
 

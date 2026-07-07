@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-Studious is a **Claude Code plugin**, not a runtime application. Its "source" is mostly Markdown prompt files — agent definitions, slash commands, skills, and hook scripts — that ship to consuming projects via the Jacquard Labs marketplace. The only executable code is one Bash tool (`bin/gate-ledger`), the hook scripts, and the Python CI helpers in `scripts/`. There is nothing to build or run as an app; "correctness" means the prompts are well-formed, the manifest is valid, and the references resolve.
+Studious is a **Claude Code plugin**, not a runtime application. Its "source" is mostly Markdown prompt files — agent definitions, slash commands, skills, and hook scripts — that ship to consuming projects via the Jacquard Labs marketplace. The only executable code is a handful of Bash tools (`bin/gate-ledger`, `bin/studious-statusline`, `bin/studious-statusline-install`), the hook scripts, and the Python CI helpers in `scripts/`. There is nothing to build or run as an app; "correctness" means the prompts are well-formed, the manifest is valid, and the references resolve.
 
 The product itself is two rhythms (see `README.md`): per-feature **gates** (`/gate-*`) around building, and per-project **health reviews** (`/deep-review`). Both read three context docs in the *consuming* project — PRODUCT.md, DESIGN.md, CLAUDE.md.
 
@@ -28,9 +28,10 @@ uv run --no-project --with pytest pytest tests/python/test_check_references.py::
 
 # Gate-ledger integration tests (Bash)
 bash tests/test_gate_ledger.sh
+bash tests/test_studious_statusline.sh
 
 # Shell lint for the executable scripts
-shellcheck bin/gate-ledger hooks/gate-reminder.sh tests/test_gate_ledger.sh
+shellcheck bin/gate-ledger bin/studious-statusline bin/studious-statusline-install hooks/gate-reminder.sh tests/test_gate_ledger.sh tests/test_studious_statusline.sh
 ```
 
 Releases are automated via semantic-release (`pyproject.toml`); the version lives in `.claude-plugin/plugin.json` and is bumped by CI on merge to `main` — never edit it by hand.

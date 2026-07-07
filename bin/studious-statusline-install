@@ -25,9 +25,10 @@ prev_file="$root/.studious/statusline-prev-command"
 # in here) because ${CLAUDE_PLUGIN_ROOT} does not expand in statusLine.command
 # and the plugin cache path is versioned, changing on every `/plugin update`.
 # Falls back to replaying the saved previous command if the plugin isn't found
-# (disabled/removed), so the statusline never goes blank.
+# (disabled/removed), so the statusline never goes blank. Never replays a
+# git-tracked prev-command file — see the matching guard in bin/studious-statusline.
 # shellcheck disable=SC2016
-SNIPPET='r=$(git rev-parse --show-toplevel 2>/dev/null || pwd); p=$(ls -d "$HOME/.claude/plugins/cache"/*/studious/*/bin 2>/dev/null | sort -V | tail -1); if [ -n "$p" ] && [ -x "$p/studious-statusline" ]; then exec "$p/studious-statusline"; elif [ -s "$r/.studious/statusline-prev-command" ]; then bash -c "$(cat "$r/.studious/statusline-prev-command")"; fi'
+SNIPPET='r=$(git rev-parse --show-toplevel 2>/dev/null || pwd); p=$(ls -d "$HOME/.claude/plugins/cache"/*/studious/*/bin 2>/dev/null | sort -V | tail -1); f="$r/.studious/statusline-prev-command"; if [ -n "$p" ] && [ -x "$p/studious-statusline" ]; then exec "$p/studious-statusline"; elif [ -s "$f" ] && ! git -C "$r" ls-files --error-unmatch -- "$f" >/dev/null 2>&1; then bash -c "$(cat "$f")"; fi'
 
 ensure_gitignore_line() { # pattern, message
   local gi="$root/.gitignore"
@@ -36,9 +37,14 @@ ensure_gitignore_line() { # pattern, message
   fi
 }
 
+# Reads only from files the installing user's own machine controls — never a
+# shared, checked-in .claude/settings.json, which a repo author could use to
+# smuggle an arbitrary command into the local, persisted
+# .studious/statusline-prev-command that studious-statusline later executes
+# on every render.
 current_statusline_command() {
   local f
-  for f in "$root/.claude/settings.local.json" "$root/.claude/settings.json" "$HOME/.claude/settings.json"; do
+  for f in "$root/.claude/settings.local.json" "$HOME/.claude/settings.json"; do
     [ -f "$f" ] || continue
     local c; c=$(jq -r '.statusLine.command // empty' "$f" 2>/dev/null)
     if [ -n "$c" ]; then
@@ -49,13 +55,25 @@ current_statusline_command() {
   return 0
 }
 
+# A .gitignore entry doesn't untrack a file some earlier commit already added
+# (or that an attacker deliberately committed) — drop it from the index too.
+untrack_prev_file() {
+  git -C "$root" rm --cached -q -- "$prev_file" >/dev/null 2>&1 || true
+}
+
 write_settings_statusline() { # command string
   mkdir -p "$root/.claude"
   local existing="{}"
   [ -f "$settings" ] && existing=$(cat "$settings")
   local tmp; tmp=$(mktemp "$root/.claude/.tmp.XXXXXX")
+  # RETURN traps aren't function-scoped — they persist and re-fire on the
+  # caller's own return too. This function is called from within cmd_install,
+  # so reset the trap before returning or it fires again there against an
+  # out-of-scope $tmp.
+  trap 'rm -f "$tmp"' RETURN
   printf '%s' "$existing" | jq --arg cmd "$1" \
     '.statusLine = {type: "command", command: $cmd}' > "$tmp" && mv "$tmp" "$settings"
+  trap - RETURN
 }
 
 cmd_install() {
@@ -73,6 +91,7 @@ cmd_install() {
 
   mkdir -p "$root/.studious"
   printf '%s' "$prev" > "$prev_file"
+  untrack_prev_file
   ensure_gitignore_line ".studious/" "Studious local gate ledger (do not commit)"
 
   write_settings_statusline "$SNIPPET"
@@ -100,6 +119,7 @@ cmd_remove() {
   [ -f "$prev_file" ] && prev=$(cat "$prev_file")
 
   local tmp; tmp=$(mktemp "$root/.claude/.tmp.XXXXXX")
+  trap 'rm -f "$tmp"' RETURN
   if [ -n "$prev" ]; then
     jq --arg cmd "$prev" '.statusLine.command = $cmd' "$settings" > "$tmp" && mv "$tmp" "$settings"
   else

@@ -62,6 +62,14 @@ printf 'echo "[Opus] some-dir"' > "$d3/.studious/statusline-prev-command"
 out=$(json_input "$d3" | "$RENDER")
 check "render passes through the previous command with no gate segment" "[Opus] some-dir" "$out"
 
+# --- render refuses to replay a git-tracked prev-command file (security) ---
+d3t=$(sandbox)
+mkdir -p "$d3t/.studious"
+printf 'echo "[Opus] some-dir"' > "$d3t/.studious/statusline-prev-command"
+( cd "$d3t" && git add .studious/statusline-prev-command && git commit -q -m "track it" )
+out=$(json_input "$d3t" | "$RENDER")
+check "render does not replay a git-tracked prev-command file" "" "$out"
+
 # --- previous command output and gate segment are composed with a separator ---
 d4=$(sandbox)
 mkdir -p "$d4/.studious"
@@ -95,14 +103,33 @@ check "install writes an empty previous-command file" "" "$(cat "$d6/.studious/s
 contains "install self-heals .gitignore for .studious/" ".studious/" "$(cat "$d6/.gitignore")"
 contains "install self-heals .gitignore for settings.local.json" ".claude/settings.local.json" "$(cat "$d6/.gitignore")"
 
-# --- install wraps an existing project-level statusLine ---
+# --- install wraps an existing project-level (personal, local) statusLine ---
 d7=$(sandbox)
 fakehome7=$(mktemp -d); mkdir -p "$fakehome7/.claude"
 mkdir -p "$d7/.claude"
-printf '{"statusLine":{"type":"command","command":"echo mine"}}' > "$d7/.claude/settings.json"
+printf '{"statusLine":{"type":"command","command":"echo mine"}}' > "$d7/.claude/settings.local.json"
 out=$(cd "$d7" && HOME="$fakehome7" "$INSTALL")
 contains "install reports wrapping an existing statusLine" "wrapped your existing statusLine" "$out"
 check "install saves the previous command" "echo mine" "$(cat "$d7/.studious/statusline-prev-command")"
+
+# --- install ignores a checked-in, shared .claude/settings.json (security) ---
+d7s=$(sandbox)
+fakehome7s=$(mktemp -d); mkdir -p "$fakehome7s/.claude"
+mkdir -p "$d7s/.claude"
+printf '{"statusLine":{"type":"command","command":"echo attacker-controlled"}}' > "$d7s/.claude/settings.json"
+out=$(cd "$d7s" && HOME="$fakehome7s" "$INSTALL")
+contains "install ignores a shared, checked-in settings.json statusLine" "no previous statusLine found" "$out"
+check "install does not capture the checked-in statusLine command" "" "$(cat "$d7s/.studious/statusline-prev-command")"
+
+# --- install untracks an already git-tracked prev-command file (security) ---
+d7u=$(sandbox)
+fakehome7u=$(mktemp -d); mkdir -p "$fakehome7u/.claude"
+mkdir -p "$d7u/.studious"
+printf 'echo stale' > "$d7u/.studious/statusline-prev-command"
+( cd "$d7u" && git add .studious/statusline-prev-command && git commit -q -m "pre-existing tracked file" )
+( cd "$d7u" && HOME="$fakehome7u" "$INSTALL" >/dev/null )
+tracked7u=$(cd "$d7u" && git ls-files -- .studious/statusline-prev-command)
+check "install untracks a previously-committed prev-command file" "" "$tracked7u"
 
 # --- install falls back to the user's global statusLine when no project one exists ---
 d8=$(sandbox)
@@ -124,7 +151,7 @@ check "second install does not touch the saved previous command" "$saved9" "$(ca
 d10=$(sandbox)
 fakehome10=$(mktemp -d); mkdir -p "$fakehome10/.claude"
 mkdir -p "$d10/.claude"
-printf '{"statusLine":{"type":"command","command":"echo mine"}}' > "$d10/.claude/settings.json"
+printf '{"statusLine":{"type":"command","command":"echo mine"}}' > "$d10/.claude/settings.local.json"
 ( cd "$d10" && HOME="$fakehome10" "$INSTALL" >/dev/null )
 out=$(cd "$d10" && HOME="$fakehome10" "$INSTALL" remove)
 contains "remove reports restoring the previous statusLine" "restored your previous statusLine" "$out"

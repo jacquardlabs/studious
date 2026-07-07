@@ -64,4 +64,4 @@ jobs:
             https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz
           tar -xJf /tmp/shellcheck.tar.xz -C /tmp
           sudo install /tmp/shellcheck-v0.11.0/shellcheck /usr/local/bin/shellcheck
-      - run: shellcheck bin/gate-ledger bin/studious-statusline hooks/gate-reminder.sh tests/test_gate_ledger.sh tests/test_studious_statusline.sh scripts/install-dev.sh
+      - run: shellcheck bin/gate-ledger bin/studious-statusline bin/studious-statusline-install hooks/gate-reminder.sh tests/test_gate_ledger.sh tests/test_studious_statusline.sh scripts/install-dev.sh
