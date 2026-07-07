@@ -56,9 +56,16 @@ current_statusline_command() {
 }
 
 # A .gitignore entry doesn't untrack a file some earlier commit already added
-# (or that an attacker deliberately committed) — drop it from the index too.
-untrack_prev_file() {
-  git -C "$root" rm --cached -q -- "$prev_file" >/dev/null 2>&1 || true
+# (or that an attacker deliberately committed). The render-time guard (see
+# bin/studious-statusline) already refuses to replay a tracked prev-command
+# file, so this is a hygiene note, not a required security control — warn
+# rather than mutate the git index ourselves. Unlike ensure_gitignore_line
+# (working-tree only), staging an index change here would be a new class of
+# side effect this plugin has never had, on a file the user didn't ask about.
+warn_if_prev_file_tracked() {
+  if git -C "$root" ls-files --error-unmatch -- "$prev_file" >/dev/null 2>&1; then
+    echo "studious-statusline-install: note — .studious/statusline-prev-command is tracked in git and will be ignored on render; untrack it with: git rm --cached .studious/statusline-prev-command" >&2
+  fi
 }
 
 write_settings_statusline() { # command string
@@ -91,7 +98,7 @@ cmd_install() {
 
   mkdir -p "$root/.studious"
   printf '%s' "$prev" > "$prev_file"
-  untrack_prev_file
+  warn_if_prev_file_tracked
   ensure_gitignore_line ".studious/" "Studious local gate ledger (do not commit)"
 
   write_settings_statusline "$SNIPPET"

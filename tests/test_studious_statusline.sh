@@ -121,15 +121,16 @@ out=$(cd "$d7s" && HOME="$fakehome7s" "$INSTALL")
 contains "install ignores a shared, checked-in settings.json statusLine" "no previous statusLine found" "$out"
 check "install does not capture the checked-in statusLine command" "" "$(cat "$d7s/.studious/statusline-prev-command")"
 
-# --- install untracks an already git-tracked prev-command file (security) ---
+# --- install warns (but does not mutate the git index) when the prev-command file is already tracked ---
 d7u=$(sandbox)
 fakehome7u=$(mktemp -d); mkdir -p "$fakehome7u/.claude"
 mkdir -p "$d7u/.studious"
 printf 'echo stale' > "$d7u/.studious/statusline-prev-command"
 ( cd "$d7u" && git add .studious/statusline-prev-command && git commit -q -m "pre-existing tracked file" )
-( cd "$d7u" && HOME="$fakehome7u" "$INSTALL" >/dev/null )
+stderr7u=$(cd "$d7u" && HOME="$fakehome7u" "$INSTALL" 2>&1 1>/dev/null)
+contains "install warns about an already-tracked prev-command file" "is tracked in git and will be ignored" "$stderr7u"
 tracked7u=$(cd "$d7u" && git ls-files -- .studious/statusline-prev-command)
-check "install untracks a previously-committed prev-command file" "" "$tracked7u"
+contains "install does not touch the git index (still tracked)" "statusline-prev-command" "$tracked7u"
 
 # --- install falls back to the user's global statusLine when no project one exists ---
 d8=$(sandbox)
@@ -171,6 +172,25 @@ d12=$(sandbox)
 fakehome12=$(mktemp -d); mkdir -p "$fakehome12/.claude"
 out=$(cd "$d12" && HOME="$fakehome12" "$INSTALL" remove)
 contains "remove on a never-installed project reports nothing to remove" "not installed, nothing to remove" "$out"
+
+# --- the installed SNIPPET's own fallback branch enforces the same git-tracked-file
+# guard as bin/studious-statusline (locks the two authorship sites in sync — a future
+# edit that desyncs them fails here, not silently) ---
+d13=$(sandbox)
+fakehome13=$(mktemp -d); mkdir -p "$fakehome13/.claude"
+( cd "$d13" && HOME="$fakehome13" "$INSTALL" >/dev/null )
+snippet13=$(jq -r '.statusLine.command' "$d13/.claude/settings.local.json")
+
+printf 'echo untracked-ok' > "$d13/.studious/statusline-prev-command"
+out13=$(cd "$d13" && HOME="$fakehome13" bash -c "$snippet13")
+check "SNIPPET fallback replays an untracked prev-command" "untracked-ok" "$out13"
+
+printf 'echo TRACKED-SHOULD-NOT-RUN' > "$d13/.studious/statusline-prev-command"
+# -f: by this point install has already gitignored .studious/, so this
+# simulates a file that was committed despite (or before) that rule existing.
+( cd "$d13" && git add -f .studious/statusline-prev-command && git commit -q -m "track it" )
+out13b=$(cd "$d13" && HOME="$fakehome13" bash -c "$snippet13")
+check "SNIPPET fallback refuses a tracked prev-command" "" "$out13b"
 
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all studious-statusline tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi
