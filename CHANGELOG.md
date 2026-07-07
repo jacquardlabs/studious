@@ -2,6 +2,34 @@
 
 <!-- version list -->
 
+## v2.12.0 (2026-07-07)
+
+### Bug Fixes
+
+- Address gate-audit Important findings on studious-doctor
+  ([#87](https://github.com/jacquardlabs/studious/pull/87),
+  [`d5db2ab`](https://github.com/jacquardlabs/studious/commit/d5db2ab34c390eb6a0418ef44aa202a7becf1856))
+
+- Exempt optional template sections from studious-doctor stub check
+  ([#87](https://github.com/jacquardlabs/studious/pull/87),
+  [`d5db2ab`](https://github.com/jacquardlabs/studious/commit/d5db2ab34c390eb6a0418ef44aa202a7becf1856))
+
+### Documentation
+
+- Document /studious-doctor in README ([#87](https://github.com/jacquardlabs/studious/pull/87),
+  [`d5db2ab`](https://github.com/jacquardlabs/studious/commit/d5db2ab34c390eb6a0418ef44aa202a7becf1856))
+
+### Features
+
+- Add /studious-doctor read-only health check
+  ([#87](https://github.com/jacquardlabs/studious/pull/87),
+  [`d5db2ab`](https://github.com/jacquardlabs/studious/commit/d5db2ab34c390eb6a0418ef44aa202a7becf1856))
+
+- Add check-studious-health skill shim for /studious-doctor
+  ([#87](https://github.com/jacquardlabs/studious/pull/87),
+  [`d5db2ab`](https://github.com/jacquardlabs/studious/commit/d5db2ab34c390eb6a0418ef44aa202a7becf1856))
+
+
 ## v2.11.1 (2026-07-06)
 
 ### Bug Fixes
