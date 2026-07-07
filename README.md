@@ -36,6 +36,8 @@ Then, in any project:
 
 This creates your context documents (PRODUCT.md and DESIGN.md, extracted from the codebase as it actually is), scaffolds the `docs/studious/` review directories, and wires the workflow reference into CLAUDE.md so every future session knows the process. Review PRODUCT.md first. The extraction is evidence-based, but product principles and your "not building" list need your voice.
 
+Run `/studious-doctor` any time after — right after install, after a marketplace update, or whenever a gate feels like it ran with less than it should have. It's a read-only check, not a gate: required tooling (git/gh/jq), whether every shipped agent and skill actually registered this session, and whether your context docs are missing or still unedited templates. It fixes nothing, just tells you what to fix. Also fires from natural language — "is my Studious install healthy?".
+
 ## Building a feature
 
 Studious wraps feature development in quality gates. Between them you build, and Studious doesn't care how. Each gate exists to catch a specific failure:
