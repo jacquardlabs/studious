@@ -220,3 +220,43 @@ Changed files:
   merge-fixer attempt, park-on-conflict, and the finale's full-diff audit.
 - **Token cost.** An epic run is 5–10× a supervised flow. README states this plainly;
   the concurrency cap and gate profiles are the levers.
+
+---
+
+## Amendment — 2026-07-07: driver moves to a code substrate
+
+A same-day architecture re-evaluation (`~/Projects/brainstorming/studious-reevaluation-2026-07-07.md`)
+reversed the "prompt-orchestrated command, no Workflow tool in v1" decision before
+release: state machines held in prose develop dead zones the model fills by
+improvising — the v1 branch's own final review found exactly that class (a merge
+trigger that missed trimmed gate profiles; retry counters with no reset; no un-park
+transition). The governing rule is now: **code owns bookkeeping; prompts own
+judgment.**
+
+What changed:
+
+- **Primary driver = a Workflow script** (`workflows/epic-driver.js`). The command
+  reconciles state from ledger + evidence, assembles it as `args`, invokes the script,
+  and renders its returned report. DAG scheduling, the concurrency cap, the 2-fix-cycle
+  caps, and merge order live in plain JS; the script's in-memory DAG is a working copy
+  — every state mutation is written by the agent that caused it, via `gate-ledger`, so
+  crash recovery stays reconcile-and-re-run.
+- **The v1 prompt driver survives as the documented fallback** for environments
+  without the Workflow tool, corrected to these semantics (below) so the modes stay
+  interchangeable mid-epic.
+- **Corrected semantics, both modes** (from the v1 final review): stories merge when
+  their **final profiled gate** returns its proceed token (not only on SHIP);
+  `gate-ledger` anchors all `.studious/` state to the **main working tree** via the
+  git common dir, so verdicts recorded inside story worktrees share one store;
+  un-parking is explicit (`epic-story-set --status pending --reset-retry <gate>`),
+  never driver-initiated; the epic branch is created from the **default branch**;
+  story branches are `epic/<slug>--<story>` (a nested name can't coexist with the
+  `epic/<slug>` ref); the `__epic` worktree is removed once the epic reaches `ready`.
+- **Gate fan-out inside the script:** `agent()` subagents can't spawn subagents, so
+  the script dispatches the audit gate's auditors itself as parallel agents (via the
+  plugin's agent definitions, keeping their pinned models) plus a verdict-compiler
+  applying `commands/gate-audit.md`'s rubric.
+- **New `reference/worker-contract.md`** — what a dispatched worker receives and what
+  it must return (committed work, summary, evidence; "done" without artifacts is not
+  done). The contract, not Superpowers, is normative; PRODUCT.md's "not building"
+  entry now carries the bounded epic-driver exception.

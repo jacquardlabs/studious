@@ -121,8 +121,13 @@ Traced from the commands and the README's two-rhythm description.
 
 **Explicitly out of scope (documented):**
 - **The *how* of building** — brainstorming, planning, TDD, debugging, and execution
-  are deferred to Superpowers. The README states this division repeatedly. Studious
-  "steps back here."
+  stay outside Studious's lane; the README states this division repeatedly, and
+  Studious "steps back here" in the supervised flow. One deliberate, bounded
+  exception: under an explicitly approved `/work-through` epic plan, dispatched
+  worker agents author designs and code per `reference/worker-contract.md`, gated by
+  the unchanged gates — Studious never builds *in its own lane*, and the contract
+  (not any executor) is normative. Superpowers remains an optional executor workers
+  may use, not the definition of the how-layer.
 - **Auto-applying changes** — reviews and gates propose; they never modify context
   docs or fix code. The human approves every change.
 - **Replacing the issue tracker** — Studious works *with* GitHub Issues via `gh`; it

@@ -90,6 +90,14 @@ branch is yours (`gh pr create` — same ledger, same PR-time hook). Any parked 
 a normal `/work-on` feature, so you can always take one over by hand. Fair warning: an
 epic run spends tokens like the 5–10 supervised flows it replaces.
 
+The driver has two execution modes with identical semantics, interchangeable
+mid-epic: the primary mode runs the scheduling as a deterministic Workflow script
+(`workflows/epic-driver.js` — DAG order, concurrency, retry caps, and merge order in
+code, so bookkeeping never burns model context and cannot be improvised), and a
+prompt-driven fallback covers environments without the Workflow tool. Judgment —
+decompositions, gate verdicts, fixes, park explanations — lives in dispatched agents
+in both modes.
+
 ## CI mode (optional)
 
 `.github/workflows/gate-audit-pr.yml` runs `/gate-audit` non-interactively against a PR and posts the report as a PR comment — the same 6-7 auditor fan-out you'd get locally, without anyone having to remember to run it. It ships **dormant** (manual `workflow_dispatch` trigger only): pick a PR, run the workflow from the Actions tab with that PR's number as input, and it audits that PR and comments on it. It does not fire automatically on every PR yet.
