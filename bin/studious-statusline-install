@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# studious-statusline-install — wires (or unwires) the gate-status segment into
+# this project's Claude Code statusline. Installs to .claude/settings.local.json
+# only — gitignored, project-scoped, never touches the user's global settings or
+# a shared, checked-in .claude/settings.json.
+set -uo pipefail
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+if ! have jq || ! have git; then
+  echo "studious-statusline-install: jq and git are required" >&2
+  exit 1
+fi
+
+root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "studious-statusline-install: not a git repository" >&2
+  exit 1
+}
+
+settings="$root/.claude/settings.local.json"
+prev_file="$root/.studious/statusline-prev-command"
+
+# The exact command wired into settings.local.json. Self-resolving: globs for
+# the newest installed studious plugin's bin/ dir at *render* time (not baked
+# in here) because ${CLAUDE_PLUGIN_ROOT} does not expand in statusLine.command
+# and the plugin cache path is versioned, changing on every `/plugin update`.
+# Falls back to replaying the saved previous command if the plugin isn't found
+# (disabled/removed), so the statusline never goes blank.
+# shellcheck disable=SC2016
+SNIPPET='r=$(git rev-parse --show-toplevel 2>/dev/null || pwd); p=$(ls -d "$HOME/.claude/plugins/cache"/*/studious/*/bin 2>/dev/null | sort -V | tail -1); if [ -n "$p" ] && [ -x "$p/studious-statusline" ]; then exec "$p/studious-statusline"; elif [ -s "$r/.studious/statusline-prev-command" ]; then bash -c "$(cat "$r/.studious/statusline-prev-command")"; fi'
+
+ensure_gitignore_line() { # pattern, message
+  local gi="$root/.gitignore"
+  if [ ! -f "$gi" ] || ! grep -qxF "$1" "$gi" 2>/dev/null; then
+    printf '\n# %s\n%s\n' "$2" "$1" >> "$gi"
+  fi
+}
+
+current_statusline_command() {
+  local f
+  for f in "$root/.claude/settings.local.json" "$root/.claude/settings.json" "$HOME/.claude/settings.json"; do
+    [ -f "$f" ] || continue
+    local c; c=$(jq -r '.statusLine.command // empty' "$f" 2>/dev/null)
+    if [ -n "$c" ]; then
+      printf '%s' "$c"
+      return 0
+    fi
+  done
+  return 0
+}
+
+write_settings_statusline() { # command string
+  mkdir -p "$root/.claude"
+  local existing="{}"
+  [ -f "$settings" ] && existing=$(cat "$settings")
+  local tmp; tmp=$(mktemp "$root/.claude/.tmp.XXXXXX")
+  printf '%s' "$existing" | jq --arg cmd "$1" \
+    '.statusLine = {type: "command", command: $cmd}' > "$tmp" && mv "$tmp" "$settings"
+}
+
+cmd_install() {
+  if [ -f "$settings" ]; then
+    local existing_cmd; existing_cmd=$(jq -r '.statusLine.command // empty' "$settings" 2>/dev/null)
+    case "$existing_cmd" in
+      *studious-statusline*)
+        echo "studious-statusline-install: already installed"
+        exit 0
+        ;;
+    esac
+  fi
+
+  local prev; prev=$(current_statusline_command)
+
+  mkdir -p "$root/.studious"
+  printf '%s' "$prev" > "$prev_file"
+  ensure_gitignore_line ".studious/" "Studious local gate ledger (do not commit)"
+
+  write_settings_statusline "$SNIPPET"
+  ensure_gitignore_line ".claude/settings.local.json" "Claude Code local settings (do not commit)"
+
+  if [ -n "$prev" ]; then
+    echo "studious-statusline-install: wrapped your existing statusLine and added the gate segment"
+  else
+    echo "studious-statusline-install: installed the gate segment (no previous statusLine found)"
+  fi
+}
+
+cmd_remove() {
+  local existing_cmd=""
+  [ -f "$settings" ] && existing_cmd=$(jq -r '.statusLine.command // empty' "$settings" 2>/dev/null)
+  case "$existing_cmd" in
+    *studious-statusline*) ;;
+    *)
+      echo "studious-statusline-install: not installed, nothing to remove"
+      exit 0
+      ;;
+  esac
+
+  local prev=""
+  [ -f "$prev_file" ] && prev=$(cat "$prev_file")
+
+  local tmp; tmp=$(mktemp "$root/.claude/.tmp.XXXXXX")
+  if [ -n "$prev" ]; then
+    jq --arg cmd "$prev" '.statusLine.command = $cmd' "$settings" > "$tmp" && mv "$tmp" "$settings"
+  else
+    jq 'del(.statusLine)' "$settings" > "$tmp" && mv "$tmp" "$settings"
+  fi
+  rm -f "$prev_file"
+
+  if [ -n "$prev" ]; then
+    echo "studious-statusline-install: removed, restored your previous statusLine"
+  else
+    echo "studious-statusline-install: removed, no previous statusLine to restore"
+  fi
+}
+
+case "${1:-}" in
+  remove) cmd_remove ;;
+  "")     cmd_install ;;
+  *)      echo "usage: studious-statusline-install [remove]" >&2; exit 2 ;;
+esac
