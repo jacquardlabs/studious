@@ -267,5 +267,43 @@ contains "epic-set signals on stderr when jq is unavailable" "gate-ledger: epic-
 check "epic-set does not create an epic file when jq is unavailable" "no" \
   "$([ -f "$d16/.studious/epics/x.json" ] && echo yes || echo no)"
 
+# --- epic-story-set requires an existing epic file ---
+err=$(cd "$d15" && "$LEDGER" epic-story-set --epic missing-epic --slug s1 2>&1 1>/dev/null; echo "rc=$?")
+contains "epic-story-set errors on unknown epic" "no epic file" "$err"
+contains "epic-story-set exits 2 on unknown epic" "rc=2" "$err"
+
+# --- epic-story-set adds a story with defaults ---
+( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug cart-api --title "Cart API" \
+    --source "issue #12" --criteria "POST /cart returns 201 with a cart id" \
+    --gates "design,design-review,build,audit,acceptance" )
+check "story lands under its slug" "Cart API" "$(jq -r '.stories["cart-api"].title' "$ef15")"
+check "story stores criteria" "POST /cart returns 201 with a cart id" "$(jq -r '.stories["cart-api"].criteria' "$ef15")"
+check "story status defaults to pending" "pending" "$(jq -r '.stories["cart-api"].status' "$ef15")"
+check "story deps default to empty array" "[]" "$(jq -c '.stories["cart-api"].deps' "$ef15")"
+check "story retries default to empty object" "{}" "$(jq -c '.stories["cart-api"].retries' "$ef15")"
+check "story gates split to an array" "5" "$(jq '.stories["cart-api"].gates | length' "$ef15")"
+
+# --- deps split on commas, trimming whitespace ---
+( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug checkout-ui --title "Checkout UI" \
+    --deps "cart-api, payment-svc" )
+check "deps split to a trimmed array" '["cart-api","payment-svc"]' "$(jq -c '.stories["checkout-ui"].deps' "$ef15")"
+
+# --- story upsert: status/reason land, earlier fields survive ---
+( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug cart-api \
+    --status parked --reason "audit: NEEDS DISCUSSION - auth model unclear" )
+check "story upsert moves status" "parked" "$(jq -r '.stories["cart-api"].status' "$ef15")"
+check "story upsert stores reason" "audit: NEEDS DISCUSSION - auth model unclear" "$(jq -r '.stories["cart-api"].reason' "$ef15")"
+check "story upsert keeps title" "Cart API" "$(jq -r '.stories["cart-api"].title' "$ef15")"
+
+# --- bump-retry increments a per-gate counter ---
+( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug cart-api --bump-retry audit )
+( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug cart-api --bump-retry audit )
+check "bump-retry increments the gate counter" "2" "$(jq '.stories["cart-api"].retries.audit' "$ef15")"
+
+# --- epic-list summarizes landed/total per epic ---
+( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug checkout-ui --status landed )
+out=$(cd "$d15" && "$LEDGER" epic-list)
+contains "epic-list reports slug, status, and landed count" "$(printf 'checkout-revamp\trunning\t1/2')" "$out"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

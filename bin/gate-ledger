@@ -373,6 +373,78 @@ cmd_epic_get() {
   cat "$file"
 }
 
+cmd_epic_story_set() {
+  local epic="" slug="" title="" src="" criteria="" deps="" gates="" status="" reason="" worktree="" bump=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --epic)       epic="$2"; shift 2 ;;
+      --slug)       slug="$2"; shift 2 ;;
+      --title)      title="$2"; shift 2 ;;
+      --source)     src="$2"; shift 2 ;;
+      --criteria)   criteria="$2"; shift 2 ;;
+      --deps)       deps="$2"; shift 2 ;;
+      --gates)      gates="$2"; shift 2 ;;
+      --status)     status="$2"; shift 2 ;;
+      --reason)     reason="$2"; shift 2 ;;
+      --worktree)   worktree="$2"; shift 2 ;;
+      --bump-retry) bump="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$epic" ] || [ -z "$slug" ]; then
+    echo "gate-ledger: --epic and --slug required" >&2
+    return 2
+  fi
+  if ! have jq || ! have git; then
+    echo "gate-ledger: epic-story-set skipped (jq and git required)" >&2
+    return 0
+  fi
+
+  epic=$(slugify "$epic")
+  slug=$(slugify "$slug")
+  if [ -z "$epic" ] || [ -z "$slug" ]; then
+    echo "gate-ledger: --epic or --slug reduced to nothing after slugify" >&2
+    return 2
+  fi
+
+  local file; file="$(epic_dir)/$epic.json"
+  if [ ! -f "$file" ]; then
+    echo "gate-ledger: no epic file for '$epic' (run epic-set first)" >&2
+    return 2
+  fi
+
+  local dir; dir=$(epic_dir)
+  local tmp; tmp=$(mktemp "$dir/.tmp.XXXXXX")
+  trap 'rm -f "$tmp"' RETURN
+  jq --arg s "$slug" --arg title "$title" --arg src "$src" --arg criteria "$criteria" \
+     --arg deps "$deps" --arg gates "$gates" --arg status "$status" --arg reason "$reason" \
+     --arg wt "$worktree" --arg bump "$bump" --arg t "$(now_iso)" \
+     '.updatedAt = $t
+      | .stories[$s] = ((.stories[$s] // {status: "pending", deps: [], retries: {}})
+        | (if $title    != "" then .title    = $title    else . end)
+        | (if $src      != "" then .source   = $src      else . end)
+        | (if $criteria != "" then .criteria = $criteria else . end)
+        | (if $deps     != "" then .deps     = ($deps  | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""))) else . end)
+        | (if $gates    != "" then .gates    = ($gates | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""))) else . end)
+        | (if $status   != "" then .status   = $status   else . end)
+        | (if $reason   != "" then .reason   = $reason   else . end)
+        | (if $wt       != "" then .worktree = $wt       else . end)
+        | (if $bump     != "" then .retries[$bump] = ((.retries[$bump] // 0) + 1) else . end))' \
+     "$file" > "$tmp" && mv "$tmp" "$file"
+}
+
+cmd_epic_list() {
+  if ! have jq; then return 0; fi
+  local dir; dir=$(epic_dir)
+  local f
+  for f in "$dir"/*.json; do
+    [ -e "$f" ] || continue
+    jq -r '[(.slug // "?"), (.status // "?"),
+            (([.stories[] | select(.status == "landed")] | length | tostring) + "/" + (.stories | length | tostring)),
+            (.branch // "-"), (.title // "-")] | @tsv' "$f" 2>/dev/null
+  done
+}
+
 cmd_work_list() {
   if ! have jq; then return 0; fi
   local dir; dir=$(work_dir)
@@ -412,15 +484,17 @@ cmd_gc() {
 }
 
 case "${1:-}" in
-  record)    shift; cmd_record "$@" ;;
-  status)    shift; cmd_status "$@" ;;
-  gate-get)  shift; cmd_gate_get "$@" ;;
-  work-set)  shift; cmd_work_set "$@" ;;
-  work-log)  shift; cmd_work_log "$@" ;;
-  work-get)  shift; cmd_work_get "$@" ;;
-  work-list) shift; cmd_work_list "$@" ;;
-  epic-set)  shift; cmd_epic_set "$@" ;;
-  epic-get)  shift; cmd_epic_get "$@" ;;
-  gc)        shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-get --slug S | gc}" >&2; exit 2 ;;
+  record)         shift; cmd_record "$@" ;;
+  status)         shift; cmd_status "$@" ;;
+  gate-get)       shift; cmd_gate_get "$@" ;;
+  work-set)       shift; cmd_work_set "$@" ;;
+  work-log)       shift; cmd_work_log "$@" ;;
+  work-get)       shift; cmd_work_get "$@" ;;
+  work-list)      shift; cmd_work_list "$@" ;;
+  epic-set)       shift; cmd_epic_set "$@" ;;
+  epic-get)       shift; cmd_epic_get "$@" ;;
+  epic-story-set) shift; cmd_epic_story_set "$@" ;;
+  epic-list)      shift; cmd_epic_list "$@" ;;
+  gc)             shift; cmd_gc "$@" ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] | epic-get --slug S | epic-list | gc}" >&2; exit 2 ;;
 esac
