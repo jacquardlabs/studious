@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# studious-statusline — statusline renderer installed by studious-statusline-install.
+# Replays whatever statusLine command was configured before install (saved to
+# .studious/statusline-prev-command), then appends the gate-ledger status segment.
+set -uo pipefail
+
+input=$(cat)
+
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+gate_ledger="$script_dir/gate-ledger"
+
+cwd=$(printf '%s' "$input" | jq -r '.workspace.current_dir // .cwd // empty' 2>/dev/null)
+[ -n "$cwd" ] && [ -d "$cwd" ] && cd "$cwd" 2>/dev/null || true
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+prev_file="$repo_root/.studious/statusline-prev-command"
+
+prev_out=""
+if [ -s "$prev_file" ]; then
+  prev_out=$(printf '%s' "$input" | bash -c "$(cat "$prev_file")" 2>/dev/null)
+fi
+
+gate_seg=""
+if [ -x "$gate_ledger" ]; then
+  gate_seg=$("$gate_ledger" statusline 2>/dev/null)
+fi
+
+if [ -n "$prev_out" ] && [ -n "$gate_seg" ]; then
+  printf '%s | %s\n' "$prev_out" "$gate_seg"
+elif [ -n "$prev_out" ]; then
+  printf '%s\n' "$prev_out"
+else
+  printf '%s\n' "$gate_seg"
+fi
