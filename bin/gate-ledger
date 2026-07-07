@@ -374,7 +374,7 @@ cmd_epic_get() {
 }
 
 cmd_epic_story_set() {
-  local epic="" slug="" title="" src="" criteria="" deps="" gates="" status="" reason="" worktree="" bump=""
+  local epic="" slug="" title="" src="" criteria="" deps="" gates_csv="" status="" reason="" worktree="" bump=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --epic)       epic="$2"; shift 2 ;;
@@ -383,7 +383,7 @@ cmd_epic_story_set() {
       --source)     src="$2"; shift 2 ;;
       --criteria)   criteria="$2"; shift 2 ;;
       --deps)       deps="$2"; shift 2 ;;
-      --gates)      gates="$2"; shift 2 ;;
+      --gates)      gates_csv="$2"; shift 2 ;;
       --status)     status="$2"; shift 2 ;;
       --reason)     reason="$2"; shift 2 ;;
       --worktree)   worktree="$2"; shift 2 ;;
@@ -417,7 +417,7 @@ cmd_epic_story_set() {
   local tmp; tmp=$(mktemp "$dir/.tmp.XXXXXX")
   trap 'rm -f "$tmp"' RETURN
   jq --arg s "$slug" --arg title "$title" --arg src "$src" --arg criteria "$criteria" \
-     --arg deps "$deps" --arg gates "$gates" --arg status "$status" --arg reason "$reason" \
+     --arg deps "$deps" --arg gates "$gates_csv" --arg status "$status" --arg reason "$reason" \
      --arg wt "$worktree" --arg bump "$bump" --arg t "$(now_iso)" \
      '.updatedAt = $t
       | .stories[$s] = ((.stories[$s] // {status: "pending", deps: [], retries: {}})
