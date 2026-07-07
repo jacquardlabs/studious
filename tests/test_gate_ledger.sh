@@ -96,6 +96,67 @@ d5=$(sandbox)
 out=$(cd "$d5" && "$LEDGER" status)
 check "status empty when no ledger" "" "$out"
 
+# --- statusline: silent when the project has never used the gate ledger ---
+dsl0=$(sandbox)
+out=$(cd "$dsl0" && "$LEDGER" statusline)
+check "statusline empty when ledger dir does not exist" "" "$out"
+
+# --- statusline: ledger dir exists (another branch used it) but not this branch ---
+dsl1=$(sandbox)
+( cd "$dsl1" && "$LEDGER" record --gate audit --verdict PASS )
+( cd "$dsl1" && git checkout -q -b feat/other )
+out=$(cd "$dsl1" && "$LEDGER" statusline)
+check "statusline shows both never-ran for a branch with no ledger file" "audit— acceptance—" "$out"
+
+# --- statusline: both gates pass at HEAD ---
+dsl2=$(sandbox)
+( cd "$dsl2" && "$LEDGER" record --gate audit --verdict PASS )
+( cd "$dsl2" && "$LEDGER" record --gate acceptance --verdict SHIP )
+out=$(cd "$dsl2" && "$LEDGER" statusline)
+check "statusline shows both passing" "audit✓ acceptance✓" "$out"
+
+# --- statusline: gate never ran shows the dash symbol ---
+dsl3=$(sandbox)
+( cd "$dsl3" && "$LEDGER" record --gate audit --verdict PASS )
+out=$(cd "$dsl3" && "$LEDGER" statusline)
+check "statusline shows never-ran acceptance alongside a passing audit" "audit✓ acceptance—" "$out"
+
+# --- statusline: stale sha shows the warning symbol ---
+dsl4=$(sandbox)
+( cd "$dsl4" && "$LEDGER" record --gate audit --verdict PASS )
+( cd "$dsl4" && "$LEDGER" record --gate acceptance --verdict SHIP )
+( cd "$dsl4" && git commit -q --allow-empty -m more )
+out=$(cd "$dsl4" && "$LEDGER" statusline)
+check "statusline flags a stale gate with the warning symbol" "audit⚠ acceptance⚠" "$out"
+
+# --- statusline: non-passing verdict at HEAD shows the warning symbol ---
+dsl5=$(sandbox)
+( cd "$dsl5" && "$LEDGER" record --gate audit --verdict "FIX AND RE-AUDIT" )
+( cd "$dsl5" && "$LEDGER" record --gate acceptance --verdict SHIP )
+out=$(cd "$dsl5" && "$LEDGER" statusline)
+check "statusline flags a non-passing verdict with the warning symbol" "audit⚠ acceptance✓" "$out"
+
+# --- statusline: branch-slug collision treated as never-ran, not a false pass ---
+dsl6=$(sandbox)
+( cd "$dsl6" && "$LEDGER" record --gate audit --verdict PASS )
+( cd "$dsl6" && "$LEDGER" record --gate acceptance --verdict SHIP )
+f6="$dsl6/.studious/gates/feat-foo.json"
+tmp6=$(mktemp)
+jq '.branch = "feat-foo"' "$f6" > "$tmp6" && mv "$tmp6" "$f6"
+out=$(cd "$dsl6" && "$LEDGER" statusline)
+check "statusline treats a branch-slug collision as never-ran" "audit— acceptance—" "$out"
+
+# --- statusline: silent when jq is unavailable ---
+dsl7=$(sandbox)
+( cd "$dsl7" && "$LEDGER" record --gate audit --verdict PASS )
+fakebin_sl=$(mktemp -d)
+for tool in bash git date mktemp grep mv mkdir rm cat sed; do
+  src=$(command -v "$tool" 2>/dev/null) || continue
+  ln -sf "$src" "$fakebin_sl/$tool"
+done
+out=$(cd "$dsl7" && PATH="$fakebin_sl" "$LEDGER" statusline)
+check "statusline empty when jq is unavailable" "" "$out"
+
 # --- hook surfaces the ledger reason and always asks ---
 HOOK="$ROOT/hooks/gate-reminder.sh"
 d6=$(sandbox)

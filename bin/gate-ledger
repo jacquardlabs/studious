@@ -159,6 +159,50 @@ cmd_status() {
   fi
 }
 
+cmd_statusline() {
+  # Terse, symbol-only rendering for the Claude Code statusline (see
+  # bin/studious-statusline). Distinct from cmd_status's prose: stays silent
+  # unless this project has used the gate ledger at all (a ledger dir exists).
+  if ! have jq || ! have git; then return 0; fi
+  local dir; dir=$(ledger_dir)
+  [ -d "$dir" ] || return 0
+  local file; file="$dir/$(branch_slug).json"
+
+  local head cur_branch stored_branch usable
+  head=$(head_sha)
+  cur_branch=$(branch_name)
+  usable=1
+  if [ -f "$file" ]; then
+    stored_branch=$(jq -r '.branch // empty' "$file")
+    [ "$stored_branch" = "$cur_branch" ] || usable=0
+  else
+    usable=0
+  fi
+
+  local gates=("audit:PASS" "acceptance:SHIP")
+  local parts=()
+  local gate pass v s entry sym
+  for entry in "${gates[@]}"; do
+    gate="${entry%%:*}"
+    pass="${entry##*:}"
+    sym="—"
+    if [ "$usable" -eq 1 ]; then
+      v=$(jq -r --arg g "$gate" '.gates[$g].verdict // empty' "$file")
+      if [ -n "$v" ]; then
+        s=$(jq -r --arg g "$gate" '.gates[$g].sha // empty' "$file")
+        if [ "$s" = "$head" ] && [ "$v" = "$pass" ]; then
+          sym="✓"
+        else
+          sym="⚠"
+        fi
+      fi
+    fi
+    parts+=("${gate}${sym}")
+  done
+
+  printf '%s %s' "${parts[0]}" "${parts[1]}"
+}
+
 cmd_gate_get() {
   local branch=""
   while [ $# -gt 0 ]; do
@@ -324,13 +368,14 @@ cmd_gc() {
 }
 
 case "${1:-}" in
-  record)    shift; cmd_record "$@" ;;
-  status)    shift; cmd_status "$@" ;;
-  gate-get)  shift; cmd_gate_get "$@" ;;
-  work-set)  shift; cmd_work_set "$@" ;;
-  work-log)  shift; cmd_work_log "$@" ;;
-  work-get)  shift; cmd_work_get "$@" ;;
-  work-list) shift; cmd_work_list "$@" ;;
-  gc)        shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | gc}" >&2; exit 2 ;;
+  record)     shift; cmd_record "$@" ;;
+  status)     shift; cmd_status "$@" ;;
+  statusline) shift; cmd_statusline "$@" ;;
+  gate-get)   shift; cmd_gate_get "$@" ;;
+  work-set)   shift; cmd_work_set "$@" ;;
+  work-log)   shift; cmd_work_log "$@" ;;
+  work-get)   shift; cmd_work_get "$@" ;;
+  work-list)  shift; cmd_work_list "$@" ;;
+  gc)         shift; cmd_gc "$@" ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V | status | statusline | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | gc}" >&2; exit 2 ;;
 esac
