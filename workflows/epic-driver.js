@@ -24,11 +24,15 @@ export const meta = {
 //   defaultBranch: e.g. 'main'
 // }
 
-const epic = args.epic
+// Normalize the args boundary: the Workflow substrate may hand `args` to a
+// scriptPath workflow as a JSON string rather than a parsed object. Parse once
+// here so the rest of the script sees a plain object either way.
+const input = typeof args === 'string' ? JSON.parse(args) : args
+const epic = input.epic
 const slug = epic.slug
 const stories = epic.stories || {}
 const cap = epic.concurrency || 3
-const repoRoot = args.repoRoot
+const repoRoot = input.repoRoot
 const worktreesDir = `${repoRoot}/.studious/worktrees/${slug}`
 const epicWorktree = `${worktreesDir}/__epic`
 
@@ -256,7 +260,7 @@ async function runStory(story) {
   // Resume position. 'merge' = every profiled gate already proceeded at HEAD;
   // only the landing is missing. An unrecognized phase is a reconcile/state
   // mismatch — parking beats silently re-running the whole profile.
-  const requested = args.phases[story]
+  const requested = input.phases[story]
   let idx
   if (requested === 'merge') {
     idx = profile.length
@@ -326,10 +330,10 @@ async function finaleAuditRound(note) {
   // beyond its own concurrency limit, so a cap-3 epic peaking above 10 agents
   // is throttled, not broken.
   const reports = await parallel(AUDITORS.map(a => () =>
-    agent(`${note} Audit the FULL epic diff per your role. Repo: ${repoRoot}; changeset: the epic worktree ${epicWorktree} on branch epic/${slug}, diff base: merge-base with ${args.defaultBranch}. This is the cross-story integration pass — seams between stories are your subject. Epic goal: ${epic.goal}. If your lane does not apply, say so. Return findings as structured text.`,
+    agent(`${note} Audit the FULL epic diff per your role. Repo: ${repoRoot}; changeset: the epic worktree ${epicWorktree} on branch epic/${slug}, diff base: merge-base with ${input.defaultBranch}. This is the cross-story integration pass — seams between stories are your subject. Epic goal: ${epic.goal}. If your lane does not apply, say so. Return findings as structured text.`,
       { agentType: a, label: `finale:${a.split(':')[1]}`, phase: 'Finale', schema: REPORT })))
   const { joined, missing } = joinReports(reports)
-  let result = await agent(auditFanIn(null, joined, args.defaultBranch, epicWorktree, ''),
+  let result = await agent(auditFanIn(null, joined, input.defaultBranch, epicWorktree, ''),
     { label: 'finale:audit-compile', phase: 'Finale', schema: GATE_RESULT, model: 'opus' })
   if (result && missing.length && result.verdict === 'PASS') {
     result = { ...result, verdict: 'NEEDS DISCUSSION', summary: `unaudited lane(s) — agent died: ${missing.join(', ')}. ${result.summary}` }
