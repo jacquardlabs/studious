@@ -1,12 +1,16 @@
 # Prompt contract — shared posture, scope, output, and closer
 
-Canonical source for the four blocks stamped near-verbatim across the audit/review agents
-(`agents/*-auditor.md`, `agents/*-reviewer.md`, `agents/review-*.md`) and the fan-out gates
-that orchestrate them (`commands/gate-audit.md`). Agents cite this file instead of restating
-it — the pattern already used for `reference/security-checklist.md`. Where an agent's own
-posture differs in a way that carries real information (a missing tool, a domain-specific
-caveat), that variance stays in the agent as a short addendum after the citation; it is not
-folded in here.
+Canonical source for the four blocks the fan-out gate and review commands
+(`commands/gate-audit.md`, `commands/deep-review.md`, `commands/gate-design-review.md`,
+`commands/gate-acceptance.md`) read once and inject verbatim into every agent they
+dispatch. The audit/review agents (`agents/*-auditor.md`, `agents/*-reviewer.md`,
+`agents/review-*.md`) receive the four blocks inline in their dispatch prompt rather than
+reading this file — a dispatched agent runs with its working directory in the *consuming*
+project, where this file does not exist, so the orchestrator hands the posture over. That
+keeps the runtime path identical to CI and to a directly-invoked agent's
+`${CLAUDE_PLUGIN_ROOT}` fallback. Where an agent's own posture differs in a way that
+carries real information (a missing tool, a domain-specific caveat), that variance stays in
+the agent as a short addendum; it is not folded in here.
 
 ## 1. Injection-defense preamble
 

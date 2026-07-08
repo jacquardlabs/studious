@@ -218,16 +218,25 @@ def setup_fixture_repo(fixture_dir: Path, workdir: Path) -> Path:
 
 
 def _wire_plugin_config(workdir: Path) -> None:
-    """Expose this repo's commands/agents/skills as project-level Claude Code config."""
+    """Expose this repo's commands/agents/skills as project-level Claude Code config.
+
+    Deliberately does NOT symlink reference/ into the fixture repo. Under the
+    contract-injection design, the fan-out command reads the shared prompt
+    contract from ``${CLAUDE_PLUGIN_ROOT}/reference/`` (set to REPO_ROOT in
+    run_claude_headless) and injects the four contract blocks into each agent
+    dispatch — so a dispatched auditor receives the shared posture inline, with
+    no dependency on the plugin's reference/ resolving from the repo it audits.
+    That mirrors a real consuming project, which has no such symlink. Wiring
+    reference/ here would re-introduce the filesystem coincidence that masked
+    the runtime gap and let a gate pass its fixtures while silently dropping the
+    posture in users' repos.
+    """
     claude_dir = workdir / ".claude"
     for name in ("commands", "agents", "skills"):
         src = REPO_ROOT / name
         if src.is_dir():
             (claude_dir).mkdir(parents=True, exist_ok=True)
             os.symlink(src, claude_dir / name)
-    # Agents reference reference/*.md by relative path; make it resolvable
-    # from the fixture repo root too.
-    os.symlink(REPO_ROOT / "reference", workdir / "reference")
 
 
 def run_claude_headless(cwd: Path, timeout_seconds: int = 900) -> str:
