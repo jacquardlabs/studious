@@ -17,6 +17,6 @@
     "MD026": false, // trailing punctuation in heading
     "MD029": false  // ordered list prefix
   },
-  "globs": ["commands/**/*.md", "agents/**/*.md", "skills/**/*.md", "*.md"],
+  "globs": ["commands/**/*.md", "agents/**/*.md", "skills/**/*.md", "reference/**/*.md", "*.md"],
   "ignores": ["node_modules", "CHANGELOG.md", "docs/**"]
 }
