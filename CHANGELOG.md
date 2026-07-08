@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v2.13.1 (2026-07-08)
+
+### Bug Fixes
+
+- **epic-driver**: Normalize args boundary — parse string payload (#107)
+  ([#109](https://github.com/jacquardlabs/studious/pull/109),
+  [`6f9c09b`](https://github.com/jacquardlabs/studious/commit/6f9c09b26ed5402abe71a52987c89e55fe983d27))
+
+### Documentation
+
+- Commit plan/spec history for gate-ledger, backlog-priorities, premortem-register
+  ([#106](https://github.com/jacquardlabs/studious/pull/106),
+  [`0eb2069`](https://github.com/jacquardlabs/studious/commit/0eb2069777528be2af73c8beaf3c52ddbb2141d8))
+
+
 ## v2.13.0 (2026-07-08)
 
 ### Bug Fixes
