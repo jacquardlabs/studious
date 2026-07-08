@@ -1,11 +1,11 @@
 ---
-description: Run the audit suite — security, code quality, docs, architecture, UX, and frontend in parallel, plus an optional accessibility pass
+description: Run the audit suite — security, code quality, docs, and architecture always run; UX, frontend, and an accessibility pass join in on projects with a web surface; pre-mortem verification joins in when a register exists for this branch
 allowed-tools: Read, Glob, Grep, Bash, Task, Write
 ---
 
 # Audit gate — all auditors
 
-Run every auditor in parallel against the current branch. This combines the backend audit suite, frontend audit suite, and accessibility checks into a single pass.
+Run every auditor in parallel against the current branch. This combines the backend audit suite, frontend audit suite, accessibility checks, and pre-mortem verification into a single pass.
 
 Read CLAUDE.md, PRODUCT.md, and DESIGN.md first.
 
