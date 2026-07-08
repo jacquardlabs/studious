@@ -1,6 +1,6 @@
 ---
 name: frontend-reviewer
-description: Reviews frontend code for component architecture, state management, performance, bundle size, and frontend-specific patterns. Invoked during feature audits or periodic frontend reviews.
+description: Reviews a frontend changeset for component architecture, state management, performance, bundle size, and frontend-specific patterns. Diff-scoped and gate-invoked (/gate-audit) — not a periodic frontend review.
 tools: Read, Glob, Grep, Bash
 model: inherit
 ---

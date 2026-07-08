@@ -1,6 +1,6 @@
 ---
 name: security-auditor
-description: Comprehensive security analysis. OWASP Top 10, injection, auth, secrets, headers.
+description: Comprehensive security analysis — OWASP Top 10, injection, auth, secrets, headers. Reviews a changeset; diff-scoped and gate-invoked (/gate-audit).
 tools: Read, Grep, Glob, Bash
 model: opus
 ---
