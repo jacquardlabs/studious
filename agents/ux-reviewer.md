@@ -1,6 +1,6 @@
 ---
 name: ux-reviewer
-description: Reviews UI implementations for user experience quality — layout, hierarchy, flows, interaction patterns, visual consistency, and responsive behavior. Invoked after building frontend features or during periodic frontend reviews.
+description: Reviews a UI changeset for user experience quality — layout, hierarchy, flows, interaction patterns, visual consistency, and responsive behavior. Diff-scoped and gate-invoked (/gate-audit after building a feature) — not a periodic frontend review.
 tools: Read, Glob, Grep, Bash
 model: opus
 ---
