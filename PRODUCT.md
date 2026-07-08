@@ -8,12 +8,21 @@ product-judgment workflow for Claude Code. Its thesis, stated directly in the RE
 > "Claude Code made building cheap. That moved the bottleneck. The hard part is no
 > longer *can we build it*. It's *should we build it, and did we build it right*."
 
-Studious adds that judgment back as lightweight gates and reviews woven around the
-building. It owns the *what* and the *whether* — what to work on, whether a design
-serves users, whether the implementation delivers, whether the codebase stays
-healthy. It deliberately does **not** own the *how* (see "What we're NOT building"),
-deferring brainstorming, planning, TDD, and execution to a companion product
-(Superpowers).
+Studious adds that judgment back as a **delivery discipline entered at the scope of
+the work**: quality gates and periodic reviews (the judgment), a story navigator
+(`/work-on`), and an epic driver (`/work-through`) that dispatches contracted workers
+under those same gates. Judgment remains the spine — nothing is auto-approved, and
+every altitude ends at a human — but the *how* is no longer deferred to a companion
+product: it enters through `reference/worker-contract.md` (story brief in;
+implementation + evidence out), which any executor can satisfy — a dispatched agent,
+a human, or Superpowers where installed.
+
+Topology decision (2026-07-07): the delivery stack deliberately lives in this one
+repo, entered at different scopes, rather than as separate layered products. Repo
+boundaries follow license, audience, and lifecycle — never conceptual layering (the
+rule is recorded in CLAUDE.md). The initiative altitude — formerly the separate
+`brigade` design repo, now archived — is recorded at `docs/initiative-altitude.md`
+and becomes an entrypoint here if its entry gate fires.
 
 Origin: the project was previously named Jaqal and renamed to Studious at v2.0.0
 (commit `2e1809c`, PR #35). Authored by Jacquard Labs; MIT-licensed; distributed as a
@@ -62,9 +71,17 @@ These are drawn from the README and the consistent behavior of the commands/agen
 They read as the de facto principles driving the product; confirm and refine them —
 this section is your voice, not the extractor's.
 
-- **Own the *what* and the *whether*, not the *how*** — Studious gates judgment
-  (should we build it, did we build it right) and stays out of implementation
-  mechanics, deferring those to Superpowers. This boundary is the product's spine.
+- **Judgment is the spine; labor is contracted** — gates and reviews decide (should
+  we build it, did we build it right); building enters through the worker contract
+  and is always gated, never trusted. Studious never builds in its own lane: gate
+  agents never build, worker agents never gate, and they never share context.
+- **One repo, entrypoints per scope** — build session, story (`/work-on`), epic
+  (`/work-through`), and someday initiative (`docs/initiative-altitude.md`) are
+  entrypoints of one discipline, not separate products. Co-evolving contracts must
+  live in one diff domain, where the gates can audit whole changes.
+- **Code owns bookkeeping; prompts own judgment** — schedulers, DAG order, retry
+  caps, and ledgers are code (`bin/gate-ledger`, `workflows/epic-driver.js`);
+  decomposition, verdicts, and briefs are dispatched prompts.
 - **Propose, don't apply** — reviews surface findings and propose updates to context
   docs, but never write them. "They never apply them. You review and approve." The
   human stays the decision-maker.
@@ -120,9 +137,17 @@ Traced from the commands and the README's two-rhythm description.
 ## What we're NOT building
 
 **Explicitly out of scope (documented):**
-- **The *how* of building** — brainstorming, planning, TDD, debugging, and execution
-  are deferred to Superpowers. The README states this division repeatedly. Studious
-  "steps back here."
+- **Being a methodology** — Studious defines *what a worker must receive and
+  return* (`reference/worker-contract.md`), not *how to think while building*.
+  Brainstorming, TDD, and debugging methodology stay with the executor — Superpowers
+  or any other — and the contract, not any executor, is normative. A worker-layer
+  skill set (evidence capture and handback first) is parked and enters through the
+  normal gates on its own evidence, not by default.
+- **A separate orchestration product** — the initiative altitude was chartered as a
+  separate product (brigade) and deliberately absorbed as a future entrypoint
+  (`docs/initiative-altitude.md`, 2026-07-07). Its build waits on its entry gate: a
+  real ≥2-epic initiative demonstrating cross-epic failure that per-epic
+  `/work-through` leaves unmanaged.
 - **Auto-applying changes** — reviews and gates propose; they never modify context
   docs or fix code. The human approves every change.
 - **Replacing the issue tracker** — Studious works *with* GitHub Issues via `gh`; it
