@@ -1,6 +1,6 @@
 ---
 name: frontend-reviewer
-description: Reviews frontend code for component architecture, state management, performance, bundle size, and frontend-specific patterns. Invoked during feature audits or periodic frontend reviews.
+description: Reviews a frontend changeset for component architecture, state management, performance, bundle size, and frontend-specific patterns. Diff-scoped and gate-invoked (/gate-audit) — not a periodic frontend review.
 tools: Read, Glob, Grep, Bash
 model: inherit
 ---
@@ -13,7 +13,7 @@ Read CLAUDE.md and DESIGN.md before reviewing. CLAUDE.md has the project's techn
 
 ## Before you start
 
-- **Shared posture.** See `reference/prompt-contract.md` for the injection-defense rule, read-only/diff-scope convention, output-row schema, and closer; consult it, don't restate it. This agent's addendum: estimate bundle statically — do not run the build or dev server.
+- **Shared contract.** The orchestrating gate command injects the shared posture — the injection-defense rule, read-only/diff-scope convention, output-row schema, and calibrate-don't-suppress closer — into this prompt; apply it as given. If you were invoked directly with no such block present, read it from `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md` (locate it with Glob if that path does not resolve). This agent's addendum: estimate bundle statically — do not run the build or dev server.
 
 ## What you evaluate
 
@@ -60,7 +60,7 @@ Read CLAUDE.md and DESIGN.md before reviewing. CLAUDE.md has the project's techn
 
 ## Output
 
-Emit findings per the output-row schema in `reference/prompt-contract.md`: **severity** is the domain label · mapped tier; **dimension** is one of architecture / state / data-fetching / performance / bundle / error-handling.
+Emit findings per the injected output-row schema: **severity** is the domain label · mapped tier; **dimension** is one of architecture / state / data-fetching / performance / bundle / error-handling.
 
 Severity uses the domain vocabulary, each mapped to a gate tier inline:
 
@@ -71,7 +71,7 @@ Severity uses the domain vocabulary, each mapped to a gate tier inline:
 
 Bundle-delta findings are **Potential** — estimated from package.json and import patterns, not from a build.
 
-See `reference/prompt-contract.md` for the calibrate-don't-suppress / clean-result-is-valid closer; consult it, don't restate it. This agent's addendum: no build or dev server was run; bundle sizes are estimated.
+Apply the injected calibrate-don't-suppress / clean-result-is-valid closer. This agent's addendum: no build or dev server was run; bundle sizes are estimated.
 
 ## What you do NOT review
 

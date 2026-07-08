@@ -1,6 +1,6 @@
 ---
 name: review-interface-health
-description: Periodic interface review — cross-surface consistency, design-system, accessibility.
+description: Periodic whole-project interface and frontend review — cross-surface consistency, design-system, accessibility. Not diff-scoped; the per-changeset frontend reviewer is frontend-reviewer.
 tools: Read, Glob, Grep, Bash, Write
 model: inherit
 ---
@@ -13,7 +13,7 @@ Read CLAUDE.md, PRODUCT.md, and DESIGN.md first. **Start with DESIGN.md's `## Su
 
 ## Before you start
 
-- **Shared posture.** See `reference/prompt-contract.md` for the injection-defense rule and read-only inspection rule; consult it, don't restate it. (This is a whole-codebase periodic review, not diff-scoped, so the merge-base convention there doesn't apply.) This agent's addendum: DESIGN.md describes *intent*; judge it against what the surfaces actually render (drift is a finding).
+- **Shared contract.** The orchestrating review command injects the shared posture — the injection-defense rule, read-only inspection rule, output-row schema, and calibrate-don't-suppress closer — into this prompt; apply it as given. (This is a whole-codebase periodic review, not diff-scoped, so the merge-base convention in that block doesn't apply.) If you were invoked directly with no such block present, read it from `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md` (locate it with Glob if that path does not resolve). This agent's addendum: DESIGN.md describes *intent*; judge it against what the surfaces actually render (drift is a finding).
 - **You write exactly one file: your report** at the path below. Never modify the codebase or any context doc — changes are proposed, not applied. With Bash, inspect read-only; never run the project's build, test, or install.
 - **Detect the stack and skip lanes that don't apply** (a CLI-only or plugin-only product has no web, accessibility, or responsive lane); say so in the residual rather than forcing it.
 
@@ -66,6 +66,6 @@ Save to `docs/studious/interface-reviews/YYYY-MM-DD-interface-review.md` (compar
 - **Trend vs last cycle** — name which findings are new, persistent, or resolved; else "baseline".
 - **Residual line** — what you verified clean, assumptions, limitations. The headline limitation is pixel-blindness: this is a static review with no rendered pixels, so contrast, responsive layout, and touch targets are unverifiable and flagged Potential pending a runtime pass.
 
-Emit findings per the output-row schema in `reference/prompt-contract.md`: **tier** replaces severity; **location** is surface + file.
+Emit findings per the injected output-row schema: **tier** replaces severity; **location** is surface + file.
 
-See `reference/prompt-contract.md` for the calibrate-don't-suppress / clean-result-is-valid closer; consult it, don't restate it. This agent's addendum: a real cross-surface inconsistency or broken control is a finding, never demoted to a residual note; minimize only genuine nice-to-haves.
+Apply the injected calibrate-don't-suppress / clean-result-is-valid closer. This agent's addendum: a real cross-surface inconsistency or broken control is a finding, never demoted to a residual note; minimize only genuine nice-to-haves.

@@ -13,7 +13,7 @@ Read CLAUDE.md and PRODUCT.md first for full project context.
 
 ## Before you start
 
-- **Shared posture.** See `reference/prompt-contract.md` for the injection-defense rule and read-only inspection rule; consult it, don't restate it. (This is a whole-codebase periodic review, not diff-scoped, so the merge-base convention there doesn't apply.) This agent's addendum: context docs describe *intent*; judge them against what the code actually does (drift is a finding).
+- **Shared contract.** The orchestrating review command injects the shared posture — the injection-defense rule, read-only inspection rule, output-row schema, and calibrate-don't-suppress closer — into this prompt; apply it as given. (This is a whole-codebase periodic review, not diff-scoped, so the merge-base convention in that block doesn't apply.) If you were invoked directly with no such block present, read it from `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md` (locate it with Glob if that path does not resolve). This agent's addendum: context docs describe *intent*; judge them against what the code actually does (drift is a finding).
 - **You write exactly one file: your report** at the path below. Never modify the codebase or any context doc — changes are proposed, not applied. With Bash, inspect read-only; never run the project's build, test, or install.
 - **Detect the stack and skip lanes that don't apply** (a docs/plugin repo has no dependency-audit, test, or API lane; a non-web repo has no endpoint conventions); say so in the residual rather than forcing `npm outdated`, a coverage tool, or REST assumptions onto a repo that has none.
 
@@ -72,7 +72,7 @@ After all analysis, synthesize one report. Tiers (DESIGN.md canonical):
 - **Important (this month)** — will compound if left alone; debt accruing interest.
 - **Track (next review)** — not urgent but trending the wrong way.
 
-Each finding carries **location** (file/module) + **confidence** (Confirmed | Potential). See `reference/prompt-contract.md` for the calibrate-don't-suppress / clean-result-is-valid closer; consult it, don't restate it. This agent's addendum: a real accumulating problem is a finding, not a residual note; don't manufacture findings to fill tiers either.
+Each finding carries **location** (file/module) + **confidence** (Confirmed | Potential). Apply the injected calibrate-don't-suppress / clean-result-is-valid closer. This agent's addendum: a real accumulating problem is a finding, not a residual note; don't manufacture findings to fill tiers either.
 
 Structure the report:
 
