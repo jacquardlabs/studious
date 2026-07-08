@@ -101,3 +101,33 @@ def test_recognizes_skill_name_backtick_phrasing(tmp_path: Path) -> None:
     _write(tmp_path / "commands" / "gate.md", "delegates to skill `ghost-skill`")
     errors = find_broken(tmp_path)
     assert any("skills/ghost-skill/ missing" in e for e in errors)
+
+
+def test_scans_reference_dir_for_dangling_agent(tmp_path: Path) -> None:
+    # A reference/ doc that cites a renamed (now-missing) agent must fail the check.
+    _write(
+        tmp_path / "reference" / "design-doc-contract.md",
+        "dispatched to @agent-product-reviewer for the acceptance read",
+    )
+    errors = find_broken(tmp_path)
+    assert any("agents/product-reviewer.md missing" in e for e in errors)
+
+
+def test_scans_reference_dir_for_moved_sibling(tmp_path: Path) -> None:
+    # A reference/ doc that cites a moved/renamed sibling reference file must fail.
+    _write(
+        tmp_path / "reference" / "worker-contract.md",
+        "the build-side analogue of `reference/design-doc-contract.md`",
+    )
+    errors = find_broken(tmp_path)
+    assert any("reference/design-doc-contract.md" in e for e in errors)
+
+
+def test_reference_dir_siblings_resolve(tmp_path: Path) -> None:
+    _write(tmp_path / "reference" / "design-doc-contract.md", "x")
+    _write(tmp_path / "agents" / "product-reviewer.md", "x")
+    _write(
+        tmp_path / "reference" / "worker-contract.md",
+        "analogue of `reference/design-doc-contract.md`; @agent-product-reviewer judges",
+    )
+    assert find_broken(tmp_path) == []

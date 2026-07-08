@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify every @agent-*, internal-skill, and reference/ path in commands/, agents/, and skills/ resolves.
+"""Verify every @agent-*, internal-skill, and reference/ path in commands/, agents/, skills/, and reference/ resolves.
 
 Run from CI to catch broken cross-references (e.g. an agent rename that orphans a
 command's @agent-* reference). Standard library only.
@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-SCAN_DIRS = ("commands", "agents", "skills")
+SCAN_DIRS = ("commands", "agents", "skills", "reference")
 AGENT_RE = re.compile(r"@agent-([a-z0-9-]+)")
 # Recognized phrasings for a skill reference, e.g. "the `<name>` skill" (also
 # matches the possessive "the `<name>` skill's ..."), "invoke `<name>`"/"invoke
