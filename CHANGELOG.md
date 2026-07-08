@@ -2,6 +2,43 @@
 
 <!-- version list -->
 
+## v2.14.0 (2026-07-08)
+
+### Bug Fixes
+
+- Inject shared contract from commands instead of agent pull
+  ([#108](https://github.com/jacquardlabs/studious/pull/108),
+  [`af02218`](https://github.com/jacquardlabs/studious/commit/af0221802038a4278ef094a0ac8605742777b679))
+
+- Resolve gate-acceptance scope before dispatching product-reviewer
+  ([#108](https://github.com/jacquardlabs/studious/pull/108),
+  [`af02218`](https://github.com/jacquardlabs/studious/commit/af0221802038a4278ef094a0ac8605742777b679))
+
+- **agents**: Disambiguate diff-scoped vs periodic routing in descriptions
+  ([#108](https://github.com/jacquardlabs/studious/pull/108),
+  [`af02218`](https://github.com/jacquardlabs/studious/commit/af0221802038a4278ef094a0ac8605742777b679))
+
+- **epic-driver**: Inject shared contract into driver audit/premortem dispatches
+  ([#108](https://github.com/jacquardlabs/studious/pull/108),
+  [`af02218`](https://github.com/jacquardlabs/studious/commit/af0221802038a4278ef094a0ac8605742777b679))
+
+### Documentation
+
+- Design for contract-injection story (inject shared contract into dispatches)
+  ([#108](https://github.com/jacquardlabs/studious/pull/108),
+  [`af02218`](https://github.com/jacquardlabs/studious/commit/af0221802038a4278ef094a0ac8605742777b679))
+
+- Pre-mortem register for gate-runtime-correctness epic
+  ([#108](https://github.com/jacquardlabs/studious/pull/108),
+  [`af02218`](https://github.com/jacquardlabs/studious/commit/af0221802038a4278ef094a0ac8605742777b679))
+
+### Features
+
+- Extend check_references and markdownlint to cover reference/**
+  ([#108](https://github.com/jacquardlabs/studious/pull/108),
+  [`af02218`](https://github.com/jacquardlabs/studious/commit/af0221802038a4278ef094a0ac8605742777b679))
+
+
 ## v2.13.1 (2026-07-08)
 
 ### Bug Fixes
