@@ -2,6 +2,75 @@
 
 <!-- version list -->
 
+## v2.13.0 (2026-07-08)
+
+### Bug Fixes
+
+- Anchor .studious state to the main working tree; add --reset-retry; validate --concurrency
+  ([#105](https://github.com/jacquardlabs/studious/pull/105),
+  [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
+
+- Harden epic-driver failure paths — dead-auditor labeling, merge mutex, cycle detection, merge
+  sentinel, finale fix cycles, shell-safe interpolation
+  ([#105](https://github.com/jacquardlabs/studious/pull/105),
+  [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
+
+- Rename epic-story-set gates local to satisfy shellcheck
+  ([#105](https://github.com/jacquardlabs/studious/pull/105),
+  [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
+
+### Documentation
+
+- Add /work-through epic orchestration spec and plan
+  ([#105](https://github.com/jacquardlabs/studious/pull/105),
+  [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
+
+- Delivery-discipline identity — one repo, entrypoints per scope
+  ([#105](https://github.com/jacquardlabs/studious/pull/105),
+  [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
+
+- Document /work-through in README, CONTRIBUTING, and gate vocabulary
+  ([#105](https://github.com/jacquardlabs/studious/pull/105),
+  [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
+
+- Record the substrate flip — spec amendment, PRODUCT.md exception, README modes
+  ([#105](https://github.com/jacquardlabs/studious/pull/105),
+  [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
+
+### Features
+
+- Add /work-through — drive a whole epic through the gate flow
+  ([#105](https://github.com/jacquardlabs/studious/pull/105),
+  [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
+
+- Add epic-driver Workflow script — scheduling in code, judgment in agents
+  ([#105](https://github.com/jacquardlabs/studious/pull/105),
+  [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
+
+- Add epic-plan contract reference ([#105](https://github.com/jacquardlabs/studious/pull/105),
+  [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
+
+- Add epic-set and epic-get verbs to gate-ledger
+  ([#105](https://github.com/jacquardlabs/studious/pull/105),
+  [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
+
+- Add epic-story-set and epic-list verbs to gate-ledger
+  ([#105](https://github.com/jacquardlabs/studious/pull/105),
+  [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
+
+- Add run-the-milestone skill shim for /work-through
+  ([#105](https://github.com/jacquardlabs/studious/pull/105),
+  [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
+
+- Add worker contract — what dispatched workers receive and must return
+  ([#105](https://github.com/jacquardlabs/studious/pull/105),
+  [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
+
+- Move /work-through's driver to the Workflow substrate with prompt fallback
+  ([#105](https://github.com/jacquardlabs/studious/pull/105),
+  [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
+
+
 ## v2.12.0 (2026-07-07)
 
 ### Bug Fixes
