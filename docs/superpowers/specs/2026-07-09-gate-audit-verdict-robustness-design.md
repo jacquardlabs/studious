@@ -91,19 +91,32 @@ is symmetric with the existing anti-suppression machinery, and cheap: gate-audit
 already has read access to the whole changeset in its own tool set, independent of the
 auditor that raised the finding.
 
+Confirmation checks against **the changeset diff the auditors reviewed** (the same
+merge-base-to-HEAD scope established at the top of `/gate-audit`), not just current
+working-tree state at the cited path. This matters most for findings that are
+precisely about an absence — a security-auditor flagging a removed permission check,
+or an architecture-auditor flagging a deletion that strips a needed guard. Checking
+only the current file would see no code at the cited line and drop a valid Critical as
+unconfirmable — a false negative on a merge-blocker, the opposite of what this step
+exists to prevent. The diff, not the working tree, is the source of truth: a finding
+about a removal is confirmed by the diff showing that removal, never dropped because
+the line is gone now.
+
 Each cited Critical resolves to one of three outcomes:
 
-- **Confirmed** — the citation resolves and the code matches what the finding claims.
-  Stays Critical, included in the report as today.
-- **Downgraded** — the citation resolves to something real, but not what the finding
-  claims at Critical severity (a real but lesser issue, or a correct observation
-  overstated). Moves to whichever tier its actual severity warrants (Important or
-  Track) and is reported there instead.
-- **Dropped** — the citation doesn't resolve (wrong file, wrong line, code that isn't
-  there) or the finding doesn't hold up on inspection at all. Removed from the report
-  entirely. Every drop is named in the Summary section — which auditor, what was
-  claimed, why the challenge didn't confirm it — so the persona sees that something was
-  filtered rather than silently missing a finding.
+- **Confirmed** — the citation resolves against the diff and the code (or its
+  documented removal) matches what the finding claims. Stays Critical, included in the
+  report as today.
+- **Downgraded** — the citation resolves to something real in the diff, but not what
+  the finding claims at Critical severity (a real but lesser issue, or a correct
+  observation overstated). Moves to whichever tier its actual severity warrants
+  (Important or Track) and is reported there instead.
+- **Dropped** — the citation doesn't resolve against the diff at all (wrong file,
+  wrong line, a claim the diff doesn't support in either direction) or the finding
+  doesn't hold up on inspection. Removed from the report entirely. Every drop is named
+  in the Summary section — which auditor, what was claimed, why the challenge didn't
+  confirm it — so the persona sees that something was filtered rather than silently
+  missing a finding.
 
 Only a Critical finding that survives this challenge confirmed can drive the
 **FIX AND RE-AUDIT** verdict. If every Critical is downgraded or dropped, the verdict
