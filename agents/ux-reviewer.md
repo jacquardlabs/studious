@@ -67,7 +67,7 @@ Severity labels and their mapped tiers:
 
 - **VISUAL BUG → Critical**: Source shows something broken, overlapping, or misaligned. Fix before ship.
 - **INCONSISTENCY → Important**: Deviates from DESIGN.md patterns without reason. Should fix.
-- **IMPROVEMENT → Important**: Would make the UI noticeably better. Fix if time allows.
+- **IMPROVEMENT → Track**: Would make the UI noticeably better, but not urgent. Log it and revisit later.
 - **SUGGESTION → Track**: Polish or preference. Track for later.
 
 This agent's headline limitation: this is a static source review with no rendered pixels, so layout, overflow, state, contrast, and touch-target findings are inferred and marked Potential.
