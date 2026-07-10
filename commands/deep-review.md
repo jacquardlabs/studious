@@ -82,7 +82,7 @@ Do NOT apply these changes. Present them as proposed diffs for the user to revie
 
 #### Metrics dashboard
 
-Pull the metrics snapshots from the codebase health and interface health reports into a single table for easy trend tracking:
+Pull the metrics snapshots from the codebase health, interface health, and security health reports into a single table for easy trend tracking:
 
 | Metric | Value | Trend vs last review | Source |
 |--------|-------|---------------------|--------|

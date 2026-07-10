@@ -106,6 +106,7 @@ Language conventions `code-auditor` enforces at `/gate-audit`. Document the rule
 | Interface health | Monthly or post-UI-sprint | `/deep-review interface` |
 | Architecture | Quarterly or pre-major-feature | `/deep-review architecture` |
 | Product health | Monthly | `/deep-review product` |
+| Security health | Monthly | `/deep-review security` |
 | README drift | After a release or feature batch | `/deep-review readme` |
 | All reviews + summary | As needed | `/deep-review` |
 
