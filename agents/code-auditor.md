@@ -31,6 +31,7 @@ Read CLAUDE.md first for the project's documented technical conventions. They ar
 
 **Does NOT check:**
 - Security vulnerabilities — security-auditor handles this
+- Test adequacy — test-auditor handles this
 - Visual design — ux-reviewer handles this
 - Product fit — product-reviewer handles this
 
