@@ -483,5 +483,92 @@ check "no stray temp files left in the work store after failed writes" "" \
 check "no stray temp files left in the epics store after failed writes" "" \
   "$(find "$dfail/.studious/epics" -name '.tmp.*' 2>/dev/null)"
 
+# --- evidence-append writes the pinned shape (reference/evidence-format.md) ---
+d18=$(sandbox)
+( cd "$d18" && "$LEDGER" evidence-append --command "pytest tests/" --exit-code 0 \
+    --output-digest "sha256:deadbeef" --origin interactive )
+ef18="$d18/.studious/evidence/feat-foo.jsonl"
+check "evidence-append creates the branch-slug .jsonl file" "yes" "$([ -f "$ef18" ] && echo yes || echo no)"
+check "evidence-append writes exactly one line" "1" "$(wc -l < "$ef18" | tr -d ' ')"
+line1=$(sed -n '1p' "$ef18")
+check "record is valid single-line JSON" "yes" "$(printf '%s' "$line1" | jq -e . >/dev/null 2>&1 && echo yes || echo no)"
+check "capturer is the hardcoded constant" "hook" "$(printf '%s' "$line1" | jq -r '.capturer')"
+check "origin stores the given value" "interactive" "$(printf '%s' "$line1" | jq -r '.origin')"
+check "agentType is omitted (not null) when not given" "yes" \
+  "$(printf '%s' "$line1" | jq -e 'has("agentType") | not' >/dev/null 2>&1 && echo yes || echo no)"
+check "command stores the given value" "pytest tests/" "$(printf '%s' "$line1" | jq -r '.command')"
+check "exitCode stores the given value" "0" "$(printf '%s' "$line1" | jq -r '.exitCode')"
+check "outputDigest stores the given value" "sha256:deadbeef" "$(printf '%s' "$line1" | jq -r '.outputDigest')"
+check "predicateType is the in-toto test-result URL" "https://in-toto.io/attestation/test-result/v0.1" \
+  "$(printf '%s' "$line1" | jq -r '.predicateType')"
+check "predicate.result is PASSED for exit code 0" "PASSED" "$(printf '%s' "$line1" | jq -r '.predicate.result')"
+check "predicate.configuration mirrors command" '["pytest tests/"]' \
+  "$(printf '%s' "$line1" | jq -c '[.predicate.configuration[].name]')"
+check "capturedAt is stamped (not null)" "yes" \
+  "$([ "$(printf '%s' "$line1" | jq -r '.capturedAt')" != "null" ] && echo yes || echo no)"
+check "record key order matches reference/evidence-format.md" \
+  '["capturedAt","capturer","origin","command","exitCode","outputDigest","predicateType","predicate"]' \
+  "$(printf '%s' "$line1" | jq -c 'keys_unsorted')"
+contains "evidence-append self-heals .gitignore" ".studious/" "$(cat "$d18/.gitignore")"
+
+# --- evidence-append: exit code 0 -> PASSED, non-zero -> FAILED ---
+( cd "$d18" && "$LEDGER" evidence-append --command "pytest tests/" --exit-code 1 \
+    --output-digest "sha256:cafebabe" --origin subagent --agent-type "epic-driver:build-worker" )
+check "evidence-append appends (jsonl, not overwrite)" "2" "$(wc -l < "$ef18" | tr -d ' ')"
+line2=$(sed -n '2p' "$ef18")
+check "non-zero exit code maps to predicate.result FAILED" "FAILED" "$(printf '%s' "$line2" | jq -r '.predicate.result')"
+check "exitCode stores the non-zero value" "1" "$(printf '%s' "$line2" | jq -r '.exitCode')"
+check "origin stores subagent" "subagent" "$(printf '%s' "$line2" | jq -r '.origin')"
+check "agentType is included when given" "epic-driver:build-worker" "$(printf '%s' "$line2" | jq -r '.agentType')"
+check "agentType lands between origin and command (key order)" \
+  '["capturedAt","capturer","origin","agentType","command","exitCode","outputDigest","predicateType","predicate"]' \
+  "$(printf '%s' "$line2" | jq -c 'keys_unsorted')"
+
+# --- evidence-append validates required args before writing anything ---
+d19=$(sandbox)
+err=$(cd "$d19" && "$LEDGER" evidence-append --command x 2>&1 1>/dev/null; echo "rc=$?")
+contains "evidence-append requires all four flags" \
+  "gate-ledger: --command, --exit-code, --output-digest, and --origin required" "$err"
+contains "evidence-append missing-args exits 2" "rc=2" "$err"
+check "evidence-append does not create a file on a rejected call" "no" \
+  "$([ -f "$d19/.studious/evidence/feat-foo.jsonl" ] && echo yes || echo no)"
+
+err=$(cd "$d19" && "$LEDGER" evidence-append --command x --exit-code abc \
+  --output-digest sha256:x --origin interactive 2>&1 1>/dev/null; echo "rc=$?")
+contains "evidence-append rejects a non-integer --exit-code" \
+  "gate-ledger: --exit-code must be a non-negative integer" "$err"
+contains "evidence-append non-integer --exit-code exits 2" "rc=2" "$err"
+
+err=$(cd "$d19" && "$LEDGER" evidence-append --command x --exit-code 0 \
+  --output-digest sha256:x --origin bogus 2>&1 1>/dev/null; echo "rc=$?")
+contains "evidence-append rejects an --origin outside interactive|subagent" \
+  "gate-ledger: --origin must be 'interactive' or 'subagent'" "$err"
+contains "evidence-append invalid --origin exits 2" "rc=2" "$err"
+check "no evidence file exists after every rejected call" "no" \
+  "$([ -f "$d19/.studious/evidence/feat-foo.jsonl" ] && echo yes || echo no)"
+
+# --- evidence-append signals on stderr (but still returns 0) when jq is unavailable ---
+d20=$(sandbox)
+stderr20=$(cd "$d20" && PATH="$fakebin" "$LEDGER" evidence-append --command x --exit-code 0 \
+  --output-digest sha256:x --origin interactive 2>&1 1>/dev/null)
+contains "evidence-append signals on stderr when jq is unavailable" \
+  "gate-ledger: evidence-append skipped (jq and git required)" "$stderr20"
+check "evidence-append does not create a file when jq is unavailable" "no" \
+  "$([ -f "$d20/.studious/evidence/feat-foo.jsonl" ] && echo yes || echo no)"
+
+# --- evidence-append anchors to the MAIN working tree across linked worktrees,
+# exactly like record/work-set/epic-set (#worker-evidence-and-board) — this is
+# the property a dispatched story worker's own process depends on: its cwd is
+# a linked worktree, but the evidence it writes must land where the rest of
+# the story's ledger state already lives. ---
+d21=$(sandbox)
+( cd "$d21" && git worktree add -q "$d21/.studious/worktrees/e/s" -b epic/e--s )
+( cd "$d21/.studious/worktrees/e/s" && "$LEDGER" evidence-append --command "pytest tests/" \
+    --exit-code 0 --output-digest "sha256:deadbeef" --origin subagent --agent-type "epic-driver:build-worker" )
+check "evidence-append from a linked worktree writes the MAIN root evidence file" "yes" \
+  "$([ -f "$d21/.studious/evidence/epic-e--s.jsonl" ] && echo yes || echo no)"
+check "evidence-append from a linked worktree does not write under the worktree" "no" \
+  "$([ -f "$d21/.studious/worktrees/e/s/.studious/evidence/epic-e--s.jsonl" ] && echo yes || echo no)"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

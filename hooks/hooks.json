@@ -1,5 +1,5 @@
 {
-  "description": "Studious PR-time gate reminder — non-blocking 'ask' before `gh pr create`",
+  "description": "Studious PR-time gate reminder (non-blocking 'ask' before `gh pr create`) and story-scoped evidence capture (silent, no-op unless the branch is armed)",
   "hooks": {
     "PreToolUse": [
       {
@@ -8,6 +8,28 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/gate-reminder.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/evidence-capture.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/evidence-capture.sh\""
           }
         ]
       }
