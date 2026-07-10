@@ -50,6 +50,15 @@ For FIX AND RE-CHECK items, be specific enough that they can go directly into th
 
 ## Record the verdict
 
+Before running `gate-ledger record`, commit every file this gate's run wrote or
+modified — there is no prescribed artifact here, but a synthesis this involved can
+produce one anyway (a note, a reconciliation doc), deliberately or on your own
+initiative. `gate-ledger record` stamps the verdict's sha from HEAD at the moment it
+runs; a file committed afterward leaves the ledger pointing at a commit that doesn't
+yet contain what this run produced, so the PR-time hook and `/work-through`'s finale
+would flag this verdict as stale over a commit that changed nothing substantive. The
+recorded sha must be the same commit a later reader lands on at HEAD.
+
 After stating the verdict, record it to the local gate ledger so the PR-time reminder
 can be specific. Run (substituting the verdict token you just assigned — `SHIP`,
 `FIX AND RE-CHECK`, or `HOLD`):
