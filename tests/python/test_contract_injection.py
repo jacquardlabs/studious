@@ -16,8 +16,8 @@ mechanism than the commands' verbatim push, and the one thing the M1 finale audi
 reads `reference/prompt-contract.md` once, the same way the four gate commands do,
 and hands its four blocks to the script as `args.contract`; `CONTRACT` inside the
 script is that text, not a pointer, and the three dispatch sites that interpolate it
-(`auditRound`, `finaleAuditRound`, the finale premortem dispatch) are unchanged at the
-call site — only what flows through `${CONTRACT}` changed.
+(`auditRound`, `finaleAuditRound`, the finale premortem dispatch) pass it through as
+the `contract` field of an object literal.
 
 These tests lock that inversion without a live model:
 
@@ -33,7 +33,12 @@ These tests lock that inversion without a live model:
   `workflows/epic-driver.js`, not reimplemented — against a real contract payload and
   asserts the resulting prompt contains the four blocks' own content end-to-end, and
   that a dropped/empty payload makes the assembly raise before any prompt is
-  completed, rather than merely asserting the driver's source *cites* the contract.
+  completed, rather than merely asserting the driver's source *cites* the contract;
+- the three builders take a single fields object, not positional string params (a
+  gate-audit finding: order-inconsistent positional signatures across the three
+  siblings had no structural guard against a transposed call) — `requireFields`
+  raises if a required key is missing, and a dedicated test below exercises that
+  guard directly.
 """
 
 from __future__ import annotations
@@ -69,17 +74,20 @@ WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
 # instead of carrying the text itself.
 OLD_POINTER_MARKER = "Shared contract: before you begin"
 
-# The three call sites pass CONTRACT as the final positional argument to their
-# builder; each occurrence of this substring is one such call.
-CONTRACT_ARG_SUBSTRING = ", CONTRACT)"
+# The three call sites pass CONTRACT as the `contract` field of their builder's
+# fields object; each occurrence of this substring is one such call.
+CONTRACT_ARG_SUBSTRING = "contract: CONTRACT"
 EXPECTED_CONTRACT_ARG_COUNT = 3  # auditRound, finaleAuditRound, premortem dispatch
 
 # The driver's pure, explicitly-parameterized prompt-assembly functions (see
 # workflows/epic-driver.js). Extracted verbatim below and executed by a plain Node
 # process — never reimplemented — so the fixture proves something about the actual
-# shipped source, not a paraphrase of it.
+# shipped source, not a paraphrase of it. requireFields is the structural guard the
+# three builders call before touching their fields object; it must be extracted
+# alongside them or the probe script raises ReferenceError.
 DISPATCH_FUNCTION_NAMES = (
     "requireContract",
+    "requireFields",
     "auditDispatchPrompt",
     "finaleAuditDispatchPrompt",
     "premortemDispatchPrompt",
@@ -159,9 +167,9 @@ function attempt(name, fn) {{
   try {{ results[name] = {{ ok: true, prompt: fn() }} }}
   catch (err) {{ results[name] = {{ ok: false, error: String((err && err.message) || err) }} }}
 }}
-attempt('audit', () => auditDispatchPrompt('CTX-BLOCK', 'NOTE', 'story-a', 'epic-slug', '/worktree/story-a', contract))
-attempt('finale', () => finaleAuditDispatchPrompt('NOTE', '/repo', '/worktree/__epic', 'epic-slug', 'main', 'goal text', contract))
-attempt('premortem', () => premortemDispatchPrompt('/repo', 'docs/premortem.md', 'epic-slug', '/worktree/__epic', contract))
+attempt('audit', () => auditDispatchPrompt({{ ctxBlock: 'CTX-BLOCK', note: 'NOTE', slug: 'epic-slug', storyWorktreePath: '/worktree/story-a', contract }}))
+attempt('finale', () => finaleAuditDispatchPrompt({{ note: 'NOTE', repoRoot: '/repo', epicWorktreePath: '/worktree/__epic', slug: 'epic-slug', defaultBranch: 'main', epicGoal: 'goal text', contract }}))
+attempt('premortem', () => premortemDispatchPrompt({{ repoRoot: '/repo', premortemPath: 'docs/premortem.md', slug: 'epic-slug', epicWorktreePath: '/worktree/__epic', contract }}))
 console.log(JSON.stringify(results))
 """
     proc = subprocess.run(
@@ -327,3 +335,62 @@ def test_driver_dispatch_prompts_fail_closed_on_missing_contract() -> None:
             assert "missing prompt contract" in result["error"], (
                 f"{site} dispatch raised an unexpected error: {result['error']!r}"
             )
+
+
+def test_driver_dispatch_builders_reject_a_field_missing_by_name() -> None:
+    """requireFields raises naming the specific missing field, not just "something's wrong".
+
+    Locks the fix for a gate-audit Important finding: the three builders took 5-7
+    positional string params in orders that were inconsistent across siblings, with
+    no structural guard against a transposed call — e.g. swapping `slug` and
+    `storyWorktreePath`, both strings, at a call site would have type-checked and
+    silently interpolated the wrong value into a dispatch prompt rather than
+    raising. Each builder now takes a single fields object, and `requireFields`
+    raises if a required key is `undefined`, whether it was dropped, renamed, or
+    never wired at the call site — so a mistyped key fails loudly and names the
+    exact field. Also proves a legitimately empty string (`note: ''`, the value the
+    real driver's first audit/finale round passes) is not mistaken for a missing
+    field — the guard checks `=== undefined`, not falsiness.
+    """
+    script = f"""
+{_dispatch_functions_source()}
+
+const results = {{}}
+function attempt(name, fn) {{
+  try {{ results[name] = {{ ok: true, prompt: fn() }} }}
+  catch (err) {{ results[name] = {{ ok: false, error: String((err && err.message) || err) }} }}
+}}
+
+// Each site with one required field dropped by name (simulates a mistyped or
+// transposed key at a call site) — must raise naming exactly that field.
+attempt('audit-missing-slug', () => auditDispatchPrompt({{ ctxBlock: 'C', note: 'N', storyWorktreePath: '/w', contract: 'CONTRACT-TEXT' }}))
+attempt('finale-missing-epicGoal', () => finaleAuditDispatchPrompt({{ note: 'N', repoRoot: '/r', epicWorktreePath: '/w', slug: 's', defaultBranch: 'main', contract: 'CONTRACT-TEXT' }}))
+attempt('premortem-missing-premortemPath', () => premortemDispatchPrompt({{ repoRoot: '/r', slug: 's', epicWorktreePath: '/w', contract: 'CONTRACT-TEXT' }}))
+
+// A legitimately empty string for a required field must not be mistaken for
+// missing.
+attempt('audit-empty-note', () => auditDispatchPrompt({{ ctxBlock: 'C', note: '', slug: 's', storyWorktreePath: '/w', contract: 'CONTRACT-TEXT' }}))
+
+console.log(JSON.stringify(results))
+"""
+    proc = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30)
+    assert proc.returncode == 0, f"node field-guard probe crashed: {proc.stderr}"
+    results = json.loads(proc.stdout)
+
+    for site, missing_field in (
+        ("audit-missing-slug", "slug"),
+        ("finale-missing-epicGoal", "epicGoal"),
+        ("premortem-missing-premortemPath", "premortemPath"),
+    ):
+        result = results[site]
+        assert not result["ok"], (
+            f"{site} built a prompt despite a missing required field: {result.get('prompt')!r}"
+        )
+        assert missing_field in result["error"], (
+            f"{site} raised without naming the missing field {missing_field!r}: {result['error']!r}"
+        )
+
+    empty_note = results["audit-empty-note"]
+    assert empty_note["ok"], (
+        f"a legitimately empty string field was rejected as missing: {empty_note.get('error')!r}"
+    )

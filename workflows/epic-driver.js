@@ -88,15 +88,39 @@ function requireContract(contract) {
   return contract
 }
 
-function auditDispatchPrompt(ctxBlock, note, story, slugVal, storyWorktreePath, contract) {
+// Guards the three builders below against a transposed call: with positional
+// string params, swapping e.g. `slug` and `storyWorktreePath` type-checks and
+// silently interpolates the wrong value into a dispatch prompt. An object literal
+// keys its arguments by name instead of position, and this raises loudly if a
+// required key is absent (renamed, dropped, or `undefined` some other way) rather
+// than letting `undefined` reach the template literal. `contract` is deliberately
+// never listed here — requireContract() is its sole, more specific guard (its
+// error text is what the fail-closed fixture in test_contract_injection.py
+// asserts on), and `=== undefined` (not falsiness) so a legitimately empty string
+// like the first audit round's `note` doesn't trip this.
+function requireFields(fields, names, fnName) {
+  const missing = names.filter(n => fields[n] === undefined)
+  if (missing.length) {
+    throw new Error(`epic-driver: ${fnName} missing required field(s): ${missing.join(', ')}`)
+  }
+  return fields
+}
+
+function auditDispatchPrompt(fields) {
+  const { ctxBlock, note, slug: slugVal, storyWorktreePath, contract } =
+    requireFields(fields, ['ctxBlock', 'note', 'slug', 'storyWorktreePath'], 'auditDispatchPrompt')
   return `${ctxBlock}\n\n${note} Audit this changeset per your role. Changeset: the story worktree ${storyWorktreePath}, diff base epic/${slugVal}. If your lane does not apply to this project or diff, say so and return no findings. Return your findings as structured text.\n\n${requireContract(contract)}`
 }
 
-function finaleAuditDispatchPrompt(note, repoRootVal, epicWorktreePath, slugVal, defaultBranchVal, epicGoal, contract) {
+function finaleAuditDispatchPrompt(fields) {
+  const { note, repoRoot: repoRootVal, epicWorktreePath, slug: slugVal, defaultBranch: defaultBranchVal, epicGoal, contract } =
+    requireFields(fields, ['note', 'repoRoot', 'epicWorktreePath', 'slug', 'defaultBranch', 'epicGoal'], 'finaleAuditDispatchPrompt')
   return `${note} Audit the FULL epic diff per your role. Repo: ${repoRootVal}; changeset: the epic worktree ${epicWorktreePath} on branch epic/${slugVal}, diff base: merge-base with ${defaultBranchVal}. This is the cross-story integration pass — seams between stories are your subject. Epic goal: ${epicGoal}. If your lane does not apply, say so. Return findings as structured text.\n\n${requireContract(contract)}`
 }
 
-function premortemDispatchPrompt(repoRootVal, premortemPath, slugVal, epicWorktreePath, contract) {
+function premortemDispatchPrompt(fields) {
+  const { repoRoot: repoRootVal, premortemPath, slug: slugVal, epicWorktreePath, contract } =
+    requireFields(fields, ['repoRoot', 'premortemPath', 'slug', 'epicWorktreePath'], 'premortemDispatchPrompt')
   return `Verify the epic pre-mortem register at ${repoRootVal}/${premortemPath} against the epic branch epic/${slugVal} (worktree ${epicWorktreePath}), per your role. Report REALIZED / NOT REALIZED / CAN'T VERIFY per item.\n\n${requireContract(contract)}`
 }
 
@@ -239,7 +263,7 @@ function cycleMembers() {
 
 async function auditRound(story, note, nextPhase) {
   const reports = await parallel(AUDITORS.map(a => () =>
-    agent(auditDispatchPrompt(ctx(story), note, story, slug, storyWorktree(story), CONTRACT),
+    agent(auditDispatchPrompt({ ctxBlock: ctx(story), note, slug, storyWorktreePath: storyWorktree(story), contract: CONTRACT }),
       { agentType: a, label: `audit:${a.split(':')[1]}:${story}`, phase: `story:${story}`, schema: REPORT })))
   const { joined, missing } = joinReports(reports)
   let result = await agent(auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase),
@@ -381,7 +405,7 @@ async function finaleAuditRound(note) {
   // beyond its own concurrency limit, so a cap-3 epic peaking above 10 agents
   // is throttled, not broken.
   const reports = await parallel(AUDITORS.map(a => () =>
-    agent(finaleAuditDispatchPrompt(note, repoRoot, epicWorktree, slug, input.defaultBranch, epic.goal, CONTRACT),
+    agent(finaleAuditDispatchPrompt({ note, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, epicGoal: epic.goal, contract: CONTRACT }),
       { agentType: a, label: `finale:${a.split(':')[1]}`, phase: 'Finale', schema: REPORT })))
   const { joined, missing } = joinReports(reports)
   let result = await agent(auditFanIn(null, joined, input.defaultBranch, epicWorktree, ''),
@@ -439,7 +463,7 @@ if (landedCount + droppedCount === allSettled.length && landedCount > 0) {
     { label: 'finale:acceptance', phase: 'Finale', schema: GATE_RESULT, model: 'opus' }))
 
   const premortem = epic.premortem
-    ? await agent(premortemDispatchPrompt(repoRoot, epic.premortem, slug, epicWorktree, CONTRACT),
+    ? await agent(premortemDispatchPrompt({ repoRoot, premortemPath: epic.premortem, slug, epicWorktreePath: epicWorktree, contract: CONTRACT }),
         { agentType: 'studious:premortem-auditor', label: 'finale:premortem', phase: 'Finale', schema: REPORT })
     : null
 
