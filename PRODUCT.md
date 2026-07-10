@@ -125,11 +125,11 @@ Traced from the commands and the README's two-rhythm description.
 
 2. **Per-feature gate flow** — `/backlog-priorities` or `/gate-should-we-build [idea]`
    > design doc > `/gate-design-review` > build with your own workflow > `/gate-audit`
-   (6 parallel auditors, frontend lanes auto-skip on diffs with no frontend changes)
+   (parallel auditors; frontend and infrastructure lanes auto-skip when not applicable)
    > `/gate-acceptance` > merge. Each gate catches a specific failure; the user skips
    gates the risk doesn't warrant.
 
-3. **Per-project health loop** — `/deep-review` dispatches 5 review agents against main
+3. **Per-project health loop** — `/deep-review` dispatches the periodic review agents against main
    in parallel, compiles a cross-referenced master summary with a prioritized action
    plan, and proposes (never applies) updates to the context docs. `/backlog-hygiene`
    then flags resolved/obsolete/duplicated issues against the cycle's fixes.

@@ -52,7 +52,7 @@ finding.
 | Tool | Encryption | Public access | Deletion safety |
 |---|---|---|---|
 | Terraform (raw) | Off unless set — absence is the finding | Provider default (usually private); explicit `0.0.0.0/0` is the finding | Off unless set |
-| CDK (L2+) | Many constructs encrypt by default — verify the construct level before flagging | `blockPublicAccess` on by default for S3 | `RemovalPolicy` defaults to DESTROY on some constructs — verify stateful ones |
+| CDK (L2+) | Many constructs encrypt by default — verify the construct level before flagging | `blockPublicAccess` on by default for S3 | Flagship stateful L2s default to RETAIN/SNAPSHOT (S3, DynamoDB, RDS); constructs without an L2 override inherit CloudFormation's delete — verify the construct before flagging |
 | CloudFormation | Off unless set | Off unless set | `DeletionPolicy` absent = delete |
 | Kubernetes | N/A (cluster concern) | `Service`/`Ingress` exposure is explicit — judge the auth in front | PDB/replicas absent = single-replica |
 | Docker/Compose | N/A | `ports:` binds 0.0.0.0 unless an address is given | N/A |

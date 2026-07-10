@@ -109,7 +109,7 @@ It refuses draft PRs and fork PRs (no repository secrets are available to fork-t
 
 Separate from the feature flow: periodic reviews that assess overall project health. These run against main, not feature branches.
 
-`/deep-review` dispatches all 5 review agents in parallel and compiles a master summary: it cross-references findings across reviews, produces a prioritized action plan, and proposes updates to your context docs for approval. Metrics are captured each run for trend tracking.
+`/deep-review` dispatches all 6 review agents in parallel and compiles a master summary: it cross-references findings across reviews, produces a prioritized action plan, and proposes updates to your context docs for approval. Metrics are captured each run for trend tracking.
 
 Aim it at one area when you don't need the full sweep — each review has its own natural cadence:
 
@@ -119,8 +119,9 @@ Aim it at one area when you don't need the full sweep — each review has its ow
 | Interface health | Cross-surface consistency, design drift, accessibility (web), interface code quality | Monthly or post-UI work | `/deep-review interface` |
 | Architecture | Module boundaries, complexity, evolution readiness | Quarterly or pre-major-feature | `/deep-review architecture` |
 | Product health | PRODUCT.md accuracy, persona drift, scope creep | Monthly or when it feels off | `/deep-review product` |
+| Security health | Whole-repo vulnerability posture, secrets in git history, security-config posture | Monthly | `/deep-review security` |
 | README drift | Stale claims, broken commands, voice | After a release or feature batch | `/deep-review readme` |
-| Everything | All 5, cross-referenced into one summary | Monthly | `/deep-review` |
+| Everything | All 6, cross-referenced into one summary | Monthly | `/deep-review` |
 
 `/backlog-hygiene` scans open GitHub issues against recent commits, PRODUCT.md, and review reports, then flags the ones that are resolved/obsolete/duplicated. Run it after a `/deep-review` to catch what that cycle's fixes resolved. It reports, never modifies.
 

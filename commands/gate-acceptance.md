@@ -39,7 +39,7 @@ Walk through every user-facing change on this branch yourself, using @agent-prod
 Close with two gate-specific questions the checklist doesn't ask:
 
 - **One complaint** — what's the single thing a real user would complain about if we shipped this as-is? Be specific. There's always something.
-- **Operability** — does the branch deliver what the design doc's Operational readiness section committed to (the migration and its rollback, the rollout strategy, the working/failing signals)? If the section said "N/A — no operational surface", confirm that still holds for what was actually built.
+- **Operability** — does the branch deliver what the design doc's Operational readiness section committed to (the migration and its rollback, the rollout strategy, the working/failing signals)? If the section said "N/A — no operational surface", confirm that still holds for what was actually built. If the design doc predates the Operational readiness section, note that and assess operability from the changeset directly.
 
 ## Part 4 — Verdict
 

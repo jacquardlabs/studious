@@ -35,7 +35,6 @@ Read CLAUDE.md first for the project's intended architecture and conventions.
 - Are there concrete runtime bottlenecks introduced — N+1 queries, hot-path algorithmic complexity, chatty sequential I/O, a missing index on a newly queried column, unbounded loops, synchronous work that should be deferred? This lane owns backend runtime performance; frontend-reviewer owns render and bundle.
 
 ### Data & migrations
-
 - Is every schema migration in the changeset reversible — a real down-path, not a comment?
 - Is it compatible with the previous deploy's still-running code (a column dropped or renamed while old code reads it, an enum value removed while old code writes it)?
 - Are backfills safe at production scale — batched, resumable, no long-held locks on hot tables?
