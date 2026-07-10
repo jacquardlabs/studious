@@ -160,7 +160,9 @@ frontend-reviewer keeps render/bundle. Three sentences total.
 
 - **Prompt contract**: all three new agents carry the shared-contract block reference
   and their own addenda, same as the existing set; the contract-sharing count in
-  project CLAUDE.md ("The 14 review/audit agents") becomes 17.
+  project CLAUDE.md ("The 14 review/audit agents") becomes 16 — the verified carrier
+  count (13 current `Shared contract` carriers + 3 new; the documented 14 had already
+  drifted).
 - **`reference/severity-rubric.md`**: rows for infra-auditor (Critical, High →
   Critical; Medium → Important; Low → Track) and test-auditor (Critical → Critical;
   High, Medium → Important; Low → Track).
@@ -172,8 +174,9 @@ frontend-reviewer keeps render/bundle. Three sentences total.
   CONTRIBUTING's model-assignment lists add infra-auditor + review-security-health
   under `opus`, test-auditor under `inherit`; `commands/deep-review.md` description
   updates.
-- **CI**: `.github/workflows/gate-audit-pr.yml` needs no change — routing degrades the
-  same way locally and in CI. New/edited markdown must pass `markdownlint-cli2` and
+- **CI**: `.github/workflows/gate-audit-pr.yml` needs no behavioral change — routing
+  degrades the same way locally and in CI; only its skip-comment's stale "6-7-agent"
+  count becomes "up-to-9-agent". New/edited markdown must pass `markdownlint-cli2` and
   `scripts/check_references.py`.
 
 ## Out of scope
