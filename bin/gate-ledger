@@ -104,10 +104,15 @@ json_update() { # file, jq filter, then any --arg name value ... pairs for jq
   local dir tmp rc
   dir=$(dirname -- "$file")
   tmp=$(mktemp "$dir/.tmp.XXXXXX")
-  if jq "$@" "$filter" "$file" > "$tmp" && mv "$tmp" "$file"; then
+  # Capture $? from the compound command as its own statement, not as the
+  # condition of an `if`: POSIX defines the exit status of an `if` with no
+  # executed branch (condition false, no `else`) as zero, which would
+  # silently discard a real jq/mv failure here and report success.
+  jq "$@" "$filter" "$file" > "$tmp" && mv "$tmp" "$file"
+  rc=$?
+  if [ "$rc" -eq 0 ]; then
     return 0
   fi
-  rc=$?
   rm -f "$tmp"
   return "$rc"
 }
