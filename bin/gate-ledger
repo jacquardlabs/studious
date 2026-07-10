@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 # gate-ledger — read/write Studious's local, gitignored .studious/ state.
 #
-# Three stores in the consuming project:
+# Four stores in the consuming project:
 #   .studious/gates/<branch-slug>.json  — per-branch gate verdicts. Written by the
 #     gate commands (via `record`); read by the PR-time hook (via `status`) and by
 #     /work-on's evidence check (via `gate-get`) — never read as a raw file by callers.
 #   .studious/work/<feature-slug>.json  — per-feature flow position for /work-on
 #     (written via `work-set` / `work-log`; read via `work-get` / `work-list`).
 #   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /work-through (written via epic-set / epic-story-set; read via epic-get / epic-list).
-# All three stores are anchored to the MAIN working tree (see repo_root), so
+#   .studious/evidence/<branch-slug>.jsonl — append-only, harness-captured record
+#     of verification commands run while a story is armed (one JSON object per
+#     line; written via `evidence-append` by hooks/evidence-capture.sh; no read
+#     verb yet — see reference/evidence-format.md).
+# All four stores are anchored to the MAIN working tree (see repo_root), so
 # agents running in linked worktrees (e.g. /work-through story worktrees)
 # share one .studious/ store instead of fragmenting it per worktree.
 # Degrades silently when git or jq is unavailable.
@@ -62,6 +66,18 @@ epic_dir() {
     printf '%s/.studious/epics' "$root"
   else
     printf '.studious/epics'
+  fi
+}
+
+evidence_dir() {
+  # Same root-anchoring as ledger_dir, different store. A story worker running
+  # in a linked worktree (its own cwd) still lands its records in the MAIN
+  # tree's .studious/evidence/, exactly like the other three stores.
+  local root
+  if root=$(repo_root); then
+    printf '%s/.studious/evidence' "$root"
+  else
+    printf '.studious/evidence'
   fi
 }
 
@@ -552,18 +568,69 @@ cmd_gc() {
   done
 }
 
+cmd_evidence_append() { # append-only: one jq -nc object per call, >> the branch's .jsonl
+  local command="" exit_code="" output_digest="" origin="" agent_type=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --command)       command="$2"; shift 2 ;;
+      --exit-code)     exit_code="$2"; shift 2 ;;
+      --output-digest) output_digest="$2"; shift 2 ;;
+      --origin)        origin="$2"; shift 2 ;;
+      --agent-type)    agent_type="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$command" ] || [ -z "$exit_code" ] || [ -z "$output_digest" ] || [ -z "$origin" ]; then
+    echo "gate-ledger: --command, --exit-code, --output-digest, and --origin required" >&2
+    return 2
+  fi
+  case "$exit_code" in
+    ''|*[!0-9]*) echo "gate-ledger: --exit-code must be a non-negative integer" >&2; return 2 ;;
+  esac
+  case "$origin" in
+    interactive|subagent) ;;
+    *) echo "gate-ledger: --origin must be 'interactive' or 'subagent'" >&2; return 2 ;;
+  esac
+  if ! have jq || ! have git; then
+    echo "gate-ledger: evidence-append skipped (jq and git required)" >&2
+    return 0
+  fi
+
+  ensure_gitignore
+  local dir; dir=$(evidence_dir)
+  mkdir -p "$dir"
+  local file; file="$dir/$(branch_slug).jsonl"
+
+  # capturer is hardcoded, never a caller-supplied flag: only this verb may
+  # write "hook" as the capturer, so a caller can't spoof a different one.
+  # predicateType/predicate.configuration are fixed to the one in-toto
+  # test-result shape this story maps every captured command onto (see
+  # reference/evidence-format.md) — not exposed as flags in v0.
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  jq -nc \
+    --arg capturedAt "$(now_iso)" --arg origin "$origin" --arg agentType "$agent_type" \
+    --arg command "$command" --argjson exitCode "$exit_code" --arg outputDigest "$output_digest" \
+    '{capturedAt: $capturedAt, capturer: "hook", origin: $origin}
+     + (if $agentType != "" then {agentType: $agentType} else {} end)
+     + {command: $command, exitCode: $exitCode, outputDigest: $outputDigest,
+        predicateType: "https://in-toto.io/attestation/test-result/v0.1",
+        predicate: {result: (if $exitCode == 0 then "PASSED" else "FAILED" end),
+                    configuration: [{name: $command}]}}' >> "$file"
+}
+
 case "${1:-}" in
-  record)         shift; cmd_record "$@" ;;
-  status)         shift; cmd_status "$@" ;;
-  gate-get)       shift; cmd_gate_get "$@" ;;
-  work-set)       shift; cmd_work_set "$@" ;;
-  work-log)       shift; cmd_work_log "$@" ;;
-  work-get)       shift; cmd_work_get "$@" ;;
-  work-list)      shift; cmd_work_list "$@" ;;
-  epic-set)       shift; cmd_epic_set "$@" ;;
-  epic-get)       shift; cmd_epic_get "$@" ;;
-  epic-story-set) shift; cmd_epic_story_set "$@" ;;
-  epic-list)      shift; cmd_epic_list "$@" ;;
-  gc)             shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-list | gc}" >&2; exit 2 ;;
+  record)          shift; cmd_record "$@" ;;
+  status)          shift; cmd_status "$@" ;;
+  gate-get)        shift; cmd_gate_get "$@" ;;
+  work-set)        shift; cmd_work_set "$@" ;;
+  work-log)        shift; cmd_work_log "$@" ;;
+  work-get)        shift; cmd_work_get "$@" ;;
+  work-list)       shift; cmd_work_list "$@" ;;
+  epic-set)        shift; cmd_epic_set "$@" ;;
+  epic-get)        shift; cmd_epic_get "$@" ;;
+  epic-story-set)  shift; cmd_epic_story_set "$@" ;;
+  epic-list)       shift; cmd_epic_list "$@" ;;
+  evidence-append) shift; cmd_evidence_append "$@" ;;
+  gc)              shift; cmd_gc "$@" ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | gc}" >&2; exit 2 ;;
 esac
