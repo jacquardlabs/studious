@@ -10,7 +10,7 @@ The product itself is two rhythms (see `README.md`): per-feature **gates** (`/ga
 
 ## Commands
 
-Tooling is `uv` for Python and `npx` for markdown. The four CI jobs (`.github/workflows/ci.yml`) are the full local check suite:
+Tooling is `uv` for Python and `npx` for markdown. The five CI jobs (`.github/workflows/ci.yml`) are the full local check suite:
 
 ```bash
 # Markdown lint (ratchets current state; config in .markdownlint-cli2.jsonc)
@@ -30,7 +30,12 @@ uv run --no-project --with pytest pytest tests/python/test_check_references.py::
 bash tests/test_gate_ledger.sh
 
 # Shell lint for the executable scripts
-shellcheck bin/gate-ledger hooks/gate-reminder.sh tests/test_gate_ledger.sh
+shellcheck bin/gate-ledger hooks/gate-reminder.sh tests/test_gate_ledger.sh tests/test_workflows_lint.sh
+
+# workflows/ JS checks: parseability, then correctness lint (config in eslint.config.mjs)
+node --check workflows/epic-driver.js
+npx -y eslint@10.6.0 --report-unused-disable-directives workflows/
+bash tests/test_workflows_lint.sh
 ```
 
 Releases are automated via semantic-release (`pyproject.toml`); the version lives in `.claude-plugin/plugin.json` and is bumped by CI on merge to `main` — never edit it by hand.
