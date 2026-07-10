@@ -403,5 +403,85 @@ check "self-heal touched only the main .gitignore" "no" \
   "$([ -f "$d17/.studious/worktrees/e/s/.gitignore" ] && echo yes || echo no)"
 contains "main .gitignore self-healed" ".studious/" "$(cat "$d17/.gitignore")"
 
+# --- json_update regression (#102): a mutating verb's exit code is 0
+# immediately after a successful write. The written JSON's content alone
+# doesn't prove this — a RETURN trap armed inside a shared writer function
+# would still produce correct file content (the write happens before the
+# trap could re-fire) while nonetheless corrupting the caller's exit status
+# once the trap re-fires in the *calling* verb's frame under `set -u`. Also
+# confirms the shared writer's temp file never survives a successful write.
+drc=$(sandbox)
+( cd "$drc" && "$LEDGER" record --gate audit --verdict PASS ); rc=$?
+check "record exits 0 on a successful write" "0" "$rc"
+( cd "$drc" && "$LEDGER" work-set --slug rc-work --phase decide ); rc=$?
+check "work-set exits 0 on a successful write" "0" "$rc"
+( cd "$drc" && "$LEDGER" work-log --slug rc-work --step build --outcome DONE ); rc=$?
+check "work-log exits 0 on a successful write" "0" "$rc"
+( cd "$drc" && "$LEDGER" epic-set --slug rc-epic --title "RC Epic" ); rc=$?
+check "epic-set exits 0 on a successful write" "0" "$rc"
+( cd "$drc" && "$LEDGER" epic-story-set --epic rc-epic --slug rc-story --title "RC Story" ); rc=$?
+check "epic-story-set exits 0 on a successful write" "0" "$rc"
+check "no stray temp files left in the gates store after successful writes" "" \
+  "$(find "$drc/.studious/gates" -name '.tmp.*' 2>/dev/null)"
+check "no stray temp files left in the work store after successful writes" "" \
+  "$(find "$drc/.studious/work" -name '.tmp.*' 2>/dev/null)"
+check "no stray temp files left in the epics store after successful writes" "" \
+  "$(find "$drc/.studious/epics" -name '.tmp.*' 2>/dev/null)"
+
+# --- json_update regression (fix-and-re-audit on #102): a mutating verb's
+# exit code is nonzero when the underlying jq/mv write actually fails. The
+# original `if jq ... && mv ...; then return 0; fi` compound read $? on the
+# statement right after the `if`/`fi` — but POSIX defines the exit status of
+# an `if` whose condition is false and has no `else` as zero, not the
+# condition's own status, so that read always saw 0 and every mutating verb
+# reported success even when jq failed. Corrupting the on-disk JSON before a
+# second write is a deterministic, permission-independent way to force jq to
+# fail (a parse error), without relying on filesystem permission checks that
+# root can bypass in CI.
+dfail=$(sandbox)
+
+( cd "$dfail" && "$LEDGER" record --gate audit --verdict PASS )
+frec="$dfail/.studious/gates/feat-foo.json"
+printf 'not json' > "$frec"
+( cd "$dfail" && "$LEDGER" record --gate audit --verdict FAIL ) >/dev/null 2>&1; rc=$?
+check "record exits nonzero when the write fails" "no" "$([ "$rc" -eq 0 ] && echo yes || echo no)"
+check "record leaves a corrupted ledger untouched on failure" "not json" "$(cat "$frec")"
+
+( cd "$dfail" && "$LEDGER" work-set --slug fail-work --phase decide )
+fws="$dfail/.studious/work/fail-work.json"
+printf 'not json' > "$fws"
+( cd "$dfail" && "$LEDGER" work-set --slug fail-work --phase build ) >/dev/null 2>&1; rc=$?
+check "work-set exits nonzero when the write fails" "no" "$([ "$rc" -eq 0 ] && echo yes || echo no)"
+check "work-set leaves a corrupted work file untouched on failure" "not json" "$(cat "$fws")"
+
+printf 'not json' > "$fws"
+( cd "$dfail" && "$LEDGER" work-log --slug fail-work --step build --outcome DONE ) >/dev/null 2>&1; rc=$?
+check "work-log exits nonzero when the write fails" "no" "$([ "$rc" -eq 0 ] && echo yes || echo no)"
+check "work-log leaves a corrupted work file untouched on failure" "not json" "$(cat "$fws")"
+
+( cd "$dfail" && "$LEDGER" epic-set --slug fail-epic --title "Fail Epic" )
+fes="$dfail/.studious/epics/fail-epic.json"
+printf 'not json' > "$fes"
+( cd "$dfail" && "$LEDGER" epic-set --slug fail-epic --status running ) >/dev/null 2>&1; rc=$?
+check "epic-set exits nonzero when the write fails" "no" "$([ "$rc" -eq 0 ] && echo yes || echo no)"
+check "epic-set leaves a corrupted epic file untouched on failure" "not json" "$(cat "$fes")"
+
+# epic-story-set's own file-exists guard only checks presence, not validity —
+# create the epic file while healthy, then corrupt it so the guard passes
+# and json_update's own read is what fails.
+( cd "$dfail" && "$LEDGER" epic-set --slug fail-story-epic --title "Fail Story Epic" )
+fse="$dfail/.studious/epics/fail-story-epic.json"
+printf 'not json' > "$fse"
+( cd "$dfail" && "$LEDGER" epic-story-set --epic fail-story-epic --slug s1 --title "S1" ) >/dev/null 2>&1; rc=$?
+check "epic-story-set exits nonzero when the write fails" "no" "$([ "$rc" -eq 0 ] && echo yes || echo no)"
+check "epic-story-set leaves a corrupted epic file untouched on failure" "not json" "$(cat "$fse")"
+
+check "no stray temp files left in the gates store after failed writes" "" \
+  "$(find "$dfail/.studious/gates" -name '.tmp.*' 2>/dev/null)"
+check "no stray temp files left in the work store after failed writes" "" \
+  "$(find "$dfail/.studious/work" -name '.tmp.*' 2>/dev/null)"
+check "no stray temp files left in the epics store after failed writes" "" \
+  "$(find "$dfail/.studious/epics" -name '.tmp.*' 2>/dev/null)"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi
