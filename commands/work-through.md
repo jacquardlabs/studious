@@ -162,12 +162,14 @@ are interchangeable mid-epic): walk each runnable story's next phase with dispat
 agents — runnable = every dependency `landed` ∧ not `parked`/`dropped` ∧ under the
 epic's cap — dispatching independent stories in parallel (one message, multiple Task
 calls). Workers follow `reference/worker-contract.md`; gate agents run the gate
-command workflows and record their own verdicts from inside the story worktree. Read
-`${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md` yourself here too (same anchored
-resolution, Glob fallback if it doesn't substitute) and stamp its four blocks into
-every gate, audit, and premortem Task prompt you dispatch in this mode — you are the
-assembly point on this path exactly as your own read is on the script path. Log
-every step with
+command workflows and record their own verdicts from inside the story worktree.
+Design-review and acceptance need no extra step — the single dispatched agent reads
+its gate command and self-injects exactly as it would from the script path. Audit is
+different here too: read `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md`
+yourself (same anchored resolution, Glob fallback if it doesn't substitute) and stamp
+its four blocks into every audit and premortem Task prompt you dispatch in this
+mode — you are the assembly point on this path exactly as your own read is on the
+script path. Log every step with
 `gate-ledger work-log --slug "<story>" --step <phase> --outcome "<token>" --phase "<next phase>"`.
 Apply verdicts exactly as the script does:
 
