@@ -46,7 +46,8 @@ const WORKER_PHASES = ['design', 'build']
 const MAX_FIX_CYCLES = 2
 const AUDITORS = [
   'studious:security-auditor', 'studious:code-auditor', 'studious:doc-auditor',
-  'studious:architecture-auditor', 'studious:ux-reviewer', 'studious:frontend-reviewer',
+  'studious:architecture-auditor', 'studious:test-auditor', 'studious:infra-auditor',
+  'studious:ux-reviewer', 'studious:frontend-reviewer',
 ]
 
 // Shared prompt contract every DIRECTLY-dispatched auditor/reviewer must run under.
@@ -339,7 +340,7 @@ async function runStory(story) {
 // ---------- finale (cross-story pass on the epic branch) ----------
 
 async function finaleAuditRound(note) {
-  // One story-slot fans out to 6 auditors + a compiler; the harness queues
+  // One story-slot fans out to 8 auditors + a compiler; the harness queues
   // beyond its own concurrency limit, so a cap-3 epic peaking above 10 agents
   // is throttled, not broken.
   const reports = await parallel(AUDITORS.map(a => () =>
