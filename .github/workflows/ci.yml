@@ -62,4 +62,22 @@ jobs:
             https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz
           tar -xJf /tmp/shellcheck.tar.xz -C /tmp
           sudo install /tmp/shellcheck-v0.11.0/shellcheck /usr/local/bin/shellcheck
-      - run: shellcheck bin/gate-ledger hooks/gate-reminder.sh tests/test_gate_ledger.sh scripts/install-dev.sh
+      - run: shellcheck bin/gate-ledger hooks/gate-reminder.sh tests/test_gate_ledger.sh tests/test_workflows_lint.sh scripts/install-dev.sh
+
+  workflows-js:
+    name: workflows/ JS checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+      - name: node --check
+        run: |
+          for f in workflows/*.js; do
+            node --check "$f"
+          done
+      - name: eslint
+        run: npx -y eslint@10.6.0 --report-unused-disable-directives workflows/
+      - name: Lint regression tests (eslint.config.mjs)
+        run: bash tests/test_workflows_lint.sh

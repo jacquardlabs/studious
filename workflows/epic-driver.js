@@ -467,7 +467,9 @@ if (landedCount + droppedCount === allSettled.length && landedCount > 0) {
         { agentType: 'studious:premortem-auditor', label: 'finale:premortem', phase: 'Finale', schema: REPORT })
     : null
 
+  // eslint-disable-next-line local/no-fail-open-boolean -- fail-closed: only read via `auditOk && shipOk` (line below) and `Boolean(auditOk && ...)` (ready, below) — a died/null auditVerdict makes auditOk falsy, which is fail-closed for both without ever needing a bare `!auditOk`.
   const auditOk = auditVerdict && auditVerdict.verdict === 'PASS'
+  // eslint-disable-next-line local/no-fail-open-boolean -- fail-closed: same shape as auditOk above — a died/null acceptance makes shipOk falsy, which is fail-closed everywhere it's read.
   const shipOk = acceptance && acceptance.verdict === 'SHIP'
   let readyRecorded = false
   if (auditOk && shipOk) {
