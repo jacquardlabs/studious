@@ -96,6 +96,52 @@ d5=$(sandbox)
 out=$(cd "$d5" && "$LEDGER" status)
 check "status empty when no ledger" "" "$out"
 
+# --- status: pre-mortem is an advisory gate — silent when absent (#100) ---
+dpm1=$(sandbox)
+( cd "$dpm1" && "$LEDGER" record --gate audit --verdict PASS )
+( cd "$dpm1" && "$LEDGER" record --gate acceptance --verdict SHIP )
+out=$(cd "$dpm1" && "$LEDGER" status)
+check "status is unchanged on a branch with no recorded pre-mortem verdict" \
+  "audit (PASS) and acceptance (SHIP) ran on this branch at HEAD — proceed." "$out"
+
+# --- status: pre-mortem CLEAR at HEAD is also silent — the clean state, like absence (#100) ---
+dpm2=$(sandbox)
+( cd "$dpm2" && "$LEDGER" record --gate audit --verdict PASS )
+( cd "$dpm2" && "$LEDGER" record --gate acceptance --verdict SHIP )
+( cd "$dpm2" && "$LEDGER" record --gate pre-mortem --verdict CLEAR )
+out=$(cd "$dpm2" && "$LEDGER" status)
+check "a recorded CLEAR pre-mortem verdict does not change the proceed message" \
+  "audit (PASS) and acceptance (SHIP) ran on this branch at HEAD — proceed." "$out"
+
+# --- status: pre-mortem REALIZED at HEAD is flagged (#100) ---
+dpm3=$(sandbox)
+( cd "$dpm3" && "$LEDGER" record --gate audit --verdict PASS )
+( cd "$dpm3" && "$LEDGER" record --gate acceptance --verdict SHIP )
+( cd "$dpm3" && "$LEDGER" record --gate pre-mortem --verdict REALIZED )
+out=$(cd "$dpm3" && "$LEDGER" status)
+contains "status flags a REALIZED pre-mortem verdict recorded at HEAD" "pre-mortem returned REALIZED" "$out"
+
+# --- status: stale pre-mortem verdict reuses the existing staleness wording verbatim (#100) ---
+dpm4=$(sandbox)
+( cd "$dpm4" && "$LEDGER" record --gate audit --verdict PASS )
+( cd "$dpm4" && "$LEDGER" record --gate acceptance --verdict SHIP )
+( cd "$dpm4" && "$LEDGER" record --gate pre-mortem --verdict REALIZED )
+( cd "$dpm4" && git commit -q --allow-empty -m more )
+out=$(cd "$dpm4" && "$LEDGER" status)
+contains "status flags a stale pre-mortem verdict" "pre-mortem ran 1 commit ago — re-run before merging" "$out"
+
+# --- status: branch-slug collision voids a recorded pre-mortem verdict too, silently (#100) ---
+dpm5=$(sandbox)
+( cd "$dpm5" && "$LEDGER" record --gate audit --verdict PASS )
+( cd "$dpm5" && "$LEDGER" record --gate acceptance --verdict SHIP )
+( cd "$dpm5" && "$LEDGER" record --gate pre-mortem --verdict REALIZED )
+fpm5="$dpm5/.studious/gates/feat-foo.json"
+tmppm5=$(mktemp)
+jq '.branch = "feat-foo"' "$fpm5" > "$tmppm5" && mv "$tmppm5" "$fpm5"
+out=$(cd "$dpm5" && "$LEDGER" status)
+check "branch-slug collision voids a REALIZED pre-mortem verdict without warning about it" \
+  "Studious gate check — audit never ran on this branch; acceptance never ran on this branch. Proceed anyway?" "$out"
+
 # --- hook surfaces the ledger reason and always asks ---
 HOOK="$ROOT/hooks/gate-reminder.sh"
 d6=$(sandbox)
@@ -119,6 +165,21 @@ contains "hook matches gh pr create with irregular spacing" '"permissionDecision
 hook_embedded=$(cd "$d6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
   bash "$HOOK" <<<'{"tool_input":{"command":"git log --grep=\"gh pr create\""}}')
 contains "hook matches gh pr create embedded in a longer command" '"permissionDecision": "ask"' "$hook_embedded"
+
+# --- hook warns when a REALIZED pre-mortem verdict is recorded at HEAD (#100) ---
+d18=$(sandbox)
+( cd "$d18" && "$LEDGER" record --gate audit --verdict PASS )
+( cd "$d18" && "$LEDGER" record --gate acceptance --verdict SHIP )
+( cd "$d18" && "$LEDGER" record --gate pre-mortem --verdict REALIZED )
+hook_pm=$(cd "$d18" && CLAUDE_PLUGIN_ROOT="$ROOT" \
+  bash "$HOOK" <<<'{"tool_input":{"command":"gh pr create"}}')
+contains "hook reason names a REALIZED pre-mortem verdict recorded at HEAD" "pre-mortem returned REALIZED" "$hook_pm"
+
+# --- hook does not regress to a false pre-mortem warning on a plain, non-epic branch (#100) ---
+hook_plain=$(cd "$d6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
+  bash "$HOOK" <<<'{"tool_input":{"command":"gh pr create"}}')
+check "hook reason on a plain branch with no pre-mortem key never mentions pre-mortem" "no" \
+  "$(case "$hook_plain" in (*pre-mortem*) echo yes ;; (*) echo no ;; esac)"
 
 # --- command prompts invoke the ledger by its bare name, not via ${CLAUDE_PLUGIN_ROOT} ---
 # ${CLAUDE_PLUGIN_ROOT} only expands in JSON-config-driven processes (hooks.json,

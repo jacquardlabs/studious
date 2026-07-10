@@ -133,13 +133,29 @@ cmd_status() {
   # verdicts, report as if nothing was ever recorded for this branch.
   [ "$stored_branch" = "$cur_branch" ] || branch_mismatch=1
 
-  # Gate→pass-token table: "gate:PASS_TOKEN" entries, audit-then-acceptance order preserved.
-  local gates=("audit:PASS" "acceptance:SHIP")
+  # Gate→pass-token→mode table: "gate:PASS_TOKEN:MODE" entries, audit-then-
+  # acceptance-then-pre-mortem order preserved.
+  #   required — near-universal; absence itself is worth flagging ("never ran"),
+  #     and a clean verdict at HEAD joins the "proceed" summary.
+  #   advisory — most branches never record one (the epic finale writes
+  #     `pre-mortem` only on an epic's integration branch — see the
+  #     premortem-hook-awareness design doc,
+  #     docs/superpowers/specs/2026-07-09-premortem-hook-awareness-design.md,
+  #     which is also the canonical home for the CLEAR/REALIZED roll-up
+  #     vocabulary used here — distinct from the per-item REALIZED / NOT
+  #     REALIZED / CAN'T VERIFY vocabulary agents/premortem-auditor.md emits).
+  #     Absence means "not applicable here," not "should have run and didn't,"
+  #     so an advisory gate stays silent both when absent AND when clean at
+  #     HEAD; it only speaks up to flag a stale or non-passing verdict.
+  local gates=("audit:PASS:required" "acceptance:SHIP:required" "pre-mortem:CLEAR:advisory")
   local msgs=()
-  local gate pass v s entry
+  local pass_parts=()
+  local gate pass mode v s entry rest
   for entry in "${gates[@]}"; do
     gate="${entry%%:*}"
-    pass="${entry##*:}"
+    rest="${entry#*:}"
+    pass="${rest%%:*}"
+    mode="${rest##*:}"
     if [ "$branch_mismatch" -eq 1 ]; then
       v=""
       s=""
@@ -151,8 +167,10 @@ cmd_status() {
       s=$(jq -r --arg g "$gate" '.gates[$g].sha // empty' "$file")
     fi
     if [ -z "$v" ]; then
-      msgs+=("$gate never ran on this branch")
-    elif [ "$s" != "$head" ]; then
+      [ "$mode" = "required" ] && msgs+=("$gate never ran on this branch")
+      continue
+    fi
+    if [ "$s" != "$head" ]; then
       n=$(git rev-list --count "$s..$head" 2>/dev/null || git rev-list --count "$s..HEAD" 2>/dev/null)
       if [ -n "$n" ] && [ "$n" -gt 0 ] 2>/dev/null; then
         if [ "$n" -eq 1 ]; then unit=commit; else unit=commits; fi
@@ -160,18 +178,18 @@ cmd_status() {
       else
         msgs+=("$gate ran at $s but HEAD is $head — re-run before merging")
       fi
-    elif [ "$v" != "$pass" ]; then
-      msgs+=("$gate returned $v")
+      continue
     fi
+    if [ "$v" != "$pass" ]; then
+      msgs+=("$gate returned $v")
+      continue
+    fi
+    # Clean at HEAD: required gates join the proceed summary; an advisory
+    # gate's clean state (CLEAR) is silent, same as its absence.
+    [ "$mode" = "required" ] && pass_parts+=("$gate ($pass)")
   done
 
   if [ "${#msgs[@]}" -eq 0 ]; then
-    # Build pass summary from the gate table so adding a gate auto-updates
-    # this message. Output for current table: "audit (PASS) and acceptance (SHIP)"
-    local pass_parts=()
-    for entry in "${gates[@]}"; do
-      pass_parts+=("${entry%%:*} (${entry##*:})")
-    done
     local pass_str=""
     if [ "${#pass_parts[@]}" -gt 0 ]; then
       pass_str="${pass_parts[0]}"
