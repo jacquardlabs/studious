@@ -31,6 +31,8 @@ Read CLAUDE.md first for the project's documented technical conventions. They ar
 
 **Does NOT check:**
 - Security vulnerabilities — security-auditor handles this
+- Test adequacy — test-auditor handles this
+- Runtime performance — architecture-auditor owns concrete bottlenecks; the idiom linters' PERF-class findings still count as idiomatic style
 - Visual design — ux-reviewer handles this
 - Product fit — product-reviewer handles this
 

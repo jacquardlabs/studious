@@ -40,7 +40,7 @@ Rules for the list:
 - **Tag each item with a lane:** `product` (user confusion, journey regression, adoption risk) or `technical` (data integrity, coupling, security surface, failure handling).
 - **Give each item a detection hint:** how a reviewer would tell, at merge time, that this failure mode materialized — which file, behavior, or diff pattern to check.
 
-Seed the product lane from the product-reviewer findings and persona walkthrough; seed the technical lane from the design's architecture and data flow.
+Seed the product lane from the product-reviewer findings and persona walkthrough; seed the technical lane from the design's architecture and data flow, and from its Operational readiness section — an ops commitment that could silently not ship (a migration without its rollback, a feature with no failure signal) is a technical-lane item.
 
 ## Part 4 — Verdict
 

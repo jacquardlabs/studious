@@ -17,7 +17,7 @@ Read CLAUDE.md and PRODUCT.md first for full project context.
 - **You write exactly one file: your report** at the path below. Never modify the codebase or any context doc — changes are proposed, not applied. With Bash, inspect read-only; never run the project's build, test, or install.
 - **Detect the stack and skip lanes that don't apply** (a docs/plugin repo has no dependency-audit, test, or API lane; a non-web repo has no endpoint conventions); say so in the residual rather than forcing `npm outdated`, a coverage tool, or REST assumptions onto a repo that has none.
 
-This lane owns codebase-wide **aggregates and trend over time**; the gate `code-auditor` owns per-instance findings at PR time. Report accumulating totals and direction vs last cycle, not individual offenders.
+This lane owns codebase-wide **aggregates and trend over time**; the gate `code-auditor` owns per-instance findings at PR time, and `test-auditor` owns per-changeset test adequacy. Report accumulating totals and direction vs last cycle, not individual offenders.
 
 ## Run these checks
 

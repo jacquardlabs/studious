@@ -145,7 +145,7 @@ def test_driver_defines_a_plugin_root_contract_injection() -> None:
 def test_driver_audit_and_premortem_dispatches_inject_the_contract() -> None:
     """Every auditor/reviewer the driver fans out itself carries the contract.
 
-    The driver dispatches the six auditors directly (per-story and epic-finale) and
+    The driver dispatches the eight auditors directly (per-story and epic-finale) and
     the premortem-auditor directly, bypassing the gate commands that would otherwise
     inject. Each of those dispatch prompts must interpolate the contract block, or the
     injection-defense posture is dropped on the fully-automatic epic path.
