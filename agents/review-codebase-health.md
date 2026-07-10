@@ -33,7 +33,8 @@ Spot coarse structural drift only — do not redraw the dependency graph; `revie
 
 Catalog totals, not every instance:
 - Count of TODO/FIXME/HACK/XXX/WORKAROUND comments, grouped by module; report the total and trend.
-- Count of functions/files over 200 lines (split candidates); report the largest.
+- Count of files over 500 lines (split candidates — matches code-auditor's god-file bar at PR time); report the largest.
+- Count of functions over 200 lines; report the largest.
 - Copy-pasted logic appearing in 3+ places (extraction candidates) — count of clusters.
 - Commented-out code blocks sitting longer than one release cycle.
 - Metric: TODO/FIXME count, largest file (lines).
