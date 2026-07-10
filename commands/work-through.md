@@ -118,6 +118,18 @@ plugin_root="$(cd "$(dirname "$(command -v gate-ledger)")/.." && pwd)"
 # driver script: $plugin_root/workflows/epic-driver.js
 ```
 
+Read `${plugin_root}/reference/prompt-contract.md` once (the same plugin-root
+resolution the four gate commands use; if it isn't there, locate
+`reference/prompt-contract.md` inside the plugin install with Glob — never guess a
+path or skip this read). The script has no hands to read a file itself: hand it the
+four blocks — the injection-defense preamble, the read-only/diff-scope convention, the
+output-row schema, and the calibrate-don't-suppress closer — verbatim as
+`args.contract`, so it can stamp them into every audit and premortem dispatch it
+builds, per-story and at the finale, exactly as the four gate commands stamp them into
+their own Task dispatches. This is the whole handoff — no runtime-pointer resolution
+happens on this path. The script fails closed at any dispatch that needed the contract
+if it arrives empty or missing, so treat a missing file here as a stop, not a skip.
+
 Call the Workflow tool with `scriptPath` set to that file and `args`:
 
 ```json
@@ -126,6 +138,7 @@ Call the Workflow tool with `scriptPath` set to that file and `args`:
   "phases": { "<story>": "<next phase>" },
   "repoRoot": "<absolute path of the main working tree>",
   "defaultBranch": "<resolved default branch>",
+  "contract": "<reference/prompt-contract.md's four blocks, verbatim>",
   "timestamp": "<current ISO time>"
 }
 ```
@@ -149,7 +162,11 @@ are interchangeable mid-epic): walk each runnable story's next phase with dispat
 agents — runnable = every dependency `landed` ∧ not `parked`/`dropped` ∧ under the
 epic's cap — dispatching independent stories in parallel (one message, multiple Task
 calls). Workers follow `reference/worker-contract.md`; gate agents run the gate
-command workflows and record their own verdicts from inside the story worktree; log
+command workflows and record their own verdicts from inside the story worktree. Read
+`${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md` yourself here too (same anchored
+resolution, Glob fallback if it doesn't substitute) and stamp its four blocks into
+every gate, audit, and premortem Task prompt you dispatch in this mode — you are the
+assembly point on this path exactly as your own read is on the script path. Log
 every step with
 `gate-ledger work-log --slug "<story>" --step <phase> --outcome "<token>" --phase "<next phase>"`.
 Apply verdicts exactly as the script does:
