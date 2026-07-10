@@ -67,9 +67,18 @@ If and only if the verdict is PROCEED TO PLAN, write the pre-mortem to `docs/stu
 | 1 | technical | ... | ... |
 ```
 
-Tell the user the register was written and that `/gate-audit` (technical lane) and `/gate-acceptance` (product lane) will verify it at the end of the build; committing the file is their call. On REVISE or RETHINK, do not write the file — the re-run after revision regenerates the pre-mortem.
+Tell the user the register was written and that `/gate-audit` (technical lane) and `/gate-acceptance` (product lane) will verify it at the end of the build — see the commit-before-record step below. On REVISE or RETHINK, do not write the file — the re-run after revision regenerates the pre-mortem.
 
 ## Record the verdict
+
+Before running `gate-ledger record`, commit every file this gate's run wrote or
+modified — the pre-mortem register just written above (PROCEED TO PLAN only), or
+anything else the review produced. `gate-ledger record` stamps the verdict's sha from
+HEAD at the moment it runs; a file committed afterward leaves the ledger pointing at
+a commit the register doesn't exist in yet, so the PR-time hook and `/work-through`'s
+finale would flag this verdict as stale over a commit that changed nothing
+substantive. The recorded sha must be the same commit a later reader lands on at
+HEAD.
 
 After stating the verdict, record it to the local gate ledger so `/work-on` and later
 gates can see where the feature stands. Run (substituting the verdict token you just
