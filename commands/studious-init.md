@@ -62,6 +62,7 @@ Create these directories if they don't exist:
 - `docs/studious/interface-reviews/`
 - `docs/studious/architecture-reviews/`
 - `docs/studious/product-reviews/`
+- `docs/studious/security-reviews/`
 - `docs/studious/readme-reviews/`
 
 Add a `.gitkeep` to each empty directory so they're tracked in git.
