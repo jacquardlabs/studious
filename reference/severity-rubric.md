@@ -19,6 +19,7 @@ Never introduce a fourth tier; map every auditor's labels into these three.
 | Auditor | → Critical (blocks merge) | → Important (should fix) | → Track |
 |---------|---------------------------|--------------------------|-----------------|
 | security-auditor | Critical, High | Medium | Low |
+| infra-auditor | Critical, High | Medium | Low |
 | code-auditor | Critical | High, Medium | Low |
 | architecture-auditor | Critical | High, Medium | Low |
 | doc-auditor | — (docs rarely block; escalate only if a wrong command/path ships) | High | Medium, Low |
