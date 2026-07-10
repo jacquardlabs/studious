@@ -32,7 +32,13 @@ Read CLAUDE.md first for the project's intended architecture and conventions.
 - Is new complexity concentrated where it should be (core business logic) or where it shouldn't (glue code, configuration, routing)?
 - Does the change add premature generality — a speculative abstraction, hook, or extension point that no current caller needs and that doesn't earn its keep?
 - Has any touched module grown into a "god object" handling too many responsibilities?
-- Are there concrete bottlenecks introduced — N+1 queries, unbounded loops, synchronous work that should be deferred?
+- Are there concrete runtime bottlenecks introduced — N+1 queries, hot-path algorithmic complexity, chatty sequential I/O, a missing index on a newly queried column, unbounded loops, synchronous work that should be deferred? This lane owns backend runtime performance; frontend-reviewer owns render and bundle.
+
+### Data & migrations
+- Is every schema migration in the changeset reversible — a real down-path, not a comment?
+- Is it compatible with the previous deploy's still-running code (a column dropped or renamed while old code reads it, an enum value removed while old code writes it)?
+- Are backfills safe at production scale — batched, resumable, no long-held locks on hot tables?
+- If the design doc's Operational readiness section commits to a migration/rollback plan, does the changeset deliver it? (`review-architecture` watches migration posture periodically after merge; you are the gate-time check.)
 
 ## Output
 
@@ -42,7 +48,7 @@ Anchor severity on reversibility — how costly the structure is to undo once it
 - **Medium** — a two-way door worth tracking; reversible but carries ongoing friction.
 - **Low** — minor; trivially reversible.
 
-Emit findings per the injected output-row schema: **severity** is the mapped tier above; **location** is file:line (for a coupling finding, name BOTH modules — two locations, not one); **dimension** is one of pattern-fit / coupling / complexity; **finding** notes drift as documented vs actual.
+Emit findings per the injected output-row schema: **severity** is the mapped tier above; **location** is file:line (for a coupling finding, name BOTH modules — two locations, not one); **dimension** is one of pattern-fit / coupling / complexity / data-migrations; **finding** notes drift as documented vs actual.
 
 ## What you do NOT do
 

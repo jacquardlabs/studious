@@ -82,7 +82,7 @@ jobs:
         run: |
           gh pr comment "${{ inputs.pr_number }}" \
             --repo "${{ github.repository }}" \
-            --body "**Gate audit (CI) skipped.** This PR changes ${{ steps.scope.outputs.changed_files }} files, over the ${{ env.CHANGED_FILES_LIMIT }}-file sampling limit set to keep the 6-7-agent audit fan-out affordable on large diffs. Run \`/gate-audit\` locally instead."
+            --body "**Gate audit (CI) skipped.** This PR changes ${{ steps.scope.outputs.changed_files }} files, over the ${{ env.CHANGED_FILES_LIMIT }}-file sampling limit set to keep the up-to-9-agent audit fan-out affordable on large diffs. Run \`/gate-audit\` locally instead."
 
       - name: Set up Node
         if: fromJSON(steps.scope.outputs.changed_files) <= fromJSON(env.CHANGED_FILES_LIMIT)

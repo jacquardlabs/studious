@@ -270,7 +270,11 @@ def test_driver_dispatch_sites_pass_the_contract_to_their_builder() -> None:
     Complements the executed fixture below: this proves the three real call sites
     (auditRound, finaleAuditRound, the finale premortem dispatch) actually forward
     CONTRACT to the builder functions the fixture exercises, rather than omitting it
-    or passing some other value.
+    or passing some other value. The driver dispatches the eight fixed auditors
+    directly (per-story and epic-finale) plus the premortem-auditor, bypassing the
+    gate commands that would otherwise inject — each of those dispatch prompts must
+    interpolate the contract block, or the injection-defense posture is dropped on
+    the fully-automatic epic path.
     """
     source = DRIVER.read_text()
     count = source.count(CONTRACT_ARG_SUBSTRING)

@@ -2,6 +2,74 @@
 
 <!-- version list -->
 
+## v2.15.0 (2026-07-10)
+
+### Bug Fixes
+
+- Final-review findings — six-lane counts on user surfaces, CDK lookup accuracy, boundary symmetry
+  ([#114](https://github.com/jacquardlabs/studious/pull/114),
+  [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
+
+- Name security health in dashboard sources and init cadence table
+  ([#114](https://github.com/jacquardlabs/studious/pull/114),
+  [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
+
+### Documentation
+
+- Add audit-coverage-seams design spec ([#114](https://github.com/jacquardlabs/studious/pull/114),
+  [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
+
+- Add audit-coverage-seams implementation plan; sync spec counts to evidence
+  ([#114](https://github.com/jacquardlabs/studious/pull/114),
+  [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
+
+- Overhaul README around work-on/work-through, fix auditor-count drift
+  ([#113](https://github.com/jacquardlabs/studious/pull/113),
+  [`434a259`](https://github.com/jacquardlabs/studious/commit/434a2592b59e11704a8a4c2b957302e312c7f4a4))
+
+### Features
+
+- Add infra-auditor — IaC, blast-radius, pipeline, and container lane
+  ([#114](https://github.com/jacquardlabs/studious/pull/114),
+  [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
+
+- Add infra-checklist reference — lookup data for the infrastructure audit lane
+  ([#114](https://github.com/jacquardlabs/studious/pull/114),
+  [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
+
+- Add review-security-health — periodic whole-repo security posture lane
+  ([#114](https://github.com/jacquardlabs/studious/pull/114),
+  [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
+
+- Add security posture as /deep-review's sixth periodic lane
+  ([#114](https://github.com/jacquardlabs/studious/pull/114),
+  [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
+
+- Add test-auditor — changeset test-adequacy lane
+  ([#114](https://github.com/jacquardlabs/studious/pull/114),
+  [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
+
+- Close six audit-coverage seams — infra/IaC, CI pipeline, tests, periodic security, ops readiness,
+  backend perf ([#114](https://github.com/jacquardlabs/studious/pull/114),
+  [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
+
+- Fan out new auditors in epic driver; sync roster counts repo-wide
+  ([#114](https://github.com/jacquardlabs/studious/pull/114),
+  [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
+
+- Gate-time data-migrations dimension; assign backend perf to architecture-auditor
+  ([#114](https://github.com/jacquardlabs/studious/pull/114),
+  [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
+
+- Route test-auditor and infra-auditor through /gate-audit
+  ([#114](https://github.com/jacquardlabs/studious/pull/114),
+  [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
+
+- Thread operational readiness through design contract, pre-mortem, and acceptance
+  ([#114](https://github.com/jacquardlabs/studious/pull/114),
+  [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
+
+
 ## v2.14.0 (2026-07-08)
 
 ### Bug Fixes
