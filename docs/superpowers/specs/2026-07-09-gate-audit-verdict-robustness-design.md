@@ -102,21 +102,51 @@ exists to prevent. The diff, not the working tree, is the source of truth: a fin
 about a removal is confirmed by the diff showing that removal, never dropped because
 the line is gone now.
 
-Each cited Critical resolves to one of three outcomes:
+The Critical tier is heterogeneous, and what "confirm" means differs by claim type.
+`reference/severity-rubric.md`'s Critical column mixes two kinds of finding.
+**Code-content claims** — security-auditor, code-auditor, architecture-auditor, and
+frontend-reviewer's `BUG` — assert something about what the code does or doesn't do at
+a cited file:line; confirm means exactly the diff check described above. **Non-code
+claims** — ux-reviewer's `VISUAL BUG`, web-design-guidelines' blocking a11y failures,
+and premortem-auditor's `BLOCKER (REALIZED)` — cite a rendered surface, an
+accessibility property, or a register item, not code content directly. The gate
+orchestrator is pixel-blind: it has no browser and doesn't re-run accessibility
+tooling, so it cannot re-render a page, measure contrast, or re-adjudicate whether a
+failure mode truly materialized. For a non-code claim, confirm means the cited
+artifact resolves in the diff — the component, markup, or style rule the finding names
+is present and touched by the diff, or the register item and its cited file:line
+evidence actually exist — and the finding is coherent against what the diff shows. It
+never means the orchestrator personally re-verifies the pixels, the contrast ratio, or
+the register author's judgment call; those stay owned by the auditor that raised them.
+A non-code Critical with a citation that resolves **stays Critical** — it does not
+downgrade, only confirm or drop (see below); only when the cited artifact isn't in the
+diff at all, or nothing at the cited location supports the claim in either direction,
+does it drop.
 
-- **Confirmed** — the citation resolves against the diff and the code (or its
-  documented removal) matches what the finding claims. Stays Critical, included in the
-  report as today.
-- **Downgraded** — the citation resolves to something real in the diff, but not what
-  the finding claims at Critical severity (a real but lesser issue, or a correct
-  observation overstated). Moves to whichever tier its actual severity warrants
-  (Important or Track) and is reported there instead.
-- **Dropped** — the citation doesn't resolve against the diff at all (wrong file,
-  wrong line, a claim the diff doesn't support in either direction) or the finding
-  doesn't hold up on inspection. Removed from the report entirely. Every drop is named
-  in the Summary section — which auditor, what was claimed, why the challenge didn't
-  confirm it — so the persona sees that something was filtered rather than silently
-  missing a finding.
+Each cited Critical resolves to one of the following outcomes; which apply depends on
+claim type, per above:
+
+- **Confirmed** — the citation resolves against the diff: for a code-content claim,
+  the code (or its documented removal) matches what the finding claims; for a non-code
+  claim, the cited artifact or register item resolves and the finding is coherent
+  against it. Stays Critical, included in the report as today.
+- **Downgraded** (code-content claims only) — the citation resolves to something real
+  in the diff, but the diff itself supports a lower severity than what the finding
+  claims at Critical (e.g., the auditor claimed a permission check was removed, and the
+  diff shows it was narrowed rather than deleted). Moves to whichever tier its actual
+  severity warrants (Important or Track) and is reported there instead. This is a
+  citation-integrity check only — the orchestrator downgrades because the diff doesn't
+  back the claimed severity, never because it would have scored an accurately-cited
+  finding lower on its own taste, and never as a rewrite of an auditor's judgment.
+  Never applied to a non-code claim: downgrading a `VISUAL BUG` or a blocking a11y
+  failure would require the rendering or tooling judgment the orchestrator doesn't
+  have, so those resolve only to Confirmed or Dropped.
+- **Dropped** — the citation doesn't resolve against the diff at all: wrong file,
+  wrong line, a claim the diff doesn't support in either direction, or — for a
+  non-code claim — a named component, style rule, or register item that isn't in the
+  diff at all. Removed from the report entirely. Every drop is named in the Summary
+  section — which auditor, what was claimed, why the challenge didn't confirm it — so
+  the persona sees that something was filtered rather than silently missing a finding.
 
 Only a Critical finding that survives this challenge confirmed can drive the
 **FIX AND RE-AUDIT** verdict. If every Critical is downgraded or dropped, the verdict
