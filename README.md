@@ -45,7 +45,7 @@ Studious wraps feature development in quality gates. Between them you build, and
 - Pick what to build with `/backlog-priorities` (ranks your open GitHub issues by severity/alignment/unblocking potential) or `/gate-should-we-build [idea]` (scores a raw idea against PRODUCT.md and the smallest version worth shipping). Catches building the wrong thing.
 - Gate the design with `/gate-design-review`. It walks your design doc as your primary persona would and flags where they'd get confused or frustrated. Catches a bad design before you spend build effort on it.
 - Build it with your own workflow — by hand or with any executor (Superpowers works well here). Studious steps back in the supervised flow; in `/work-through` epics, dispatched workers build to `reference/worker-contract.md` and are gated like anyone else.
-- Audit before merge with `/gate-audit`: 6 auditors in parallel (security, code quality, docs, architecture, UX, frontend), each staying in its lane, plus an accessibility pass via the `web-design-guidelines` skill (Web Interface Guidelines) when it's installed. The 3 web auditors skip automatically on projects with no web surface and on branches with no frontend changes.
+- Audit before merge with `/gate-audit`: 6 auditors in parallel (security, code quality, docs, architecture, UX, frontend), each staying in its lane, plus an accessibility pass via the `web-design-guidelines` skill (Web Interface Guidelines) when it's installed, and the pre-mortem auditor as a conditional 8th when a pre-mortem register exists on the branch. The 3 web auditors skip automatically on projects with no web surface and on branches with no frontend changes.
 - Gate acceptance with `/gate-acceptance`. Product review, not code review: does the implementation actually deliver the experience? It walks every user-facing change, checks error states for human-friendly messaging, and regression-tests the critical journeys in PRODUCT.md.
 
 ```
@@ -102,7 +102,7 @@ in both modes.
 
 ## CI mode (optional)
 
-`.github/workflows/gate-audit-pr.yml` runs `/gate-audit` non-interactively against a PR and posts the report as a PR comment — the same 6-7 auditor fan-out you'd get locally, without anyone having to remember to run it. It ships **dormant** (manual `workflow_dispatch` trigger only): pick a PR, run the workflow from the Actions tab with that PR's number as input, and it audits that PR and comments on it. It does not fire automatically on every PR yet.
+`.github/workflows/gate-audit-pr.yml` runs `/gate-audit` non-interactively against a PR and posts the report as a PR comment — the same 6-8 auditor fan-out you'd get locally (the pre-mortem auditor joins as an 8th when a register exists on the branch), without anyone having to remember to run it. It ships **dormant** (manual `workflow_dispatch` trigger only): pick a PR, run the workflow from the Actions tab with that PR's number as input, and it audits that PR and comments on it. It does not fire automatically on every PR yet.
 
 To set it up:
 

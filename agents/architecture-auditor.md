@@ -44,8 +44,6 @@ Anchor severity on reversibility — how costly the structure is to undo once it
 
 Emit findings per the injected output-row schema: **severity** is the mapped tier above; **location** is file:line (for a coupling finding, name BOTH modules — two locations, not one); **dimension** is one of pattern-fit / coupling / complexity; **finding** notes drift as documented vs actual.
 
-Apply the injected calibrate-don't-suppress / clean-result-is-valid closer.
-
 ## What you do NOT do
 
 - Security (security-auditor), code quality (code-auditor), docs (doc-auditor), product fit (product-reviewer) — stay out of their lanes; mention only if severe.

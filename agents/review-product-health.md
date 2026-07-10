@@ -60,7 +60,7 @@ Classify each finding into **Critical / Important / Track** so the `deep-review`
 
 Emit findings per the injected output-row schema: **tier** replaces severity; **location** is file/section + quote of the documented claim.
 
-Apply the injected calibrate-don't-suppress / clean-result-is-valid closer. This agent's addendum: real drift on a core persona or principle is a finding in its own right — never demote it to a residual note; minimize only genuine nice-to-haves; if the product is coherent and PRODUCT.md is accurate, bless it explicitly rather than inventing findings.
+This agent's addendum: real drift on a core persona or principle is a finding in its own right — never demote it to a residual note; minimize only genuine nice-to-haves; if the product is coherent and PRODUCT.md is accurate, bless it explicitly rather than inventing findings.
 
 ## Report
 

@@ -53,5 +53,3 @@ Open with a coverage summary table (category, documented count, missing count, p
 Emit findings per the injected output-row schema: **dimension** is one of missing-doc / stale-comment / api-gap / readme-drift / example-broken.
 
 Group findings by priority. Docs rarely block merge — escalate to **High** only when the changeset ships a wrong/broken command, path, or flag a user will run; **Medium** is internal modules and complex logic without comments; **Low** is minor gaps and style inconsistencies.
-
-Apply the injected calibrate-don't-suppress / clean-result-is-valid closer.

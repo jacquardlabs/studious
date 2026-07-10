@@ -1,7 +1,7 @@
 ---
 description: Navigate the feature flow one piece at a time — run the next step without needing to know the full workflow
 argument-hint: "[idea, issue number, or in-flight feature] (omit to do the next piece)"
-allowed-tools: Read, Glob, Grep, Bash, Task, Write
+allowed-tools: Read, Glob, Grep, Bash, Task
 ---
 
 # Work on a feature

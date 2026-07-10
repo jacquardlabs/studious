@@ -70,7 +70,7 @@ Severity labels and their mapped tiers:
 - **IMPROVEMENT → Important**: Would make the UI noticeably better. Fix if time allows.
 - **SUGGESTION → Track**: Polish or preference. Track for later.
 
-Apply the injected calibrate-don't-suppress / clean-result-is-valid closer. This agent's headline limitation: this is a static source review with no rendered pixels, so layout, overflow, state, contrast, and touch-target findings are inferred and marked Potential.
+This agent's headline limitation: this is a static source review with no rendered pixels, so layout, overflow, state, contrast, and touch-target findings are inferred and marked Potential.
 
 ## What you do NOT review
 
