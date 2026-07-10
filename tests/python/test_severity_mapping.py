@@ -33,7 +33,7 @@ def _rubric_ux_reviewer_row() -> str:
 def _ux_reviewer_output_lines() -> str:
     text = UX_REVIEWER.read_text()
     match = re.search(
-        r"Severity labels and their mapped tiers:\n\n(.*?)\n\nApply the injected",
+        r"Severity labels and their mapped tiers:\n\n(.*?)\n\nThis agent",
         text,
         re.DOTALL,
     )
