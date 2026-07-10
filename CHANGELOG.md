@@ -2,6 +2,121 @@
 
 <!-- version list -->
 
+## v2.16.0 (2026-07-10)
+
+### Bug Fixes
+
+- Gate-audit verdict robustness — severity mapping, challenge step, god-file threshold
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- Repoint test_severity_mapping.py's stale regex boundary
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- Scope pre-mortem verification out of the audit gate's compiled verdict
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- **epic-driver**: Namespace work-file slugs, split cycle vs downstream labels, fix duplicate-dep
+  indegree ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- **epic-driver**: Unify contract injection to one verbatim resolver
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- **epic-driver**: Unify dispatch-prompt builders to a fields object
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- **gate-ledger**: Json_update returns 0 on write failure
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- **work-through**: Narrow fallback contract injection to audit/premortem
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+### Documentation
+
+- Clarify challenge step confirms against the diff, not working tree
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- Define per-claim-type confirm criteria for the challenge step
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- Design doc for gate-audit verdict robustness
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- Design doc for gate-doc-commit-ordering (M2, #99)
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- Design doc for gate-ledger-json-writer story
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- Design doc for premortem-hook-awareness
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- Design doc for prompt-contract-dedup (M2 story, issue #92)
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- Design doc for scheduler-fixes (namespaced work files, cycle labels)
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- Design doc for workflows/ JS lint + CI job
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- Design for audit-premortem-scope-fix story
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- Design for contract-injection-unify story
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- Pre-mortem register for gate-ledger-robustness epic
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- Record pre-mortem register for contract-injection-unify
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- Record pre-mortem register for premortem-hook-awareness
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- **gate-ledger**: Give pre-mortem CLEAR/REALIZED a canonical home
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+### Features
+
+- **gate-ledger**: Make cmd_status aware of recorded pre-mortem verdicts
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+### Refactoring
+
+- Dedup prompt-contract citations and command/agent output contracts
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+- **gate-ledger**: Extract shared json_update writer
+  ([#119](https://github.com/jacquardlabs/studious/pull/119),
+  [`d0b0674`](https://github.com/jacquardlabs/studious/commit/d0b0674204d636f612354ababc8a73835256b1c3))
+
+
 ## v2.15.0 (2026-07-10)
 
 ### Bug Fixes
