@@ -31,6 +31,12 @@
 
 <!-- At least one simpler alternative and why it was rejected. -->
 
+## Operational readiness
+
+<!-- Migration plan and its rollback, rollout strategy, and how you'll know the feature
+     is working or failing in production (logs, metrics, alarms). Write
+     "N/A — no operational surface" with a one-line reason if that's the truth. -->
+
 ## Open questions
 
 <!-- Unresolved decisions. Leave empty if there are none — don't omit the section. -->

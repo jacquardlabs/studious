@@ -36,7 +36,10 @@ Invoke @agent-premortem-auditor to verify the register at the resolved path agai
 
 Walk through every user-facing change on this branch yourself, using @agent-product-reviewer's "When reviewing an IMPLEMENTATION" checklist (`agents/product-reviewer.md`) as the lens — Part 1 already ran that checklist as a subagent; don't re-derive the questions here, just apply them directly as you walk the branch.
 
-Close with one gate-specific question the checklist doesn't ask: **One complaint** — what's the single thing a real user would complain about if we shipped this as-is? Be specific. There's always something.
+Close with two gate-specific questions the checklist doesn't ask:
+
+- **One complaint** — what's the single thing a real user would complain about if we shipped this as-is? Be specific. There's always something.
+- **Operability** — does the branch deliver what the design doc's Operational readiness section committed to (the migration and its rollback, the rollout strategy, the working/failing signals)? If the section said "N/A — no operational surface", confirm that still holds for what was actually built.
 
 ## Part 4 — Verdict
 
