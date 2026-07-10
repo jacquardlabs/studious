@@ -167,11 +167,11 @@ hook_embedded=$(cd "$d6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
 contains "hook matches gh pr create embedded in a longer command" '"permissionDecision": "ask"' "$hook_embedded"
 
 # --- hook warns when a REALIZED pre-mortem verdict is recorded at HEAD (#100) ---
-d18=$(sandbox)
-( cd "$d18" && "$LEDGER" record --gate audit --verdict PASS )
-( cd "$d18" && "$LEDGER" record --gate acceptance --verdict SHIP )
-( cd "$d18" && "$LEDGER" record --gate pre-mortem --verdict REALIZED )
-hook_pm=$(cd "$d18" && CLAUDE_PLUGIN_ROOT="$ROOT" \
+dpm6=$(sandbox)
+( cd "$dpm6" && "$LEDGER" record --gate audit --verdict PASS )
+( cd "$dpm6" && "$LEDGER" record --gate acceptance --verdict SHIP )
+( cd "$dpm6" && "$LEDGER" record --gate pre-mortem --verdict REALIZED )
+hook_pm=$(cd "$dpm6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
   bash "$HOOK" <<<'{"tool_input":{"command":"gh pr create"}}')
 contains "hook reason names a REALIZED pre-mortem verdict recorded at HEAD" "pre-mortem returned REALIZED" "$hook_pm"
 
