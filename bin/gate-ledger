@@ -84,6 +84,34 @@ ensure_gitignore() {
   fi
 }
 
+json_update() { # file, jq filter, then any --arg name value ... pairs for jq
+  # Shared writer for every mutating verb: run jq against $file into a
+  # same-directory temp file, then rename the temp file over $file on
+  # success. Same all-or-nothing outcome as a hand-written block — $file is
+  # either untouched or fully replaced with valid jq output — and the same
+  # failure behavior: a failing filter leaves $file untouched and the real
+  # (non-zero) exit code propagates to the caller.
+  #
+  # Deliberately no RETURN trap here: a trap armed inside this function
+  # doesn't stay scoped to it — bash re-fires it when the *calling* verb
+  # itself returns, and by then this function's own $tmp has gone out of
+  # scope. Under this script's `set -u`, that's an "unbound variable" abort
+  # that would clobber the verb's real (already-succeeded) exit status.
+  # Cleanup below is an explicit branch instead, so nothing fires after this
+  # function has already returned.
+  local file="$1" filter="$2"
+  shift 2
+  local dir tmp rc
+  dir=$(dirname -- "$file")
+  tmp=$(mktemp "$dir/.tmp.XXXXXX")
+  if jq "$@" "$filter" "$file" > "$tmp" && mv "$tmp" "$file"; then
+    return 0
+  fi
+  rc=$?
+  rm -f "$tmp"
+  return "$rc"
+}
+
 cmd_record() {
   local gate="" verdict=""
   while [ $# -gt 0 ]; do
@@ -108,12 +136,11 @@ cmd_record() {
   local file; file="$dir/$(branch_slug).json"
   [ -f "$file" ] || printf '{"schemaVersion":1,"branch":"","gates":{}}' > "$file"
 
-  local tmp; tmp=$(mktemp "$dir/.tmp.XXXXXX")
-  trap 'rm -f "$tmp"' RETURN
-  jq --arg b "$(branch_name)" --arg g "$gate" --arg v "$verdict" \
-     --arg s "$(head_sha)" --arg t "$(now_iso)" \
-     '.schemaVersion = (.schemaVersion // 1) | .branch = $b | .gates[$g] = {verdict: $v, sha: $s, ranAt: $t}' \
-     "$file" > "$tmp" && mv "$tmp" "$file"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    '.schemaVersion = (.schemaVersion // 1) | .branch = $b | .gates[$g] = {verdict: $v, sha: $s, ranAt: $t}' \
+    --arg b "$(branch_name)" --arg g "$gate" --arg v "$verdict" \
+    --arg s "$(head_sha)" --arg t "$(now_iso)"
 }
 
 cmd_status() {
@@ -261,20 +288,18 @@ cmd_work_set() {
 
   ensure_gitignore
   local file; file=$(work_file_init "$slug")
-  local dir; dir=$(work_dir)
-  local tmp; tmp=$(mktemp "$dir/.tmp.XXXXXX")
-  trap 'rm -f "$tmp"' RETURN
-  jq --arg title "$title" --arg src "$src" --arg branch "$branch" \
-     --arg doc "$doc" --arg phase "$phase" --arg t "$(now_iso)" \
-     '.schemaVersion = (.schemaVersion // 1)
-      | .createdAt = (.createdAt // $t)
-      | .updatedAt = $t
-      | (if $title  != "" then .title     = $title  else . end)
-      | (if $src    != "" then .source    = $src    else . end)
-      | (if $branch != "" then .branch    = $branch else . end)
-      | (if $doc    != "" then .designDoc = $doc    else . end)
-      | (if $phase  != "" then .phase     = $phase  else . end)' \
-     "$file" > "$tmp" && mv "$tmp" "$file"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    '.schemaVersion = (.schemaVersion // 1)
+     | .createdAt = (.createdAt // $t)
+     | .updatedAt = $t
+     | (if $title  != "" then .title     = $title  else . end)
+     | (if $src    != "" then .source    = $src    else . end)
+     | (if $branch != "" then .branch    = $branch else . end)
+     | (if $doc    != "" then .designDoc = $doc    else . end)
+     | (if $phase  != "" then .phase     = $phase  else . end)' \
+    --arg title "$title" --arg src "$src" --arg branch "$branch" \
+    --arg doc "$doc" --arg phase "$phase" --arg t "$(now_iso)"
 }
 
 cmd_work_log() {
@@ -305,15 +330,13 @@ cmd_work_log() {
 
   ensure_gitignore
   local file; file=$(work_file_init "$slug")
-  local dir; dir=$(work_dir)
-  local tmp; tmp=$(mktemp "$dir/.tmp.XXXXXX")
-  trap 'rm -f "$tmp"' RETURN
-  jq --arg step "$step" --arg outcome "$outcome" --arg phase "$phase" \
-     --arg s "$(head_sha)" --arg t "$(now_iso)" \
-     '.history = ((.history // []) + [{step: $step, outcome: $outcome, sha: $s, at: $t}])
-      | .updatedAt = $t
-      | (if $phase != "" then .phase = $phase else . end)' \
-     "$file" > "$tmp" && mv "$tmp" "$file"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    '.history = ((.history // []) + [{step: $step, outcome: $outcome, sha: $s, at: $t}])
+     | .updatedAt = $t
+     | (if $phase != "" then .phase = $phase else . end)' \
+    --arg step "$step" --arg outcome "$outcome" --arg phase "$phase" \
+    --arg s "$(head_sha)" --arg t "$(now_iso)"
 }
 
 cmd_work_get() {
@@ -379,22 +402,20 @@ cmd_epic_set() {
 
   ensure_gitignore
   local file; file=$(epic_file_init "$slug")
-  local dir; dir=$(epic_dir)
-  local tmp; tmp=$(mktemp "$dir/.tmp.XXXXXX")
-  trap 'rm -f "$tmp"' RETURN
-  jq --arg title "$title" --arg src "$src" --arg goal "$goal" --arg branch "$branch" \
-     --arg pm "$premortem" --arg conc "$concurrency" --arg status "$status" --arg t "$(now_iso)" \
-     '.schemaVersion = (.schemaVersion // 1)
-      | .createdAt = (.createdAt // $t)
-      | .updatedAt = $t
-      | (if $title  != "" then .title       = $title  else . end)
-      | (if $src    != "" then .source      = $src    else . end)
-      | (if $goal   != "" then .goal        = $goal   else . end)
-      | (if $branch != "" then .branch      = $branch else . end)
-      | (if $pm     != "" then .premortem   = $pm     else . end)
-      | (if $conc   != "" then .concurrency = ($conc | tonumber) else . end)
-      | (if $status != "" then .status      = $status else . end)' \
-     "$file" > "$tmp" && mv "$tmp" "$file"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    '.schemaVersion = (.schemaVersion // 1)
+     | .createdAt = (.createdAt // $t)
+     | .updatedAt = $t
+     | (if $title  != "" then .title       = $title  else . end)
+     | (if $src    != "" then .source      = $src    else . end)
+     | (if $goal   != "" then .goal        = $goal   else . end)
+     | (if $branch != "" then .branch      = $branch else . end)
+     | (if $pm     != "" then .premortem   = $pm     else . end)
+     | (if $conc   != "" then .concurrency = ($conc | tonumber) else . end)
+     | (if $status != "" then .status      = $status else . end)' \
+    --arg title "$title" --arg src "$src" --arg goal "$goal" --arg branch "$branch" \
+    --arg pm "$premortem" --arg conc "$concurrency" --arg status "$status" --arg t "$(now_iso)"
 }
 
 cmd_epic_get() {
@@ -456,25 +477,24 @@ cmd_epic_story_set() {
     return 2
   fi
 
-  local dir; dir=$(epic_dir)
-  local tmp; tmp=$(mktemp "$dir/.tmp.XXXXXX")
-  trap 'rm -f "$tmp"' RETURN
-  jq --arg s "$slug" --arg title "$title" --arg src "$src" --arg criteria "$criteria" \
-     --arg deps "$deps" --arg gates "$gates_csv" --arg status "$status" --arg reason "$reason" \
-     --arg wt "$worktree" --arg bump "$bump" --arg reset "$reset" --arg t "$(now_iso)" \
-     '.updatedAt = $t
-      | .stories[$s] = ((.stories[$s] // {status: "pending", deps: [], retries: {}})
-        | (if $title    != "" then .title    = $title    else . end)
-        | (if $src      != "" then .source   = $src      else . end)
-        | (if $criteria != "" then .criteria = $criteria else . end)
-        | (if $deps     != "" then .deps     = ($deps  | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""))) else . end)
-        | (if $gates    != "" then .gates    = ($gates | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""))) else . end)
-        | (if $status   != "" then .status   = $status   else . end)
-        | (if $reason   != "" then .reason   = $reason   else . end)
-        | (if $wt       != "" then .worktree = $wt       else . end)
-        | (if $bump     != "" then .retries[$bump]  = ((.retries[$bump]  // 0) + 1) else . end)
-        | (if $reset    != "" then .retries[$reset] = 0 else . end))' \
-     "$file" > "$tmp" && mv "$tmp" "$file"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
+     .updatedAt = $t
+     | .stories[$s] = ((.stories[$s] // {status: "pending", deps: [], retries: {}})
+       | (if $title    != "" then .title    = $title    else . end)
+       | (if $src      != "" then .source   = $src      else . end)
+       | (if $criteria != "" then .criteria = $criteria else . end)
+       | (if $deps     != "" then .deps     = ($deps  | csv_trim) else . end)
+       | (if $gates    != "" then .gates    = ($gates | csv_trim) else . end)
+       | (if $status   != "" then .status   = $status   else . end)
+       | (if $reason   != "" then .reason   = $reason   else . end)
+       | (if $wt       != "" then .worktree = $wt       else . end)
+       | (if $bump     != "" then .retries[$bump]  = ((.retries[$bump]  // 0) + 1) else . end)
+       | (if $reset    != "" then .retries[$reset] = 0 else . end))' \
+    --arg s "$slug" --arg title "$title" --arg src "$src" --arg criteria "$criteria" \
+    --arg deps "$deps" --arg gates "$gates_csv" --arg status "$status" --arg reason "$reason" \
+    --arg wt "$worktree" --arg bump "$bump" --arg reset "$reset" --arg t "$(now_iso)"
 }
 
 cmd_epic_list() {

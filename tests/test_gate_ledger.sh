@@ -403,5 +403,31 @@ check "self-heal touched only the main .gitignore" "no" \
   "$([ -f "$d17/.studious/worktrees/e/s/.gitignore" ] && echo yes || echo no)"
 contains "main .gitignore self-healed" ".studious/" "$(cat "$d17/.gitignore")"
 
+
+# --- json_update regression (#102): a mutating verb's exit code is 0
+# immediately after a successful write. The written JSON's content alone
+# doesn't prove this — a RETURN trap armed inside a shared writer function
+# would still produce correct file content (the write happens before the
+# trap could re-fire) while nonetheless corrupting the caller's exit status
+# once the trap re-fires in the *calling* verb's frame under `set -u`. Also
+# confirms the shared writer's temp file never survives a successful write.
+drc=$(sandbox)
+( cd "$drc" && "$LEDGER" record --gate audit --verdict PASS ); rc=$?
+check "record exits 0 on a successful write" "0" "$rc"
+( cd "$drc" && "$LEDGER" work-set --slug rc-work --phase decide ); rc=$?
+check "work-set exits 0 on a successful write" "0" "$rc"
+( cd "$drc" && "$LEDGER" work-log --slug rc-work --step build --outcome DONE ); rc=$?
+check "work-log exits 0 on a successful write" "0" "$rc"
+( cd "$drc" && "$LEDGER" epic-set --slug rc-epic --title "RC Epic" ); rc=$?
+check "epic-set exits 0 on a successful write" "0" "$rc"
+( cd "$drc" && "$LEDGER" epic-story-set --epic rc-epic --slug rc-story --title "RC Story" ); rc=$?
+check "epic-story-set exits 0 on a successful write" "0" "$rc"
+check "no stray temp files left in the gates store after successful writes" "" \
+  "$(find "$drc/.studious/gates" -name '.tmp.*' 2>/dev/null)"
+check "no stray temp files left in the work store after successful writes" "" \
+  "$(find "$drc/.studious/work" -name '.tmp.*' 2>/dev/null)"
+check "no stray temp files left in the epics store after successful writes" "" \
+  "$(find "$drc/.studious/epics" -name '.tmp.*' 2>/dev/null)"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi
