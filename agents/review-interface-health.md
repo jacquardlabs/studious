@@ -68,4 +68,4 @@ Save to `docs/studious/interface-reviews/YYYY-MM-DD-interface-review.md` (compar
 
 Emit findings per the injected output-row schema: **tier** replaces severity; **location** is surface + file.
 
-Apply the injected calibrate-don't-suppress / clean-result-is-valid closer. This agent's addendum: a real cross-surface inconsistency or broken control is a finding, never demoted to a residual note; minimize only genuine nice-to-haves.
+This agent's addendum: a real cross-surface inconsistency or broken control is a finding, never demoted to a residual note; minimize only genuine nice-to-haves.

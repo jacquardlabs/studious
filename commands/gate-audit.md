@@ -1,6 +1,6 @@
 ---
 description: Run the audit suite — security, code quality, docs, architecture, UX, and frontend in parallel, plus an optional accessibility pass
-allowed-tools: Read, Glob, Grep, Bash, Task, Write
+allowed-tools: Read, Glob, Grep, Bash, Task
 ---
 
 # Audit gate — all auditors

@@ -70,4 +70,4 @@ Each finding carries: **tier** · **location** (file/module; name *both* modules
 
 Save to `docs/studious/architecture-reviews/YYYY-MM-DD-architecture-review.md`, structured: **Summary** (one paragraph: overall health, biggest concern, biggest strength) → **Dependency map** + actual-vs-documented architecture style → **Findings** grouped Critical → Important → Track → **Recommended priority order** → **Trend vs last cycle** (if prior reports exist in the directory, name which findings are new, persistent, or resolved; else "baseline") → **Residual line** (what you verified clean, assumptions, limitations).
 
-Apply the injected calibrate-don't-suppress / clean-result-is-valid closer. This agent's addendum: a structural problem on a load-bearing or hard-to-reverse path is a finding in its own right, never a residual aside; minimize only cosmetic nits.
+This agent's addendum: a structural problem on a load-bearing or hard-to-reverse path is a finding in its own right, never a residual aside; minimize only cosmetic nits.

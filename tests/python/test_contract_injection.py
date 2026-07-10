@@ -15,7 +15,10 @@ These tests lock that inversion without a live model:
   injection is exercised the way users actually run it;
 - the epic driver injects the contract into every audit/premortem dispatch it
   fans out itself (workflows/epic-driver.js), instead of leaning on the agents'
-  standalone fallback on the fully-automatic epic path.
+  standalone fallback on the fully-automatic epic path;
+- no agent restates the injected calibrate-don't-suppress closer's own text a
+  second time at the end of its `## Output` section — the prompt-contract-dedup
+  story (issue #92) removed that second copy so the two can never drift again.
 """
 
 from __future__ import annotations
@@ -83,6 +86,21 @@ def test_no_agent_carries_a_bare_relative_contract_citation() -> None:
     }
     offenders = {name: hits for name, hits in offenders.items() if hits}
     assert offenders == {}, f"bare-relative contract citations remain: {offenders}"
+
+
+def test_no_agent_restates_the_injected_closer() -> None:
+    """Regression: an agent cites prompt-contract.md's closer once, not twice.
+
+    Before the prompt-contract-dedup story, roughly 13 agents restated "Apply the
+    injected calibrate-don't-suppress / clean-result-is-valid closer." a second
+    time at the end of their ``## Output`` section — the exact drift-by-copy
+    ``reference/prompt-contract.md`` says it exists to prevent. The citation now
+    lives only in "Before you start"; any agent-specific addendum that used to
+    follow the restatement stands on its own.
+    """
+    marker = "Apply the injected calibrate"
+    offenders = [agent.name for agent in _agent_files() if marker in agent.read_text()]
+    assert offenders == [], f"agents still restating the injected closer: {offenders}"
 
 
 def test_each_fanout_command_reads_the_anchored_contract() -> None:

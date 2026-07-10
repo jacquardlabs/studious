@@ -72,7 +72,7 @@ After all analysis, synthesize one report. Tiers (DESIGN.md canonical):
 - **Important (this month)** — will compound if left alone; debt accruing interest.
 - **Track (next review)** — not urgent but trending the wrong way.
 
-Each finding carries **location** (file/module) + **confidence** (Confirmed | Potential). Apply the injected calibrate-don't-suppress / clean-result-is-valid closer. This agent's addendum: a real accumulating problem is a finding, not a residual note; don't manufacture findings to fill tiers either.
+Each finding carries **location** (file/module) + **confidence** (Confirmed | Potential). This agent's addendum: a real accumulating problem is a finding, not a residual note; don't manufacture findings to fill tiers either.
 
 Structure the report:
 

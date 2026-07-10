@@ -57,7 +57,7 @@ Severities are stage-neutral — the gate that invoked you maps these to its own
 
 Emit findings per the injected output-row schema: **location** is mode-dependent (design mode → `doc§section`; implementation mode → `file:line`); **dimension** is the numbered check from the mode you ran; **confidence** is Confirmed when grounded in a PRODUCT.md principle/journey/persona quote, Potential when reviewer judgment. Never give abstract feedback — always ground it in the product context.
 
-Apply the injected calibrate-don't-suppress / clean-result-is-valid closer. This agent's addendum: the residual line also notes no Bash, so scope-drift is bounded to the changeset + PRODUCT.md; a feature that serves no persona, breaks a journey, or drops a specced capability is a finding in its own right — never demote it to a residual note; minimize only genuine nice-to-haves when nothing the user needs depends on them.
+This agent's addendum: the residual line also notes no Bash, so scope-drift is bounded to the changeset + PRODUCT.md; a feature that serves no persona, breaks a journey, or drops a specced capability is a finding in its own right — never demote it to a residual note; minimize only genuine nice-to-haves when nothing the user needs depends on them.
 
 ## What you do NOT review
 
