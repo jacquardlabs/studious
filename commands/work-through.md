@@ -94,7 +94,8 @@ Recorded state must match evidence before anything is dispatched; evidence wins,
 the files get corrected (via `gate-ledger`, never by hand) when they disagree:
 
 - Epic and stories: `gate-ledger epic-get --slug "<slug>"`; per-story phase:
-  `gate-ledger work-get --slug "<story>"`.
+  `gate-ledger work-get --slug "<slug>--<story>"` — every epic-dispatched work file is
+  keyed by this epic-qualified slug, never the bare story slug (see Record keeping).
 - Verdicts: `gate-ledger gate-get --branch "epic/<slug>--<story>"` — a passing verdict
   counts only at that branch's HEAD sha.
 - Design docs: each recorded `designDoc` path exists in its story worktree.
@@ -170,7 +171,8 @@ yourself (same anchored resolution, Glob fallback if it doesn't substitute) and 
 its four blocks into every audit and premortem Task prompt you dispatch in this
 mode — you are the assembly point on this path exactly as your own read is on the
 script path. Log every step with
-`gate-ledger work-log --slug "<story>" --step <phase> --outcome "<token>" --phase "<next phase>"`.
+`gate-ledger work-log --slug "<slug>--<story>" --step <phase> --outcome "<token>" --phase "<next phase>"`
+(the same epic-qualified slug as script mode — see Record keeping).
 Apply verdicts exactly as the script does:
 
 - **Proceed** → the story's next profiled phase; when the **final profiled gate**
@@ -205,7 +207,8 @@ trail and remind the user the PR is theirs (`gh pr create` from the epic branch)
 
 Gate profiles fixed at plan time are the only built-in skip mechanism. Mid-flight,
 skip a gate only on the user's explicit say-so — log it
-(`work-log --step <gate> --outcome SKIPPED`) and never on your own initiative.
+(`work-log --slug "<slug>--<story>" --step <gate> --outcome SKIPPED`) and never on
+your own initiative.
 
 Amendments go through this command, never hand-edited state:
 
@@ -246,8 +249,17 @@ there), or after `git worktree remove` on it.
 
 All state goes through `gate-ledger` — `epic-set`, `epic-get`, `epic-list`,
 `epic-story-set` for the epic; `work-set`, `work-log`, `work-get` for stories;
-`gate-get` for verdicts. State lives in the MAIN working tree's `.studious/` no matter
-which worktree an agent writes from — the ledger anchors there itself. Never hand-edit
-or directly read the JSON files. Worktrees live under `.studious/worktrees/<slug>/` —
-gitignored, one per running story plus `__epic`, removed as stories land and at
-`ready`; `git worktree list` is the recovery tool when state and disk disagree.
+`gate-get` for verdicts. `work-set`/`work-log`/`work-get` key every epic-dispatched
+story's work file to the epic-qualified slug `<slug>--<story>` — mirroring the
+separator `epic/<slug>--<story>` already uses for branch names — never the bare story
+slug alone, so a work file can never collide with an identically-named story in a
+different epic or with a standalone `/work-on` feature sharing the same name.
+`epic-story-set` needs no such qualifying: its own `--epic` argument already scopes it.
+Use this same qualified string everywhere a story is named back to the user — the
+"Needs you" queue prints it exactly as recorded, so `/work-on "<the printed slug>"`
+resolves the right work file directly. State lives in the MAIN working tree's
+`.studious/` no matter which worktree an agent writes from — the ledger anchors there
+itself. Never hand-edit or directly read the JSON files. Worktrees live under
+`.studious/worktrees/<slug>/` — gitignored, one per running story plus `__epic`,
+removed as stories land and at `ready`; `git worktree list` is the recovery tool when
+state and disk disagree.
