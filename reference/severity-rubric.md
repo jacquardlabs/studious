@@ -24,7 +24,7 @@ Never introduce a fourth tier; map every auditor's labels into these three.
 | test-auditor | Critical | High, Medium | Low |
 | architecture-auditor | Critical | High, Medium | Low |
 | doc-auditor | — (docs rarely block; escalate only if a wrong command/path ships) | High | Medium, Low |
-| ux-reviewer | VISUAL BUG | INCONSISTENCY, IMPROVEMENT | SUGGESTION |
+| ux-reviewer | VISUAL BUG | INCONSISTENCY | IMPROVEMENT, SUGGESTION |
 | frontend-reviewer | BUG | PERFORMANCE, ARCHITECTURE | CLEANUP |
 | web-design-guidelines (a11y) | blocking a11y failures (no keyboard access, contrast failures on core flows) | other a11y gaps | polish |
 | premortem-auditor | BLOCKER (REALIZED) | SHOULD FIX (REALIZED, register-integrity) | OBSERVATION (CAN'T VERIFY / staleness) |

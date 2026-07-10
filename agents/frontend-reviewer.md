@@ -71,7 +71,7 @@ Severity uses the domain vocabulary, each mapped to a gate tier inline:
 
 Bundle-delta findings are **Potential** — estimated from package.json and import patterns, not from a build.
 
-Apply the injected calibrate-don't-suppress / clean-result-is-valid closer. This agent's addendum: no build or dev server was run; bundle sizes are estimated.
+This agent's addendum: no build or dev server was run; bundle sizes are estimated.
 
 ## What you do NOT review
 

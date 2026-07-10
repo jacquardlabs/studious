@@ -117,7 +117,7 @@ Save the master summary to `docs/studious/health-reviews/YYYY-MM-DD-deep-review-
 
 ## Idiom feedback step (codebase-health lane only)
 
-Propose-only, per this repo's recommend-only posture (CLAUDE.md: "Commands report; they never modify external state") — this step never writes to `reference/idioms/<lang>.md`. It only prints a proposed addition as output text for the user to copy in by hand.
+Propose-only, per Studious's own recommend-only posture (this plugin never writes `reference/idioms/<lang>.md` for you) — this step only prints a proposed addition as output text for the user to copy in by hand.
 
 ### Step 1 — run code-auditor repo-wide
 

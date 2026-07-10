@@ -99,8 +99,7 @@ by dimension and severity; and a **residual line** — what you verified clean, 
 toolchain detected, assumptions made, and limitations (no plan executed, tool
 undetermined).
 
-Apply the injected calibrate-don't-suppress / clean-result-is-valid closer. This agent's
-addendum: a *missing control on an exposed or stateful surface* — no encryption on data
+This agent's addendum: a *missing control on an exposed or stateful surface* — no encryption on data
 at rest, no pinning on an action with secrets access, no deletion protection on a
 production database — is a finding in its own right; never demote it to a context note.
 Minimize only cost/availability hygiene when nothing stateful or public depends on it.

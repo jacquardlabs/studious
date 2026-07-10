@@ -43,7 +43,7 @@ Then findings, for items needing action, per the injected output-row schema:
 - **REALIZED** items: **severity** is BLOCKER if the realized failure breaks a core flow, corrupts data, or is expensive to reverse once merged; SHOULD FIX otherwise. **dimension** is the register item #.
 - **CAN'T VERIFY** items: an OBSERVATION naming the specific manual check that would settle it. These never block.
 
-Apply the injected calibrate-don't-suppress / clean-result-is-valid closer. This agent's addendum: include out-of-lane items skipped (by number) and any staleness note in the residual line, and NOT REALIZED must mean you looked and found evidence of absence — every item NOT REALIZED with evidence is a complete, valid outcome.
+This agent's addendum: include out-of-lane items skipped (by number) and any staleness note in the residual line, and NOT REALIZED must mean you looked and found evidence of absence — every item NOT REALIZED with evidence is a complete, valid outcome.
 
 ## What you do NOT do
 

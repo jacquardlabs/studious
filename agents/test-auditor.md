@@ -75,8 +75,7 @@ untested code location and where its test should live.
 Close with a **residual line** — what you verified adequately tested, how you mapped
 diff to tests, and limitations (suite not executed, coverage data not read).
 
-Apply the injected calibrate-don't-suppress / clean-result-is-valid closer. This agent's
-addendum: don't demand tests the project's conventions don't — CLAUDE.md's documented
+This agent's addendum: don't demand tests the project's conventions don't — CLAUDE.md's documented
 test policy calibrates every finding; a changeset meeting it cleanly is a clean result.
 
 ## What you do NOT do

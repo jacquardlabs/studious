@@ -94,7 +94,8 @@ Recorded state must match evidence before anything is dispatched; evidence wins,
 the files get corrected (via `gate-ledger`, never by hand) when they disagree:
 
 - Epic and stories: `gate-ledger epic-get --slug "<slug>"`; per-story phase:
-  `gate-ledger work-get --slug "<story>"`.
+  `gate-ledger work-get --slug "<slug>--<story>"` — every epic-dispatched work file is
+  keyed by this epic-qualified slug, never the bare story slug (see Record keeping).
 - Verdicts: `gate-ledger gate-get --branch "epic/<slug>--<story>"` — a passing verdict
   counts only at that branch's HEAD sha.
 - Design docs: each recorded `designDoc` path exists in its story worktree.
@@ -118,6 +119,18 @@ plugin_root="$(cd "$(dirname "$(command -v gate-ledger)")/.." && pwd)"
 # driver script: $plugin_root/workflows/epic-driver.js
 ```
 
+Read `${plugin_root}/reference/prompt-contract.md` once (the same plugin-root
+resolution the four gate commands use; if it isn't there, locate
+`reference/prompt-contract.md` inside the plugin install with Glob — never guess a
+path or skip this read). The script has no hands to read a file itself: hand it the
+four blocks — the injection-defense preamble, the read-only/diff-scope convention, the
+output-row schema, and the calibrate-don't-suppress closer — verbatim as
+`args.contract`, so it can stamp them into every audit and premortem dispatch it
+builds, per-story and at the finale, exactly as the four gate commands stamp them into
+their own Task dispatches. This is the whole handoff — no runtime-pointer resolution
+happens on this path. The script fails closed at any dispatch that needed the contract
+if it arrives empty or missing, so treat a missing file here as a stop, not a skip.
+
 Call the Workflow tool with `scriptPath` set to that file and `args`:
 
 ```json
@@ -126,6 +139,7 @@ Call the Workflow tool with `scriptPath` set to that file and `args`:
   "phases": { "<story>": "<next phase>" },
   "repoRoot": "<absolute path of the main working tree>",
   "defaultBranch": "<resolved default branch>",
+  "contract": "<reference/prompt-contract.md's four blocks, verbatim>",
   "timestamp": "<current ISO time>"
 }
 ```
@@ -149,9 +163,16 @@ are interchangeable mid-epic): walk each runnable story's next phase with dispat
 agents — runnable = every dependency `landed` ∧ not `parked`/`dropped` ∧ under the
 epic's cap — dispatching independent stories in parallel (one message, multiple Task
 calls). Workers follow `reference/worker-contract.md`; gate agents run the gate
-command workflows and record their own verdicts from inside the story worktree; log
-every step with
-`gate-ledger work-log --slug "<story>" --step <phase> --outcome "<token>" --phase "<next phase>"`.
+command workflows and record their own verdicts from inside the story worktree.
+Design-review and acceptance need no extra step — the single dispatched agent reads
+its gate command and self-injects exactly as it would from the script path. Audit is
+different here too: read `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md`
+yourself (same anchored resolution, Glob fallback if it doesn't substitute) and stamp
+its four blocks into every audit and premortem Task prompt you dispatch in this
+mode — you are the assembly point on this path exactly as your own read is on the
+script path. Log every step with
+`gate-ledger work-log --slug "<slug>--<story>" --step <phase> --outcome "<token>" --phase "<next phase>"`
+(the same epic-qualified slug as script mode — see Record keeping).
 Apply verdicts exactly as the script does:
 
 - **Proceed** → the story's next profiled phase; when the **final profiled gate**
@@ -186,7 +207,8 @@ trail and remind the user the PR is theirs (`gh pr create` from the epic branch)
 
 Gate profiles fixed at plan time are the only built-in skip mechanism. Mid-flight,
 skip a gate only on the user's explicit say-so — log it
-(`work-log --step <gate> --outcome SKIPPED`) and never on your own initiative.
+(`work-log --slug "<slug>--<story>" --step <gate> --outcome SKIPPED`) and never on
+your own initiative.
 
 Amendments go through this command, never hand-edited state:
 
@@ -227,8 +249,17 @@ there), or after `git worktree remove` on it.
 
 All state goes through `gate-ledger` — `epic-set`, `epic-get`, `epic-list`,
 `epic-story-set` for the epic; `work-set`, `work-log`, `work-get` for stories;
-`gate-get` for verdicts. State lives in the MAIN working tree's `.studious/` no matter
-which worktree an agent writes from — the ledger anchors there itself. Never hand-edit
-or directly read the JSON files. Worktrees live under `.studious/worktrees/<slug>/` —
-gitignored, one per running story plus `__epic`, removed as stories land and at
-`ready`; `git worktree list` is the recovery tool when state and disk disagree.
+`gate-get` for verdicts. `work-set`/`work-log`/`work-get` key every epic-dispatched
+story's work file to the epic-qualified slug `<slug>--<story>` — mirroring the
+separator `epic/<slug>--<story>` already uses for branch names — never the bare story
+slug alone, so a work file can never collide with an identically-named story in a
+different epic or with a standalone `/work-on` feature sharing the same name.
+`epic-story-set` needs no such qualifying: its own `--epic` argument already scopes it.
+Use this same qualified string everywhere a story is named back to the user — the
+"Needs you" queue prints it exactly as recorded, so `/work-on "<the printed slug>"`
+resolves the right work file directly. State lives in the MAIN working tree's
+`.studious/` no matter which worktree an agent writes from — the ledger anchors there
+itself. Never hand-edit or directly read the JSON files. Worktrees live under
+`.studious/worktrees/<slug>/` — gitignored, one per running story plus `__epic`,
+removed as stories land and at `ready`; `git worktree list` is the recovery tool when
+state and disk disagree.

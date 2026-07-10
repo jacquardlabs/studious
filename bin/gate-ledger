@@ -84,6 +84,39 @@ ensure_gitignore() {
   fi
 }
 
+json_update() { # file, jq filter, then any --arg name value ... pairs for jq
+  # Shared writer for every mutating verb: run jq against $file into a
+  # same-directory temp file, then rename the temp file over $file on
+  # success. Same all-or-nothing outcome as a hand-written block — $file is
+  # either untouched or fully replaced with valid jq output — and the same
+  # failure behavior: a failing filter leaves $file untouched and the real
+  # (non-zero) exit code propagates to the caller.
+  #
+  # Deliberately no RETURN trap here: a trap armed inside this function
+  # doesn't stay scoped to it — bash re-fires it when the *calling* verb
+  # itself returns, and by then this function's own $tmp has gone out of
+  # scope. Under this script's `set -u`, that's an "unbound variable" abort
+  # that would clobber the verb's real (already-succeeded) exit status.
+  # Cleanup below is an explicit branch instead, so nothing fires after this
+  # function has already returned.
+  local file="$1" filter="$2"
+  shift 2
+  local dir tmp rc
+  dir=$(dirname -- "$file")
+  tmp=$(mktemp "$dir/.tmp.XXXXXX")
+  # Capture $? from the compound command as its own statement, not as the
+  # condition of an `if`: POSIX defines the exit status of an `if` with no
+  # executed branch (condition false, no `else`) as zero, which would
+  # silently discard a real jq/mv failure here and report success.
+  jq "$@" "$filter" "$file" > "$tmp" && mv "$tmp" "$file"
+  rc=$?
+  if [ "$rc" -eq 0 ]; then
+    return 0
+  fi
+  rm -f "$tmp"
+  return "$rc"
+}
+
 cmd_record() {
   local gate="" verdict=""
   while [ $# -gt 0 ]; do
@@ -108,12 +141,11 @@ cmd_record() {
   local file; file="$dir/$(branch_slug).json"
   [ -f "$file" ] || printf '{"schemaVersion":1,"branch":"","gates":{}}' > "$file"
 
-  local tmp; tmp=$(mktemp "$dir/.tmp.XXXXXX")
-  trap 'rm -f "$tmp"' RETURN
-  jq --arg b "$(branch_name)" --arg g "$gate" --arg v "$verdict" \
-     --arg s "$(head_sha)" --arg t "$(now_iso)" \
-     '.schemaVersion = (.schemaVersion // 1) | .branch = $b | .gates[$g] = {verdict: $v, sha: $s, ranAt: $t}' \
-     "$file" > "$tmp" && mv "$tmp" "$file"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    '.schemaVersion = (.schemaVersion // 1) | .branch = $b | .gates[$g] = {verdict: $v, sha: $s, ranAt: $t}' \
+    --arg b "$(branch_name)" --arg g "$gate" --arg v "$verdict" \
+    --arg s "$(head_sha)" --arg t "$(now_iso)"
 }
 
 cmd_status() {
@@ -133,13 +165,32 @@ cmd_status() {
   # verdicts, report as if nothing was ever recorded for this branch.
   [ "$stored_branch" = "$cur_branch" ] || branch_mismatch=1
 
-  # Gate→pass-token table: "gate:PASS_TOKEN" entries, audit-then-acceptance order preserved.
-  local gates=("audit:PASS" "acceptance:SHIP")
+  # Gate→pass-token→mode table: "gate:PASS_TOKEN:MODE" entries, audit-then-
+  # acceptance-then-pre-mortem order preserved.
+  #   required — near-universal; absence itself is worth flagging ("never ran"),
+  #     and a clean verdict at HEAD joins the "proceed" summary.
+  #   advisory — most branches never record one. The epic finale is the only
+  #     intended writer of `pre-mortem`, on an epic's integration branch, but
+  #     that write side is not yet wired into workflows/epic-driver.js — this
+  #     read side is dormant on every branch until a follow-up adds it (see
+  #     the premortem-hook-awareness design doc's Out of scope section,
+  #     docs/superpowers/specs/2026-07-09-premortem-hook-awareness-design.md,
+  #     for the full rationale). The CLEAR/REALIZED roll-up vocabulary read
+  #     here has its canonical home in reference/gate-vocabulary.md, distinct
+  #     from the per-item REALIZED / NOT REALIZED / CAN'T VERIFY vocabulary
+  #     agents/premortem-auditor.md emits. Absence means "not applicable
+  #     here," not "should have run and didn't," so an advisory gate stays
+  #     silent both when absent AND when clean at HEAD; it only speaks up to
+  #     flag a stale or non-passing verdict.
+  local gates=("audit:PASS:required" "acceptance:SHIP:required" "pre-mortem:CLEAR:advisory")
   local msgs=()
-  local gate pass v s entry
+  local pass_parts=()
+  local gate pass mode v s entry rest
   for entry in "${gates[@]}"; do
     gate="${entry%%:*}"
-    pass="${entry##*:}"
+    rest="${entry#*:}"
+    pass="${rest%%:*}"
+    mode="${rest##*:}"
     if [ "$branch_mismatch" -eq 1 ]; then
       v=""
       s=""
@@ -151,8 +202,10 @@ cmd_status() {
       s=$(jq -r --arg g "$gate" '.gates[$g].sha // empty' "$file")
     fi
     if [ -z "$v" ]; then
-      msgs+=("$gate never ran on this branch")
-    elif [ "$s" != "$head" ]; then
+      [ "$mode" = "required" ] && msgs+=("$gate never ran on this branch")
+      continue
+    fi
+    if [ "$s" != "$head" ]; then
       n=$(git rev-list --count "$s..$head" 2>/dev/null || git rev-list --count "$s..HEAD" 2>/dev/null)
       if [ -n "$n" ] && [ "$n" -gt 0 ] 2>/dev/null; then
         if [ "$n" -eq 1 ]; then unit=commit; else unit=commits; fi
@@ -160,18 +213,18 @@ cmd_status() {
       else
         msgs+=("$gate ran at $s but HEAD is $head — re-run before merging")
       fi
-    elif [ "$v" != "$pass" ]; then
-      msgs+=("$gate returned $v")
+      continue
     fi
+    if [ "$v" != "$pass" ]; then
+      msgs+=("$gate returned $v")
+      continue
+    fi
+    # Clean at HEAD: required gates join the proceed summary; an advisory
+    # gate's clean state (CLEAR) is silent, same as its absence.
+    [ "$mode" = "required" ] && pass_parts+=("$gate ($pass)")
   done
 
   if [ "${#msgs[@]}" -eq 0 ]; then
-    # Build pass summary from the gate table so adding a gate auto-updates
-    # this message. Output for current table: "audit (PASS) and acceptance (SHIP)"
-    local pass_parts=()
-    for entry in "${gates[@]}"; do
-      pass_parts+=("${entry%%:*} (${entry##*:})")
-    done
     local pass_str=""
     if [ "${#pass_parts[@]}" -gt 0 ]; then
       pass_str="${pass_parts[0]}"
@@ -240,20 +293,18 @@ cmd_work_set() {
 
   ensure_gitignore
   local file; file=$(work_file_init "$slug")
-  local dir; dir=$(work_dir)
-  local tmp; tmp=$(mktemp "$dir/.tmp.XXXXXX")
-  trap 'rm -f "$tmp"' RETURN
-  jq --arg title "$title" --arg src "$src" --arg branch "$branch" \
-     --arg doc "$doc" --arg phase "$phase" --arg t "$(now_iso)" \
-     '.schemaVersion = (.schemaVersion // 1)
-      | .createdAt = (.createdAt // $t)
-      | .updatedAt = $t
-      | (if $title  != "" then .title     = $title  else . end)
-      | (if $src    != "" then .source    = $src    else . end)
-      | (if $branch != "" then .branch    = $branch else . end)
-      | (if $doc    != "" then .designDoc = $doc    else . end)
-      | (if $phase  != "" then .phase     = $phase  else . end)' \
-     "$file" > "$tmp" && mv "$tmp" "$file"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    '.schemaVersion = (.schemaVersion // 1)
+     | .createdAt = (.createdAt // $t)
+     | .updatedAt = $t
+     | (if $title  != "" then .title     = $title  else . end)
+     | (if $src    != "" then .source    = $src    else . end)
+     | (if $branch != "" then .branch    = $branch else . end)
+     | (if $doc    != "" then .designDoc = $doc    else . end)
+     | (if $phase  != "" then .phase     = $phase  else . end)' \
+    --arg title "$title" --arg src "$src" --arg branch "$branch" \
+    --arg doc "$doc" --arg phase "$phase" --arg t "$(now_iso)"
 }
 
 cmd_work_log() {
@@ -284,15 +335,13 @@ cmd_work_log() {
 
   ensure_gitignore
   local file; file=$(work_file_init "$slug")
-  local dir; dir=$(work_dir)
-  local tmp; tmp=$(mktemp "$dir/.tmp.XXXXXX")
-  trap 'rm -f "$tmp"' RETURN
-  jq --arg step "$step" --arg outcome "$outcome" --arg phase "$phase" \
-     --arg s "$(head_sha)" --arg t "$(now_iso)" \
-     '.history = ((.history // []) + [{step: $step, outcome: $outcome, sha: $s, at: $t}])
-      | .updatedAt = $t
-      | (if $phase != "" then .phase = $phase else . end)' \
-     "$file" > "$tmp" && mv "$tmp" "$file"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    '.history = ((.history // []) + [{step: $step, outcome: $outcome, sha: $s, at: $t}])
+     | .updatedAt = $t
+     | (if $phase != "" then .phase = $phase else . end)' \
+    --arg step "$step" --arg outcome "$outcome" --arg phase "$phase" \
+    --arg s "$(head_sha)" --arg t "$(now_iso)"
 }
 
 cmd_work_get() {
@@ -358,22 +407,20 @@ cmd_epic_set() {
 
   ensure_gitignore
   local file; file=$(epic_file_init "$slug")
-  local dir; dir=$(epic_dir)
-  local tmp; tmp=$(mktemp "$dir/.tmp.XXXXXX")
-  trap 'rm -f "$tmp"' RETURN
-  jq --arg title "$title" --arg src "$src" --arg goal "$goal" --arg branch "$branch" \
-     --arg pm "$premortem" --arg conc "$concurrency" --arg status "$status" --arg t "$(now_iso)" \
-     '.schemaVersion = (.schemaVersion // 1)
-      | .createdAt = (.createdAt // $t)
-      | .updatedAt = $t
-      | (if $title  != "" then .title       = $title  else . end)
-      | (if $src    != "" then .source      = $src    else . end)
-      | (if $goal   != "" then .goal        = $goal   else . end)
-      | (if $branch != "" then .branch      = $branch else . end)
-      | (if $pm     != "" then .premortem   = $pm     else . end)
-      | (if $conc   != "" then .concurrency = ($conc | tonumber) else . end)
-      | (if $status != "" then .status      = $status else . end)' \
-     "$file" > "$tmp" && mv "$tmp" "$file"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    '.schemaVersion = (.schemaVersion // 1)
+     | .createdAt = (.createdAt // $t)
+     | .updatedAt = $t
+     | (if $title  != "" then .title       = $title  else . end)
+     | (if $src    != "" then .source      = $src    else . end)
+     | (if $goal   != "" then .goal        = $goal   else . end)
+     | (if $branch != "" then .branch      = $branch else . end)
+     | (if $pm     != "" then .premortem   = $pm     else . end)
+     | (if $conc   != "" then .concurrency = ($conc | tonumber) else . end)
+     | (if $status != "" then .status      = $status else . end)' \
+    --arg title "$title" --arg src "$src" --arg goal "$goal" --arg branch "$branch" \
+    --arg pm "$premortem" --arg conc "$concurrency" --arg status "$status" --arg t "$(now_iso)"
 }
 
 cmd_epic_get() {
@@ -435,25 +482,24 @@ cmd_epic_story_set() {
     return 2
   fi
 
-  local dir; dir=$(epic_dir)
-  local tmp; tmp=$(mktemp "$dir/.tmp.XXXXXX")
-  trap 'rm -f "$tmp"' RETURN
-  jq --arg s "$slug" --arg title "$title" --arg src "$src" --arg criteria "$criteria" \
-     --arg deps "$deps" --arg gates "$gates_csv" --arg status "$status" --arg reason "$reason" \
-     --arg wt "$worktree" --arg bump "$bump" --arg reset "$reset" --arg t "$(now_iso)" \
-     '.updatedAt = $t
-      | .stories[$s] = ((.stories[$s] // {status: "pending", deps: [], retries: {}})
-        | (if $title    != "" then .title    = $title    else . end)
-        | (if $src      != "" then .source   = $src      else . end)
-        | (if $criteria != "" then .criteria = $criteria else . end)
-        | (if $deps     != "" then .deps     = ($deps  | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""))) else . end)
-        | (if $gates    != "" then .gates    = ($gates | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""))) else . end)
-        | (if $status   != "" then .status   = $status   else . end)
-        | (if $reason   != "" then .reason   = $reason   else . end)
-        | (if $wt       != "" then .worktree = $wt       else . end)
-        | (if $bump     != "" then .retries[$bump]  = ((.retries[$bump]  // 0) + 1) else . end)
-        | (if $reset    != "" then .retries[$reset] = 0 else . end))' \
-     "$file" > "$tmp" && mv "$tmp" "$file"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
+     .updatedAt = $t
+     | .stories[$s] = ((.stories[$s] // {status: "pending", deps: [], retries: {}})
+       | (if $title    != "" then .title    = $title    else . end)
+       | (if $src      != "" then .source   = $src      else . end)
+       | (if $criteria != "" then .criteria = $criteria else . end)
+       | (if $deps     != "" then .deps     = ($deps  | csv_trim) else . end)
+       | (if $gates    != "" then .gates    = ($gates | csv_trim) else . end)
+       | (if $status   != "" then .status   = $status   else . end)
+       | (if $reason   != "" then .reason   = $reason   else . end)
+       | (if $wt       != "" then .worktree = $wt       else . end)
+       | (if $bump     != "" then .retries[$bump]  = ((.retries[$bump]  // 0) + 1) else . end)
+       | (if $reset    != "" then .retries[$reset] = 0 else . end))' \
+    --arg s "$slug" --arg title "$title" --arg src "$src" --arg criteria "$criteria" \
+    --arg deps "$deps" --arg gates "$gates_csv" --arg status "$status" --arg reason "$reason" \
+    --arg wt "$worktree" --arg bump "$bump" --arg reset "$reset" --arg t "$(now_iso)"
 }
 
 cmd_epic_list() {

@@ -60,7 +60,7 @@ README is [current / lightly stale / significantly out of date]. [N] findings: [
 Verified [what you cross-referenced clean]; couldn't verify external links offline; assumptions: [e.g. no manifest in this stack]. Compared against [most recent prior report, or "baseline — no prior reviews"].
 ```
 
-Apply the injected calibrate-don't-suppress / clean-result-is-valid closer. This agent's addendum: a documented command that doesn't resolve is a finding in its own right — don't demote it to a residual note.
+This agent's addendum: a documented command that doesn't resolve is a finding in its own right — don't demote it to a residual note.
 
 ## What this agent does NOT do
 

@@ -33,7 +33,8 @@ Spot coarse structural drift only — do not redraw the dependency graph; `revie
 
 Catalog totals, not every instance:
 - Count of TODO/FIXME/HACK/XXX/WORKAROUND comments, grouped by module; report the total and trend.
-- Count of functions/files over 200 lines (split candidates); report the largest.
+- Count of files over 500 lines (split candidates — matches code-auditor's god-file bar at PR time); report the largest.
+- Count of functions over 200 lines; report the largest.
 - Copy-pasted logic appearing in 3+ places (extraction candidates) — count of clusters.
 - Commented-out code blocks sitting longer than one release cycle.
 - Metric: TODO/FIXME count, largest file (lines).
@@ -72,7 +73,7 @@ After all analysis, synthesize one report. Tiers (DESIGN.md canonical):
 - **Important (this month)** — will compound if left alone; debt accruing interest.
 - **Track (next review)** — not urgent but trending the wrong way.
 
-Each finding carries **location** (file/module) + **confidence** (Confirmed | Potential). Apply the injected calibrate-don't-suppress / clean-result-is-valid closer. This agent's addendum: a real accumulating problem is a finding, not a residual note; don't manufacture findings to fill tiers either.
+Each finding carries **location** (file/module) + **confidence** (Confirmed | Potential). This agent's addendum: a real accumulating problem is a finding, not a residual note; don't manufacture findings to fill tiers either.
 
 Structure the report:
 

@@ -17,18 +17,6 @@ Read CLAUDE.md first for the project's documented technical conventions. They ar
 
 ## Scope
 
-**code-auditor checks:**
-- Type safety (any usage, unsafe assertions)
-- Code complexity (function length, nesting depth)
-- Maintainability (file size, code duplication)
-- Consistency (naming, patterns, API shapes)
-- Idiomatic style (language conventions, stdlib usage)
-- Error handling patterns
-- Dead code and unused imports
-- Console.log/debug statements
-- TODO/FIXME accumulation (the raw count and growth; doc-auditor judges whether individual TODOs are actionable)
-- DRY violations
-
 **Does NOT check:**
 - Security vulnerabilities — security-auditor handles this
 - Test adequacy — test-auditor handles this
@@ -99,5 +87,3 @@ Severity tiers, anchored to blast radius (a polish item in a hot path can outran
 - **Low**: Polish items
 
 Also emit a **metrics block** with these fixed keys: `any_count`, `console_log_count`, `todo_count`, `largest_file`, `longest_function`.
-
-Apply the injected calibrate-don't-suppress / clean-result-is-valid closer.
