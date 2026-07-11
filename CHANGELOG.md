@@ -2,6 +2,54 @@
 
 <!-- version list -->
 
+## v2.17.0 (2026-07-11)
+
+### Bug Fixes
+
+- De-number stale roster counts in test narrative; name infra and operability in gate-audit intro
+  ([#123](https://github.com/jacquardlabs/studious/pull/123),
+  [`63b99f4`](https://github.com/jacquardlabs/studious/commit/63b99f4568c062d3101ee95c24d7ba2ddb098bbf))
+
+- Drop stale lane count from premortem-scope assertion message
+  ([#123](https://github.com/jacquardlabs/studious/pull/123),
+  [`63b99f4`](https://github.com/jacquardlabs/studious/commit/63b99f4568c062d3101ee95c24d7ba2ddb098bbf))
+
+### Documentation
+
+- Add operability-auditor design spec ([#123](https://github.com/jacquardlabs/studious/pull/123),
+  [`63b99f4`](https://github.com/jacquardlabs/studious/commit/63b99f4568c062d3101ee95c24d7ba2ddb098bbf))
+
+- Add operability-auditor implementation plan; correct spec (no gate-audit SKILL.md, count lives in
+  CLAUDE.md, epic-driver parity) ([#123](https://github.com/jacquardlabs/studious/pull/123),
+  [`63b99f4`](https://github.com/jacquardlabs/studious/commit/63b99f4568c062d3101ee95c24d7ba2ddb098bbf))
+
+- Register operability lane in roster prose — README, PRODUCT, CONTRIBUTING, CLAUDE
+  ([#123](https://github.com/jacquardlabs/studious/pull/123),
+  [`63b99f4`](https://github.com/jacquardlabs/studious/commit/63b99f4568c062d3101ee95c24d7ba2ddb098bbf))
+
+### Features
+
+- Add operability checklist — timeout/idempotency/shutdown lookup data
+  ([#123](https://github.com/jacquardlabs/studious/pull/123),
+  [`63b99f4`](https://github.com/jacquardlabs/studious/commit/63b99f4568c062d3101ee95c24d7ba2ddb098bbf))
+
+- Add operability-auditor agent — failure signal, resilience, runtime hygiene
+  ([#123](https://github.com/jacquardlabs/studious/pull/123),
+  [`63b99f4`](https://github.com/jacquardlabs/studious/commit/63b99f4568c062d3101ee95c24d7ba2ddb098bbf))
+
+- Dispatch operability-auditor on the epic path; fix stale lane count and premortem number in
+  auditFanIn ([#123](https://github.com/jacquardlabs/studious/pull/123),
+  [`63b99f4`](https://github.com/jacquardlabs/studious/commit/63b99f4568c062d3101ee95c24d7ba2ddb098bbf))
+
+- Operability-auditor — gate-audit lane for failure signal, resilience, and 12-factor runtime
+  hygiene ([#123](https://github.com/jacquardlabs/studious/pull/123),
+  [`63b99f4`](https://github.com/jacquardlabs/studious/commit/63b99f4568c062d3101ee95c24d7ba2ddb098bbf))
+
+- Wire operability lane into /gate-audit as auditor 10; premortem renumbers to 11
+  ([#123](https://github.com/jacquardlabs/studious/pull/123),
+  [`63b99f4`](https://github.com/jacquardlabs/studious/commit/63b99f4568c062d3101ee95c24d7ba2ddb098bbf))
+
+
 ## v2.16.0 (2026-07-10)
 
 ### Bug Fixes
