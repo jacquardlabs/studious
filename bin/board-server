@@ -12,6 +12,10 @@ Serves two read-only endpoints for exactly one epic slug, scoped to the two file
   GET /events  an SSE stream; pushes a fresh whole snapshot when a poll tick notices
                either file changed. No computed diff — "a delta" is satisfied by
                "something changed, here is the fresh state" (see the design doc).
+  GET /        the Flight Deck: one self-contained HTML document (assets/board-ui/)
+               that fetches /state once, then renders live off /events. No external
+               stylesheet, font, script, or image — see docs/superpowers/specs/
+               2026-07-11-board-ui-design.md.
 
 No write endpoint exists — every other path or HTTP method is rejected (404, or the
 http.server default 501 for a method this handler never implements). Binds to
@@ -22,7 +26,7 @@ Pattern, not product: reuses `/Users/bryan/Projects/viva`'s server.py class shap
 (ThreadingMixIn + BaseHTTPRequestHandler, loopback bind, held-open-client broadcast)
 as prior art — not viva's code, not its dependencies. Standard library only.
 
-Usage: bin/board-server EPIC_SLUG [--port N] [--interval SECONDS]
+Usage: bin/board-server EPIC_SLUG [--port N] [--interval SECONDS] [--open]
 """
 from __future__ import annotations
 
@@ -35,6 +39,7 @@ import signal
 import subprocess
 import sys
 import threading
+import webbrowser
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -44,6 +49,13 @@ from urllib.parse import urlparse
 HOST = "127.0.0.1"  # loopback only — deliberately not a flag; see module docstring.
 DEFAULT_INTERVAL = 1.0  # seconds; a build-time constant per the design doc's own
 # Open Questions ("sub-second vs. one second is a build-time judgment call").
+
+# The Flight Deck page's on-disk assets — part of this plugin's own install,
+# never the consuming project's repo (that's what epics_dir_for()/repo_root()
+# resolve instead). Anchored to this script's own location, the same way
+# every command/reference file this repo's agents read is anchored to "the
+# plugin root," per this story's own worker-contract preamble.
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets" / "board-ui"
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 
@@ -165,6 +177,23 @@ def build_schema(blackboard: dict | None, events: list[dict], epic_slug: str) ->
     }
 
 
+def render_page() -> bytes:
+    """Assemble the one self-contained HTML document GET / serves: the
+    hand-authored page shell (assets/board-ui/index.html) with
+    assets/board-ui/app.js's contents substituted in verbatim for the
+    literal `__BOARD_UI_APP_JS__` placeholder inside its <script> tag. Plain
+    string substitution, not a template engine or bundler — the design
+    doc's "no build step" bar applied to assembling the response, not just
+    to what ships in it. Read from disk on every call (not cached at
+    startup) so the assets stay editable during development without a
+    server restart; both files are small and this route is not hot."""
+    html = (ASSETS_DIR / "index.html").read_text(encoding="utf-8")
+    app_js = (ASSETS_DIR / "app.js").read_text(encoding="utf-8")
+    if "__BOARD_UI_APP_JS__" not in html:
+        raise ValueError("board-ui page shell is missing its __BOARD_UI_APP_JS__ placeholder")
+    return html.replace("__BOARD_UI_APP_JS__", app_js, 1).encode("utf-8")
+
+
 @dataclass
 class BoardState:
     epics_dir: Path
@@ -268,9 +297,24 @@ class Handler(BaseHTTPRequestHandler):
         except OSError:
             pass  # client disconnected mid-response; nothing to recover
 
+    def _send_html(self, status: int, body: bytes) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except OSError:
+            pass  # client disconnected mid-response; nothing to recover
+
     def do_GET(self) -> None:  # noqa: N802 - http.server's naming convention
         path = urlparse(self.path).path
-        if path == "/state":
+        if path == "/":
+            try:
+                self._send_html(200, render_page())
+            except (OSError, ValueError):
+                self._send_html(500, b"board-server: could not read Flight Deck assets")
+        elif path == "/state":
             self._send_json(200, self.server.board_state.snapshot())
         elif path == "/events":
             self._serve_sse()
@@ -336,7 +380,22 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--repo-root", default=None,
         help="override the detected main-tree root (mainly for tests); default: derived via git",
     )
+    p.add_argument(
+        "--open", action="store_true",
+        help="open the operator's default browser at the server's URL once it's bound",
+    )
     return p
+
+
+def maybe_open_browser(url: str, should_open: bool, opener=webbrowser.open) -> None:
+    """Split out from main() so a test can assert the right URL is what
+    gets opened without actually launching a browser in CI — pass a fake
+    `opener` and inspect what it was called with (this story's Operational
+    readiness section names this as required coverage). `opener` defaults
+    to the stdlib's own webbrowser.open, cross-platform, zero new dependency
+    (the same "standard library only" bar the rest of this file holds)."""
+    if should_open:
+        opener(url)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -356,6 +415,7 @@ def main(argv: list[str] | None = None) -> int:
     httpd = BoardServer((HOST, args.port), Handler, state, shutdown_event)
     url = f"http://{HOST}:{httpd.server_address[1]}"
     print(f"board-server · {slug} · {url}", flush=True)
+    maybe_open_browser(url, args.open)
 
     poll_thread = threading.Thread(target=poll_loop, args=(httpd, args.interval), daemon=True)
     poll_thread.start()

@@ -278,6 +278,107 @@ def test_unknown_path_is_404(tmp_path: Path) -> None:
     assert status == 404
 
 
+# ---------------------------------------------------------------------------
+# GET / — the Flight Deck page (board-ui story)
+# ---------------------------------------------------------------------------
+
+def _http_get_raw(port: int, path: str) -> tuple[int, str, str]:
+    import urllib.error
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=5) as resp:
+            return resp.status, resp.headers.get("Content-Type", ""), resp.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        return e.code, e.headers.get("Content-Type", ""), e.read().decode("utf-8")
+
+
+def test_root_serves_self_contained_html_page(tmp_path: Path) -> None:
+    with _RunningServer(tmp_path, "fixture-epic") as server:
+        status, content_type, body = _http_get_raw(server.port, "/")
+    assert status == 200
+    assert content_type.startswith("text/html")
+    assert "<!doctype html>" in body.lower()
+    # Self-contained: no <link>/<script src>/@import/<img src> pulling from
+    # a network origin — this design's own bar (design doc, "Self-contained
+    # and offline-correct"). The one legitimate "http://" substring in the
+    # page is the SVG spec's own XML namespace URI passed to
+    # createElementNS(), which browsers never dereference over the network
+    # — excluded explicitly rather than banning "http://" outright.
+    assert "<link" not in body
+    assert "<script src=" not in body  # an actual src attribute, not this test's own prose
+    assert "@import" not in body
+    assert "<img" not in body
+    non_svg_ns_urls = [
+        line for line in body.splitlines()
+        if ("http://" in line or "https://" in line) and "www.w3.org/2000/svg" not in line
+    ]
+    assert non_svg_ns_urls == []
+    # The app.js placeholder was actually substituted, not left dangling.
+    assert "__BOARD_UI_APP_JS__" not in body
+    assert "computeGaugeOrder" in body  # a real function from app.js made it in
+
+
+def test_root_route_does_not_change_state_or_events_behavior(tmp_path: Path) -> None:
+    """Migration note in the design doc: /state and /events are unchanged
+    by this route's addition."""
+    with _RunningServer(tmp_path, "fixture-epic") as server:
+        _write_fixture_epic(server)
+        time.sleep(server.interval * 3)
+        status, body = _http_get(server.port, "/state")
+    assert status == 200
+    assert body["stories"]["story-a"]["status"] == "landed"
+
+
+def test_root_returns_500_not_a_crash_when_assets_are_broken(tmp_path: Path, monkeypatch) -> None:
+    """A corrupted plugin install (missing placeholder, unreadable asset)
+    fails this one request loudly rather than taking the whole server down
+    — do_GET catches both OSError and render_page()'s own ValueError."""
+    broken = tmp_path / "broken-assets"
+    broken.mkdir()
+    (broken / "index.html").write_text("<html><script></script></html>")  # no placeholder
+    (broken / "app.js").write_text("// no-op")
+    monkeypatch.setattr(board_server, "ASSETS_DIR", broken)
+    with _RunningServer(tmp_path / "server", "fixture-epic") as server:
+        status, _content_type, _body = _http_get_raw(server.port, "/")
+        # The server itself is still alive and answering other routes.
+        state_status, _ = _http_get(server.port, "/state")
+    assert status == 500
+    assert state_status == 200
+
+
+def test_render_page_missing_placeholder_raises(tmp_path: Path, monkeypatch) -> None:
+    """A page shell that lost its substitution marker fails loudly rather
+    than silently shipping literal app.js source or an empty script body."""
+    assets = tmp_path / "assets" / "board-ui"
+    assets.mkdir(parents=True)
+    (assets / "index.html").write_text("<html><script></script></html>")
+    (assets / "app.js").write_text("// no-op")
+    monkeypatch.setattr(board_server, "ASSETS_DIR", assets)
+    try:
+        board_server.render_page()
+        raised = False
+    except ValueError:
+        raised = True
+    assert raised
+
+
+# ---------------------------------------------------------------------------
+# maybe_open_browser — testable without ever launching a real browser
+# ---------------------------------------------------------------------------
+
+def test_maybe_open_browser_opens_when_requested() -> None:
+    calls = []
+    board_server.maybe_open_browser("http://127.0.0.1:1234", True, opener=calls.append)
+    assert calls == ["http://127.0.0.1:1234"]
+
+
+def test_maybe_open_browser_skips_when_not_requested() -> None:
+    calls = []
+    board_server.maybe_open_browser("http://127.0.0.1:1234", False, opener=calls.append)
+    assert calls == []
+
+
 def test_post_is_rejected_not_implemented(tmp_path: Path) -> None:
     import urllib.error
     import urllib.request
