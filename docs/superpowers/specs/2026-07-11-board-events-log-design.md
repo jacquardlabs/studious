@@ -107,12 +107,23 @@ from data gate-ledger already has:
   `work-get` key every epic-dispatched story's work file to the epic-qualified slug
   `<slug>--<story>`... mirroring the separator `epic/<slug>--<story>` already uses for branch
   names... `gate-ledger`'s own `slugify()` collapses runs of non-alnum characters... to a
-  single `-`... every reader and writer... builds this exact string."* Because every slug
-  reaching these functions has already passed through `slugify()`, neither an epic slug nor a
-  story slug can itself contain `--` — a bare `/work-on` feature slug (never epic-qualified)
-  therefore can never false-positive as epic-qualified. A new `epic_context_from_slug()`
-  helper splits on the first `--`: a match yields `(epicSlug, storySlug)`; no match yields
-  nothing.
+  single `-`... every reader and writer... builds this exact string."* Each half of that
+  concatenation — the epic slug and the story slug `epic-driver.js`'s `workSlug()` joins with
+  `--` — was independently slugified *before* concatenation, so neither half can itself
+  contain `--`; that's what makes splitting on the first `--` unambiguous. **Load-bearing
+  ordering detail, verified directly, not assumed:** `cmd_work_set`/`cmd_work_log` each
+  immediately overwrite their own `slug` variable with `slugify("$slug")` — and `slugify()`
+  itself collapses `--` to a single `-` (checked directly: `slugify
+  "worker-evidence-and-board--board-events-log"` → `worker-evidence-and-board-board-events-log`,
+  no `--` left — visible even in this story's own `work-set --slug
+  "worker-evidence-and-board--board-events-log"` call, whose stored `.slug` field reads exactly
+  that collapsed form). A new `epic_context_from_slug()` helper must therefore run on the raw
+  `--slug` argument **before** the function's existing `slug=$(slugify "$slug")` line
+  reassigns it, splitting on the first `--`: a match yields `(epicSlug, storySlug)`; no match
+  (a bare, never-epic-qualified `/work-on` feature slug) yields nothing. Running the split
+  after slugify, on the collapsed value, would make this derivation a silent, permanent
+  no-op — the single highest-risk mistake in this design, called out here precisely so the
+  build phase doesn't reintroduce it.
 
 This choice is the direct application of CLAUDE.md's own boundary principle — *"Fix data at
 the boundary, not at the point of use... A transform applied at every call site will be
