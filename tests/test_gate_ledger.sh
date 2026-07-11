@@ -619,5 +619,11 @@ out=$(cd "$d24/.studious/worktrees/e/s" && "$LEDGER" evidence-list)
 check "evidence-list from a linked worktree reads the MAIN root evidence file" "pytest tests/" \
   "$(printf '%s' "$out" | jq -r '.command')"
 
+# --- evidence-list validates unknown flags ---
+d25=$(sandbox)
+err=$(cd "$d25" && "$LEDGER" evidence-list --bogus x 2>&1 1>/dev/null; echo "rc=$?")
+contains "evidence-list rejects an unknown flag" "unknown arg" "$err"
+contains "evidence-list unknown-flag exits 2" "rc=2" "$err"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi
