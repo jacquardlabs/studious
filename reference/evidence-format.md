@@ -149,5 +149,10 @@ this section, not silently leave it stale, once that run produces a real answer.
   ordering above — update both together.
 - `tests/test_evidence_capture.sh` asserts the hook produces this shape end to end,
   including the `PostToolUse`/`PostToolUseFailure` split.
-- A future `gates-cite-evidence` or `handback-skill` story reads this file before
-  reading the log itself.
+- `gate-ledger evidence-list` (added by `gates-cite-evidence`) is a plain passthrough of
+  this shape, one line per record — it reshapes nothing written here.
+  `commands/gate-audit.md` and `commands/gate-acceptance.md` stamp its raw output into
+  `@agent-test-auditor`'s and `@agent-premortem-auditor`'s dispatch prompts; both agents
+  read `command`, `predicate.result`, and `capturedAt` directly off records in this
+  shape when citing an entry. A future `handback-skill` story reads this file before
+  reading the log itself, same as this one did.
