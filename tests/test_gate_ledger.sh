@@ -570,5 +570,42 @@ check "evidence-append from a linked worktree writes the MAIN root evidence file
 check "evidence-append from a linked worktree does not write under the worktree" "no" \
   "$([ -f "$d21/.studious/worktrees/e/s/.studious/evidence/epic-e--s.jsonl" ] && echo yes || echo no)"
 
+# --- evidence-list: empty when no evidence log exists for the branch (handback-skill, #97) ---
+d22=$(sandbox)
+out=$(cd "$d22" && "$LEDGER" evidence-list)
+check "evidence-list empty when no evidence recorded" "" "$out"
+
+# --- evidence-list: prints the current branch's log verbatim ---
+out=$(cd "$d18" && "$LEDGER" evidence-list)
+check "evidence-list prints the same line count evidence-append wrote" \
+  "$(wc -l < "$ef18" | tr -d ' ')" "$(printf '%s\n' "$out" | wc -l | tr -d ' ')"
+check "evidence-list output matches the raw .jsonl file byte-for-byte" \
+  "$(cat "$ef18")" "$out"
+
+# --- evidence-list --branch reads another branch's log without checking it out ---
+d23=$(sandbox)
+( cd "$d23" && "$LEDGER" evidence-append --command "pytest tests/" --exit-code 0 \
+    --output-digest "sha256:deadbeef" --origin interactive )
+( cd "$d23" && git checkout -q -b feat/other )
+out=$(cd "$d23" && "$LEDGER" evidence-list --branch feat/foo)
+contains "evidence-list --branch reads the named branch's log" '"command":"pytest tests/"' "$out"
+out=$(cd "$d23" && "$LEDGER" evidence-list)
+check "evidence-list with no --branch still reads the current (different, empty) branch" "" "$out"
+
+# --- evidence-list validates unknown flags ---
+d24=$(sandbox)
+err=$(cd "$d24" && "$LEDGER" evidence-list --bogus x 2>&1 1>/dev/null; echo "rc=$?")
+contains "evidence-list rejects an unknown flag" "unknown arg" "$err"
+contains "evidence-list unknown-flag exits 2" "rc=2" "$err"
+
+# --- evidence-list from a linked worktree reads the MAIN root evidence file
+# (same anchoring evidence-append already proved above, from the reader side —
+# handback-skill's pre-mortem item 1: a divergent slug/anchor here would
+# silently assemble a manifest from the wrong branch's log, or an empty one,
+# while a populated log exists) ---
+out=$(cd "$d21/.studious/worktrees/e/s" && "$LEDGER" evidence-list)
+check "evidence-list from a linked worktree reads the MAIN root evidence file" \
+  "$(cat "$d21/.studious/evidence/epic-e--s.jsonl")" "$out"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi
