@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flight Deck</title>
+<!--
+  Flight Deck — bin/board-server's GET / response.
+
+  Self-contained by construction: no external stylesheet, font, script, or
+  image anywhere in this document — every rule lives in the <style> block
+  below, every behavior in the inlined <script> block near the end (its
+  body is substituted in verbatim from assets/board-ui/app.js by
+  bin/board-server's render_page(); see that file for the actual logic and
+  tests/js/test_board_ui_app.js for its test coverage). This file itself
+  holds only markup and presentation, hand-authored, no build step.
+-->
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --text: #1b1e23;
+    --text-dim: #545b66;
+    --border: #c7ccd4;
+    --focus: #0b5fff;
+    --amber: #7a4b00;
+    --amber-bg: #fff1d6;
+    --green: #14532d;
+    --green-bg: #e5f6ea;
+    --lamp-pass: #14532d;
+    --lamp-fix: #7a4b00;
+    --lamp-unrun: #6b7280;
+    --caution-bg: #d64545;
+    --caution-text: #ffffff;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --surface: #1d2026;
+      --text: #eef0f3;
+      --text-dim: #a7adb8;
+      --border: #383e48;
+      --focus: #6ea8ff;
+      --amber: #ffcf7a;
+      --amber-bg: #3a2a05;
+      --green: #86e0a4;
+      --green-bg: #0f2c19;
+      --lamp-pass: #86e0a4;
+      --lamp-fix: #ffcf7a;
+      --lamp-unrun: #8b93a1;
+      --caution-bg: #ff6b6b;
+      --caution-text: #1b1e23;
+    }
+  }
+
+  /* Explicit override wins over the media query in either direction —
+     set by the theme toggle button (see app.js's toggleTheme()). */
+  :root[data-theme="light"] {
+    --bg: #f4f5f7; --surface: #ffffff; --text: #1b1e23; --text-dim: #545b66;
+    --border: #c7ccd4; --focus: #0b5fff; --amber: #7a4b00; --amber-bg: #fff1d6;
+    --green: #14532d; --green-bg: #e5f6ea; --lamp-pass: #14532d; --lamp-fix: #7a4b00;
+    --lamp-unrun: #6b7280; --caution-bg: #d64545; --caution-text: #ffffff;
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161a; --surface: #1d2026; --text: #eef0f3; --text-dim: #a7adb8;
+    --border: #383e48; --focus: #6ea8ff; --amber: #ffcf7a; --amber-bg: #3a2a05;
+    --green: #86e0a4; --green-bg: #0f2c19; --lamp-pass: #86e0a4; --lamp-fix: #ffcf7a;
+    --lamp-unrun: #8b93a1; --caution-bg: #ff6b6b; --caution-text: #1b1e23;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  a, button, input { font: inherit; color: inherit; }
+
+  :focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+  }
+  header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
+  #epic-title { color: var(--text-dim); font-weight: 400; }
+  #conn-status { margin-left: auto; color: var(--text-dim); font-size: 0.85rem; }
+
+  #theme-toggle {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 6px;
+    padding: 0.35rem 0.6rem;
+    cursor: pointer;
+  }
+
+  #master-caution {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    background: var(--surface);
+    color: var(--text-dim);
+  }
+  #master-caution.active {
+    background: var(--caution-bg);
+    color: var(--caution-text);
+    border-color: var(--caution-bg);
+  }
+  #master-caution.blinking {
+    animation: mc-blink 1s steps(1, end) infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #master-caution.blinking {
+      animation: none;
+      /* Meaning (active + unacked) is carried in the button's own text
+         ("acknowledge" vs "acknowledged") and aria-pressed regardless of
+         whether this highlight animates. */
+      box-shadow: 0 0 0 3px var(--caution-bg) inset;
+    }
+  }
+  @keyframes mc-blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0.55; }
+  }
+  #master-caution:disabled { cursor: default; opacity: 0.6; }
+
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+    gap: 1rem;
+    padding: 1rem;
+    align-items: start;
+  }
+  @media (max-width: 780px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  section.panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.85rem;
+  }
+  section.panel > h2 {
+    margin: 0 0 0.6rem 0;
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  #gauges {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .gauge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.6rem 0.5rem;
+    cursor: pointer;
+    text-align: center;
+  }
+  .gauge:hover { border-color: var(--focus); }
+
+  .dial { width: 64px; height: 64px; }
+  .dial-ring { fill: none; stroke: var(--border); stroke-width: 3; }
+  .dial-wedge { fill: var(--amber); opacity: 0.85; }
+  @media (prefers-reduced-motion: no-preference) {
+    .dial-wedge { transition: d 0.25s ease; }
+  }
+
+  .gauge-label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
+  }
+  .gauge-status {
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .gauge-status.status-parked { color: var(--amber); font-weight: 700; }
+  .gauge-status.status-landed { color: var(--green); font-weight: 700; }
+  .gauge-status.status-blocked-dead { color: var(--amber); font-weight: 700; }
+
+  .lamps {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.25rem;
+    font-size: 0.68rem;
+  }
+  .lamp {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.1rem 0.3rem;
+    white-space: nowrap;
+  }
+  .lamp-pass { color: var(--lamp-pass); }
+  .lamp-fix { color: var(--lamp-fix); }
+  .lamp-unrun { color: var(--lamp-unrun); }
+
+  #cas-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+  }
+  #cas-list li {
+    border-radius: 6px;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--border);
+  }
+  .cas-amber { background: var(--amber-bg); color: var(--amber); font-weight: 600; }
+  .cas-green { background: var(--green-bg); color: var(--green); }
+  .cas-empty { color: var(--text-dim); font-style: italic; }
+
+  dialog#drawer {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0;
+    width: min(560px, 92vw);
+    color: var(--text);
+    background: var(--surface);
+  }
+  dialog#drawer::backdrop { background: rgba(0, 0, 0, 0.45); }
+  .drawer-inner { padding: 1rem 1.1rem; }
+  .drawer-inner h2 { margin: 0 0 0.6rem 0; }
+  .drawer-inner h3 {
+    margin: 0.9rem 0 0.35rem 0;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  #drawer-trail { margin: 0; padding-left: 1.1rem; }
+  #drawer-worktree {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
+  }
+  .command-row { display: flex; gap: 0.4rem; }
+  #drawer-command {
+    flex: 1;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.82rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+  }
+  #drawer-copy, #drawer-close {
+    border: 1px solid var(--border);
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 0.4rem 0.7rem;
+    cursor: pointer;
+  }
+  #copy-status { color: var(--text-dim); font-size: 0.8rem; min-height: 1.2em; margin-top: 0.3rem; }
+  .drawer-footer { margin-top: 1rem; display: flex; justify-content: flex-end; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Flight Deck</h1>
+  <span id="epic-title">loading…</span>
+  <button type="button" id="master-caution" aria-pressed="false" disabled>MASTER CAUTION</button>
+  <button type="button" id="theme-toggle" aria-label="Toggle light/dark theme">Theme</button>
+  <span id="conn-status" role="status"></span>
+</header>
+
+<main>
+  <section class="panel" aria-labelledby="gauges-heading">
+    <h2 id="gauges-heading">Instruments</h2>
+    <div id="gauges"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="cas-heading">
+    <h2 id="cas-heading">CAS messages</h2>
+    <ul id="cas-list" aria-live="polite"></ul>
+  </section>
+</main>
+
+<dialog id="drawer" aria-labelledby="drawer-title">
+  <div class="drawer-inner">
+    <h2 id="drawer-title">Story</h2>
+
+    <h3>Verdict trail</h3>
+    <ol id="drawer-trail"></ol>
+
+    <h3>Worktree</h3>
+    <p id="drawer-worktree"></p>
+
+    <h3>Resolution command</h3>
+    <div class="command-row">
+      <input id="drawer-command" type="text" readonly aria-label="Copy-able resolution command">
+      <button type="button" id="drawer-copy">Copy</button>
+    </div>
+    <div id="copy-status" role="status"></div>
+
+    <div class="drawer-footer">
+      <button type="button" id="drawer-close">Close</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+__BOARD_UI_APP_JS__
+</script>
+</body>
+</html>
