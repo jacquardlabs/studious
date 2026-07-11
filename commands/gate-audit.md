@@ -5,7 +5,7 @@ allowed-tools: Read, Glob, Grep, Bash, Task
 
 # Audit gate — all auditors
 
-Run every auditor in parallel against the current branch. This combines the backend audit suite, frontend audit suite, accessibility checks, and pre-mortem verification into a single pass.
+Run every auditor in parallel against the current branch. This combines the backend audit suite, frontend audit suite, accessibility checks, infrastructure and operability checks, and pre-mortem verification into a single pass.
 
 Read CLAUDE.md, PRODUCT.md, and DESIGN.md first.
 

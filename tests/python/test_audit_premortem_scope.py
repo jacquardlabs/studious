@@ -144,7 +144,7 @@ def test_auditors_constant_and_dispatch_mechanics_are_unchanged() -> None:
     )
     assert join_reports_match, "joinReports function not found"
     assert "premortem" not in join_reports_match.group(0).lower(), (
-        "joinReports' missing-lane detection must stay scoped to the 6 AUDITORS "
+        "joinReports' missing-lane detection must stay scoped to the AUDITORS "
         "lanes, unchanged by this story"
     )
 
