@@ -100,6 +100,34 @@ test('fixBudgetFraction: never exceeds 1 even if retries somehow exceed the cap'
 });
 
 // ---------------------------------------------------------------------------
+// activeGate — design/build are worker phases, never verdict-bearing gates;
+// scanning must skip them or a story strands at 'design' forever, since
+// design can structurally never carry a proceed verdict (audit finding,
+// board-ui story: the fix-budget wedge and DSN/BLD lamps stuck at "not yet
+// run" past design/build because the pre-fix scan treated them as candidates)
+// ---------------------------------------------------------------------------
+
+test('activeGate: skips design/build, lands on the first real gate with no proceed verdict', () => {
+  const stories = { x: { gates: ['design', 'build', 'design-review', 'audit', 'acceptance'] } };
+  assert.equal(app.activeGate('x', stories, []), 'design-review');
+});
+
+test('activeGate: with every verdict-bearing gate proceeded, lands on the last gate — not stuck at design', () => {
+  const stories = { x: { gates: ['design', 'build', 'design-review', 'audit', 'acceptance'] } };
+  const events = [
+    { kind: 'gate-verdict', story: 'x', gate: 'design-review', verdict: 'PROCEED TO PLAN' },
+    { kind: 'gate-verdict', story: 'x', gate: 'audit', verdict: 'PASS' },
+    { kind: 'gate-verdict', story: 'x', gate: 'acceptance', verdict: 'SHIP' },
+  ];
+  assert.equal(app.activeGate('x', stories, events), 'acceptance');
+});
+
+test('activeGate: a gates array of only worker phases falls back to the last entry', () => {
+  const stories = { x: { gates: ['design', 'build'] } };
+  assert.equal(app.activeGate('x', stories, []), 'build');
+});
+
+// ---------------------------------------------------------------------------
 // latestVerdict / hasPriorRetryBump / buildVerdictTrail — fresh-eyes
 // ---------------------------------------------------------------------------
 
