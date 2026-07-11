@@ -44,6 +44,21 @@ var GATE_ABBREV = {
   acceptance: 'ACC',
 };
 
+// Mirrors workflows/epic-driver.js's own `WORKER_PHASES` constant. These two
+// entries of a story's `gates` array are worker phases, not verdict-bearing
+// gates: the driver dispatches them as a plain worker prompt, never a
+// `gatePrompt`, so they never call `gate-ledger record --gate ...` and can
+// never appear as a `gate-verdict` event's `gate` (reference/events-format.md
+// — a `design`/`build` completion is a `phase` or `step` event instead) and
+// never as a key in `retries` (only `--bump-retry <gate>` on an actual gate
+// touches that map; a failed worker phase parks the story outright — see
+// `park()`'s `WORKER_PHASES.includes` branch in the driver — it is never
+// retried). `activeGate` below must skip them: without this, a story past
+// design/build with every real gate proceeding would still read as "stuck
+// at design" forever, since `design` can structurally never carry a proceed
+// verdict.
+var WORKER_PHASES = makeSet(['design', 'build']);
+
 var DEFAULT_GATES = ['design', 'design-review', 'build', 'audit', 'acceptance'];
 
 // Bound the advisory (green) CAS tier so a long green stretch never buries
@@ -150,13 +165,20 @@ function fixBudgetFraction(story, gate, maxFixCycles) {
 }
 
 // The gate this story is currently working through, for wedge placement:
-// the first gate in its own `gates` order with no proceed verdict yet, or
-// the last gate if every gate has already proceeded.
+// the first verdict-bearing gate in its own `gates` order with no proceed
+// verdict yet, or the last gate if every verdict-bearing gate has already
+// proceeded. Worker-phase entries (`design`/`build`, see WORKER_PHASES
+// above) are skipped while scanning — they can never carry a proceed
+// verdict, so treating them as candidates would strand every story at
+// `design` forever — but one is still returned as the fallback if `gates`
+// somehow contains nothing else (degrades to that phase's own "not yet
+// run" lamp rather than throwing).
 function activeGate(storySlug, stories, events) {
   var all = stories || {};
   var story = all[storySlug] || {};
   var gates = story.gates && story.gates.length ? story.gates : DEFAULT_GATES;
   for (var i = 0; i < gates.length; i++) {
+    if (WORKER_PHASES.has(gates[i])) continue;
     var v = latestVerdict(storySlug, gates[i], events);
     if (!(v && PROCEED_VERDICTS.has(v))) return gates[i];
   }
@@ -488,6 +510,7 @@ function render() {
   renderGauges();
   renderCas();
   renderMasterCaution();
+  renderDrawer(); // no-op (returns early) when the drawer is closed — see renderDrawer's own guard
 }
 
 var drawerStorySlug = null;
