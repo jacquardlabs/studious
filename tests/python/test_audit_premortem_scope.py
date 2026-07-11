@@ -111,7 +111,7 @@ def test_audit_fan_in_forbids_the_finding_and_the_verdict_penalty() -> None:
     )
     assert "depress the verdict" in lowered, (
         "auditFanIn does not forbid letting the absent pre-mortem report depress "
-        "the verdict below what the 6 audited lanes support"
+        "the verdict below what the audited lanes support"
     )
 
 
