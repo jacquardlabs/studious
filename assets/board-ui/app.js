@@ -200,6 +200,41 @@ function latestVerdict(storySlug, gate, events) {
   return found ? found.verdict : null;
 }
 
+// Worker-phase completion for design/build (WORKER_PHASES above) — these two
+// entries of a story's `gates` array never emit a `gate-verdict` event (the
+// driver dispatches them as a plain worker prompt, never a gate), so
+// `latestVerdict` is null for them by construction and can never drive their
+// lamp (audit finding, board-ui epic: gaugeButton's lamp loop treated every
+// entry as gate-verdict-only, so DSN/BLD read "not yet run" forever). Their
+// completion is still durable evidence, just shaped differently
+// (reference/events-format.md): the design phase's own `work-set
+// --design-doc ... --phase <next>` call is the ONLY production call site
+// that ever appends a `phase`-kind event for a story, so one existing is
+// itself proof design's work landed; the build phase's own `work-log --step
+// build --outcome DONE --phase <next>` call is the only call site that ever
+// appends a `step`-kind event with `step === 'build'`. No verdict token is
+// fabricated for either — worker phases carry no PASS/FAIL vocabulary of
+// their own (reference/gate-vocabulary.md is gate-only) — this returns a
+// plain boolean, done or not.
+function workerPhaseDone(storySlug, phase, events) {
+  var list = events || [];
+  if (phase === 'design') {
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i];
+      if (e && e.kind === 'phase' && e.story === storySlug) return true;
+    }
+    return false;
+  }
+  if (phase === 'build') {
+    for (var j = 0; j < list.length; j++) {
+      var e2 = list[j];
+      if (e2 && e2.kind === 'step' && e2.story === storySlug && e2.step === 'build') return true;
+    }
+    return false;
+  }
+  return false;
+}
+
 // True when some `story`-kind event bumping this exact (story, gate)'s
 // retry counter appears earlier in the already-sorted event feed than the
 // verdict at `uptoIndex` — the fresh-eyes derivation (design doc's "Per-
@@ -470,6 +505,12 @@ function gaugeButton(storySlug) {
   var gates = story.gates && story.gates.length ? story.gates : DEFAULT_GATES;
 
   var lamps = el('div', { class: 'lamps' }, gates.map(function (g) {
+    if (WORKER_PHASES.has(g)) {
+      var done = workerPhaseDone(storySlug, g, flightDeck.snapshot.events);
+      var doneSymbol = done ? '●' : '○'; // filled / empty — worker phases have no "fix" (half) state: a failed one parks outright, never retries in place
+      var doneText = abbrevGate(g) + ' ' + doneSymbol + ' ' + (done ? 'done' : 'not yet run');
+      return el('span', { class: 'lamp lamp-' + (done ? 'pass' : 'unrun'), text: doneText });
+    }
     var verdict = latestVerdict(storySlug, g, flightDeck.snapshot.events);
     var on = !!verdict && PROCEED_VERDICTS.has(verdict);
     var symbol = verdict ? (on ? '●' : '◐') : '○'; // filled / half / empty — form, not hue
@@ -648,6 +689,7 @@ if (typeof module !== 'undefined' && module.exports) {
     wedgePathD: wedgePathD,
     activeGate: activeGate,
     latestVerdict: latestVerdict,
+    workerPhaseDone: workerPhaseDone,
     hasPriorRetryBump: hasPriorRetryBump,
     buildVerdictTrail: buildVerdictTrail,
     parkedSlugs: parkedSlugs,

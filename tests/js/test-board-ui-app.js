@@ -160,6 +160,48 @@ test('activeGate: a gates array of only worker phases falls back to the last ent
 });
 
 // ---------------------------------------------------------------------------
+// workerPhaseDone — design/build never emit a gate-verdict event, so their
+// lamp must be driven by phase/step events instead, never latestVerdict
+// (audit finding, board-ui epic: DSN/BLD lamps rendered "not yet run"
+// permanently for every default-profile story because gaugeButton's lamp
+// loop checked gate-verdict events for every gates[] entry, including the
+// two worker phases that structurally never carry one)
+// ---------------------------------------------------------------------------
+
+test('workerPhaseDone: design is not done with no events yet', () => {
+  assert.equal(app.workerPhaseDone('x', 'design', []), false);
+});
+
+test('workerPhaseDone: design is done once a phase event exists for the story', () => {
+  const events = [{ kind: 'phase', story: 'x', phase: 'design-review' }];
+  assert.equal(app.workerPhaseDone('x', 'design', events), true);
+});
+
+test('workerPhaseDone: a phase event for another story does not mark this one done', () => {
+  const events = [{ kind: 'phase', story: 'other', phase: 'design-review' }];
+  assert.equal(app.workerPhaseDone('x', 'design', events), false);
+});
+
+test('workerPhaseDone: build is not done with no events yet', () => {
+  assert.equal(app.workerPhaseDone('x', 'build', []), false);
+});
+
+test('workerPhaseDone: build is done once a step event with step "build" exists', () => {
+  const events = [{ kind: 'step', story: 'x', step: 'build', outcome: 'DONE', phase: 'audit', sha: 'abc123' }];
+  assert.equal(app.workerPhaseDone('x', 'build', events), true);
+});
+
+test('workerPhaseDone: a step event for a different step does not mark build done', () => {
+  const events = [{ kind: 'step', story: 'x', step: 'audit', outcome: 'PASS' }];
+  assert.equal(app.workerPhaseDone('x', 'build', events), false);
+});
+
+test('workerPhaseDone: a build step event for another story does not mark this one done', () => {
+  const events = [{ kind: 'step', story: 'other', step: 'build', outcome: 'DONE' }];
+  assert.equal(app.workerPhaseDone('x', 'build', events), false);
+});
+
+// ---------------------------------------------------------------------------
 // latestVerdict / hasPriorRetryBump / buildVerdictTrail — fresh-eyes
 // ---------------------------------------------------------------------------
 
