@@ -143,11 +143,27 @@ populate `agent_id` — is exactly what issue #97's own dogfood plan (studyengin
 then #209) is the intended real-world validation loop for; a follow-up should update
 this section, not silently leave it stale, once that run produces a real answer.
 
+## Reading the log: `evidence-list`
+
+`bin/gate-ledger evidence-list [--branch B]` is the one read verb for this store,
+added by `handback-skill` (`commands/handback.md`). It resolves the branch's
+`.jsonl` path through the same `evidence_dir()`/`branch_slug()` functions
+`evidence-append` already writes through and prints the file verbatim — nothing if
+it's absent — so no caller re-derives repo-root/slug anchoring on the read side
+either. `gates-cite-evidence`, when it lands, reuses this verb rather than adding a
+second reader; see "Consumers that must stay in sync" below.
+
 ## Consumers that must stay in sync
 
 - `tests/test_gate_ledger.sh`'s `evidence-append` tests assert the exact key set and
   ordering above — update both together.
 - `tests/test_evidence_capture.sh` asserts the hook produces this shape end to end,
   including the `PostToolUse`/`PostToolUseFailure` split.
-- A future `gates-cite-evidence` or `handback-skill` story reads this file before
-  reading the log itself.
+- `tests/test_gate_ledger.sh`'s `evidence-list` tests assert it reads through the
+  same anchoring `evidence-append` writes through, including from a linked
+  worktree — update both together.
+- `commands/handback.md` reads this file's pinned shape before assembling its
+  manifest table (timestamp, command, `predicate.result`, origin, `outputDigest`
+  only — never any other field).
+- A future `gates-cite-evidence` story reads the log via `evidence-list`, the same
+  as `/handback` — not a second, independently-derived reader.

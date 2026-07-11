@@ -10,8 +10,8 @@
 #   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /work-through (written via epic-set / epic-story-set; read via epic-get / epic-list).
 #   .studious/evidence/<branch-slug>.jsonl — append-only, harness-captured record
 #     of verification commands run while a story is armed (one JSON object per
-#     line; written via `evidence-append` by hooks/evidence-capture.sh; no read
-#     verb yet — see reference/evidence-format.md).
+#     line; written via `evidence-append` by hooks/evidence-capture.sh; read via
+#     `evidence-list` — see reference/evidence-format.md).
 # All four stores are anchored to the MAIN working tree (see repo_root), so
 # agents running in linked worktrees (e.g. /work-through story worktrees)
 # share one .studious/ store instead of fragmenting it per worktree.
@@ -618,6 +618,25 @@ cmd_evidence_append() { # append-only: one jq -nc object per call, >> the branch
                     configuration: [{name: $command}]}}' >> "$file"
 }
 
+cmd_evidence_list() { # optional --branch B: print that branch's evidence .jsonl verbatim, nothing if absent
+  local branch=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --branch) branch="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  # Same evidence_dir()/branch_slug() anchoring evidence-append already uses,
+  # so a caller (e.g. /handback) never re-derives repo-root or slug logic
+  # itself — one place this store's location lives, reused by both the
+  # writer and this reader. Mirrors cmd_gate_get's shape: resolve one
+  # branch's file, print it verbatim, nothing if it doesn't exist yet.
+  local slug; slug=$(branch_slug "$branch")
+  local file; file="$(evidence_dir)/$slug.jsonl"
+  [ -f "$file" ] || return 0
+  cat "$file"
+}
+
 case "${1:-}" in
   record)          shift; cmd_record "$@" ;;
   status)          shift; cmd_status "$@" ;;
@@ -631,6 +650,7 @@ case "${1:-}" in
   epic-story-set)  shift; cmd_epic_story_set "$@" ;;
   epic-list)       shift; cmd_epic_list "$@" ;;
   evidence-append) shift; cmd_evidence_append "$@" ;;
+  evidence-list)   shift; cmd_evidence_list "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | gc}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] | gc}" >&2; exit 2 ;;
 esac
