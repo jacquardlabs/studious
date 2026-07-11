@@ -210,12 +210,20 @@ function latestVerdict(storySlug, gate, events) {
 // (reference/events-format.md): the design phase's own `work-set
 // --design-doc ... --phase <next>` call is the ONLY production call site
 // that ever appends a `phase`-kind event for a story, so one existing is
-// itself proof design's work landed; the build phase's own `work-log --step
-// build --outcome DONE --phase <next>` call is the only call site that ever
-// appends a `step`-kind event with `step === 'build'`. No verdict token is
-// fabricated for either — worker phases carry no PASS/FAIL vocabulary of
-// their own (reference/gate-vocabulary.md is gate-only) — this returns a
-// plain boolean, done or not.
+// itself proof design's work landed. The build phase's own `work-log --step
+// build --outcome DONE --phase <next>` call is NOT the only call site that
+// appends a `step`-kind event with `step === 'build'`, though: a human
+// recovering a parked story via `/work-on` (a documented first-class path,
+// commands/work-on.md) logs `work-log --step build --outcome HANDED-OFF`
+// before any code is written, the same story-armed instant a build agent
+// would (audit finding, board-ui epic: without the outcome guard below, that
+// HANDED-OFF step flips the BLD lamp to done before the takeover build even
+// starts — the false-positive twin of the DSN/BLD-stuck-forever bug this
+// same function was written to fix). No verdict token is fabricated for
+// either phase — worker phases carry no PASS/FAIL vocabulary of their own
+// (reference/gate-vocabulary.md is gate-only) — this returns a plain
+// boolean, done or not, and for build that means the specific 'DONE'
+// outcome, not merely a same-named step's existence.
 function workerPhaseDone(storySlug, phase, events) {
   var list = events || [];
   if (phase === 'design') {
@@ -228,7 +236,7 @@ function workerPhaseDone(storySlug, phase, events) {
   if (phase === 'build') {
     for (var j = 0; j < list.length; j++) {
       var e2 = list[j];
-      if (e2 && e2.kind === 'step' && e2.story === storySlug && e2.step === 'build') return true;
+      if (e2 && e2.kind === 'step' && e2.story === storySlug && e2.step === 'build' && e2.outcome === 'DONE') return true;
     }
     return false;
   }

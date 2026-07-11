@@ -201,6 +201,19 @@ test('workerPhaseDone: a build step event for another story does not mark this o
   assert.equal(app.workerPhaseDone('x', 'build', events), false);
 });
 
+test('workerPhaseDone: a /work-on takeover HANDED-OFF step does not mark build done (false-positive twin)', () => {
+  const events = [{ kind: 'step', story: 'x', step: 'build', outcome: 'HANDED-OFF', phase: 'build' }];
+  assert.equal(app.workerPhaseDone('x', 'build', events), false);
+});
+
+test('workerPhaseDone: a HANDED-OFF takeover followed by a real DONE still marks build done', () => {
+  const events = [
+    { kind: 'step', story: 'x', step: 'build', outcome: 'HANDED-OFF', phase: 'build' },
+    { kind: 'step', story: 'x', step: 'build', outcome: 'DONE', phase: 'audit' },
+  ];
+  assert.equal(app.workerPhaseDone('x', 'build', events), true);
+});
+
 // ---------------------------------------------------------------------------
 // latestVerdict / hasPriorRetryBump / buildVerdictTrail — fresh-eyes
 // ---------------------------------------------------------------------------
