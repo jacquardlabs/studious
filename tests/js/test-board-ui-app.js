@@ -100,6 +100,38 @@ test('fixBudgetFraction: never exceeds 1 even if retries somehow exceed the cap'
 });
 
 // ---------------------------------------------------------------------------
+// wedgePathD — the fix-budget wedge's SVG arc must never let its endpoint
+// collapse onto its own start point; an SVG elliptical arc with identical
+// start/end is a documented zero-length no-op (SVG 1.1 §9.5.1), so at
+// fraction===1 (fix budget exhausted, the state this gauge exists to
+// surface) a literal 360-degree sweep silently dropped the wedge and left
+// just a bare radius line (audit finding, board-ui epic)
+// ---------------------------------------------------------------------------
+
+function parseWedgeArc(d) {
+  var m = /^M20,20 L20,3 A17,17 0 (\d) 1 (-?[\d.]+),(-?[\d.]+) Z$/.exec(d);
+  assert.ok(m, 'unexpected wedge path shape: ' + d);
+  return { large: Number(m[1]), x: Number(m[2]), y: Number(m[3]) };
+}
+
+test('wedgePathD: at fraction 1 the arc endpoint does not collapse onto the arc\'s own start point (20,3)', () => {
+  const arc = parseWedgeArc(app.wedgePathD(1));
+  assert.notEqual(arc.x + ',' + arc.y, '20,3');
+});
+
+test('wedgePathD: at fraction 1 the endpoint still lands within a hair of true 360deg — visually a full circle', () => {
+  const arc = parseWedgeArc(app.wedgePathD(1));
+  assert.equal(arc.large, 1); // large-arc-flag: still sweeps the long way around
+  assert.ok(Math.abs(arc.x - 20) < 0.01);
+  assert.ok(Math.abs(arc.y - 3) < 0.01);
+});
+
+test('wedgePathD: fraction 0.5 sweeps an exact half circle, unaffected by the near-360 cap', () => {
+  const arc = parseWedgeArc(app.wedgePathD(0.5));
+  assert.deepEqual(arc, { large: 0, x: 20, y: 37 });
+});
+
+// ---------------------------------------------------------------------------
 // activeGate — design/build are worker phases, never verdict-bearing gates;
 // scanning must skip them or a story strands at 'design' forever, since
 // design can structurally never carry a proceed verdict (audit finding,

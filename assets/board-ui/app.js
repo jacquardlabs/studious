@@ -377,6 +377,30 @@ function buildResolutionCommand(epicSlug, storySlug, story, maxFixCycles) {
   return cmd;
 }
 
+// Arc-endpoint math for the fix-budget wedge — dialSvg's functional core,
+// pulled out so this specific degenerate case is unit-testable without a
+// DOM shim (the "DOM wiring" note below still holds for dialSvg itself;
+// this piece has no DOM in it at all).
+//
+// SVG's elliptical-arc command degenerates to a zero-length no-op when its
+// endpoint is identical to its start point (SVG 1.1 §9.5.1, "Zero-length
+// path segments"). The wedge's arc always starts at the dial's 12 o'clock,
+// (20,3); at fraction===1 (retries[gate] >= MAX_FIX_CYCLES, the "fix budget
+// exhausted" state this gauge exists to surface) a literal 360-degree sweep
+// lands the endpoint back on that exact start point, so the browser drops
+// the arc silently and the exhausted-budget gauge renders a bare radius
+// line instead of a full wedge. The sweep is capped just short of a full
+// revolution (359.999deg) — visually indistinguishable from 360 but
+// numerically distinct, so start and end never coincide.
+function wedgePathD(fraction) {
+  var deg = Math.min(Math.round(fraction * 360), 359.999);
+  var large = deg > 180 ? 1 : 0;
+  var rad = (deg - 90) * (Math.PI / 180);
+  var x = 20 + 17 * Math.cos(rad);
+  var y = 20 + 17 * Math.sin(rad);
+  return 'M20,20 L20,3 A17,17 0 ' + large + ' 1 ' + x + ',' + y + ' Z';
+}
+
 // ---------------------------------------------------------------------------
 // DOM wiring — everything below touches `document`/`window`/`fetch`/
 // `EventSource`/`navigator`. Not unit-tested directly (that would need a DOM
@@ -420,7 +444,6 @@ function el(tag, attrs, children) {
 }
 
 function dialSvg(fraction, code) {
-  var deg = Math.round(fraction * 360);
   var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 40 40');
   svg.setAttribute('class', 'dial dial-' + code);
@@ -431,11 +454,7 @@ function dialSvg(fraction, code) {
   svg.appendChild(ring);
   if (fraction > 0) {
     var wedge = document.createElementNS(svg.namespaceURI, 'path');
-    var large = deg > 180 ? 1 : 0;
-    var rad = (deg - 90) * (Math.PI / 180);
-    var x = 20 + 17 * Math.cos(rad);
-    var y = 20 + 17 * Math.sin(rad);
-    wedge.setAttribute('d', 'M20,20 L20,3 A17,17 0 ' + large + ' 1 ' + x + ',' + y + ' Z');
+    wedge.setAttribute('d', wedgePathD(fraction));
     wedge.setAttribute('class', 'dial-wedge');
     svg.appendChild(wedge);
   }
@@ -626,6 +645,7 @@ if (typeof module !== 'undefined' && module.exports) {
     classifyGaugeState: classifyGaugeState,
     gaugeAriaLabel: gaugeAriaLabel,
     fixBudgetFraction: fixBudgetFraction,
+    wedgePathD: wedgePathD,
     activeGate: activeGate,
     latestVerdict: latestVerdict,
     hasPriorRetryBump: hasPriorRetryBump,
