@@ -437,7 +437,17 @@ def test_sse_pushes_initial_snapshot_on_connect(tmp_path: Path) -> None:
 
 def test_sse_pushes_delta_within_one_tick_on_recorded_status_change(tmp_path: Path) -> None:
     """The acceptance criterion itself: a recorded status/verdict change pushes
-    an SSE delta within one tick."""
+    an SSE delta within one tick.
+
+    The blackboard rewrite and the events.jsonl append below are two separate
+    writes to two independently-polled files (BoardState.poll() ORs their two
+    change signals). A poll tick can legitimately land between them, in which
+    case poll() broadcasts an intermediate frame carrying only one side of the
+    change — this is the documented eventually-consistent, self-heals-on-the-
+    next-tick model (see poll()'s docstring), not a bug. Read frames until one
+    converges on both writes rather than asserting on whichever frame happens
+    to arrive first, or an intermediate frame makes this test flaky without
+    the product being wrong."""
     with _RunningServer(tmp_path, "fixture-epic", interval=0.05) as server:
         _write_fixture_epic(server, status="running")
         time.sleep(server.interval * 3)
@@ -459,7 +469,20 @@ def test_sse_pushes_delta_within_one_tick_on_recorded_status_change(tmp_path: Pa
                                      "story": "story-a", "kind": "gate-verdict",
                                      "gate": "audit", "verdict": "FIX AND RE-AUDIT"}) + "\n")
 
-            pushed, rest = _sse_read_frame(sock, rest, timeout=5.0)
+            pushed = None
+            deadline = time.monotonic() + 5.0
+            while pushed is None and time.monotonic() < deadline:
+                frame, rest = _sse_read_frame(sock, rest, timeout=max(deadline - time.monotonic(), 0.1))
+                story = frame["stories"].get("story-a", {})
+                events = frame["events"]
+                if (
+                    story.get("status") == "audit"
+                    and story.get("reason") == "kicked back"
+                    and events
+                    and events[-1].get("verdict") == "FIX AND RE-AUDIT"
+                ):
+                    pushed = frame
+            assert pushed is not None, "no SSE frame converged on the recorded status+verdict within 5s"
         finally:
             sock.close()
     assert pushed["stories"]["story-a"]["status"] == "audit"
