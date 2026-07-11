@@ -1,18 +1,27 @@
 #!/usr/bin/env bash
 # gate-ledger — read/write Studious's local, gitignored .studious/ state.
 #
-# Four stores in the consuming project:
+# Five stores in the consuming project:
 #   .studious/gates/<branch-slug>.json  — per-branch gate verdicts. Written by the
 #     gate commands (via `record`); read by the PR-time hook (via `status`) and by
 #     /work-on's evidence check (via `gate-get`) — never read as a raw file by callers.
 #   .studious/work/<feature-slug>.json  — per-feature flow position for /work-on
 #     (written via `work-set` / `work-log`; read via `work-get` / `work-list`).
 #   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /work-through (written via epic-set / epic-story-set; read via epic-get / epic-list).
+#   .studious/epics/<epic-slug>.events.jsonl — append-only status-transition and
+#     verdict-recording trail for stories running under that epic (one JSON object
+#     per line, appended by the shared `append_event()` helper from `record`,
+#     `epic-set`, `epic-story-set`, `work-set`, and `work-log` — see
+#     reference/events-format.md). Epic/story attribution is derived from the
+#     branch name or the epic-qualified `--slug` convention those verbs already
+#     use, never a new flag. Best-effort: a failure appending a line signals on
+#     stderr but never fails the calling verb's own exit code — no reader exists
+#     yet (a later, dependent story is the first).
 #   .studious/evidence/<branch-slug>.jsonl — append-only, harness-captured record
 #     of verification commands run while a story is armed (one JSON object per
 #     line; written via `evidence-append` by hooks/evidence-capture.sh; read via
 #     `evidence-list` — see reference/evidence-format.md).
-# All four stores are anchored to the MAIN working tree (see repo_root), so
+# All five stores are anchored to the MAIN working tree (see repo_root), so
 # agents running in linked worktrees (e.g. /work-through story worktrees)
 # share one .studious/ store instead of fragmenting it per worktree.
 # Degrades silently when git or jq is unavailable.
@@ -87,6 +96,32 @@ slugify() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-*//; s/-*$//'
 }
 
+epic_context_from_branch() { # branch name -> prints "epicSlug<TAB>storySlug", nothing if not epic-shaped
+  # workflows/epic-driver.js's storyBranch() names the convention: epic/<slug>--<story>
+  # for a story branch, epic/<slug> for the epic's own integration branch. Both halves
+  # were already slugified before the branch was created, so splitting the remainder on
+  # the *first* "--" is unambiguous (see reference/events-format.md).
+  local b="$1" rest
+  case "$b" in
+    epic/*) rest="${b#epic/}" ;;
+    *) return 0 ;;  # no epic/ prefix at all: not an epic-dispatched branch, silent no-op
+  esac
+  case "$rest" in
+    *--*) printf '%s\t%s' "${rest%%--*}" "${rest#*--}" ;;
+    *)    printf '%s\t' "$rest" ;;  # the epic's own integration branch: epic-level event
+  esac
+}
+
+epic_context_from_slug() { # raw (pre-slugify) --slug value -> prints "epicSlug<TAB>storySlug", nothing if not epic-qualified
+  # Must run on the RAW argument, before the caller's own slug=$(slugify "$slug")
+  # reassignment: slugify() collapses "--" to a single "-", which would make this
+  # split a silent, permanent no-op if run after (see reference/events-format.md).
+  case "$1" in
+    *--*) printf '%s\t%s' "${1%%--*}" "${1#*--}" ;;
+    *)    return 0 ;;  # never-epic-qualified /work-on feature slug: silent no-op
+  esac
+}
+
 ensure_gitignore() {
   # Self-heal: keep .studious/ out of the user's git status, even for projects
   # initialized before the ledger existed. Anchored to the main working tree
@@ -133,6 +168,30 @@ json_update() { # file, jq filter, then any --arg name value ... pairs for jq
   return "$rc"
 }
 
+append_event() { # epic, story, kind, jq-object filter for the kind's own fields, then --arg/--argjson pairs for it
+  # The append-only counterpart to json_update()'s role: one jq -nc object per
+  # call, >> the epic's shared .events.jsonl — same precedent as
+  # cmd_evidence_append, no read-modify-write. Best-effort and silent on the
+  # happy path: called only after the caller's own primary snapshot write has
+  # already succeeded, and a failure here signals on stderr but always returns
+  # 0 — this is a secondary, additive log, never a precondition for the
+  # primary write it follows (see reference/events-format.md).
+  local epic="$1" story="$2" kind="$3" fields="$4"
+  shift 4
+  if ! have jq || ! have git; then return 0; fi
+  local dir; dir=$(epic_dir)
+  mkdir -p "$dir" 2>/dev/null
+  local file="$dir/$epic.events.jsonl"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  if ! jq -nc "$@" \
+      --arg at "$(now_iso)" --arg epic "$epic" --arg story "$story" --arg kind "$kind" \
+      '{at: $at, epic: $epic, story: $story, kind: $kind} + ('"$fields"')' >> "$file" 2>/dev/null
+  then
+    echo "gate-ledger: events-append failed for epic '$epic' (kind $kind) — primary write unaffected" >&2
+  fi
+  return 0
+}
+
 cmd_record() {
   local gate="" verdict=""
   while [ $# -gt 0 ]; do
@@ -157,11 +216,27 @@ cmd_record() {
   local file; file="$dir/$(branch_slug).json"
   [ -f "$file" ] || printf '{"schemaVersion":1,"branch":"","gates":{}}' > "$file"
 
+  local branch sha rc
+  branch="$(branch_name)"
+  sha="$(head_sha)"
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     '.schemaVersion = (.schemaVersion // 1) | .branch = $b | .gates[$g] = {verdict: $v, sha: $s, ranAt: $t}' \
-    --arg b "$(branch_name)" --arg g "$gate" --arg v "$verdict" \
-    --arg s "$(head_sha)" --arg t "$(now_iso)"
+    --arg b "$branch" --arg g "$gate" --arg v "$verdict" \
+    --arg s "$sha" --arg t "$(now_iso)"
+  rc=$?
+
+  if [ "$rc" -eq 0 ]; then
+    local ctx epicSlug storySlug
+    ctx=$(epic_context_from_branch "$branch")
+    if [ -n "$ctx" ]; then
+      IFS=$'\t' read -r epicSlug storySlug <<< "$ctx"
+      # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+      append_event "$epicSlug" "$storySlug" "gate-verdict" '{gate: $gate, verdict: $verdict, sha: $sha}' \
+        --arg gate "$gate" --arg verdict "$verdict" --arg sha "$sha"
+    fi
+  fi
+  return "$rc"
 }
 
 cmd_status() {
@@ -301,6 +376,7 @@ cmd_work_set() {
     return 0
   fi
 
+  local raw_slug="$slug"
   slug=$(slugify "$slug")
   if [ -z "$slug" ]; then
     echo "gate-ledger: --slug reduced to nothing after slugify" >&2
@@ -309,6 +385,7 @@ cmd_work_set() {
 
   ensure_gitignore
   local file; file=$(work_file_init "$slug")
+  local rc
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     '.schemaVersion = (.schemaVersion // 1)
@@ -321,6 +398,18 @@ cmd_work_set() {
      | (if $phase  != "" then .phase     = $phase  else . end)' \
     --arg title "$title" --arg src "$src" --arg branch "$branch" \
     --arg doc "$doc" --arg phase "$phase" --arg t "$(now_iso)"
+  rc=$?
+
+  if [ "$rc" -eq 0 ] && [ -n "$phase" ]; then
+    local ctx epicSlug storySlug
+    ctx=$(epic_context_from_slug "$raw_slug")
+    if [ -n "$ctx" ]; then
+      IFS=$'\t' read -r epicSlug storySlug <<< "$ctx"
+      # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+      append_event "$epicSlug" "$storySlug" "phase" '{phase: $phase}' --arg phase "$phase"
+    fi
+  fi
+  return "$rc"
 }
 
 cmd_work_log() {
@@ -343,6 +432,7 @@ cmd_work_log() {
     return 0
   fi
 
+  local raw_slug="$slug"
   slug=$(slugify "$slug")
   if [ -z "$slug" ]; then
     echo "gate-ledger: --slug reduced to nothing after slugify" >&2
@@ -351,13 +441,29 @@ cmd_work_log() {
 
   ensure_gitignore
   local file; file=$(work_file_init "$slug")
+  local sha rc
+  sha="$(head_sha)"
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     '.history = ((.history // []) + [{step: $step, outcome: $outcome, sha: $s, at: $t}])
      | .updatedAt = $t
      | (if $phase != "" then .phase = $phase else . end)' \
     --arg step "$step" --arg outcome "$outcome" --arg phase "$phase" \
-    --arg s "$(head_sha)" --arg t "$(now_iso)"
+    --arg s "$sha" --arg t "$(now_iso)"
+  rc=$?
+
+  if [ "$rc" -eq 0 ]; then
+    local ctx epicSlug storySlug
+    ctx=$(epic_context_from_slug "$raw_slug")
+    if [ -n "$ctx" ]; then
+      IFS=$'\t' read -r epicSlug storySlug <<< "$ctx"
+      # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+      append_event "$epicSlug" "$storySlug" "step" \
+        '{step: $step, outcome: $outcome} + (if $phase != "" then {phase: $phase} else {} end) + {sha: $sha}' \
+        --arg step "$step" --arg outcome "$outcome" --arg phase "$phase" --arg sha "$sha"
+    fi
+  fi
+  return "$rc"
 }
 
 cmd_work_get() {
@@ -423,6 +529,7 @@ cmd_epic_set() {
 
   ensure_gitignore
   local file; file=$(epic_file_init "$slug")
+  local rc
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     '.schemaVersion = (.schemaVersion // 1)
@@ -437,6 +544,13 @@ cmd_epic_set() {
      | (if $status != "" then .status      = $status else . end)' \
     --arg title "$title" --arg src "$src" --arg goal "$goal" --arg branch "$branch" \
     --arg pm "$premortem" --arg conc "$concurrency" --arg status "$status" --arg t "$(now_iso)"
+  rc=$?
+
+  if [ "$rc" -eq 0 ] && [ -n "$status" ]; then
+    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+    append_event "$slug" "" "epic-status" '{status: $status}' --arg status "$status"
+  fi
+  return "$rc"
 }
 
 cmd_epic_get() {
@@ -498,6 +612,7 @@ cmd_epic_story_set() {
     return 2
   fi
 
+  local rc
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
@@ -516,6 +631,24 @@ cmd_epic_story_set() {
     --arg s "$slug" --arg title "$title" --arg src "$src" --arg criteria "$criteria" \
     --arg deps "$deps" --arg gates "$gates_csv" --arg status "$status" --arg reason "$reason" \
     --arg wt "$worktree" --arg bump "$bump" --arg reset "$reset" --arg t "$(now_iso)"
+  rc=$?
+
+  if [ "$rc" -eq 0 ] && { [ -n "$status" ] || [ -n "$reason" ] || [ -n "$bump" ] || [ -n "$reset" ]; }; then
+    # Both retry counters are read back post-write (the events line always
+    # reflects the file's new state, not a value computed independently of it).
+    local bump_retries="0" reset_retries="0"
+    [ -n "$bump" ]  && bump_retries=$(jq -r --arg s "$slug" --arg g "$bump" '.stories[$s].retries[$g] // 0' "$file")
+    [ -n "$reset" ] && reset_retries=$(jq -r --arg s "$slug" --arg g "$reset" '.stories[$s].retries[$g] // 0' "$file")
+    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+    append_event "$epic" "$slug" "story" \
+      '(if $status != "" then {status: $status} else {} end)
+       + (if $reason != "" then {reason: $reason} else {} end)
+       + (if $bump   != "" then {bumpRetryGate: $bump, retries: ($bumpRetries | tonumber)} else {} end)
+       + (if $reset  != "" then {resetRetryGate: $reset, retries: ($resetRetries | tonumber)} else {} end)' \
+      --arg status "$status" --arg reason "$reason" --arg bump "$bump" --arg reset "$reset" \
+      --arg bumpRetries "$bump_retries" --arg resetRetries "$reset_retries"
+  fi
+  return "$rc"
 }
 
 cmd_epic_list() {

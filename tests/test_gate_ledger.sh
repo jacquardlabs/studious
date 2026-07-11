@@ -622,5 +622,208 @@ out=$(cd "$d25/.studious/worktrees/e/s" && "$LEDGER" evidence-list)
 check "evidence-list from a linked worktree reads the MAIN root evidence file" "pytest tests/" \
   "$(printf '%s' "$out" | jq -r '.command')"
 
+# --- record appends a gate-verdict event to the epic's events.jsonl
+# (board-events-log, #98; reference/events-format.md) ---
+d26=$(sandbox)
+git -C "$d26" checkout -q -b "epic/ev-epic--ev-story"
+( cd "$d26" && "$LEDGER" record --gate audit --verdict "FIX AND RE-AUDIT" )
+evf26="$d26/.studious/epics/ev-epic.events.jsonl"
+check "record creates the epic's events.jsonl" "yes" "$([ -f "$evf26" ] && echo yes || echo no)"
+check "record appends exactly one event line" "1" "$(wc -l < "$evf26" | tr -d ' ')"
+line1=$(sed -n '1p' "$evf26")
+check "event is valid single-line JSON" "yes" "$(printf '%s' "$line1" | jq -e . >/dev/null 2>&1 && echo yes || echo no)"
+check "event epic is the branch's epic slug" "ev-epic" "$(printf '%s' "$line1" | jq -r '.epic')"
+check "event story is the branch's story slug" "ev-story" "$(printf '%s' "$line1" | jq -r '.story')"
+check "event kind is gate-verdict" "gate-verdict" "$(printf '%s' "$line1" | jq -r '.kind')"
+check "event stores the gate" "audit" "$(printf '%s' "$line1" | jq -r '.gate')"
+check "event stores the verdict" "FIX AND RE-AUDIT" "$(printf '%s' "$line1" | jq -r '.verdict')"
+check "event stores HEAD sha" "$(git -C "$d26" rev-parse --short HEAD)" "$(printf '%s' "$line1" | jq -r '.sha')"
+check "event at is stamped (not null)" "yes" "$([ "$(printf '%s' "$line1" | jq -r '.at')" != "null" ] && echo yes || echo no)"
+check "gate-verdict event key order matches reference/events-format.md" \
+  '["at","epic","story","kind","gate","verdict","sha"]' "$(printf '%s' "$line1" | jq -c 'keys_unsorted')"
+
+# --- record appends (not overwrites) on a second call ---
+( cd "$d26" && "$LEDGER" record --gate audit --verdict PASS )
+check "second record appends a second event line" "2" "$(wc -l < "$evf26" | tr -d ' ')"
+line2=$(sed -n '2p' "$evf26")
+check "first event line is untouched after the second append" "FIX AND RE-AUDIT" "$(sed -n '1p' "$evf26" | jq -r '.verdict')"
+check "second event line stores the new verdict" "PASS" "$(printf '%s' "$line2" | jq -r '.verdict')"
+
+# --- record on the epic's own integration branch (no --story suffix) fires
+# a finale-level event: story is "" ---
+d27=$(sandbox)
+git -C "$d27" checkout -q -b "epic/fin-epic"
+( cd "$d27" && "$LEDGER" record --gate acceptance --verdict SHIP )
+evf27="$d27/.studious/epics/fin-epic.events.jsonl"
+check "finale-branch record creates the epic's events.jsonl" "yes" "$([ -f "$evf27" ] && echo yes || echo no)"
+check "finale-branch event has an empty story (epic-level event)" "" "$(jq -r '.story' "$evf27")"
+check "finale-branch event still stores epic/gate/verdict" "fin-epic acceptance SHIP" \
+  "$(jq -r '[.epic, .gate, .verdict] | join(" ")' "$evf27")"
+
+# --- record on a plain, never-epic-qualified branch produces zero events —
+# the "unarmed branch" no-op, mirroring evidence-capture-hook's own posture ---
+d28=$(sandbox)
+( cd "$d28" && "$LEDGER" record --gate audit --verdict PASS )
+check "record on a non-epic branch creates no .studious/epics directory at all" "no" \
+  "$([ -d "$d28/.studious/epics" ] && echo yes || echo no)"
+
+# --- epic-set appends an epic-status event only when --status is given ---
+d29=$(sandbox)
+( cd "$d29" && "$LEDGER" epic-set --slug ev-epic2 --title "Title only" )
+check "epic-set with no --status appends no event" "no" \
+  "$([ -f "$d29/.studious/epics/ev-epic2.events.jsonl" ] && echo yes || echo no)"
+( cd "$d29" && "$LEDGER" epic-set --slug ev-epic2 --status approved )
+evf29="$d29/.studious/epics/ev-epic2.events.jsonl"
+check "epic-set --status appends one epic-status event" "1" "$(wc -l < "$evf29" | tr -d ' ')"
+eline1=$(sed -n '1p' "$evf29")
+check "epic-status event kind" "epic-status" "$(printf '%s' "$eline1" | jq -r '.kind')"
+check "epic-status event has an empty story" "" "$(printf '%s' "$eline1" | jq -r '.story')"
+check "epic-status event stores the status" "approved" "$(printf '%s' "$eline1" | jq -r '.status')"
+check "epic-status event key order matches reference/events-format.md" \
+  '["at","epic","story","kind","status"]' "$(printf '%s' "$eline1" | jq -c 'keys_unsorted')"
+( cd "$d29" && "$LEDGER" epic-set --slug ev-epic2 --status running )
+check "a second --status call appends a second epic-status event" "2" "$(wc -l < "$evf29" | tr -d ' ')"
+check "second epic-status event stores the new status" "running" "$(sed -n '2p' "$evf29" | jq -r '.status')"
+
+# --- epic-story-set appends a story event only for --status/--reason/
+# --bump-retry/--reset-retry; a plan-only call (title/deps/gates) appends
+# nothing, keeping the log a runtime transition trail, not a plan mirror ---
+d30=$(sandbox)
+( cd "$d30" && "$LEDGER" epic-set --slug story-epic --status approved )
+evf30="$d30/.studious/epics/story-epic.events.jsonl"
+check "epic-set --status seeded one epic-status event" "1" "$(wc -l < "$evf30" | tr -d ' ')"
+( cd "$d30" && "$LEDGER" epic-story-set --epic story-epic --slug st1 --title "St1" --gates "build,audit" )
+check "a plan-only epic-story-set call (no status/reason/retry) appends no event" "1" "$(wc -l < "$evf30" | tr -d ' ')"
+
+( cd "$d30" && "$LEDGER" epic-story-set --epic story-epic --slug st1 --status parked --reason "audit: unclear" )
+check "epic-story-set --status/--reason appends a story event" "2" "$(wc -l < "$evf30" | tr -d ' ')"
+sline1=$(sed -n '2p' "$evf30")
+check "story event kind" "story" "$(printf '%s' "$sline1" | jq -r '.kind')"
+check "story event's story is the story's own slug" "st1" "$(printf '%s' "$sline1" | jq -r '.story')"
+check "story event's epic is the epic's slug" "story-epic" "$(printf '%s' "$sline1" | jq -r '.epic')"
+check "story event stores status" "parked" "$(printf '%s' "$sline1" | jq -r '.status')"
+check "story event stores reason" "audit: unclear" "$(printf '%s' "$sline1" | jq -r '.reason')"
+check "status+reason story event key order matches reference/events-format.md" \
+  '["at","epic","story","kind","status","reason"]' "$(printf '%s' "$sline1" | jq -c 'keys_unsorted')"
+
+( cd "$d30" && "$LEDGER" epic-story-set --epic story-epic --slug st1 --bump-retry audit )
+check "bump-retry appends a story event" "3" "$(wc -l < "$evf30" | tr -d ' ')"
+sline2=$(sed -n '3p' "$evf30")
+check "bump-retry story event stores the gate" "audit" "$(printf '%s' "$sline2" | jq -r '.bumpRetryGate')"
+check "bump-retry story event stores the post-write retry count" "1" "$(printf '%s' "$sline2" | jq -r '.retries')"
+check "bump-retry story event key order matches reference/events-format.md" \
+  '["at","epic","story","kind","bumpRetryGate","retries"]' "$(printf '%s' "$sline2" | jq -c 'keys_unsorted')"
+( cd "$d30" && "$LEDGER" epic-story-set --epic story-epic --slug st1 --bump-retry audit )
+check "a second bump-retry stores the incremented post-write count" "2" "$(sed -n '4p' "$evf30" | jq -r '.retries')"
+
+( cd "$d30" && "$LEDGER" epic-story-set --epic story-epic --slug st1 --reset-retry audit )
+sline5=$(sed -n '5p' "$evf30")
+check "reset-retry story event stores the gate" "audit" "$(printf '%s' "$sline5" | jq -r '.resetRetryGate')"
+check "reset-retry story event stores the zeroed post-write count" "0" "$(printf '%s' "$sline5" | jq -r '.retries')"
+
+# --- work-set appends a phase event only when --phase is given AND the
+# slug is epic-qualified (<epic>--<story>) ---
+d31=$(sandbox)
+( cd "$d31" && "$LEDGER" work-set --slug "ws-epic--ws-story" --title "T" )
+check "work-set with no --phase appends no event" "no" \
+  "$([ -f "$d31/.studious/epics/ws-epic.events.jsonl" ] && echo yes || echo no)"
+( cd "$d31" && "$LEDGER" work-set --slug "ws-epic--ws-story" --phase decide )
+evf31="$d31/.studious/epics/ws-epic.events.jsonl"
+check "work-set --phase on an epic-qualified slug appends a phase event" "1" "$(wc -l < "$evf31" | tr -d ' ')"
+psline=$(sed -n '1p' "$evf31")
+check "phase event kind" "phase" "$(printf '%s' "$psline" | jq -r '.kind')"
+check "phase event epic" "ws-epic" "$(printf '%s' "$psline" | jq -r '.epic')"
+check "phase event story" "ws-story" "$(printf '%s' "$psline" | jq -r '.story')"
+check "phase event stores the phase" "decide" "$(printf '%s' "$psline" | jq -r '.phase')"
+check "phase event key order matches reference/events-format.md" \
+  '["at","epic","story","kind","phase"]' "$(printf '%s' "$psline" | jq -c 'keys_unsorted')"
+( cd "$d31" && "$LEDGER" work-set --slug "plain-feature-x" --phase decide )
+check "work-set --phase on a non-epic-qualified slug appends no event (only ws-epic's file exists)" \
+  "ws-epic.events.jsonl" "$(cd "$d31/.studious/epics" && printf '%s\n' *.events.jsonl)"
+
+# --- work-log always tries to append (its --step/--outcome are required),
+# but only when the slug is epic-qualified; --phase is optional and omitted
+# (not null/empty) from the event when not given this call ---
+d32=$(sandbox)
+( cd "$d32" && "$LEDGER" work-log --slug "wl-epic--wl-story" --step build --outcome DONE )
+evf32="$d32/.studious/epics/wl-epic.events.jsonl"
+check "work-log on an epic-qualified slug appends a step event" "1" "$(wc -l < "$evf32" | tr -d ' ')"
+stline1=$(sed -n '1p' "$evf32")
+check "step event kind" "step" "$(printf '%s' "$stline1" | jq -r '.kind')"
+check "step event stores step" "build" "$(printf '%s' "$stline1" | jq -r '.step')"
+check "step event stores outcome" "DONE" "$(printf '%s' "$stline1" | jq -r '.outcome')"
+check "step event stores HEAD sha" "$(git -C "$d32" rev-parse --short HEAD)" "$(printf '%s' "$stline1" | jq -r '.sha')"
+check "step event omits phase (not null) when --phase wasn't given" "yes" \
+  "$(printf '%s' "$stline1" | jq -e 'has("phase") | not' >/dev/null 2>&1 && echo yes || echo no)"
+check "phase-less step event key order matches reference/events-format.md" \
+  '["at","epic","story","kind","step","outcome","sha"]' "$(printf '%s' "$stline1" | jq -c 'keys_unsorted')"
+
+( cd "$d32" && "$LEDGER" work-log --slug "wl-epic--wl-story" --step audit --outcome PASS --phase merge )
+check "a second work-log --phase call appends a second step event" "2" "$(wc -l < "$evf32" | tr -d ' ')"
+stline2=$(sed -n '2p' "$evf32")
+check "step event includes phase when given" "merge" "$(printf '%s' "$stline2" | jq -r '.phase')"
+check "phase-bearing step event key order matches reference/events-format.md" \
+  '["at","epic","story","kind","step","outcome","phase","sha"]' "$(printf '%s' "$stline2" | jq -c 'keys_unsorted')"
+
+( cd "$d32" && "$LEDGER" work-log --slug "plain-feature-y" --step build --outcome DONE )
+check "work-log on a non-epic-qualified slug appends no event (only wl-epic's file exists)" \
+  "wl-epic.events.jsonl" "$(cd "$d32/.studious/epics" && printf '%s\n' *.events.jsonl)"
+
+# --- events.jsonl anchors to the MAIN working tree across linked worktrees,
+# exactly like the other four stores (#98) ---
+d33=$(sandbox)
+git -C "$d33" worktree add -q "$d33/.studious/worktrees/e/s" -b epic/e--s
+( cd "$d33/.studious/worktrees/e/s" && "$LEDGER" work-log --slug "e--s" --step build --outcome DONE )
+check "events append from a linked worktree writes the MAIN root events file" "yes" \
+  "$([ -f "$d33/.studious/epics/e.events.jsonl" ] && echo yes || echo no)"
+check "events append from a linked worktree does not write under the worktree" "no" \
+  "$([ -f "$d33/.studious/worktrees/e/s/.studious/epics/e.events.jsonl" ] && echo yes || echo no)"
+
+# --- events append is skipped, silently, when jq is unavailable — the
+# calling verb's own existing "skipped" message already covers this path,
+# since append_event() is never reached ---
+d34=$(sandbox)
+git -C "$d34" checkout -q -b "epic/jq-epic--jq-story"
+stderr34=$(cd "$d34" && PATH="$fakebin" "$LEDGER" record --gate audit --verdict PASS 2>&1 1>/dev/null)
+contains "record (jq unavailable) still signals its existing skip message" \
+  "gate-ledger: record skipped (jq and git required)" "$stderr34"
+check "no events file is created when jq is unavailable" "no" \
+  "$([ -d "$d34/.studious/epics" ] && echo yes || echo no)"
+
+# --- append_event() is best-effort: a failure appending the events line
+# signals on stderr but never fails the calling verb's own exit code, and
+# never touches the primary snapshot write (#98; reference/events-format.md
+# "Failure behavior"). Simulated by pre-creating the events path as a
+# directory, so the >> redirect fails without touching gate-ledger's own
+# permission model. ---
+d35=$(sandbox)
+git -C "$d35" checkout -q -b "epic/coll-epic--coll-story"
+mkdir -p "$d35/.studious/epics/coll-epic.events.jsonl"
+stderr35=$(cd "$d35" && "$LEDGER" record --gate audit --verdict PASS 2>&1 1>/dev/null); rc35=$?
+check "record still exits 0 when the events append fails" "0" "$rc35"
+contains "record signals the events-append failure on stderr" \
+  "gate-ledger: events-append failed for epic 'coll-epic' (kind gate-verdict) — primary write unaffected" "$stderr35"
+check "the primary gate ledger write still succeeded despite the events-append failure" "PASS" \
+  "$(jq -r '.gates.audit.verdict' "$d35/.studious/gates/epic-coll-epic--coll-story.json")"
+
+# --- append_event(): concurrent writers to the same epic's events file
+# don't corrupt or drop lines — POSIX O_APPEND atomicity, the same property
+# cmd_evidence_append's own precedent relies on (#98) ---
+d36=$(sandbox)
+pids=()
+for i in $(seq 1 12); do
+  ( cd "$d36" && "$LEDGER" work-log --slug "cc-epic--cc-story" --step "step-$i" --outcome DONE ) &
+  pids+=("$!")
+done
+for pid in "${pids[@]}"; do wait "$pid"; done
+evf36="$d36/.studious/epics/cc-epic.events.jsonl"
+check "concurrent writers produce exactly one line per call" "12" "$(wc -l < "$evf36" | tr -d ' ')"
+check "every concurrently-written line is valid, single-object JSON" "12" \
+  "$(while IFS= read -r line; do printf '%s' "$line" | jq -e . >/dev/null 2>&1 && echo ok; done < "$evf36" | wc -l | tr -d ' ')"
+check "every distinct step value survives exactly once (no lost or merged writes)" "12" \
+  "$(jq -r '.step' "$evf36" | sort -u | wc -l | tr -d ' ')"
+check "every concurrently-written line has a stamped at timestamp" "12" \
+  "$(jq -r 'select(.at != null and .at != "") | .at' "$evf36" | wc -l | tr -d ' ')"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi
