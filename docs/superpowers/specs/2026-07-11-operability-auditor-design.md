@@ -142,27 +142,41 @@ the model won't recall verbatim." Contents:
 ### 3. `commands/gate-audit.md` — lane wiring
 
 Add the operability lane following the infra lane's existing wiring exactly:
-conditional dispatch line, skip semantics surfaced in the report, lane listed in the
-fan-out table. Update any lane-count prose in the command.
+changeset-routed skip paragraph, dedicated section with a numbered dispatch entry,
+skip semantics surfaced in the report. Numbering: operability becomes auditor 10 so
+document order stays sequential; pre-mortem verification renumbers 10 → 11. The
+frontmatter `description` — which is what surfaces as the slash-command/skill
+trigger text; there is no separate `skills/gate-audit/SKILL.md` — gains the clause
+"operability joins in when the changeset touches runtime code". No `skills/` file is
+touched, so no `writing-skills` invocation is needed.
 
-### 4. `skills/gate-audit/SKILL.md` — trigger shim description
+### 4. `workflows/epic-driver.js` — parity on the automated path
 
-The description enumerates joining lanes ("infrastructure joins in when the changeset
-touches infra files") — add the operability clause ("operability joins in when the
-changeset touches runtime code"). Per repo rule, invoke the `writing-skills`
-meta-skill before editing.
+The epic driver dispatches the fixed auditor roster itself (its `AUDITORS`
+constant), bypassing `/gate-audit` — without this the lane lands on the supervised
+path only and epics silently lack it. Add `studious:operability-auditor` to
+`AUDITORS`, extend `auditFanIn`'s lane-list sentence, and correct the two stale
+counts that sentence already carries ("the 6 fixed lanes" and "auditor 8" for
+pre-mortem — pre-#114 drift; pre-mortem is auditor 11 after this change).
+`tests/python/test_audit_premortem_scope.py` locks that prompt text and moves with
+it; its roster test explicitly allows `AUDITORS` to grow.
 
 ### 5. Roster-count touch list
 
 Exactly the drift class #116 and #117 track — the spec carries the full list so none
 are missed:
 
-- `CONTRIBUTING.md` — both model-assignment lists (opus group) and any roster counts.
-- `README.md` — auditor counts (last fixed in #113).
+- `CONTRIBUTING.md` — the opus model-assignment list gains `operability-auditor`.
+- `README.md` — the `/gate-audit` bullet gains the operability clause; "Up to 10
+  auditors" → 11 (last fixed in #113).
 - `PRODUCT.md` — the auto-skip sentence ("frontend and infrastructure lanes auto-skip
   when not applicable") gains operability.
-- `reference/prompt-contract.md` — carrier count 16 → 17 (agents 18 → 19).
-- `tests/python/` — update any roster fixtures that assert the agent list;
+- `CLAUDE.md` — "The 16 review/audit agents share a standardized prompt contract" →
+  17. (The count lives there; `reference/prompt-contract.md` carries no number.)
+- `reference/severity-rubric.md` — the new auditor registers its row (Critical, High
+  → Critical; Medium → Important; Low → Track), per that file's own closing rule.
+- `tests/python/test_agent_descriptions.py` — `CHANGESET_AGENTS` gains
+  `operability-auditor` (locks the diff-scoped + `/gate-audit` description shape);
   `check_references.py` and `validate_plugin.py` must pass.
 
 ## Cross-cutting
@@ -189,6 +203,9 @@ are missed:
 - **Skip-rule precision** — the runtime-surface heuristics (framework/import
   signatures per ecosystem) get settled at implementation against real consuming
   repos; the design fixes only the principle (content-based, not path-based).
-- **Ops-commitment dimension without a design doc** — when no design doc exists for
-  the branch, the dimension reports "no register" rather than skipping the whole lane;
-  confirm this matches premortem-auditor's no-register phrasing at implementation.
+- **Ops-commitment dimension without a design doc** — resolved during planning:
+  mirror architecture-auditor's conditional phrasing ("If the design doc's
+  Operational readiness section commits to..."), with no doc-location machinery; when
+  no doc or no commitments exist, the dimension notes that in the residual line and
+  is never a finding by itself. This matches how the migration cross-check already
+  behaves, not premortem-auditor's skip-the-lane pattern.
