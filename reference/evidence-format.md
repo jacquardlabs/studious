@@ -165,5 +165,8 @@ second reader; see "Consumers that must stay in sync" below.
 - `commands/handback.md` reads this file's pinned shape before assembling its
   manifest table (timestamp, command, `predicate.result`, origin, `outputDigest`
   only — never any other field).
-- A future `gates-cite-evidence` story reads the log via `evidence-list`, the same
-  as `/handback` — not a second, independently-derived reader.
+- `commands/gate-audit.md` and `commands/gate-acceptance.md` stamp `evidence-list`'s
+  raw output into `@agent-test-auditor`'s and `@agent-premortem-auditor`'s dispatch
+  prompts (added by `gates-cite-evidence`); both agents read `command`,
+  `predicate.result`, and `capturedAt` directly off records in this shape when citing
+  an entry — it reshapes nothing written here.

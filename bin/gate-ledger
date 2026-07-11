@@ -618,7 +618,12 @@ cmd_evidence_append() { # append-only: one jq -nc object per call, >> the branch
                     configuration: [{name: $command}]}}' >> "$file"
 }
 
-cmd_evidence_list() { # optional --branch B: print that branch's evidence .jsonl verbatim, nothing if absent
+cmd_evidence_list() {
+  # Read-only passthrough, mirroring cmd_gate_get's exact shape: resolve the
+  # branch slug the same way the write path (cmd_evidence_append) does, cat
+  # the file if present, produce no output and exit 0 otherwise — no file, no
+  # git, doesn't matter, both degrade to the same silent empty result. Never
+  # requires jq: reading and emitting the raw file needs no JSON parsing.
   local branch=""
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -626,11 +631,6 @@ cmd_evidence_list() { # optional --branch B: print that branch's evidence .jsonl
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
-  # Same evidence_dir()/branch_slug() anchoring evidence-append already uses,
-  # so a caller (e.g. /handback) never re-derives repo-root or slug logic
-  # itself — one place this store's location lives, reused by both the
-  # writer and this reader. Mirrors cmd_gate_get's shape: resolve one
-  # branch's file, print it verbatim, nothing if it doesn't exist yet.
   local slug; slug=$(branch_slug "$branch")
   local file; file="$(evidence_dir)/$slug.jsonl"
   [ -f "$file" ] || return 0
