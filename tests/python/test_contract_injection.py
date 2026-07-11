@@ -7,7 +7,7 @@ coincidence a real consuming project does not have. Instead, the fan-out gate an
 review commands read the contract from `${CLAUDE_PLUGIN_ROOT}/reference/` and inject
 its four blocks into every dispatch.
 
-The epic driver (`workflows/epic-driver.js`) fans the same six auditors and the
+The epic driver (`workflows/epic-driver.js`) fans the fixed auditors and the
 premortem-auditor out itself, bypassing the gate commands (subagents cannot spawn
 subagents). Earlier, its `CONTRACT` const was a hardcoded *pointer* sentence telling
 an auditor to go read the contract file at runtime — a second, weaker resolution
@@ -270,7 +270,7 @@ def test_driver_dispatch_sites_pass_the_contract_to_their_builder() -> None:
     Complements the executed fixture below: this proves the three real call sites
     (auditRound, finaleAuditRound, the finale premortem dispatch) actually forward
     CONTRACT to the builder functions the fixture exercises, rather than omitting it
-    or passing some other value. The driver dispatches the eight fixed auditors
+    or passing some other value. The driver dispatches the fixed auditors
     directly (per-story and epic-finale) plus the premortem-auditor, bypassing the
     gate commands that would otherwise inject — each of those dispatch prompts must
     interpolate the contract block, or the injection-defense posture is dropped on

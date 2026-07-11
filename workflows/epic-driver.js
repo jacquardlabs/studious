@@ -50,6 +50,7 @@ const MAX_FIX_CYCLES = 2
 const AUDITORS = [
   'studious:security-auditor', 'studious:code-auditor', 'studious:doc-auditor',
   'studious:architecture-auditor', 'studious:test-auditor', 'studious:infra-auditor',
+  'studious:operability-auditor',
   'studious:ux-reviewer', 'studious:frontend-reviewer',
 ]
 
@@ -218,7 +219,7 @@ function gatePrompt(story, gate, nextPhase) {
 }
 
 function auditFanIn(story, reports, base, dir, nextPhase) {
-  return `You are compiling Studious's audit gate verdict. Read commands/gate-audit.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply ITS compilation rules and severity rubric to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-AUDIT.\n\nOut of scope for this verdict: gate-audit.md's own text describes an eighth, pre-mortem-verification lane (auditor 8) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover only the 6 fixed lanes (security, code, doc, architecture, ux, frontend); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those 6 lanes otherwise support.\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\nRecord the verdict from inside ${dir}: cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"` : ''}\n\nReturn: verdict (PASS | FIX AND RE-AUDIT | NEEDS DISCUSSION), sha, summary.`
+  return `You are compiling Studious's audit gate verdict. Read commands/gate-audit.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply ITS compilation rules and severity rubric to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-AUDIT.\n\nOut of scope for this verdict: gate-audit.md's own text describes a pre-mortem-verification lane (auditor 11) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover only the 9 fixed lanes (security, code, doc, architecture, test, infra, operability, ux, frontend); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those 9 lanes otherwise support.\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\nRecord the verdict from inside ${dir}: cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"` : ''}\n\nReturn: verdict (PASS | FIX AND RE-AUDIT | NEEDS DISCUSSION), sha, summary.`
 }
 
 function fixerPrompt(story, gate, findings) {
@@ -473,7 +474,7 @@ async function runStory(story) {
 // ---------- finale (cross-story pass on the epic branch) ----------
 
 async function finaleAuditRound(note) {
-  // One story-slot fans out to 8 auditors + a compiler; the harness queues
+  // One story-slot fans out to 9 auditors + a compiler; the harness queues
   // beyond its own concurrency limit, so a cap-3 epic peaking above 10 agents
   // is throttled, not broken.
   const reports = await parallel(AUDITORS.map(a => () =>

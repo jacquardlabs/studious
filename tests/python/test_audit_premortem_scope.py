@@ -3,14 +3,14 @@
 `workflows/epic-driver.js`'s `auditFanIn()` compiles the audit gate's verdict at
 two altitudes — per-story (`auditRound`) and epic-finale (`finaleAuditRound`) —
 by handing the compiling agent `commands/gate-audit.md`'s full compilation text.
-That document's own auditor-8 "Pre-mortem verification" section fires whenever a
+That document's own auditor-11 "Pre-mortem verification" section fires whenever a
 pre-mortem register file is present — true in every story worktree, since the
 register lives on the epic branch and is checked out into each story worktree as
 a side effect of normal `git worktree add`. But the driver's own `AUDITORS`
-constant is fixed at 6 lanes and never dispatches a pre-mortem auditor into the
+constant lists only the fixed lanes and never dispatches a pre-mortem auditor into the
 reports `auditFanIn()` receives, at either altitude — so, with nothing telling it
-otherwise, the compiling agent could read gate-audit.md's auditor-8 section,
-notice the register file, expect an 8th report, find none, and raise a phantom
+otherwise, the compiling agent could read gate-audit.md's auditor-11 section,
+notice the register file, expect an extra report, find none, and raise a phantom
 missing-premortem-lane finding with no code behind it to fix.
 
 These tests lock the fix: `auditFanIn()`'s own prompt text now tells the
@@ -62,8 +62,8 @@ def test_audit_fan_in_scopes_out_premortem_verification() -> None:
     assert re.search(r"pre-?mortem", body, re.IGNORECASE), (
         "auditFanIn's scope carve-out does not mention pre-mortem verification"
     )
-    assert "auditor 8" in body or "eighth" in body.lower(), (
-        "auditFanIn does not name gate-audit.md's auditor-8 pre-mortem lane"
+    assert "auditor 11" in body, (
+        "auditFanIn does not name gate-audit.md's auditor-11 pre-mortem lane"
     )
 
 
@@ -97,7 +97,7 @@ def test_audit_fan_in_forbids_the_finding_and_the_verdict_penalty() -> None:
     citing the absence as a minor/track-tier finding, which would still show up
     in the compiled report even if it no longer drives the verdict. The prompt
     must forbid both: raising it as a finding at all, and letting it lower the
-    verdict below what the 6 audited lanes otherwise support.
+    verdict below what the audited lanes otherwise support.
     """
     body = _audit_fan_in_body()
     lowered = body.lower()
@@ -111,7 +111,7 @@ def test_audit_fan_in_forbids_the_finding_and_the_verdict_penalty() -> None:
     )
     assert "depress the verdict" in lowered, (
         "auditFanIn does not forbid letting the absent pre-mortem report depress "
-        "the verdict below what the 6 audited lanes support"
+        "the verdict below what the audited lanes support"
     )
 
 
@@ -144,7 +144,7 @@ def test_auditors_constant_and_dispatch_mechanics_are_unchanged() -> None:
     )
     assert join_reports_match, "joinReports function not found"
     assert "premortem" not in join_reports_match.group(0).lower(), (
-        "joinReports' missing-lane detection must stay scoped to the 6 AUDITORS "
+        "joinReports' missing-lane detection must stay scoped to the AUDITORS "
         "lanes, unchanged by this story"
     )
 

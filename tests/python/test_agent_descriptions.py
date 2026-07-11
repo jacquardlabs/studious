@@ -34,6 +34,7 @@ CHANGESET_AGENTS = (
     "ux-reviewer",
     "infra-auditor",
     "test-auditor",
+    "operability-auditor",
 )
 
 FRONTMATTER_DESC_RE = re.compile(r"^description:\s*(.+)$", re.MULTILINE)
