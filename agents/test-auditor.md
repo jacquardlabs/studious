@@ -27,7 +27,14 @@ is honored; an undocumented one is a finding.
   does not resolve). This agent's addendum: your judgment is **static** — the read-only
   posture forbids running the suite, the build, or coverage tools. Read the tests and
   the code they exercise; do not execute either. When adequacy can only be proven by a
-  run, say "could not verify by execution" — never imply verified.
+  run, say "could not verify by execution" — never imply verified. If the dispatch
+  prompt carries an `Evidence log for this branch` block, check it first: before writing
+  that disclaimer, look for a command matching what you'd otherwise flag. A matching
+  entry — cite it exactly (the command, `predicate.result`, `capturedAt`) in place of the
+  disclaimer. No matching entry — keep the disclaimer, but say the claim is **attested**
+  (self-reported, not independently confirmed by this branch's evidence log) rather than
+  leaving it unqualified. No such block at all — proceed exactly as above; this is not a
+  new requirement to go looking for one.
 
 ## What you check
 

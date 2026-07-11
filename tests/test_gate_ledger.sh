@@ -570,5 +570,54 @@ check "evidence-append from a linked worktree writes the MAIN root evidence file
 check "evidence-append from a linked worktree does not write under the worktree" "no" \
   "$([ -f "$d21/.studious/worktrees/e/s/.studious/evidence/epic-e--s.jsonl" ] && echo yes || echo no)"
 
+# --- evidence-list is a plain passthrough of the branch's evidence log
+# (gates-cite-evidence, #worker-evidence-and-board). Mirrors gate-get's exact
+# shape: raw cat when the file exists, zero bytes on stdout otherwise — the
+# empty case is load-bearing (pre-mortem #2): any stray byte here would falsely
+# trigger the "Evidence log for this branch" stamp on a logless branch. ---
+d22=$(sandbox)
+out=$(cd "$d22" && "$LEDGER" evidence-list)
+check "evidence-list is empty (zero bytes) when no log exists for the branch" "" "$out"
+
+( cd "$d22" && "$LEDGER" evidence-append --command "pytest tests/" --exit-code 0 \
+    --output-digest "sha256:deadbeef" --origin interactive )
+out=$(cd "$d22" && "$LEDGER" evidence-list)
+check "evidence-list returns exactly one line for one appended record" "1" \
+  "$(printf '%s\n' "$out" | wc -l | tr -d ' ')"
+check "evidence-list output is the raw record (command field readable via jq)" \
+  "pytest tests/" "$(printf '%s' "$out" | jq -r '.command')"
+
+( cd "$d22" && "$LEDGER" evidence-append --command "npm test" --exit-code 1 \
+    --output-digest "sha256:cafebabe" --origin subagent --agent-type "epic-driver:build-worker" )
+out=$(cd "$d22" && "$LEDGER" evidence-list)
+check "evidence-list returns every appended record, in append order" "2" \
+  "$(printf '%s\n' "$out" | wc -l | tr -d ' ')"
+check "evidence-list's second line is the second appended record" "npm test" \
+  "$(printf '%s' "$out" | sed -n '2p' | jq -r '.command')"
+
+# --- evidence-list --branch reads another branch's log without checking it out
+# (mirrors gate-get --branch's existing precedent) ---
+d23=$(sandbox)
+( cd "$d23" && "$LEDGER" evidence-append --command "pytest tests/" --exit-code 0 \
+    --output-digest "sha256:deadbeef" --origin interactive )
+( cd "$d23" && git checkout -q -b feat/other )
+out=$(cd "$d23" && "$LEDGER" evidence-list)
+check "evidence-list with no --branch reads the current (different, logless) branch" "" "$out"
+out=$(cd "$d23" && "$LEDGER" evidence-list --branch feat/foo)
+check "evidence-list --branch reads the named branch's log" "pytest tests/" \
+  "$(printf '%s' "$out" | jq -r '.command')"
+
+# --- evidence-list anchors to the MAIN working tree across linked worktrees,
+# reusing the identical repo_root()/branch_slug() the write path uses (pre-mortem
+# #1) — a gate run in a story worktree must read back the same log a worker
+# writing from that same worktree just appended to. ---
+d24=$(sandbox)
+( cd "$d24" && git worktree add -q "$d24/.studious/worktrees/e/s" -b epic/e--s )
+( cd "$d24/.studious/worktrees/e/s" && "$LEDGER" evidence-append --command "pytest tests/" \
+    --exit-code 0 --output-digest "sha256:deadbeef" --origin subagent --agent-type "epic-driver:build-worker" )
+out=$(cd "$d24/.studious/worktrees/e/s" && "$LEDGER" evidence-list)
+check "evidence-list from a linked worktree reads the MAIN root evidence file" "pytest tests/" \
+  "$(printf '%s' "$out" | jq -r '.command')"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi
