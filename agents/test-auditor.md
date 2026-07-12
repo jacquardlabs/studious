@@ -3,6 +3,7 @@ name: test-auditor
 description: Test adequacy auditor. Reviews a changeset's tests — coverage of new behavior, assertion quality, regression tests for bug fixes, weakened or skipped tests. Diff-scoped and gate-invoked (/gate-audit) — not the periodic test-health trend, which review-codebase-health owns.
 tools: Read, Grep, Glob, Bash
 model: inherit
+effort: medium
 ---
 
 # Test adequacy audit

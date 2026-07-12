@@ -3,6 +3,7 @@ name: review-codebase-health
 description: Periodic whole-codebase health review — architecture, debt, patterns, dependencies, tests
 tools: Read, Glob, Grep, Bash, Write
 model: inherit
+effort: medium
 ---
 
 # Codebase health review

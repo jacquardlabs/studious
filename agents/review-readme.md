@@ -3,6 +3,7 @@ name: review-readme
 description: README drift review — flag stale claims, broken commands, and voice drift, propose a fix.
 tools: Read, Glob, Grep, Bash, Write
 model: inherit
+effort: low
 ---
 
 # README drift review

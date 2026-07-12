@@ -3,6 +3,7 @@ name: review-interface-health
 description: Periodic whole-project interface and frontend review — cross-surface consistency, design-system, accessibility. Not diff-scoped; the per-changeset frontend reviewer is frontend-reviewer.
 tools: Read, Glob, Grep, Bash, Write
 model: inherit
+effort: medium
 ---
 
 # Interface health review

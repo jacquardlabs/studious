@@ -3,6 +3,7 @@ name: premortem-auditor
 description: Pre-mortem register verifier. Checks each failure mode recorded at design time against the finished changeset and reports REALIZED / NOT REALIZED / CAN'T VERIFY per item. Stays in its lane — verifies the register only, never free-hunts.
 tools: Read, Grep, Glob, Bash
 model: opus
+effort: medium
 ---
 
 # Pre-mortem verification
