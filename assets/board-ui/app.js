@@ -11,7 +11,7 @@
 // Inlined verbatim into the page bin/board-server's `GET /` serves (see that
 // file's render_page()) so the shipped document stays one self-contained
 // HTML file with no external <script src>. Also loadable via plain
-// require() from tests/js/test_board_ui_app.js, which exercises the pure
+// require() from tests/js/test-board-ui-app.js, which exercises the pure
 // derivation functions below directly. No import/export syntax anywhere in
 // this file so it runs unmodified both inlined into a <script> tag (no
 // module system there) and under Node's default CommonJS loader (no
@@ -167,28 +167,50 @@ function gaugeAriaLabel(storySlug, stories) {
   return title + ', status ' + cls.label;
 }
 
-// The per-gate state a channel block renders. One of:
-//   'pass'  — worker phase done, or a proceed verdict recorded
+// Everything a channel's gate block renders, derived once: `state` is the
+// styling enum, `text` the display token beside the gate label.
+//   'pass'  — worker phase done, or a proceed verdict recorded; text is the
+//             verdict token verbatim, or 'DONE' where none exists (worker
+//             phases carry no verdict vocabulary; a landed story's feed may
+//             be too thin to carry one)
 //   'fix'   — a non-proceed verdict recorded, or (for a parked story) the
 //             gate its recorded park reason names — the burn is visible even
 //             when the resumed event feed is too thin to carry the verdict
-//   'unrun' — nothing recorded yet
+//             event; text is the verdict token (from the event, or parsed
+//             from the park reason) plus a '✕n' retry suffix when that
+//             gate's fix budget has burned
+//   'unrun' — nothing recorded yet; text is the em-dash placeholder
 // A landed story renders every block 'pass': the status field is
 // authoritative (a story cannot land without its final profiled gate's
-// proceed token); events enrich but never veto it — the same status-wins
-// rule the drawer's verdict trail does NOT apply, because there the events
-// ARE the content.
+// proceed token); events enrich but never veto it — a stale non-proceed
+// verdict on a landed story's thin feed degrades to 'DONE' rather than
+// contradicting the green block with a fix token. (The drawer's verdict
+// trail does NOT apply this status-wins rule, because there the events ARE
+// the content.)
+// Both halves live here in the pure core so the DOM layer renders verbatim
+// (audit finding: the text half previously lived untested in gateBlock,
+// duplicating these branches and re-scanning events).
 function gateBlockState(storySlug, story, gate, events) {
   var s = story || {};
-  if (s.status === 'landed') return 'pass';
-  if (WORKER_PHASES.has(gate)) return workerPhaseDone(storySlug, gate, events) ? 'pass' : 'unrun';
+  var n = s.retries && s.retries[gate];
+  var suffix = n ? ' ✕' + n : '';
+  if (WORKER_PHASES.has(gate)) {
+    if (s.status === 'landed' || workerPhaseDone(storySlug, gate, events)) return { state: 'pass', text: 'DONE' };
+    return { state: 'unrun', text: '—' };
+  }
   var v = latestVerdict(storySlug, gate, events);
-  if (v) return PROCEED_VERDICTS.has(v) ? 'pass' : 'fix';
+  if (s.status === 'landed') {
+    return { state: 'pass', text: v && PROCEED_VERDICTS.has(v) ? v : 'DONE' };
+  }
+  if (v) {
+    if (PROCEED_VERDICTS.has(v)) return { state: 'pass', text: v };
+    return { state: 'fix', text: v + suffix };
+  }
   if (s.status === 'parked') {
     var parsed = parseParkReasonGate(s.reason);
-    if (parsed && parsed.gate === gate) return 'fix';
+    if (parsed && parsed.gate === gate) return { state: 'fix', text: (parsed.verdict || 'FIX') + suffix };
   }
-  return 'unrun';
+  return { state: 'unrun', text: '—' };
 }
 
 // Most recent gate-verdict event's verdict for (story, gate), or null if
@@ -336,6 +358,10 @@ function latestParkEventAt(storySlug, events) {
 // always sorts above every green (advisory) entry regardless of timestamp;
 // within a tier, newest first. No parked stories and no advisory activity
 // renders one explicit empty-state entry — never a silently blank list.
+// Each entry carries `message` (the body without the slug) as its own field
+// alongside the composed `text`, so a columned renderer presents fields
+// instead of parsing the slug prefix back off a string this same function
+// just joined (audit finding: compose-then-parse at the point of use).
 function buildCasMessages(stories, events, opts) {
   var limit = (opts && opts.limit) || GREEN_CAS_LIMIT;
   var all = stories || {};
@@ -345,10 +371,12 @@ function buildCasMessages(stories, events, opts) {
   for (var i = 0; i < storySlugs.length; i++) {
     var slug = storySlugs[i];
     if (all[slug] && all[slug].status === 'parked') {
+      var reason = all[slug].reason || '(no reason recorded)';
       amber.push({
         tier: 'amber',
         slug: slug,
-        text: slug + ': ' + (all[slug].reason || '(no reason recorded)'),
+        message: reason,
+        text: slug + ': ' + reason,
         at: latestParkEventAt(slug, events) || '',
       });
     }
@@ -361,12 +389,14 @@ function buildCasMessages(stories, events, opts) {
     var e = list[j];
     if (!e) continue;
     if (e.kind === 'gate-verdict' && PROCEED_VERDICTS.has(e.verdict)) {
-      green.push({ tier: 'green', slug: e.story, text: e.story + ': ' + e.gate + ' → ' + e.verdict, at: e.at });
+      var verdictMsg = e.gate + ' → ' + e.verdict;
+      green.push({ tier: 'green', slug: e.story, message: verdictMsg, text: e.story + ': ' + verdictMsg, at: e.at });
     } else if (e.kind === 'story' && e.status === 'landed') {
-      green.push({ tier: 'green', slug: e.story, text: e.story + ' landed', at: e.at });
+      green.push({ tier: 'green', slug: e.story, message: 'landed', text: e.story + ' landed', at: e.at });
     } else if (e.kind === 'story' && e.bumpRetryGate) {
       var count = e.retries != null ? e.retries : '?';
-      green.push({ tier: 'green', slug: e.story, text: e.story + ': fix cycle ' + count + ' for ' + e.bumpRetryGate, at: e.at });
+      var cycleMsg = 'fix cycle ' + count + ' for ' + e.bumpRetryGate;
+      green.push({ tier: 'green', slug: e.story, message: cycleMsg, text: e.story + ': ' + cycleMsg, at: e.at });
     }
   }
   green.reverse(); // events are oldest-first; newest-first within tier
@@ -374,9 +404,23 @@ function buildCasMessages(stories, events, opts) {
 
   var combined = amber.concat(trimmedGreen);
   if (combined.length === 0) {
-    return [{ tier: 'empty', slug: null, text: 'ALL SYSTEMS NOMINAL', at: '' }];
+    return [{ tier: 'empty', slug: null, message: 'ALL SYSTEMS NOMINAL', text: 'ALL SYSTEMS NOMINAL', at: '' }];
   }
   return combined;
+}
+
+// Alarm-journal clock label. The schema's `at` is UTC (reference/
+// events-format.md; bin/gate-ledger stamps `date -u`), but the operator
+// correlates journal rows with their own terminal, so this renders the
+// LOCAL wall clock — a positional slice of the ISO string showed an event
+// at 11:03 PDT as 18:03 (audit finding). Absent or unparseable timestamps
+// degrade to the em-dash placeholder, never a junk substring.
+function casTimeLabel(at) {
+  if (!at) return '—';
+  var d = new Date(at);
+  if (isNaN(d.getTime())) return '—';
+  function two(n) { return (n < 10 ? '0' : '') + n; }
+  return two(d.getHours()) + ':' + two(d.getMinutes());
 }
 
 // Parses parkPrompt's own recorded reason-string shape
@@ -460,7 +504,6 @@ function el(tag, attrs, children) {
   attrs = attrs || {};
   Object.keys(attrs).forEach(function (k) {
     if (k === 'text') node.textContent = attrs[k];
-    else if (k === 'html') node.innerHTML = attrs[k]; // fixed, hand-authored SVG markup only — never user data
     else if (k.indexOf('on') === 0 && typeof attrs[k] === 'function') node.addEventListener(k.slice(2), attrs[k]);
     else node.setAttribute(k, attrs[k]);
   });
@@ -504,26 +547,10 @@ function feedSvg(open) {
 }
 
 function gateBlock(storySlug, story, gate) {
-  var events = board.snapshot.events;
-  var st = gateBlockState(storySlug, story, gate, events);
-  var stateText;
-  if (WORKER_PHASES.has(gate)) {
-    stateText = st === 'pass' ? 'DONE' : '—';
-  } else {
-    var v = latestVerdict(storySlug, gate, events);
-    if (!v && st === 'fix') {
-      // thin resumed feed: the park reason is the only carrier of the verdict
-      var parsed = parseParkReasonGate(story.reason);
-      v = parsed && parsed.verdict;
-    }
-    if (!v && st === 'pass') v = 'DONE'; // landed story, feed too thin for the verdict event
-    stateText = v || '—';
-    var n = story.retries && story.retries[gate];
-    if (st === 'fix' && n) stateText += ' ✕' + n;
-  }
-  return el('div', { class: 'gblock ' + st }, [
+  var block = gateBlockState(storySlug, story, gate, board.snapshot.events);
+  return el('div', { class: 'gblock ' + block.state }, [
     el('div', { class: 'glabel', text: abbrevGate(gate) }),
-    el('div', { class: 'gstate', text: stateText }),
+    el('div', { class: 'gstate', text: block.text }),
   ]);
 }
 
@@ -592,16 +619,9 @@ function renderCas() {
   var messages = buildCasMessages(board.snapshot.stories, board.snapshot.events);
   messages.forEach(function (m) {
     var li = el('li', { class: 'cas-' + m.tier });
-    li.appendChild(el('span', { class: 't', text: (m.at || '').slice(11, 16) || '—' }));
-    // Column split is display-only: buildCasMessages's text is always either
-    // "<slug>: <message>" or "<slug> <message>" for slug-carrying tiers, so
-    // the tag column is m.slug and the message column is the remainder — no
-    // re-derivation, just presentation of the same string.
-    var msg = m.text;
-    if (m.slug && msg.indexOf(m.slug + ': ') === 0) msg = msg.slice(m.slug.length + 2);
-    else if (m.slug && msg.indexOf(m.slug + ' ') === 0) msg = msg.slice(m.slug.length + 1);
+    li.appendChild(el('span', { class: 't', text: casTimeLabel(m.at) }));
     if (m.slug) li.appendChild(el('span', { class: 'tag', text: m.slug }));
-    li.appendChild(el('span', { class: 'msg', text: msg }));
+    li.appendChild(el('span', { class: 'msg', text: m.message }));
     list.appendChild(li);
   });
 }
@@ -760,6 +780,7 @@ if (typeof module !== 'undefined' && module.exports) {
     classifyGaugeState: classifyGaugeState,
     gaugeAriaLabel: gaugeAriaLabel,
     gateBlockState: gateBlockState,
+    casTimeLabel: casTimeLabel,
     latestVerdict: latestVerdict,
     workerPhaseDone: workerPhaseDone,
     hasPriorRetryBump: hasPriorRetryBump,

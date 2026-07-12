@@ -84,52 +84,98 @@ test('classifyGaugeState: blocked-on-dropped-dep is distinct from ordinary block
 });
 
 // ---------------------------------------------------------------------------
-// gateBlockState — what each channel block renders. Worker phases (design/
-// build) derive from phase/step events, never gate-verdict; landed status is
-// authoritative over a thin event feed; a parked story's stuck gate burns
-// amber even when the resumed feed carries no verdict event for it
+// gateBlockState — everything a channel block renders: {state, text}, derived
+// once in the pure core (audit finding: the text half previously lived
+// untested in the DOM layer, duplicating these branches). Worker phases
+// (design/build) derive from phase/step events, never gate-verdict; landed
+// status is authoritative over the event feed; a parked story's stuck gate
+// burns amber even when the resumed feed carries no verdict event for it
 // ---------------------------------------------------------------------------
 
-test('gateBlockState: a gate with a proceed verdict is pass', () => {
+test('gateBlockState: a gate with a proceed verdict is pass, text is the token verbatim', () => {
   const events = [{ kind: 'gate-verdict', story: 'x', gate: 'audit', verdict: 'PASS' }];
-  assert.equal(app.gateBlockState('x', { status: 'audit' }, 'audit', events), 'pass');
+  assert.deepEqual(app.gateBlockState('x', { status: 'audit' }, 'audit', events), { state: 'pass', text: 'PASS' });
 });
 
-test('gateBlockState: a gate with a fix-and-retry verdict is fix', () => {
+test('gateBlockState: a fix-and-retry verdict is fix, with the retry count suffixed', () => {
   const events = [{ kind: 'gate-verdict', story: 'x', gate: 'audit', verdict: 'FIX AND RE-AUDIT' }];
-  assert.equal(app.gateBlockState('x', { status: 'audit' }, 'audit', events), 'fix');
+  assert.deepEqual(
+    app.gateBlockState('x', { status: 'audit', retries: { audit: 1 } }, 'audit', events),
+    { state: 'fix', text: 'FIX AND RE-AUDIT ✕1' }
+  );
 });
 
-test('gateBlockState: no verdict yet is unrun, never an inferred pass', () => {
-  assert.equal(app.gateBlockState('x', { status: 'audit' }, 'audit', []), 'unrun');
+test('gateBlockState: a fix verdict with no retries recorded carries the bare token', () => {
+  const events = [{ kind: 'gate-verdict', story: 'x', gate: 'audit', verdict: 'FIX AND RE-AUDIT' }];
+  assert.deepEqual(
+    app.gateBlockState('x', { status: 'audit' }, 'audit', events),
+    { state: 'fix', text: 'FIX AND RE-AUDIT' }
+  );
+});
+
+test('gateBlockState: no verdict yet is unrun with the placeholder, never an inferred pass', () => {
+  assert.deepEqual(app.gateBlockState('x', { status: 'audit' }, 'audit', []), { state: 'unrun', text: '—' });
 });
 
 test('gateBlockState: worker phases derive from phase/step events, not gate verdicts', () => {
   const events = [{ kind: 'phase', story: 'x', phase: 'design-review' }];
-  assert.equal(app.gateBlockState('x', { status: 'build' }, 'design', events), 'pass');
-  assert.equal(app.gateBlockState('x', { status: 'build' }, 'build', events), 'unrun');
+  assert.deepEqual(app.gateBlockState('x', { status: 'build' }, 'design', events), { state: 'pass', text: 'DONE' });
+  assert.deepEqual(app.gateBlockState('x', { status: 'build' }, 'build', events), { state: 'unrun', text: '—' });
 });
 
 test('gateBlockState: a HANDED-OFF takeover step does not mark build pass', () => {
   const events = [{ kind: 'step', story: 'x', step: 'build', outcome: 'HANDED-OFF' }];
-  assert.equal(app.gateBlockState('x', { status: 'build' }, 'build', events), 'unrun');
+  assert.deepEqual(app.gateBlockState('x', { status: 'build' }, 'build', events), { state: 'unrun', text: '—' });
 });
 
 test('gateBlockState: landed status is authoritative — every block is pass even on a thin feed', () => {
-  assert.equal(app.gateBlockState('x', { status: 'landed' }, 'audit', []), 'pass');
-  assert.equal(app.gateBlockState('x', { status: 'landed' }, 'design', []), 'pass');
+  assert.deepEqual(app.gateBlockState('x', { status: 'landed' }, 'audit', []), { state: 'pass', text: 'DONE' });
+  assert.deepEqual(app.gateBlockState('x', { status: 'landed' }, 'design', []), { state: 'pass', text: 'DONE' });
 });
 
-test('gateBlockState: a parked story\'s reason-named gate is fix even with no verdict event', () => {
-  const story = { status: 'parked', reason: 'audit: FIX AND RE-AUDIT — merge conflict' };
-  assert.equal(app.gateBlockState('x', story, 'audit', []), 'fix');
-  assert.equal(app.gateBlockState('x', story, 'acceptance', []), 'unrun');
+test('gateBlockState: landed keeps the recorded proceed token when the feed carries it', () => {
+  const events = [{ kind: 'gate-verdict', story: 'x', gate: 'acceptance', verdict: 'SHIP' }];
+  assert.deepEqual(app.gateBlockState('x', { status: 'landed' }, 'acceptance', events), { state: 'pass', text: 'SHIP' });
+});
+
+test('gateBlockState: landed outranks a stale non-proceed verdict — pass, degraded to DONE not the fix token', () => {
+  // "events enrich but never veto": a landed story whose thin feed ends on a
+  // FIX AND RE-AUDIT (the later PASS never made it into the feed) must not
+  // render a green block captioned with a fix token.
+  const events = [{ kind: 'gate-verdict', story: 'x', gate: 'audit', verdict: 'FIX AND RE-AUDIT' }];
+  assert.deepEqual(app.gateBlockState('x', { status: 'landed' }, 'audit', events), { state: 'pass', text: 'DONE' });
+});
+
+test('gateBlockState: a parked story\'s reason-named gate is fix, verdict recovered from the reason', () => {
+  const story = { status: 'parked', reason: 'audit: FIX AND RE-AUDIT — merge conflict', retries: { audit: 2 } };
+  assert.deepEqual(app.gateBlockState('x', story, 'audit', []), { state: 'fix', text: 'FIX AND RE-AUDIT ✕2' });
+  assert.deepEqual(app.gateBlockState('x', story, 'acceptance', []), { state: 'unrun', text: '—' });
 });
 
 test('gateBlockState: a parked story\'s reason does not mark a different gate fix', () => {
   const story = { status: 'parked', reason: 'acceptance: HOLD — needs a product decision' };
-  assert.equal(app.gateBlockState('x', story, 'audit', []), 'unrun');
-  assert.equal(app.gateBlockState('x', story, 'acceptance', []), 'fix');
+  assert.deepEqual(app.gateBlockState('x', story, 'audit', []), { state: 'unrun', text: '—' });
+  assert.deepEqual(app.gateBlockState('x', story, 'acceptance', []), { state: 'fix', text: 'HOLD' });
+});
+
+// ---------------------------------------------------------------------------
+// casTimeLabel — the alarm-journal clock renders the operator's LOCAL wall
+// clock from the schema's UTC `at` (audit finding: a positional slice of the
+// ISO string displayed UTC unlabeled, offset from the operator's terminal)
+// ---------------------------------------------------------------------------
+
+test('casTimeLabel: converts a UTC timestamp to the local wall clock', () => {
+  const at = '2026-07-11T15:42:00Z';
+  const d = new Date(at);
+  const expected = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  assert.equal(app.casTimeLabel(at), expected);
+  assert.match(app.casTimeLabel(at), /^([01]\d|2[0-3]):[0-5]\d$/);
+});
+
+test('casTimeLabel: absent or unparseable timestamps degrade to the placeholder, never junk', () => {
+  assert.equal(app.casTimeLabel(''), '—');
+  assert.equal(app.casTimeLabel(null), '—');
+  assert.equal(app.casTimeLabel('not-a-date'), '—');
 });
 
 // ---------------------------------------------------------------------------
@@ -288,6 +334,26 @@ test('buildCasMessages: amber uses the story\'s reason verbatim', () => {
   const stories = { p: { status: 'parked', reason: 'audit: FIX AND RE-AUDIT — flaky network mock' } };
   const messages = app.buildCasMessages(stories, []);
   assert.ok(messages[0].text.includes('flaky network mock'));
+});
+
+test('buildCasMessages: every entry carries message as a structured field, never re-parsed from text', () => {
+  // audit finding: the renderer previously prefix-stripped the slug back off
+  // the composed text string; the body must arrive as its own field.
+  const stories = { p: { status: 'parked', reason: 'audit: HOLD — a decision' } };
+  const events = [
+    { at: '2026-07-11T10:00:00Z', kind: 'gate-verdict', story: 'a', gate: 'audit', verdict: 'PASS' },
+    { at: '2026-07-11T10:01:00Z', kind: 'story', story: 'b', status: 'landed' },
+    { at: '2026-07-11T10:02:00Z', kind: 'story', story: 'c', bumpRetryGate: 'audit', retries: 1 },
+  ];
+  const messages = app.buildCasMessages(stories, events);
+  assert.equal(messages[0].message, 'audit: HOLD — a decision'); // amber: reason verbatim, no slug prefix
+  const bySlug = {};
+  messages.slice(1).forEach((m) => { bySlug[m.slug] = m.message; });
+  assert.equal(bySlug.a, 'audit → PASS');
+  assert.equal(bySlug.b, 'landed');
+  assert.equal(bySlug.c, 'fix cycle 1 for audit');
+  const empty = app.buildCasMessages({}, []);
+  assert.equal(empty[0].message, 'ALL SYSTEMS NOMINAL');
 });
 
 test('buildCasMessages: green tier is newest-first', () => {

@@ -242,9 +242,13 @@
 
   /* ---- story channels on the dependency bus ---- */
   #channels-scroll { overflow-x: auto; }
-  #channels { position: relative; margin-left: 26px; display: flex; flex-direction: column; gap: 15px; min-width: max-content; }
-  /* the bus itself */
-  #channels::before { content: ""; position: absolute; left: -18px; top: 8px; bottom: 8px; width: 2px; background: var(--wire); }
+  #channels { position: relative; margin-left: 10px; display: flex; flex-direction: column; gap: 15px; min-width: max-content; }
+  /* The bus itself. Its right edge sits exactly at the content-box origin
+     (left: -2px + width: 2px = 0), which is where every channel's leading
+     feed wire begins — rail and feeds meet with no gap (audit finding: at
+     the previous left: -18px offset the feeds floated 16px off the rail,
+     visually severing the "fed from a dependency bus" metaphor). */
+  #channels::before { content: ""; position: absolute; left: -2px; top: 8px; bottom: 8px; width: 2px; background: var(--wire); }
 
   .channel { display: flex; align-items: center; min-height: 54px; }
 
