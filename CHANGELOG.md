@@ -2,6 +2,114 @@
 
 <!-- version list -->
 
+## v2.18.0 (2026-07-12)
+
+### Bug Fixes
+
+- DSN/BLD lamps stuck at "not yet run" — derive from phase/step events
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Fix-budget wedge no longer degenerates at fraction===1
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Render() drops the open drawer stale, activeGate() strands at design
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- SSE delta test tolerates the board's own eventually-consistent tick
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- WorkerPhaseDone('build') flips the BLD lamp on any step, not just DONE
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+### Documentation
+
+- Design doc for board-events-log story ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Design doc for board-server (local stdlib SSE board server)
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Design doc for board-ui (Flight Deck board renderer)
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Design doc for gates-cite-evidence story
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Design doc for handback-skill story ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Design doc for story-scoped evidence-capture hook
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Design-review pre-mortem register for board-server (PROCEED TO PLAN)
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Design-review pre-mortem register for handback-skill
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Fix slug-derivation ordering bug in board-events-log design
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Pre-mortem register for board-ui (design-review PROCEED TO PLAN)
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Pre-mortem register for evidence-capture-hook design review
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Restyle README with dustjacket ([#126](https://github.com/jacquardlabs/studious/pull/126),
+  [`9778b34`](https://github.com/jacquardlabs/studious/commit/9778b34ab40c6db8f8e0a2f0f8b9576541d1bc65))
+
+- **premortem**: Record the epic pre-mortem register for worker-evidence-and-board
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- **premortem**: Record the epic pre-mortem register for worker-evide…
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- **premortem**: Register for gates-cite-evidence design review
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+### Features
+
+- Flight Deck board renderer (bin/board-server GET / + --open)
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Gate-ledger appends status/verdict events to events.jsonl
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Gates cite the branch's evidence log ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Handback skill — evidence manifest + commit
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Local stdlib SSE board server (bin/board-server)
+  ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+- Story-scoped evidence-capture hook ([#131](https://github.com/jacquardlabs/studious/pull/131),
+  [`89e3671`](https://github.com/jacquardlabs/studious/commit/89e367108b5d3319679129b79f2193deb25f0382))
+
+
 ## v2.17.0 (2026-07-11)
 
 ### Bug Fixes
