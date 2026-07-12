@@ -2,6 +2,37 @@
 
 <!-- version list -->
 
+## v2.19.0 (2026-07-12)
+
+### Documentation
+
+- Correct first-round routing claim in delta-scoped-reaudit design doc
+  ([#139](https://github.com/jacquardlabs/studious/pull/139),
+  [`35c429c`](https://github.com/jacquardlabs/studious/commit/35c429c003f05c8f36dd75d623aab0436e6cd05b))
+
+- Design doc for delta-scoped re-audit (mechanism 1, #130)
+  ([#139](https://github.com/jacquardlabs/studious/pull/139),
+  [`35c429c`](https://github.com/jacquardlabs/studious/commit/35c429c003f05c8f36dd75d623aab0436e6cd05b))
+
+- Narrow carry-forward to PASS-status only, resolve design-review REVISE
+  ([#139](https://github.com/jacquardlabs/studious/pull/139),
+  [`35c429c`](https://github.com/jacquardlabs/studious/commit/35c429c003f05c8f36dd75d623aab0436e6cd05b))
+
+- **premortem**: Record delta-scoped re-audit register (design-review PROCEED TO PLAN)
+  ([#139](https://github.com/jacquardlabs/studious/pull/139),
+  [`35c429c`](https://github.com/jacquardlabs/studious/commit/35c429c003f05c8f36dd75d623aab0436e6cd05b))
+
+### Features
+
+- Delta-scoped re-audit — narrow FIX AND RE-AUDIT retries to the fix delta
+  ([#139](https://github.com/jacquardlabs/studious/pull/139),
+  [`35c429c`](https://github.com/jacquardlabs/studious/commit/35c429c003f05c8f36dd75d623aab0436e6cd05b))
+
+- Harden epic-driver against agent() crashes, surface stalled finales
+  ([#139](https://github.com/jacquardlabs/studious/pull/139),
+  [`35c429c`](https://github.com/jacquardlabs/studious/commit/35c429c003f05c8f36dd75d623aab0436e6cd05b))
+
+
 ## v2.18.0 (2026-07-12)
 
 ### Bug Fixes
