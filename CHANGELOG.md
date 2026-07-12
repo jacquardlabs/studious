@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v2.20.0 (2026-07-12)
+
+### Features
+
+- **agents**: Pin effort by stakes across the fleet; correct the model-assignment docs
+  ([#137](https://github.com/jacquardlabs/studious/pull/137),
+  [`3480fea`](https://github.com/jacquardlabs/studious/commit/3480fea01056b24f02b2d7d3a2cd26b27ba03740))
+
+- **agents**: Pin the five recommend-only agents off inherit
+  ([#137](https://github.com/jacquardlabs/studious/pull/137),
+  [`3480fea`](https://github.com/jacquardlabs/studious/commit/3480fea01056b24f02b2d7d3a2cd26b27ba03740))
+
+
 ## v2.19.0 (2026-07-12)
 
 ### Documentation
