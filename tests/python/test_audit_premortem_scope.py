@@ -115,15 +115,20 @@ def test_audit_fan_in_forbids_the_finding_and_the_verdict_penalty() -> None:
     )
 
 
-def test_auditors_constant_and_dispatch_mechanics_are_unchanged() -> None:
-    """Acceptance criteria: no change to AUDITORS or dispatch mechanics.
+def test_auditors_constant_never_gains_a_premortem_entry() -> None:
+    """Acceptance criteria: no change to AUDITORS; pre-mortem stays out of the fixed roster.
 
-    The fix is scoped to auditFanIn's own prompt text only — joinReports' missing-lane
-    detection and both call sites (auditRound/finaleAuditRound) must be untouched. The
+    The premortem-scope fix is scoped to auditFanIn's own prompt text only. The
     AUDITORS lane roster itself is free to grow (new fixed auditors land independently
-    of this fix) — what this story guarantees is that it never gains a pre-mortem
-    entry, since pre-mortem verification stays a dedicated finale step, never a fixed
-    dispatch lane.
+    of that fix, and independently of the later delta-scoped re-audit story, #130,
+    which reads and narrows AUDITORS but never edits its membership) — what both
+    stories guarantee is that it never gains a pre-mortem entry, since pre-mortem
+    verification stays a dedicated finale step, never a fixed dispatch lane.
+
+    `joinReports()`'s own signature and both call sites (auditRound/finaleAuditRound)
+    DID change under #130 — delta-scoped re-audit's own acceptance criteria require it
+    (narrowed dispatch, carry-forward, a fix-delta pass) — so this test no longer pins
+    their exact shape; tests/python/test_delta_scoped_reaudit.py covers that shape.
     """
     source = _driver_text()
     auditors_match = re.search(r"const AUDITORS = \[(.*?)\]", source, re.DOTALL)
@@ -137,15 +142,6 @@ def test_auditors_constant_and_dispatch_mechanics_are_unchanged() -> None:
     assert "premortem" not in auditors_match.group(1).lower(), (
         "AUDITORS must not gain a pre-mortem entry — the carve-out is prompt-text "
         "only, not a dispatch change"
-    )
-
-    join_reports_match = re.search(
-        r"function joinReports\(reports\) \{.*?\n\}", source, re.DOTALL
-    )
-    assert join_reports_match, "joinReports function not found"
-    assert "premortem" not in join_reports_match.group(0).lower(), (
-        "joinReports' missing-lane detection must stay scoped to the AUDITORS "
-        "lanes, unchanged by this story"
     )
 
     # Both call sites still invoke auditFanIn with the same signature shape.
