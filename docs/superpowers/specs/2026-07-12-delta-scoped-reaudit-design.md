@@ -41,10 +41,14 @@ today.
 ## Proposed design
 
 **Scope: only the retry loop, only `/gate-audit`.** The very first audit round on a
-changeset is untouched — full changeset-routed lane set, exactly as today. Narrowing
-only ever applies starting from the *second* dispatch of the *same* audit cycle, the one
-that follows a **FIX AND RE-AUDIT** verdict and a fix commit. A first-ever `PASS` or
-`NEEDS DISCUSSION` never triggers this mechanism.
+changeset is untouched by this story. On `/gate-audit`, that means the existing
+changeset-routed lane set, exactly as today. On the epic-driven path
+(`workflows/epic-driver.js`), there was never first-round routing to begin with —
+`AUDITORS` dispatches in full whenever `scope.narrowed` is false, both before and after
+this story; see the correction under Out of scope below. Narrowing only ever applies
+starting from the *second* dispatch of the *same* audit cycle, the one that follows a
+**FIX AND RE-AUDIT** verdict and a fix commit. A first-ever `PASS` or `NEEDS DISCUSSION`
+never triggers this mechanism.
 
 ### What the compiler already knows, made explicit
 
@@ -262,8 +266,12 @@ inside that step.
     outside the fix delta, issue #65).* A measurement/feedback loop belonging to a
     different, not-yet-built command. Not built; see Operational readiness for how this
     story validates itself without it.
-- **First-round (non-retry) audits.** Always full, changeset-routed exactly as today.
-  This story only changes the *second-and-later* dispatch of a single audit cycle.
+- **First-round (non-retry) audits.** Unchanged by this story. On `/gate-audit`, that
+  means changeset-routed exactly as today. On the epic-driven path, first-round audits
+  were already unconditionally full — no changeset routing exists there, this story
+  doesn't add or remove any, and closing that separate gap is follow-up work (see
+  correction below). This story only changes the *second-and-later* dispatch of a
+  single audit cycle.
 - **Retry-cap math (`MAX_FIX_CYCLES`).** Unchanged, still 2, still code-owned in
   `epic-driver.js`. This story changes *what* gets dispatched on a retry, never *how
   many* retries are allowed.
@@ -275,10 +283,27 @@ inside that step.
   see Alternatives.
 - **The existing changeset-routing skip rules** (web-surface, infra, operability,
   pre-mortem). Untouched; they still decide which lanes join a *first* round exactly as
-  today. This story only adds a second axis — retry-round narrowing — layered on top.
+  today — **on `/gate-audit`**. This story only adds a second axis — retry-round
+  narrowing — layered on top of that.
 - **`commands/gate-should-we-build.md` and `commands/gate-design-review.md`.** Neither
   has a multi-lane fan-out or a retry loop shaped like `/gate-audit`'s; out of scope by
   construction, not by omission.
+
+**Correction (post-merge, via review on issue #130):** the three "exactly as today" /
+"untouched" claims above are accurate for `/gate-audit`'s prose-routed skip rules but
+overstated parity with the epic-driven path that doesn't hold. `workflows/epic-driver.js`
+never implemented first-round changeset routing — `AUDITORS` is unconditionally all 9
+lanes on every round this story doesn't narrow (`const dispatched = scope.narrowed ?
+scope.blockingAuditors : AUDITORS`). That gap is pre-existing, this story doesn't touch
+it, and it's the larger of the two remaining axes in #130's cost problem (first-round
+width, not retry width — see the epic case study's own framing, "the same 8-lane fan-out
+a whole epic finale gets"). Relatedly: `carriedForward = AUDITORS.filter(a =>
+!dispatched.includes(a))` is safe today only because no routed subset of `AUDITORS`
+exists yet. The moment first-round routing lands on this path, that line must be
+recomputed against the *routed* roster, not the full `AUDITORS` constant, or a
+routed-out lane (never dispatched, N/A) will misrender as a clean carried-forward PASS —
+a false-clean attestation for a lane that never ran. Both are tracked as follow-up work
+on this same epic path, not built here.
 
 ## Alternatives considered
 
