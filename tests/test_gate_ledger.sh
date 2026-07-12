@@ -48,6 +48,18 @@ check "ledger is gitignored (not in status)" "" "$(cd "$d" && git status --porce
 check "upsert keeps audit" "PASS" "$(jq -r '.gates.audit.verdict' "$f")"
 check "upsert adds acceptance" "SHIP" "$(jq -r '.gates.acceptance.verdict' "$f")"
 
+# --- record --blocking-lanes (delta-scoped re-audit, #130) ---
+dbl=$(sandbox)
+fbl="$dbl/.studious/gates/feat-foo.json"
+( cd "$dbl" && "$LEDGER" record --gate audit --verdict "FIX AND RE-AUDIT" --blocking-lanes "security-auditor, test-auditor" )
+check "blockingLanes stored as a trimmed JSON array" '["security-auditor","test-auditor"]' "$(jq -c '.gates.audit.blockingLanes' "$fbl")"
+( cd "$dbl" && "$LEDGER" record --gate audit --verdict PASS )
+check "a later record with no --blocking-lanes drops the field (no stale carryover)" "null" "$(jq -c '.gates.audit.blockingLanes' "$fbl")"
+( cd "$dbl" && "$LEDGER" record --gate audit --verdict "FIX AND RE-AUDIT" )
+check "--blocking-lanes is optional even on FIX AND RE-AUDIT (field absent, not empty array)" "null" "$(jq -c '.gates.audit.blockingLanes' "$fbl")"
+( cd "$dbl" && "$LEDGER" record --gate audit --verdict "FIX AND RE-AUDIT" --blocking-lanes "  security-auditor ,, code-auditor  " )
+check "blockingLanes trims whitespace and drops empty entries from stray commas" '["security-auditor","code-auditor"]' "$(jq -c '.gates.audit.blockingLanes' "$fbl")"
+
 # --- gate-get prints the raw ledger JSON for the current branch ---
 out=$(cd "$d" && "$LEDGER" gate-get)
 contains "gate-get prints the current branch's ledger" '"branch": "feat/foo"' "$out"

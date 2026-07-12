@@ -5,6 +5,12 @@
 #   .studious/gates/<branch-slug>.json  — per-branch gate verdicts. Written by the
 #     gate commands (via `record`); read by the PR-time hook (via `status`) and by
 #     /work-on's evidence check (via `gate-get`) — never read as a raw file by callers.
+#     A gate's entry optionally carries `blockingLanes` (delta-scoped re-audit, #130):
+#     set only via `record --gate audit --blocking-lanes L1,L2` when the audit verdict
+#     is FIX AND RE-AUDIT; read back via `gate-get` by commands/gate-audit.md and
+#     workflows/epic-driver.js to narrow the *next* re-audit's dispatch width. Absent on
+#     every other verdict and on every record written before this field existed —
+#     indistinguishable from "malformed," which both readers fail closed on (full audit).
 #   .studious/work/<feature-slug>.json  — per-feature flow position for /work-on
 #     (written via `work-set` / `work-log`; read via `work-get` / `work-list`).
 #   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /work-through (written via epic-set / epic-story-set; read via epic-get / epic-list).
@@ -193,11 +199,12 @@ append_event() { # epic, story, kind, jq-object filter for the kind's own fields
 }
 
 cmd_record() {
-  local gate="" verdict=""
+  local gate="" verdict="" blocking_lanes=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --gate)    gate="$2"; shift 2 ;;
-      --verdict) verdict="$2"; shift 2 ;;
+      --gate)            gate="$2"; shift 2 ;;
+      --verdict)         verdict="$2"; shift 2 ;;
+      --blocking-lanes)  blocking_lanes="$2"; shift 2 ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
@@ -219,11 +226,24 @@ cmd_record() {
   local branch sha rc
   branch="$(branch_name)"
   sha="$(head_sha)"
+  # blockingLanes (delta-scoped re-audit, #130): a comma-separated
+  # --blocking-lanes list is trimmed/deduped into a JSON array and added to
+  # this gate's entry ONLY when given non-empty — every `record` call fully
+  # replaces the gate's entry (see .gates[$g] = {...} below), so a verdict
+  # recorded WITHOUT --blocking-lanes (a PASS, or a caller that never
+  # computed one) correctly leaves the field absent rather than carrying a
+  # stale list forward. Absence is exactly the "malformed/unavailable" signal
+  # commands/gate-audit.md's and workflows/epic-driver.js's re-audit-scope
+  # readers already fail closed on.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
-    '.schemaVersion = (.schemaVersion // 1) | .branch = $b | .gates[$g] = {verdict: $v, sha: $s, ranAt: $t}' \
+    'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
+     .schemaVersion = (.schemaVersion // 1)
+     | .branch = $b
+     | .gates[$g] = ({verdict: $v, sha: $s, ranAt: $t}
+         + (if $bl != "" then {blockingLanes: ($bl | csv_trim)} else {} end))' \
     --arg b "$branch" --arg g "$gate" --arg v "$verdict" \
-    --arg s "$sha" --arg t "$(now_iso)"
+    --arg s "$sha" --arg t "$(now_iso)" --arg bl "$blocking_lanes"
   rc=$?
 
   if [ "$rc" -eq 0 ]; then
@@ -786,5 +806,5 @@ case "${1:-}" in
   evidence-append) shift; cmd_evidence_append "$@" ;;
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] | gc}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] | gc}" >&2; exit 2 ;;
 esac

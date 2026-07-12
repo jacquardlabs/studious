@@ -216,7 +216,7 @@ AUDITOR_SHORT_NAMES = [
 ]
 
 
-def _run_driver(epic: dict, agent_rules: list[dict], phases: dict | None = None) -> dict:
+def _run_driver(epic: dict, agent_rules: list[dict], phases: dict | None = None, contract: str = "CONTRACT-TEXT") -> dict:
     """Runs the real, unmodified driver source the way the Workflow harness
     does: strip the one `export` keyword and execute the remainder as the
     body of an async function supplied with args/agent/parallel/log/phase —
@@ -229,6 +229,15 @@ def _run_driver(epic: dict, agent_rules: list[dict], phases: dict | None = None)
     the first matching rule wins, mirroring `label:`-based dispatch. A label
     matching no rule rejects loudly inside the mock — a silently-accepted
     unmocked dispatch would mean the test isn't exercising what it claims to.
+
+    The returned dict also carries ``calls``: every ``{label, prompt}`` pair
+    the mock `agent()` was invoked with, in call order — a resolved/rejected
+    mock still records the call before settling. Consumers that only care
+    about the final result (every test predating delta-scoped re-audit, #130)
+    simply don't look at it; `test_delta_scoped_reaudit.py` uses it to assert
+    on which lanes were actually dispatched (not just what the mock returned)
+    and on the compile step's own prompt content (carry-forward/fix-delta
+    block text a label-only mock can't otherwise distinguish).
     """
     source = DRIVER.read_text()
     stripped = re.sub(r"^export\s+", "", source)
@@ -237,7 +246,7 @@ def _run_driver(epic: dict, agent_rules: list[dict], phases: dict | None = None)
         "phases": phases or {},
         "repoRoot": "/repo",
         "defaultBranch": "main",
-        "contract": "CONTRACT-TEXT",
+        "contract": contract,
     }
     script = f"""
 async function __driver(args, agent, parallel, log, phase) {{
@@ -245,8 +254,10 @@ async function __driver(args, agent, parallel, log, phase) {{
 }}
 
 const RULES = {json.dumps(agent_rules)}
+const CALLS = []
 function agent(prompt, opts) {{
   const label = (opts && opts.label) || ''
+  CALLS.push({{ label, prompt }})
   for (const r of RULES) {{
     if (new RegExp(r.match).test(label)) {{
       if ('throw' in r) return Promise.reject(new Error(r.throw))
@@ -260,8 +271,8 @@ function log() {{}}
 function phase() {{}}
 
 __driver({json.dumps(args)}, agent, parallel, log, phase)
-  .then(r => {{ console.log(JSON.stringify({{ ok: true, result: r }})) }})
-  .catch(err => {{ console.log(JSON.stringify({{ ok: false, error: String((err && err.stack) || err) }})) }})
+  .then(r => {{ console.log(JSON.stringify({{ ok: true, result: r, calls: CALLS }})) }})
+  .catch(err => {{ console.log(JSON.stringify({{ ok: false, error: String((err && err.stack) || err), calls: CALLS }})) }})
 """
     proc = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=60)
     assert proc.returncode == 0, f"node driver probe crashed outright: {proc.stderr}\nSTDOUT: {proc.stdout}"
