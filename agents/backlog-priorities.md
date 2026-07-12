@@ -2,7 +2,7 @@
 name: backlog-priorities
 description: Curate a ranked shortlist from open GitHub issues based on the user's current intent — tech debt, maintenance, polish, or new initiative. Recommend-only, never modifies issues.
 tools: Read, Glob, Grep, Bash
-model: inherit
+model: sonnet
 effort: medium
 ---
 

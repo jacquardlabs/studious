@@ -2,7 +2,7 @@
 name: backlog-hygiene
 description: Identify open GitHub issues that should be closed — resolved by commits, made obsolete by product decisions, or duplicated by other issues. Recommend-only, never modifies issues.
 tools: Read, Glob, Grep, Bash
-model: inherit
+model: haiku
 effort: low
 ---
 

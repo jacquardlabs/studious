@@ -91,17 +91,24 @@ ships worse decisions.
   `security-auditor`, `infra-auditor`, `operability-auditor`, `architecture-auditor`,
   `premortem-auditor`, `product-reviewer`, `ux-reviewer`, `review-architecture`,
   `review-product-health`, `review-security-health`.
-- **`inherit`** — code hygiene, docs, tests, frontend code, inventory sweeps, and triage:
-  `code-auditor`, `doc-auditor`, `test-auditor`, `frontend-reviewer`,
-  `review-codebase-health`, `review-interface-health`, `review-readme`, `backlog-priorities`,
-  `backlog-hygiene`.
+- **`sonnet`** — recommend-only synthesis and ranking judgment, no merge gate behind it:
+  `backlog-priorities`, `review-codebase-health`, `review-interface-health`.
+- **`haiku`** — recommend-only pure inventory and drift checks, no merge gate behind it:
+  `backlog-hygiene`, `review-readme`.
+- **`inherit`** — merge-blocking, mechanical or rule-based checks, pending an A/B against a
+  pinned drop (see below): `code-auditor`, `doc-auditor`, `test-auditor`,
+  `frontend-reviewer`.
 
-**`inherit` is a known defect, not the intended cheap tier — see [#136](https://github.com/jacquardlabs/studious/issues/136).** It resolves to the session
-model, so the "cheap" half above is billed at whatever the user happens to have selected: an
-Opus session makes it identical to the `opus` tier, and a Fable session makes it 2× that.
-Worse, it means the same branch audited on two different days can be judged by two different
-models. Do not add new `inherit` agents; pin explicitly by stakes, and take model *drops* on
-merge-blocking lanes through the A/B harness rather than on judgment.
+**`inherit` is a known defect, not a cheap tier — see [#136](https://github.com/jacquardlabs/studious/issues/136).** It resolves to the session model, so an
+agent still pinned to it is billed at whatever the user happens to have selected: identical
+to the `opus` tier in an Opus session, 2× that in a Fable one. Worse, it means the same
+branch audited on two different days can be judged by two different models. The four agents
+above are pinned to it only because they gate a merge and a model drop needs the A/B harness
+first — they are not "the cheap tier" by design, they are the remaining defect. The five
+`sonnet`/`haiku` agents above show the target shape: no merge gate behind an agent's output
+means no A/B is needed to drop its tier, since a weak result is visible and cheap for a human
+to catch. Do not add new `inherit` agents for that reason, and do not read `inherit`
+anywhere in this file as an endorsed default.
 
 ## What we won't merge
 

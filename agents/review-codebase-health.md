@@ -2,7 +2,7 @@
 name: review-codebase-health
 description: Periodic whole-codebase health review — architecture, debt, patterns, dependencies, tests
 tools: Read, Glob, Grep, Bash, Write
-model: inherit
+model: sonnet
 effort: medium
 ---
 
