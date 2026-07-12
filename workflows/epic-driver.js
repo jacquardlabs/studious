@@ -120,6 +120,37 @@ function finaleAuditDispatchPrompt(fields) {
   return `${note} Audit the FULL epic diff per your role. Repo: ${repoRootVal}; changeset: the epic worktree ${epicWorktreePath} on branch epic/${slugVal}, diff base: merge-base with ${defaultBranchVal}. This is the cross-story integration pass — seams between stories are your subject. Epic goal: ${epicGoal}. If your lane does not apply, say so. Return findings as structured text.\n\n${requireContract(contract)}`
 }
 
+// Delta-scoped re-audit (#130): the single, cheap, cross-lane spot-check dispatched
+// alongside a narrowed round's previously-blocking lanes. Scoped ONLY to the diff since
+// the prior round's recorded sha — not a tenth registered auditor, not a blend of the
+// nine specialists' full depth, an explicit bounded exception to "one agent = one
+// concern" that exists solely because of this retry-scoping mechanism (see the design
+// doc's "Stay in your lane" principle).
+function fixDeltaDispatchPrompt(fields) {
+  const { ctxBlock, note, storyWorktreePath, priorSha, contract } =
+    requireFields(fields, ['ctxBlock', 'note', 'storyWorktreePath', 'priorSha'], 'fixDeltaDispatchPrompt')
+  return `${ctxBlock}\n\n${note} You are the fix-delta cross-lane pass: a single, cheap, broad check scoped ONLY to the diff between ${priorSha} and current HEAD in ${storyWorktreePath} — the fix commit(s) that landed since the last audit round, not the whole changeset. Read every one of Studious's audit lane rubrics (security, code quality, docs, architecture, tests, infrastructure, operability, UX, frontend) as a checklist, and flag anything in this small delta that any lane would flag. This is a spot-check over a small, known-risky diff, not a claim to replace any specialist's full depth. Tag each finding with whichever lane's vocabulary it most resembles. If the delta introduces nothing any lane would flag, say so and return no findings.\n\n${requireContract(contract)}`
+}
+
+function finaleFixDeltaDispatchPrompt(fields) {
+  const { note, repoRoot: repoRootVal, epicWorktreePath, slug: slugVal, defaultBranch: defaultBranchVal, priorSha, contract } =
+    requireFields(fields, ['note', 'repoRoot', 'epicWorktreePath', 'slug', 'defaultBranch', 'priorSha'], 'finaleFixDeltaDispatchPrompt')
+  return `${note} You are the fix-delta cross-lane pass for the epic finale: a single, cheap, broad check scoped ONLY to the diff between ${priorSha} and current HEAD in the epic worktree ${epicWorktreePath} (branch epic/${slugVal}) — the fix commit(s) that landed since the last finale audit round, not the whole epic diff. Repo: ${repoRootVal}; default branch ${defaultBranchVal}. Read every one of Studious's audit lane rubrics (security, code quality, docs, architecture, tests, infrastructure, operability, UX, frontend) as a checklist, and flag anything in this small delta that any lane would flag. This is a spot-check over a small, known-risky diff, not a claim to replace any specialist's full depth. Tag each finding with whichever lane's vocabulary it most resembles. If the delta introduces nothing any lane would flag, say so and return no findings.\n\n${requireContract(contract)}`
+}
+
+// Delta-scoped re-audit (#130), resumed-process fallback: `runGate`'s in-run retry
+// loop threads the prior round's compiled GATE_RESULT (with its blockingLanes field)
+// straight through in memory — free, no dispatch needed. But if THIS process is a
+// fresh one resuming a story whose audit gate already burned a fix cycle in an earlier,
+// now-gone process (attempts > 0 with no in-memory result), that in-memory shortcut
+// doesn't exist. This mechanical, judgment-free dispatch reconstructs the same fact
+// from the ledger both dispatch surfaces already write to — reusing the REPORT schema
+// (findings: string) rather than adding a new one, since the answer is just a compact
+// JSON line inside that string.
+function ledgerScopeCheckPrompt(dir) {
+  return `This is a mechanical fact-check, not a judgment call — report exactly what the commands show, never interpret or editorialize. From ${dir}, run: gate-ledger gate-get\n\nParse its JSON output (empty output means no ledger recorded for this branch). Return your findings as EXACTLY one line of compact JSON, nothing else:\n- If .gates.audit is absent, or .gates.audit.verdict is not exactly "FIX AND RE-AUDIT", or .gates.audit.blockingLanes is absent, empty, or not an array of strings: return {"hasNarrowableVerdict":false}\n- Otherwise also run: git -C "${dir}" merge-base --is-ancestor "<.gates.audit.sha>" HEAD — if that command's exit code is non-zero (or the sha can't be resolved at all), return {"hasNarrowableVerdict":false}\n- Otherwise return {"hasNarrowableVerdict":true,"sha":"<.gates.audit.sha>","blockingLanes":<.gates.audit.blockingLanes, verbatim, unreordered, unfiltered>}`
+}
+
 function premortemDispatchPrompt(fields) {
   const { repoRoot: repoRootVal, premortemPath, slug: slugVal, epicWorktreePath, contract } =
     requireFields(fields, ['repoRoot', 'premortemPath', 'slug', 'epicWorktreePath'], 'premortemDispatchPrompt')
@@ -132,6 +163,11 @@ const GATE_RESULT = {
     verdict: { type: 'string' },
     sha: { type: 'string', description: 'short HEAD sha of the branch the verdict was recorded against' },
     summary: { type: 'string', description: 'one-paragraph reasoning; for retry/judgment verdicts, the findings' },
+    blockingLanes: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'audit gate only (delta-scoped re-audit, #130): when verdict is FIX AND RE-AUDIT, the short auditor name(s) (e.g. "security-auditor", matching AUDITORS below by suffix) whose report contributed a Confirmed Critical that drove this verdict — omitted for every other verdict, and omitted whenever any lane this round was UNAUDITED (agent died), so a later round never narrows off an unreliable list.',
+    },
   },
   required: ['verdict', 'sha', 'summary'],
 }
@@ -181,15 +217,76 @@ function workSlug(story) { return `${slug}--${story}` }
 // double-quoted command an agent will run.
 function shellSafe(s) { return String(s || '').replace(/[$`"\\]/g, '') }
 
+// Delta-scoped re-audit (#130): decides whether the NEXT audit round narrows its
+// dispatch to only the previously-blocking lane(s) + one fix-delta cross-lane pass, or
+// runs the full roster exactly as today. Pure and explicitly parameterized (no closures
+// over module state), matching this file's own precedent (crashParkArgs,
+// stalledFinaleEntry) for standalone extraction/execution by
+// tests/python/test_delta_scoped_reaudit.py. `priorResult` is the immediately
+// preceding round's compiled GATE_RESULT (or null: no prior round, or a died gate) —
+// never a resolved audit cycle further back than that (see the design doc's "since the
+// immediately preceding round only" rationale). `auditors` and `retryToken` are passed
+// in, not read from AUDITORS/GATES.audit.retry, for the same standalone-extraction
+// reason. Fails closed (narrowed: false) on every ambiguous or malformed input —
+// acceptance criterion 4.
+function resolveReauditScope(priorResult, auditors, retryToken) {
+  if (!priorResult || priorResult.verdict !== retryToken) {
+    return { narrowed: false, blockingAuditors: [], priorSha: (priorResult && priorResult.sha) || '', reason: 'no prior FIX AND RE-AUDIT verdict to narrow from' }
+  }
+  const lanes = priorResult.blockingLanes
+  const wellFormed = Array.isArray(lanes) && lanes.length > 0 && lanes.every(l => typeof l === 'string' && l.length > 0)
+  if (!wellFormed) {
+    return { narrowed: false, blockingAuditors: [], priorSha: priorResult.sha || '', reason: 'prior verdict carries no well-formed blocking-lane list' }
+  }
+  const blockingAuditors = lanes.map(l => auditors.find(a => a === l || a.endsWith(':' + l)))
+  if (blockingAuditors.some(a => !a)) {
+    return { narrowed: false, blockingAuditors: [], priorSha: priorResult.sha || '', reason: 'prior blocking-lane list names a lane outside the current auditor roster' }
+  }
+  if (!priorResult.sha) {
+    return { narrowed: false, blockingAuditors: [], priorSha: '', reason: 'prior verdict has no recorded sha' }
+  }
+  return {
+    narrowed: true,
+    blockingAuditors,
+    priorSha: priorResult.sha,
+    reason: `narrowed to ${blockingAuditors.length}/${auditors.length} previously-blocking lane(s) + one fix-delta cross-lane pass, since ${priorResult.sha}`,
+  }
+}
+
 // Label every auditor lane even when its agent died — filter-then-map shifts
 // indices and misattributes reports; a silently missing lane must never
-// compile into an unearned PASS.
-function joinReports(reports) {
+// compile into an unearned PASS. `dispatched` is the exact ordered list this
+// round actually spawned Tasks for (the full AUDITORS roster on an unnarrowed
+// round, or just the previously-blocking subset on a narrowed one) — `reports`
+// is index-aligned to it, never to the full AUDITORS array, so a narrowed
+// round's shorter dispatch list never misattributes a report to the wrong
+// lane. `carriedForward` (delta-scoped re-audit, #130) is every lane NOT
+// dispatched this round because narrowing skipped it by design — rendered
+// under its own distinct label, never conflated with AGENT DIED (a lane that
+// WAS dispatched but returned nothing). `fixDeltaDispatched`/`fixDeltaReport`
+// (also #130) cover the single cross-lane spot-check: dispatched only on a
+// narrowed round, and — like every other lane — a died fix-delta pass is
+// UNAUDITED, added to `missing`, never silently absent from the compiled
+// report.
+function joinReports(dispatched, reports, carriedForward, priorSha, fixDeltaDispatched, fixDeltaReport) {
   const missing = []
-  const joined = reports.map((r, i) => {
-    if (!r) { missing.push(AUDITORS[i]); return `--- ${AUDITORS[i]} --- (AGENT DIED — no report; this lane is UNAUDITED)` }
-    return `--- ${AUDITORS[i]} ---\n${r.findings}`
-  }).join('\n\n')
+  const dispatchedBlocks = dispatched.map((a, i) => {
+    const r = reports[i]
+    if (!r) { missing.push(a); return `--- ${a} --- (AGENT DIED — no report; this lane is UNAUDITED)` }
+    return `--- ${a} ---\n${r.findings}`
+  })
+  const carriedBlocks = carriedForward.map(a =>
+    `--- ${a} --- (carried forward: PASS, no Confirmed Critical as of ${priorSha || 'the prior round'} — not re-dispatched this round; not a replay of any Important/Track findings it previously raised)`)
+  const fixDeltaBlocks = []
+  if (fixDeltaDispatched) {
+    if (fixDeltaReport) {
+      fixDeltaBlocks.push(`--- fix-delta-cross-lane-pass --- (scoped to the diff since ${priorSha || 'the prior round'}, not the whole changeset)\n${fixDeltaReport.findings}`)
+    } else {
+      missing.push('fix-delta-cross-lane-pass')
+      fixDeltaBlocks.push('--- fix-delta-cross-lane-pass --- (AGENT DIED — no report; this pass is UNAUDITED)')
+    }
+  }
+  const joined = [...dispatchedBlocks, ...carriedBlocks, ...fixDeltaBlocks].join('\n\n')
   return { joined, missing }
 }
 
@@ -219,7 +316,8 @@ function gatePrompt(story, gate, nextPhase) {
 }
 
 function auditFanIn(story, reports, base, dir, nextPhase) {
-  return `You are compiling Studious's audit gate verdict. Read commands/gate-audit.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply ITS compilation rules and severity rubric to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-AUDIT.\n\nOut of scope for this verdict: gate-audit.md's own text describes a pre-mortem-verification lane (auditor 11) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover only the 9 fixed lanes (security, code, doc, architecture, test, infra, operability, ux, frontend); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those 9 lanes otherwise support.\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\nRecord the verdict from inside ${dir}: cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"` : ''}\n\nReturn: verdict (PASS | FIX AND RE-AUDIT | NEEDS DISCUSSION), sha, summary.`
+  const laneNames = AUDITORS.map(a => a.split(':')[1]).join(', ')
+  return `You are compiling Studious's audit gate verdict. Read commands/gate-audit.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply ITS compilation rules and severity rubric to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-AUDIT.\n\nA lane marked "carried forward" (delta-scoped re-audit, #130) is NOT the same as UNAUDITED: it was not re-dispatched this round because the prior round's own compiled verdict already proved it had no Confirmed Critical. Treat its one-line carried-forward status as a clean, confirmed-clean fact for that lane — never as a gap that blocks the verdict, and never invent or replay any Important/Track findings for it beyond that line. A block labeled "fix-delta-cross-lane-pass" is a single, cheap, cross-lane spot-check over the small diff since the prior round, not a tenth specialist auditor — map its findings into the report's severity tiers exactly like any other lane's, tagged by whichever lane's vocabulary they resemble, and put them through the same Critical-challenge step as every other finding.\n\nOut of scope for this verdict: gate-audit.md's own text describes a pre-mortem-verification lane (auditor 11) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover only the 9 fixed lanes (security, code, doc, architecture, test, infra, operability, ux, frontend); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those 9 lanes otherwise support.\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\nIf, and only if, your verdict is FIX AND RE-AUDIT: also determine blockingLanes — the short name(s) (e.g. "security-auditor", not "studious:security-auditor") of every lane among {${laneNames}} whose report contained a Critical finding that survived your challenge as Confirmed and helped drive this verdict. Omit blockingLanes entirely (do not return an empty array) if your verdict is PASS or NEEDS DISCUSSION, or if ANY lane above is marked AGENT DIED this round — a died lane's true status is unknown, so the next round must default to a full re-audit rather than narrow off an unreliable list.\n\nRecord the verdict from inside ${dir} (substitute <TOKEN> with your verdict; only when you computed blockingLanes above, also append --blocking-lanes "<comma-separated lane names>" to this same command — omit that flag entirely otherwise, per the omission rule above): cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"` : ''}\n\nReturn: verdict (PASS | FIX AND RE-AUDIT | NEEDS DISCUSSION), sha, summary, blockingLanes (only when you computed one, per the rule above — omit the field entirely otherwise).`
 }
 
 function fixerPrompt(story, gate, findings) {
@@ -334,26 +432,77 @@ function unresolvedStories() {
   return { cycle, downstream, cycleDepsOf }
 }
 
-async function auditRound(story, note, nextPhase) {
-  const reports = await parallel(AUDITORS.map(a => () =>
+// `priorResult` (delta-scoped re-audit, #130) is the immediately preceding round's
+// compiled GATE_RESULT, or null/undefined for the very first round of a cycle — that
+// first round is always full and unnarrowed (resolveReauditScope(null, ...) always
+// returns narrowed: false), exactly matching the design's "the very first audit round
+// on a changeset is untouched."
+async function auditRound(story, note, nextPhase, priorResult) {
+  const scope = resolveReauditScope(priorResult, AUDITORS, GATES.audit.retry)
+  const dispatched = scope.narrowed ? scope.blockingAuditors : AUDITORS
+  const reports = await parallel(dispatched.map(a => () =>
     agent(auditDispatchPrompt({ ctxBlock: ctx(story), note, slug, storyWorktreePath: storyWorktree(story), contract: CONTRACT }),
       { agentType: a, label: `audit:${a.split(':')[1]}:${story}`, phase: `story:${story}`, schema: REPORT })))
-  const { joined, missing } = joinReports(reports)
+  const fixDeltaReport = scope.narrowed
+    ? await agent(fixDeltaDispatchPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: storyWorktree(story), priorSha: scope.priorSha, contract: CONTRACT }),
+        { label: `audit:fix-delta:${story}`, phase: `story:${story}`, schema: REPORT })
+    : null
+  const carriedForward = scope.narrowed ? AUDITORS.filter(a => !dispatched.includes(a)) : []
+  const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport)
   let result = await agent(auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase),
     { label: `audit:compile:${story}`, phase: `story:${story}`, schema: GATE_RESULT, model: 'opus' })
-  // Belt and braces: an unaudited lane can never compile into PASS, whatever
-  // the compiler said.
-  if (result && missing.length && result.verdict === 'PASS') {
-    result = { ...result, verdict: 'NEEDS DISCUSSION', summary: `unaudited lane(s) — agent died: ${missing.join(', ')}. ${result.summary}` }
+  // Belt and braces: an unaudited lane (or a died fix-delta pass) can never compile
+  // into PASS, whatever the compiler said, and can never leave a usable blockingLanes
+  // for the NEXT round to narrow off of — a died lane's true status is unknown, so this
+  // strips the field regardless of what the compiling agent returned. Never trust
+  // prompt compliance alone for a fail-closed guarantee (acceptance criterion 4).
+  if (result && missing.length) {
+    result = { ...result, blockingLanes: undefined }
+    if (result.verdict === 'PASS') {
+      result = { ...result, verdict: 'NEEDS DISCUSSION', summary: `unaudited lane(s) — agent died: ${missing.join(', ')}. ${result.summary}` }
+    }
   }
   return result
+}
+
+// Delta-scoped re-audit (#130), resumed-process fallback for the story path: the
+// in-run retry loop below threads the prior round's in-memory GATE_RESULT straight
+// through auditRound's `priorResult` param, free, no dispatch needed. But `attempts >
+// 0` at the TOP of a `runGate` call — before this run's own while loop has bumped
+// anything — can only mean a fix cycle already completed in an EARLIER, now-gone
+// process (a story's audit gate runs through this function at most once per
+// runStory() execution): the resumed-run case described in the design doc. Free,
+// no-dispatch signal (retries are already in the epic ledger `stories[story].retries`),
+// so a true first-ever round never pays this dispatch — only a genuinely resumed one
+// does.
+async function ledgerAuditPrior(dir, label, phaseLabel) {
+  let r = null
+  try {
+    r = await agent(ledgerScopeCheckPrompt(dir), { label, phase: phaseLabel, schema: REPORT, effort: 'low' })
+  } catch {
+    // A died ledger-scope-check must never crash the story — it only means the
+    // resumed-run narrowing optimization is unavailable; fails closed to a full,
+    // unnarrowed round exactly like any other ambiguous/missing case.
+    return null
+  }
+  if (!r || !r.findings) return null
+  let parsed
+  try { parsed = JSON.parse(r.findings) } catch { return null }
+  if (!parsed || !parsed.hasNarrowableVerdict) return null
+  return { verdict: GATES.audit.retry, sha: parsed.sha, blockingLanes: parsed.blockingLanes }
 }
 
 async function runGate(story, gate, nextPhase) {
   // One gate, including its bounded fix cycles. Returns final verdict info.
   let attempts = (stories[story].retries && stories[story].retries[gate]) || 0
+  let priorAuditResult = null
+  let initialNote = ''
+  if (gate === 'audit' && attempts > 0) {
+    priorAuditResult = await ledgerAuditPrior(storyWorktree(story), `audit:ledger-scope:${story}`, `story:${story}`)
+    if (priorAuditResult) initialNote = 'Re-audit with fresh eyes — resuming after a fix landed in a prior run.'
+  }
   let result = gate === 'audit'
-    ? await auditRound(story, '', nextPhase)
+    ? await auditRound(story, initialNote, nextPhase, priorAuditResult)
     : await agent(gatePrompt(story, gate, nextPhase), { label: `${gate}:${story}`, phase: `story:${story}`, schema: GATE_RESULT, model: 'opus' })
   if (!result) return { verdict: 'NEEDS DISCUSSION', summary: 'gate agent died; treating as judgment verdict', sha: '' }
 
@@ -365,9 +514,12 @@ async function runGate(story, gate, nextPhase) {
     if (!fix || fix.status === 'blocked') {
       return { verdict: 'NEEDS DISCUSSION', summary: (fix && fix.summary) || 'fixer blocked', sha: (fix && fix.sha) || '' }
     }
-    // Fresh eyes: a brand-new gate agent judges the fixed changeset.
+    // Fresh eyes: a brand-new gate agent judges the fixed changeset. The just-evaluated
+    // `result` (this round's compiled verdict, including its blockingLanes) is threaded
+    // straight through as the next round's `priorResult` — the in-run fast path that
+    // never needs to round-trip through gate-ledger to decide scope.
     result = gate === 'audit'
-      ? await auditRound(story, 'Re-audit with fresh eyes — a fix landed since the last audit.', nextPhase)
+      ? await auditRound(story, 'Re-audit with fresh eyes — a fix landed since the last audit.', nextPhase, result)
       : await agent(gatePrompt(story, gate, nextPhase), { label: `${gate}:retry${attempts}:${story}`, phase: `story:${story}`, schema: GATE_RESULT, model: 'opus' })
     if (!result) return { verdict: 'NEEDS DISCUSSION', summary: 'gate agent died on re-run', sha: '' }
   }
@@ -519,18 +671,36 @@ async function runStory(story) {
 
 // ---------- finale (cross-story pass on the epic branch) ----------
 
-async function finaleAuditRound(note) {
+// `priorResult` (delta-scoped re-audit, #130): same in-run fast-path shape as the
+// story-level auditRound above, threaded through finaleGate's retry loop below. No
+// ledger-resume fallback here — the finale's fix-cycle counter is already explicitly
+// run-local (see finaleGate's own comment: "a resumed session re-earns its cycles"),
+// so a resumed process's first finale audit round always has no in-memory prior
+// result, which resolveReauditScope already treats as "no prior verdict to narrow
+// from" — fails closed to a full round, correct, simply not optimized for that rare
+// case the way the story path (which has a free, persisted attempts counter) is.
+async function finaleAuditRound(note, priorResult) {
   // One story-slot fans out to 9 auditors + a compiler; the harness queues
   // beyond its own concurrency limit, so a cap-3 epic peaking above 10 agents
   // is throttled, not broken.
-  const reports = await parallel(AUDITORS.map(a => () =>
+  const scope = resolveReauditScope(priorResult, AUDITORS, GATES.audit.retry)
+  const dispatched = scope.narrowed ? scope.blockingAuditors : AUDITORS
+  const reports = await parallel(dispatched.map(a => () =>
     agent(finaleAuditDispatchPrompt({ note, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, epicGoal: epic.goal, contract: CONTRACT }),
       { agentType: a, label: `finale:${a.split(':')[1]}`, phase: 'Finale', schema: REPORT })))
-  const { joined, missing } = joinReports(reports)
+  const fixDeltaReport = scope.narrowed
+    ? await agent(finaleFixDeltaDispatchPrompt({ note, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, priorSha: scope.priorSha, contract: CONTRACT }),
+        { label: 'finale:fix-delta', phase: 'Finale', schema: REPORT })
+    : null
+  const carriedForward = scope.narrowed ? AUDITORS.filter(a => !dispatched.includes(a)) : []
+  const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport)
   let result = await agent(auditFanIn(null, joined, input.defaultBranch, epicWorktree, ''),
     { label: 'finale:audit-compile', phase: 'Finale', schema: GATE_RESULT, model: 'opus' })
-  if (result && missing.length && result.verdict === 'PASS') {
-    result = { ...result, verdict: 'NEEDS DISCUSSION', summary: `unaudited lane(s) — agent died: ${missing.join(', ')}. ${result.summary}` }
+  if (result && missing.length) {
+    result = { ...result, blockingLanes: undefined }
+    if (result.verdict === 'PASS') {
+      result = { ...result, verdict: 'NEEDS DISCUSSION', summary: `unaudited lane(s) — agent died: ${missing.join(', ')}. ${result.summary}` }
+    }
   }
   return result
 }
@@ -564,9 +734,13 @@ function stalledFinaleEntry(epicSlug, gate, result, retryToken, maxCycles) {
 
 // Runs a finale gate with the same bounded fix cycle stories get. Counters are
 // run-local by design: the finale has no per-gate ledger slot, so a resumed
-// session re-earns its cycles against the (possibly already fixed) diff.
+// session re-earns its cycles against the (possibly already fixed) diff. `runOnce`
+// is called as `(note, priorResult)` — the acceptance gate's closure ignores the
+// second arg (JS silently drops an unused extra argument); the audit gate's closure
+// threads it into finaleAuditRound's own `priorResult` param (delta-scoped re-audit,
+// #130) so a narrowed retry's in-run fast path costs nothing extra.
 async function finaleGate(gate, runOnce) {
-  let result = await runOnce('')
+  let result = await runOnce('', null)
   let cycles = 0
   while (result && result.verdict === GATES[gate].retry && cycles < MAX_FIX_CYCLES) {
     cycles++
@@ -574,7 +748,7 @@ async function finaleGate(gate, runOnce) {
     const fix = await agent(finaleFixerPrompt(gate, result.summary),
       { label: `finale:fix:${gate}`, phase: 'Finale', schema: WORKER_RESULT })
     if (!fix || fix.status === 'blocked') break
-    result = await runOnce('Re-run with fresh eyes — a fix landed since the last check.')
+    result = await runOnce('Re-run with fresh eyes — a fix landed since the last check.', result)
   }
   return result
 }
@@ -610,7 +784,7 @@ let finale = null
 if (landedCount + droppedCount === allSettled.length && landedCount > 0) {
   phase('Finale')
   log('All stories landed/dropped — running the epic finale on the integration branch')
-  const auditVerdict = await finaleGate('audit', note => finaleAuditRound(note))
+  const auditVerdict = await finaleGate('audit', (note, prior) => finaleAuditRound(note, prior))
   const stalledAudit = stalledFinaleEntry(slug, 'audit', auditVerdict, GATES.audit.retry, MAX_FIX_CYCLES)
   if (stalledAudit) parkedThisRun.push(stalledAudit)
 

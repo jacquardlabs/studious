@@ -15,9 +15,10 @@ mechanism than the commands' verbatim push, and the one thing the M1 finale audi
 (#110) caught the prior contract-injection story missing. Now `commands/work-through.md`
 reads `reference/prompt-contract.md` once, the same way the four gate commands do,
 and hands its four blocks to the script as `args.contract`; `CONTRACT` inside the
-script is that text, not a pointer, and the three dispatch sites that interpolate it
-(`auditRound`, `finaleAuditRound`, the finale premortem dispatch) pass it through as
-the `contract` field of an object literal.
+script is that text, not a pointer, and every dispatch site that interpolates it
+(`auditRound`, `finaleAuditRound` — each of which also fans out an optional
+delta-scoped-re-audit fix-delta pass, #130 — and the finale premortem dispatch) pass
+it through as the `contract` field of an object literal.
 
 These tests lock that inversion without a live model:
 
@@ -80,23 +81,32 @@ WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
 # instead of carrying the text itself.
 OLD_POINTER_MARKER = "Shared contract: before you begin"
 
-# The three call sites pass CONTRACT as the `contract` field of their builder's
+# Every dispatch call site passes CONTRACT as the `contract` field of its builder's
 # fields object; each occurrence of this substring is one such call.
 CONTRACT_ARG_SUBSTRING = "contract: CONTRACT"
-EXPECTED_CONTRACT_ARG_COUNT = 3  # auditRound, finaleAuditRound, premortem dispatch
+# auditRound (auditor dispatch), auditRound (fix-delta pass, #130, narrowed rounds
+# only), finaleAuditRound (auditor dispatch), finaleAuditRound (fix-delta pass, #130),
+# premortem dispatch.
+EXPECTED_CONTRACT_ARG_COUNT = 5
 
 # The driver's pure, explicitly-parameterized prompt-assembly functions (see
 # workflows/epic-driver.js). Extracted verbatim below and executed by a plain Node
 # process — never reimplemented — so the fixture proves something about the actual
-# shipped source, not a paraphrase of it. requireFields is the structural guard the
-# three builders call before touching their fields object; it must be extracted
-# alongside them or the probe script raises ReferenceError.
+# shipped source, not a paraphrase of it. requireFields is the structural guard every
+# builder calls before touching their fields object; it must be extracted alongside
+# them or the probe script raises ReferenceError. fixDeltaDispatchPrompt and
+# finaleFixDeltaDispatchPrompt (delta-scoped re-audit, #130) are two more fan-out
+# builders added after the original three — they need the identical contract-
+# injection guarantee this file locks, so they're covered by the same probe rather
+# than a duplicate one.
 DISPATCH_FUNCTION_NAMES = (
     "requireContract",
     "requireFields",
     "auditDispatchPrompt",
     "finaleAuditDispatchPrompt",
     "premortemDispatchPrompt",
+    "fixDeltaDispatchPrompt",
+    "finaleFixDeltaDispatchPrompt",
 )
 
 # Distinctive, verbatim substrings from each of the four prompt-contract.md blocks.
@@ -176,6 +186,8 @@ function attempt(name, fn) {{
 attempt('audit', () => auditDispatchPrompt({{ ctxBlock: 'CTX-BLOCK', note: 'NOTE', slug: 'epic-slug', storyWorktreePath: '/worktree/story-a', contract }}))
 attempt('finale', () => finaleAuditDispatchPrompt({{ note: 'NOTE', repoRoot: '/repo', epicWorktreePath: '/worktree/__epic', slug: 'epic-slug', defaultBranch: 'main', epicGoal: 'goal text', contract }}))
 attempt('premortem', () => premortemDispatchPrompt({{ repoRoot: '/repo', premortemPath: 'docs/premortem.md', slug: 'epic-slug', epicWorktreePath: '/worktree/__epic', contract }}))
+attempt('fixDelta', () => fixDeltaDispatchPrompt({{ ctxBlock: 'CTX-BLOCK', note: 'NOTE', storyWorktreePath: '/worktree/story-a', priorSha: 'abc123', contract }}))
+attempt('finaleFixDelta', () => finaleFixDeltaDispatchPrompt({{ note: 'NOTE', repoRoot: '/repo', epicWorktreePath: '/worktree/__epic', slug: 'epic-slug', defaultBranch: 'main', priorSha: 'abc123', contract }}))
 console.log(JSON.stringify(results))
 """
     proc = subprocess.run(
@@ -322,13 +334,14 @@ def test_work_through_fallback_mode_injects_the_contract_itself() -> None:
 
 
 def test_driver_dispatch_prompts_embed_the_contract_verbatim() -> None:
-    """Executed fixture (#111): a real contract payload reaches all three dispatch sites.
+    """Executed fixture (#111): a real contract payload reaches every dispatch site.
 
     Runs the driver's actual `auditDispatchPrompt`/`finaleAuditDispatchPrompt`/
-    `premortemDispatchPrompt` — extracted verbatim from workflows/epic-driver.js, not
-    reimplemented — against the real reference/prompt-contract.md text, and asserts
-    the resulting prompt contains the four blocks' own content end-to-end, not merely
-    a citation of where to find them.
+    `premortemDispatchPrompt`/`fixDeltaDispatchPrompt`/`finaleFixDeltaDispatchPrompt`
+    (the last two added by #130) — extracted verbatim from workflows/epic-driver.js,
+    not reimplemented — against the real reference/prompt-contract.md text, and
+    asserts the resulting prompt contains the four blocks' own content end-to-end,
+    not merely a citation of where to find them.
     """
     contract_text = (REPO_ROOT / "reference" / "prompt-contract.md").read_text()
     results = _run_dispatch_probe(contract_text)
@@ -345,10 +358,10 @@ def test_driver_dispatch_prompts_fail_closed_on_missing_contract() -> None:
 
     Proves this fixture would have caught the #110 regression: whether the contract
     is absent (the field never set, true ``undefined``), empty, or whitespace-only,
-    each of the three dispatch-prompt builders raises before a prompt is completed,
-    rather than silently reverting to a pointer or splicing an empty/undefined value
-    into an auditor's prompt. Exercising ``None`` (absent) as its own case, not only
-    the empty-string case, guards against a guard narrowed to just `contract === ''`.
+    every dispatch-prompt builder raises before a prompt is completed, rather than
+    silently reverting to a pointer or splicing an empty/undefined value into an
+    auditor's prompt. Exercising ``None`` (absent) as its own case, not only the
+    empty-string case, guards against a guard narrowed to just `contract === ''`.
     """
     for missing_contract in (None, "", "   \n\t  "):
         results = _run_dispatch_probe(missing_contract)
