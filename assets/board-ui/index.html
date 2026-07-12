@@ -52,6 +52,8 @@
     --amber-fill: #f7ecd2;
     --alarm-row-bg: #f5e5bb;
     --alarm-row-text: #6b4a04;
+    --alarm-rule: #b9c0af;
+    --alarm-text-glow: none;
     --landed: #21833f;
     --glow-green: none;
     --glow-amber: none;
@@ -87,6 +89,8 @@
       --amber-fill: #241804;
       --alarm-row-bg: transparent;
       --alarm-row-text: #ffb01f;
+      --alarm-rule: transparent;
+      --alarm-text-glow: 0 0 8px rgba(255, 176, 31, 0.35);
       --landed: #46ec66;
       --glow-green: 0 0 10px rgba(70, 236, 102, 0.25);
       --glow-amber: 0 0 12px rgba(255, 176, 31, 0.3);
@@ -103,7 +107,8 @@
     --pass-bg: #21833f; --pass-border: #21833f; --pass-text: #f0f7ef;
     --fix-bg: #eda210; --fix-border: #b57c07; --fix-text: #2c1f01;
     --amber: #9c6a05; --amber-border: #eda210; --amber-fill: #f7ecd2;
-    --alarm-row-bg: #f5e5bb; --alarm-row-text: #6b4a04; --landed: #21833f;
+    --alarm-row-bg: #f5e5bb; --alarm-row-text: #6b4a04; --alarm-rule: #b9c0af;
+    --alarm-text-glow: none; --landed: #21833f;
     --glow-green: none; --glow-amber: none; --scanlines: none;
   }
   :root[data-theme="dark"] {
@@ -114,7 +119,8 @@
     --fix-bg: repeating-linear-gradient(45deg, #ffb01f 0 7px, #b57708 7px 14px);
     --fix-border: #ffb01f; --fix-text: #2b1d00;
     --amber: #ffb01f; --amber-border: #ffb01f; --amber-fill: #241804;
-    --alarm-row-bg: transparent; --alarm-row-text: #ffb01f; --landed: #46ec66;
+    --alarm-row-bg: transparent; --alarm-row-text: #ffb01f; --alarm-rule: transparent;
+    --alarm-text-glow: 0 0 8px rgba(255, 176, 31, 0.35); --landed: #46ec66;
     --glow-green: 0 0 10px rgba(70, 236, 102, 0.25); --glow-amber: 0 0 12px rgba(255, 176, 31, 0.3);
     --scanlines: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px);
   }
@@ -162,7 +168,7 @@
     min-width: 0;
   }
   .tb-cell .k { font-size: 0.55rem; letter-spacing: 0.14em; color: var(--text-dim); text-transform: uppercase; }
-  .tb-cell .v { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; color: var(--strong); overflow-wrap: anywhere; }
+  .tb-cell .v { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; color: var(--strong); overflow-wrap: anywhere; text-transform: uppercase; }
   .tb-cell.name .v { font-size: 0.9rem; letter-spacing: 0.12em; }
   .tb-cell.actions {
     border-right: none;
@@ -312,18 +318,27 @@
     flex-direction: column;
   }
   #cas-list li {
-    display: flex;
-    gap: 0.9rem;
-    padding: 0.32rem 0.2rem;
+    display: grid;
+    grid-template-columns: 52px minmax(180px, 230px) 1fr;
+    gap: 0 0.9rem;
+    padding: 0.32rem 0.3rem;
     font-size: 0.74rem;
     letter-spacing: 0.03em;
-    border-bottom: 1px solid var(--rule);
+    border-bottom: 1px solid var(--alarm-rule);
     align-items: baseline;
+    text-transform: uppercase;
   }
-  #cas-list li .t { color: var(--text-dim); white-space: nowrap; width: 42px; flex-shrink: 0; }
-  .cas-amber { background: var(--alarm-row-bg); color: var(--alarm-row-text); font-weight: 700; }
+  #cas-list li .t { color: var(--text-dim); white-space: nowrap; }
+  #cas-list li .tag { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cas-amber { background: var(--alarm-row-bg); color: var(--alarm-row-text); font-weight: 700; text-shadow: var(--alarm-text-glow); }
   .cas-green { color: var(--text-mid); }
   .cas-empty { color: var(--text-dim); letter-spacing: 0.1em; }
+  .cas-empty span:last-child { grid-column: 2 / -1; }
+  @media (max-width: 780px) {
+    #cas-list li { grid-template-columns: 52px 1fr; }
+    #cas-list li .tag { grid-column: 2; }
+    #cas-list li .msg { grid-column: 2; }
+  }
 
   /* ---- drawer (unchanged mechanics; re-skinned) ---- */
   dialog#drawer {
@@ -381,6 +396,7 @@
 <header>
   <div class="tb-cell name"><span class="k">Board</span><span class="v">EPIC OVERVIEW — ONE-LINE</span></div>
   <div class="tb-cell"><span class="k">Unit</span><span class="v" id="epic-title">loading…</span></div>
+  <div class="tb-cell"><span class="k">Mode</span><span class="v" id="epic-mode">—</span></div>
   <div class="tb-cell"><span class="k">Status</span><span class="v" id="epic-counts">—</span></div>
   <div class="tb-cell actions">
     <span id="conn-status" role="status"></span>

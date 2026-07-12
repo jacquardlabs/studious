@@ -593,7 +593,15 @@ function renderCas() {
   messages.forEach(function (m) {
     var li = el('li', { class: 'cas-' + m.tier });
     li.appendChild(el('span', { class: 't', text: (m.at || '').slice(11, 16) || '—' }));
-    li.appendChild(el('span', { text: m.text }));
+    // Column split is display-only: buildCasMessages's text is always either
+    // "<slug>: <message>" or "<slug> <message>" for slug-carrying tiers, so
+    // the tag column is m.slug and the message column is the remainder — no
+    // re-derivation, just presentation of the same string.
+    var msg = m.text;
+    if (m.slug && msg.indexOf(m.slug + ': ') === 0) msg = msg.slice(m.slug.length + 2);
+    else if (m.slug && msg.indexOf(m.slug + ' ') === 0) msg = msg.slice(m.slug.length + 1);
+    if (m.slug) li.appendChild(el('span', { class: 'tag', text: m.slug }));
+    li.appendChild(el('span', { class: 'msg', text: msg }));
     list.appendChild(li);
   });
 }
@@ -612,7 +620,13 @@ function renderMasterCaution() {
 
 function renderHeader() {
   var epic = board.snapshot.epic || {};
-  document.getElementById('epic-title').textContent = (epic.title || epic.slug || 'epic') + ' · ' + (epic.status || 'unknown');
+  // UNIT speaks the slug — the identifier every gate-ledger command and CAS
+  // row uses — so the title block matches the vocabulary of the commands the
+  // drawer hands out; the human-readable title rides along as a tooltip.
+  var unit = document.getElementById('epic-title');
+  unit.textContent = epic.slug || 'epic';
+  if (epic.title) unit.setAttribute('title', epic.title);
+  document.getElementById('epic-mode').textContent = epic.status || 'unknown';
 
   var stories = board.snapshot.stories || {};
   var slugs = Object.keys(stories);
