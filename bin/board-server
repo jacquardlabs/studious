@@ -1,0 +1,431 @@
+#!/usr/bin/env python3
+"""board-server — local, stdlib-only HTTP+SSE server over one epic's .studious/ files.
+
+Serves two read-only endpoints for exactly one epic slug, scoped to the two files
+`bin/gate-ledger` already writes durably (see reference/events-format.md):
+
+  .studious/epics/<slug>.json           — the blackboard (epic identity/status,
+                                           per-story status/deps/retries/reason).
+  .studious/epics/<slug>.events.jsonl   — the append-only transition trail.
+
+  GET /state   one JSON snapshot (the "board schema" — see reference/board-schema.md).
+  GET /events  an SSE stream; pushes a fresh whole snapshot when a poll tick notices
+               either file changed. No computed diff — "a delta" is satisfied by
+               "something changed, here is the fresh state" (see the design doc).
+  GET /        the Flight Deck: one self-contained HTML document (assets/board-ui/)
+               that fetches /state once, then renders live off /events. No external
+               stylesheet, font, script, or image — see docs/superpowers/specs/
+               2026-07-11-board-ui-design.md.
+
+No write endpoint exists — every other path or HTTP method is rejected (404, or the
+http.server default 501 for a method this handler never implements). Binds to
+127.0.0.1 only; this constant is not a flag, by design (zero external network calls
+in the inbound direction, not just the outbound one).
+
+Pattern, not product: reuses `/Users/bryan/Projects/viva`'s server.py class shapes
+(ThreadingMixIn + BaseHTTPRequestHandler, loopback bind, held-open-client broadcast)
+as prior art — not viva's code, not its dependencies. Standard library only.
+
+Usage: bin/board-server EPIC_SLUG [--port N] [--interval SECONDS] [--open]
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+import threading
+import webbrowser
+from dataclasses import dataclass, field
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+from socketserver import ThreadingMixIn
+from urllib.parse import urlparse
+
+HOST = "127.0.0.1"  # loopback only — deliberately not a flag; see module docstring.
+DEFAULT_INTERVAL = 1.0  # seconds; a build-time constant per the design doc's own
+# Open Questions ("sub-second vs. one second is a build-time judgment call").
+
+# The Flight Deck page's on-disk assets — part of this plugin's own install,
+# never the consuming project's repo (that's what epics_dir_for()/repo_root()
+# resolve instead). Anchored to this script's own location, the same way
+# every command/reference file this repo's agents read is anchored to "the
+# plugin root," per this story's own worker-contract preamble.
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets" / "board-ui"
+
+_SLUG_RE = re.compile(r"[^a-z0-9]+")
+
+
+def slugify(value: str) -> str:
+    """Mirror bin/gate-ledger's slugify(): lowercase, runs of anything outside
+    [a-z0-9] collapse to '-', edges trimmed. Kept in sync deliberately — a slug
+    typed at this CLI must resolve to the same filename gate-ledger itself wrote."""
+    return _SLUG_RE.sub("-", value.lower()).strip("-")
+
+
+def _git(*args: str, cwd: Path | None = None) -> str | None:
+    try:
+        out = subprocess.run(
+            ["git", *args], cwd=cwd, capture_output=True, text=True, check=True
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+    return out.stdout.strip()
+
+
+def repo_root(cwd: Path | None = None) -> Path | None:
+    """Mirror bin/gate-ledger's repo_root(): anchor to the MAIN working tree, even
+    when invoked from a linked worktree (e.g. a /work-through story worktree), so
+    this server reads the one shared .studious/epics/ store the driver and every
+    story agent already write to — never a per-worktree copy that doesn't exist.
+    Returns None outside a git repo, matching the bash function's failure mode."""
+    common = _git("rev-parse", "--git-common-dir", cwd=cwd)
+    if not common:
+        return None
+    common_path = Path(common)
+    if not common_path.is_absolute():
+        common_path = (cwd or Path.cwd()) / common_path
+    # Normalize without resolving symlinks, matching bash's `cd "$dir" && pwd`
+    # (logical path, not `pwd -P`).
+    normalized = Path(_normpath(common_path))
+    if normalized.name == ".git":
+        return normalized.parent
+    toplevel = _git("rev-parse", "--show-toplevel", cwd=cwd)
+    return Path(toplevel) if toplevel else None
+
+
+def _normpath(path: Path) -> str:
+    return os.path.normpath(str(path))
+
+
+def epics_dir_for(root: Path | None) -> Path:
+    """Same root-anchoring as bin/gate-ledger's epic_dir(); a CWD-relative
+    fallback when not in a git repo at all."""
+    if root is None:
+        return Path(".studious/epics")
+    return root / ".studious" / "epics"
+
+
+def read_new_complete_lines(path: Path, offset: int) -> tuple[list[bytes], int]:
+    """Tail `path` from byte `offset`, returning only newline-terminated complete
+    lines plus the new offset to resume from next tick. A trailing line with no
+    terminating newline yet (a concurrent writer's in-flight append) is left
+    unconsumed — deferred to the next tick, never parsed truncated or dropped."""
+    try:
+        with path.open("rb") as f:
+            f.seek(offset)
+            chunk = f.read()
+    except OSError:
+        return [], offset
+    if not chunk:
+        return [], offset
+    parts = chunk.split(b"\n")
+    trailing = parts[-1]
+    complete = parts[:-1]
+    consumed = len(chunk) - len(trailing)
+    return complete, offset + consumed
+
+
+def parse_event_lines(lines: list[bytes]) -> list[dict]:
+    events: list[dict] = []
+    for raw in lines:
+        stripped = raw.strip()
+        if not stripped:
+            continue
+        try:
+            events.append(json.loads(stripped))
+        except json.JSONDecodeError:
+            # Shouldn't happen — append_event() writes one atomic O_APPEND line
+            # per call (reference/events-format.md, "Concurrency") — but a
+            # malformed line degrades by skipping it, not by crashing the poll
+            # loop or silently truncating the rest of the feed.
+            print(
+                f"board-server: skipping unparseable events.jsonl line: {stripped[:120]!r}",
+                file=sys.stderr,
+            )
+    return events
+
+
+EPIC_FIELDS = (
+    "slug", "status", "title", "source", "goal", "branch",
+    "concurrency", "premortem", "createdAt", "updatedAt",
+)
+
+
+def build_schema(blackboard: dict | None, events: list[dict], epic_slug: str) -> dict:
+    """The board schema (reference/board-schema.md): epic identity/status, the
+    stories map, and the event feed — sorted by `at`, not by file/arrival order
+    (events-format.md warns physical line order across concurrent writers can
+    lag wall-clock order). Story and event fields are passed through verbatim —
+    gate-ledger's own status/verdict vocabulary, never renamed at this layer."""
+    if blackboard is None:
+        epic: dict = {"slug": epic_slug, "status": "unknown"}
+        stories: dict = {}
+    else:
+        epic = {k: blackboard[k] for k in EPIC_FIELDS if k in blackboard}
+        epic.setdefault("slug", epic_slug)
+        stories = blackboard.get("stories") or {}
+    return {
+        "schemaVersion": 1,
+        "epic": epic,
+        "stories": stories,
+        "events": sorted(events, key=lambda e: e.get("at", "")),
+    }
+
+
+def render_page() -> bytes:
+    """Assemble the one self-contained HTML document GET / serves: the
+    hand-authored page shell (assets/board-ui/index.html) with
+    assets/board-ui/app.js's contents substituted in verbatim for the
+    literal `__BOARD_UI_APP_JS__` placeholder inside its <script> tag. Plain
+    string substitution, not a template engine or bundler — the design
+    doc's "no build step" bar applied to assembling the response, not just
+    to what ships in it. Read from disk on every call (not cached at
+    startup) so the assets stay editable during development without a
+    server restart; both files are small and this route is not hot."""
+    html = (ASSETS_DIR / "index.html").read_text(encoding="utf-8")
+    app_js = (ASSETS_DIR / "app.js").read_text(encoding="utf-8")
+    if "__BOARD_UI_APP_JS__" not in html:
+        raise ValueError("board-ui page shell is missing its __BOARD_UI_APP_JS__ placeholder")
+    return html.replace("__BOARD_UI_APP_JS__", app_js, 1).encode("utf-8")
+
+
+@dataclass
+class BoardState:
+    epics_dir: Path
+    epic_slug: str
+    blackboard: dict | None = None
+    blackboard_digest: str | None = None
+    events_offset: int = 0
+    events: list = field(default_factory=list)
+
+    @property
+    def blackboard_path(self) -> Path:
+        return self.epics_dir / f"{self.epic_slug}.json"
+
+    @property
+    def events_path(self) -> Path:
+        return self.epics_dir / f"{self.epic_slug}.events.jsonl"
+
+    def poll(self) -> bool:
+        """One tick. Deliberately content-based, never mtime-based: the full
+        blackboard is re-read and hashed every tick (json_update() writes via
+        temp-file + rename, so a reader never observes a torn write — a full
+        read is always safe), and the change signal is "did the bytes differ,"
+        not "did the mtime move." A same-second rewrite that mtime granularity
+        could hide is still caught because the actual content is compared.
+        events.jsonl is tailed from the last consumed byte offset, tolerant of
+        an in-flight partial trailing line (see read_new_complete_lines).
+        Returns True if either file changed since the last call."""
+        changed = False
+        try:
+            raw = self.blackboard_path.read_bytes()
+        except OSError:
+            raw = None
+        digest = hashlib.sha256(raw).hexdigest() if raw is not None else None
+        if digest != self.blackboard_digest:
+            self.blackboard_digest = digest
+            if raw is None:
+                self.blackboard = None
+            else:
+                try:
+                    self.blackboard = json.loads(raw)
+                except json.JSONDecodeError:
+                    print(
+                        f"board-server: unparseable blackboard {self.blackboard_path}; "
+                        "serving last-known-good snapshot",
+                        file=sys.stderr,
+                    )
+            changed = True
+        new_lines, new_offset = read_new_complete_lines(self.events_path, self.events_offset)
+        if new_lines:
+            self.events_offset = new_offset
+            self.events.extend(parse_event_lines(new_lines))
+            changed = True
+        return changed
+
+    def snapshot(self) -> dict:
+        return build_schema(self.blackboard, self.events, self.epic_slug)
+
+
+class BoardServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+
+    def __init__(self, address, handler_cls, board_state: BoardState, shutdown_event: threading.Event):
+        super().__init__(address, handler_cls)
+        self.board_state = board_state
+        self.shutdown_event = shutdown_event
+        self.clients: list = []
+        self.clients_lock = threading.Lock()
+
+
+def broadcast(server: BoardServer, payload: dict) -> None:
+    """Push a fresh whole snapshot to every held-open SSE client — mirroring
+    viva's own _push_sse() precedent: broadcast a recomputed object, not a
+    diff against the previous push (see design doc, Alternatives considered)."""
+    msg = f"event: state\ndata: {json.dumps(payload)}\n\n".encode()
+    with server.clients_lock:
+        dead = []
+        for wfile in server.clients:
+            try:
+                wfile.write(msg)
+                wfile.flush()
+            except OSError:
+                dead.append(wfile)
+        for wfile in dead:
+            server.clients.remove(wfile)
+
+
+class Handler(BaseHTTPRequestHandler):
+    server: BoardServer
+
+    def log_message(self, fmt: str, *args) -> None:
+        pass  # silence the default stderr access log, matching viva's precedent
+
+    def _send_json(self, status: int, payload: dict) -> None:
+        body = json.dumps(payload).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except OSError:
+            pass  # client disconnected mid-response; nothing to recover
+
+    def _send_html(self, status: int, body: bytes) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except OSError:
+            pass  # client disconnected mid-response; nothing to recover
+
+    def do_GET(self) -> None:  # noqa: N802 - http.server's naming convention
+        path = urlparse(self.path).path
+        if path == "/":
+            try:
+                self._send_html(200, render_page())
+            except (OSError, ValueError):
+                self._send_html(500, b"board-server: could not read Flight Deck assets")
+        elif path == "/state":
+            self._send_json(200, self.server.board_state.snapshot())
+        elif path == "/events":
+            self._serve_sse()
+        else:
+            self._send_json(404, {"error": "not found"})
+
+    def _serve_sse(self) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.end_headers()
+        try:
+            initial = f"event: state\ndata: {json.dumps(self.server.board_state.snapshot())}\n\n"
+            self.wfile.write(initial.encode())
+            self.wfile.flush()
+            with self.server.clients_lock:
+                self.server.clients.append(self.wfile)
+            self.server.shutdown_event.wait()  # held open until server shutdown
+        except OSError:
+            pass  # client disconnected
+        finally:
+            with self.server.clients_lock:
+                if self.wfile in self.server.clients:
+                    self.server.clients.remove(self.wfile)
+
+    # No do_POST / do_PUT / do_DELETE: http.server's BaseHTTPRequestHandler
+    # returns 501 "Unsupported method" for any verb this class doesn't
+    # implement. That is the entire write-rejection story — no handler code
+    # path exists that could ever mutate a ledger file (see module docstring
+    # and design doc, "Read-only by construction").
+
+
+def poll_loop(server: BoardServer, interval: float) -> None:
+    while not server.shutdown_event.is_set():
+        if server.board_state.poll():
+            broadcast(server, server.board_state.snapshot())
+        server.shutdown_event.wait(interval)
+
+
+def serve(server: BoardServer) -> None:
+    """Accept loop, mirroring viva's own precedent exactly: a manual
+    handle_request() loop (not serve_forever()) so a SIGINT-set shutdown_event
+    is checked between accepts, without the serve_forever()/shutdown()
+    cross-thread deadlock that motivated viva's choice in the first place."""
+    server.timeout = 0.5
+    while not server.shutdown_event.is_set():
+        server.handle_request()
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="board-server",
+        description="Local stdlib SSE server over one epic's .studious/ blackboard + events log.",
+    )
+    p.add_argument("epic_slug", help="the epic slug to serve (as passed to gate-ledger epic-set --slug)")
+    p.add_argument("--port", type=int, default=0, help="TCP port (default: OS-assigned free port)")
+    p.add_argument(
+        "--interval", type=float, default=DEFAULT_INTERVAL,
+        help=f"poll tick interval in seconds (default: {DEFAULT_INTERVAL})",
+    )
+    p.add_argument(
+        "--repo-root", default=None,
+        help="override the detected main-tree root (mainly for tests); default: derived via git",
+    )
+    p.add_argument(
+        "--open", action="store_true",
+        help="open the operator's default browser at the server's URL once it's bound",
+    )
+    return p
+
+
+def maybe_open_browser(url: str, should_open: bool, opener=webbrowser.open) -> None:
+    """Split out from main() so a test can assert the right URL is what
+    gets opened without actually launching a browser in CI — pass a fake
+    `opener` and inspect what it was called with (this story's Operational
+    readiness section names this as required coverage). `opener` defaults
+    to the stdlib's own webbrowser.open, cross-platform, zero new dependency
+    (the same "standard library only" bar the rest of this file holds)."""
+    if should_open:
+        opener(url)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_arg_parser().parse_args(argv)
+    slug = slugify(args.epic_slug)
+    if not slug:
+        print("board-server: epic slug reduced to nothing after slugify", file=sys.stderr)
+        return 2
+
+    root = Path(args.repo_root).absolute() if args.repo_root else repo_root()
+    state = BoardState(epics_dir=epics_dir_for(root), epic_slug=slug)
+    state.poll()  # establish the initial snapshot before the first request
+
+    shutdown_event = threading.Event()
+    signal.signal(signal.SIGINT, lambda *_: shutdown_event.set())
+
+    httpd = BoardServer((HOST, args.port), Handler, state, shutdown_event)
+    url = f"http://{HOST}:{httpd.server_address[1]}"
+    print(f"board-server · {slug} · {url}", flush=True)
+    maybe_open_browser(url, args.open)
+
+    poll_thread = threading.Thread(target=poll_loop, args=(httpd, args.interval), daemon=True)
+    poll_thread.start()
+    try:
+        serve(httpd)
+    finally:
+        httpd.server_close()
+        print("board-server · done", flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

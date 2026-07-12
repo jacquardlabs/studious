@@ -10,7 +10,7 @@ The product itself is two rhythms (see `README.md`): per-feature **gates** (`/ga
 
 ## Commands
 
-Tooling is `uv` for Python and `npx` for markdown. The five CI jobs (`.github/workflows/ci.yml`) are the full local check suite:
+Tooling is `uv` for Python and `npx` for markdown. The six CI jobs (`.github/workflows/ci.yml`) are the full local check suite:
 
 ```bash
 # Markdown lint (ratchets current state; config in .markdownlint-cli2.jsonc)
@@ -26,16 +26,22 @@ uv run --no-project python scripts/validate_plugin.py
 uv run --no-project --with pytest pytest tests/python -v
 uv run --no-project --with pytest pytest tests/python/test_check_references.py::test_name -v
 
-# Gate-ledger integration tests (Bash)
+# Gate-ledger and evidence-capture-hook integration tests (Bash)
 bash tests/test_gate_ledger.sh
+bash tests/test_evidence_capture.sh
 
 # Shell lint for the executable scripts
-shellcheck bin/gate-ledger hooks/gate-reminder.sh tests/test_gate_ledger.sh tests/test_workflows_lint.sh
+shellcheck bin/gate-ledger hooks/gate-reminder.sh hooks/evidence-capture.sh tests/test_gate_ledger.sh tests/test_evidence_capture.sh tests/test_workflows_lint.sh
 
 # workflows/ JS checks: parseability, then correctness lint (config in eslint.config.mjs)
 node --check workflows/epic-driver.js
 npx -y eslint@10.6.0 --report-unused-disable-directives workflows/
 bash tests/test_workflows_lint.sh
+
+# board-ui pure-logic tests (assets/board-ui/app.js's derivation functions;
+# DOM wiring is exercised live against a running bin/board-server instead)
+node --check assets/board-ui/app.js
+node --test tests/js/*.js
 ```
 
 Releases are automated via semantic-release (`pyproject.toml`); the version lives in `.claude-plugin/plugin.json` and is bumped by CI on merge to `main` — never edit it by hand.
@@ -48,7 +54,7 @@ The directory layout encodes a role split (full version in `CONTRIBUTING.md`):
 - `commands/` — slash commands that **orchestrate agents** or run a standalone workflow. `description`, `allowed-tools` frontmatter.
 - `skills/<name>/SKILL.md` — natural-language **trigger shims**. A tightly-scoped `description` lets a gate fire from plain language; the body delegates to the matching command and must not duplicate its logic.
 - `reference/` — curated rubrics agents read at audit time (`reference/security-checklist.md`, `reference/idioms/<lang>.md`). Agents consult these instead of restating them inline — keep depth in `reference/`, keep agents pointing at it.
-- `hooks/` — shipped hook scripts + `hooks.json`. The one live hook is a non-blocking PreToolUse reminder before `gh pr create`.
+- `hooks/` — shipped hook scripts + `hooks.json`. Two live hooks: a non-blocking PreToolUse reminder before `gh pr create` (`gate-reminder.sh`), and a silent PostToolUse/PostToolUseFailure evidence-capture hook on `Bash` that appends verification-command records while a story is armed (`evidence-capture.sh`; format pinned in `reference/evidence-format.md`).
 - `bin/gate-ledger` — reads/writes the per-branch gate ledger and the per-feature `/work-on` work files.
 - `templates/` — PRODUCT.md / DESIGN.md scaffolds created by `/studious-init` in the consuming project.
 

@@ -29,6 +29,19 @@ For each in-lane item:
    - **REALIZED** — the changeset exhibits the failure mode. Name file:line evidence.
    - **CAN'T VERIFY** — the evidence is not observable statically (needs a live run, an external service, or a manual test). Say exactly what manual check would settle it.
 
+**Evidence log.** If the dispatch prompt carries an `Evidence log for this branch`
+block, check it before settling on CAN'T VERIFY: does a captured entry match the manual
+check this item names? A match resolves the verdict — `predicate.result: "PASSED"` with
+no contradicting diff evidence → **NOT REALIZED**, cited to the log entry;
+`predicate.result: "FAILED"`, or the diff otherwise showing the failure mode, →
+**REALIZED**, cited to both the log entry and the diff. The log is additive to the
+diff check above, never a replacement for it — a stale `PASSED` entry never overrides
+diff evidence that the failure mode materialized after the command ran. No matching
+entry — CAN'T VERIFY stands, but say the claim is **attested** (self-reported, not
+independently confirmed by this branch's evidence log) rather than leaving a bare
+manual-check description. No such block at all — proceed exactly as the three verdicts
+above describe; this is not a new requirement to go looking for one.
+
 **Staleness:** compare the register's recorded SHA against the design doc's history (`git log --oneline <sha>..HEAD -- <design doc path>`). If the design doc changed after the register was written, add an OBSERVATION that the register may be outdated. Never block on staleness.
 
 ## Output
