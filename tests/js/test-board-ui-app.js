@@ -1,6 +1,6 @@
 // Tests for assets/board-ui/app.js's pure derivation functions — the logic
-// that decides gauge position/order, blocked-instrument labeling, lamp
-// state, fresh-eyes labeling, CAS severity sort, and the copy-able
+// that decides channel position/order, blocked-channel labeling, gate-block
+// state, fresh-eyes labeling, alarm-summary severity sort, and the copy-able
 // --reset-retry resolution command. DOM wiring (render(), init(), the
 // EventSource plumbing) is exercised live against a running bin/board-
 // server instead (see this story's Operational readiness section) — a DOM
@@ -84,79 +84,52 @@ test('classifyGaugeState: blocked-on-dropped-dep is distinct from ordinary block
 });
 
 // ---------------------------------------------------------------------------
-// fixBudgetFraction
+// gateBlockState — what each channel block renders. Worker phases (design/
+// build) derive from phase/step events, never gate-verdict; landed status is
+// authoritative over a thin event feed; a parked story's stuck gate burns
+// amber even when the resumed feed carries no verdict event for it
 // ---------------------------------------------------------------------------
 
-test('fixBudgetFraction: zero retries is zero', () => {
-  assert.equal(app.fixBudgetFraction({ retries: {} }, 'audit', 2), 0);
+test('gateBlockState: a gate with a proceed verdict is pass', () => {
+  const events = [{ kind: 'gate-verdict', story: 'x', gate: 'audit', verdict: 'PASS' }];
+  assert.equal(app.gateBlockState('x', { status: 'audit' }, 'audit', events), 'pass');
 });
 
-test('fixBudgetFraction: at cap is 1', () => {
-  assert.equal(app.fixBudgetFraction({ retries: { audit: 2 } }, 'audit', 2), 1);
+test('gateBlockState: a gate with a fix-and-retry verdict is fix', () => {
+  const events = [{ kind: 'gate-verdict', story: 'x', gate: 'audit', verdict: 'FIX AND RE-AUDIT' }];
+  assert.equal(app.gateBlockState('x', { status: 'audit' }, 'audit', events), 'fix');
 });
 
-test('fixBudgetFraction: never exceeds 1 even if retries somehow exceed the cap', () => {
-  assert.equal(app.fixBudgetFraction({ retries: { audit: 5 } }, 'audit', 2), 1);
+test('gateBlockState: no verdict yet is unrun, never an inferred pass', () => {
+  assert.equal(app.gateBlockState('x', { status: 'audit' }, 'audit', []), 'unrun');
 });
 
-// ---------------------------------------------------------------------------
-// wedgePathD — the fix-budget wedge's SVG arc must never let its endpoint
-// collapse onto its own start point; an SVG elliptical arc with identical
-// start/end is a documented zero-length no-op (SVG 1.1 §9.5.1), so at
-// fraction===1 (fix budget exhausted, the state this gauge exists to
-// surface) a literal 360-degree sweep silently dropped the wedge and left
-// just a bare radius line (audit finding, board-ui epic)
-// ---------------------------------------------------------------------------
-
-function parseWedgeArc(d) {
-  var m = /^M20,20 L20,3 A17,17 0 (\d) 1 (-?[\d.]+),(-?[\d.]+) Z$/.exec(d);
-  assert.ok(m, 'unexpected wedge path shape: ' + d);
-  return { large: Number(m[1]), x: Number(m[2]), y: Number(m[3]) };
-}
-
-test('wedgePathD: at fraction 1 the arc endpoint does not collapse onto the arc\'s own start point (20,3)', () => {
-  const arc = parseWedgeArc(app.wedgePathD(1));
-  assert.notEqual(arc.x + ',' + arc.y, '20,3');
+test('gateBlockState: worker phases derive from phase/step events, not gate verdicts', () => {
+  const events = [{ kind: 'phase', story: 'x', phase: 'design-review' }];
+  assert.equal(app.gateBlockState('x', { status: 'build' }, 'design', events), 'pass');
+  assert.equal(app.gateBlockState('x', { status: 'build' }, 'build', events), 'unrun');
 });
 
-test('wedgePathD: at fraction 1 the endpoint still lands within a hair of true 360deg — visually a full circle', () => {
-  const arc = parseWedgeArc(app.wedgePathD(1));
-  assert.equal(arc.large, 1); // large-arc-flag: still sweeps the long way around
-  assert.ok(Math.abs(arc.x - 20) < 0.01);
-  assert.ok(Math.abs(arc.y - 3) < 0.01);
+test('gateBlockState: a HANDED-OFF takeover step does not mark build pass', () => {
+  const events = [{ kind: 'step', story: 'x', step: 'build', outcome: 'HANDED-OFF' }];
+  assert.equal(app.gateBlockState('x', { status: 'build' }, 'build', events), 'unrun');
 });
 
-test('wedgePathD: fraction 0.5 sweeps an exact half circle, unaffected by the near-360 cap', () => {
-  const arc = parseWedgeArc(app.wedgePathD(0.5));
-  assert.deepEqual(arc, { large: 0, x: 20, y: 37 });
+test('gateBlockState: landed status is authoritative — every block is pass even on a thin feed', () => {
+  assert.equal(app.gateBlockState('x', { status: 'landed' }, 'audit', []), 'pass');
+  assert.equal(app.gateBlockState('x', { status: 'landed' }, 'design', []), 'pass');
 });
 
-// ---------------------------------------------------------------------------
-// activeGate — design/build are worker phases, never verdict-bearing gates;
-// scanning must skip them or a story strands at 'design' forever, since
-// design can structurally never carry a proceed verdict (audit finding,
-// board-ui story: the fix-budget wedge and DSN/BLD lamps stuck at "not yet
-// run" past design/build because the pre-fix scan treated them as candidates)
-// ---------------------------------------------------------------------------
-
-test('activeGate: skips design/build, lands on the first real gate with no proceed verdict', () => {
-  const stories = { x: { gates: ['design', 'build', 'design-review', 'audit', 'acceptance'] } };
-  assert.equal(app.activeGate('x', stories, []), 'design-review');
+test('gateBlockState: a parked story\'s reason-named gate is fix even with no verdict event', () => {
+  const story = { status: 'parked', reason: 'audit: FIX AND RE-AUDIT — merge conflict' };
+  assert.equal(app.gateBlockState('x', story, 'audit', []), 'fix');
+  assert.equal(app.gateBlockState('x', story, 'acceptance', []), 'unrun');
 });
 
-test('activeGate: with every verdict-bearing gate proceeded, lands on the last gate — not stuck at design', () => {
-  const stories = { x: { gates: ['design', 'build', 'design-review', 'audit', 'acceptance'] } };
-  const events = [
-    { kind: 'gate-verdict', story: 'x', gate: 'design-review', verdict: 'PROCEED TO PLAN' },
-    { kind: 'gate-verdict', story: 'x', gate: 'audit', verdict: 'PASS' },
-    { kind: 'gate-verdict', story: 'x', gate: 'acceptance', verdict: 'SHIP' },
-  ];
-  assert.equal(app.activeGate('x', stories, events), 'acceptance');
-});
-
-test('activeGate: a gates array of only worker phases falls back to the last entry', () => {
-  const stories = { x: { gates: ['design', 'build'] } };
-  assert.equal(app.activeGate('x', stories, []), 'build');
+test('gateBlockState: a parked story\'s reason does not mark a different gate fix', () => {
+  const story = { status: 'parked', reason: 'acceptance: HOLD — needs a product decision' };
+  assert.equal(app.gateBlockState('x', story, 'audit', []), 'unrun');
+  assert.equal(app.gateBlockState('x', story, 'acceptance', []), 'fix');
 });
 
 // ---------------------------------------------------------------------------

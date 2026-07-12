@@ -12,8 +12,9 @@ Serves two read-only endpoints for exactly one epic slug, scoped to the two file
   GET /events  an SSE stream; pushes a fresh whole snapshot when a poll tick notices
                either file changed. No computed diff — "a delta" is satisfied by
                "something changed, here is the fresh state" (see the design doc).
-  GET /        the Flight Deck: one self-contained HTML document (assets/board-ui/)
-               that fetches /state once, then renders live off /events. No external
+  GET /        the board page (Epic Overview): one self-contained HTML document
+               (assets/board-ui/) that fetches /state once, then renders live off
+               /events. No external
                stylesheet, font, script, or image — see docs/superpowers/specs/
                2026-07-11-board-ui-design.md.
 
@@ -50,7 +51,7 @@ HOST = "127.0.0.1"  # loopback only — deliberately not a flag; see module docs
 DEFAULT_INTERVAL = 1.0  # seconds; a build-time constant per the design doc's own
 # Open Questions ("sub-second vs. one second is a build-time judgment call").
 
-# The Flight Deck page's on-disk assets — part of this plugin's own install,
+# The board page's on-disk assets — part of this plugin's own install,
 # never the consuming project's repo (that's what epics_dir_for()/repo_root()
 # resolve instead). Anchored to this script's own location, the same way
 # every command/reference file this repo's agents read is anchored to "the
@@ -313,7 +314,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 self._send_html(200, render_page())
             except (OSError, ValueError):
-                self._send_html(500, b"board-server: could not read Flight Deck assets")
+                self._send_html(500, b"board-server: could not read board-ui assets")
         elif path == "/state":
             self._send_json(200, self.server.board_state.snapshot())
         elif path == "/events":

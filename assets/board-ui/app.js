@@ -1,6 +1,12 @@
 'use strict';
 
-// Flight Deck — the board-ui client script.
+// Epic Overview (the Operator Graphic) — the board-ui client script.
+//
+// The rendering idiom is a utilities control room: each story is a process
+// channel fed from a dependency bus, each gate a block on that channel
+// carrying its verdict token verbatim, and the message panel is an alarm
+// summary. The two themes are two shifts of the same room (see index.html's
+// token comment); this script is theme-blind — it renders structure only.
 //
 // Inlined verbatim into the page bin/board-server's `GET /` serves (see that
 // file's render_page()) so the shipped document stays one self-contained
@@ -53,10 +59,9 @@ var GATE_ABBREV = {
 // never as a key in `retries` (only `--bump-retry <gate>` on an actual gate
 // touches that map; a failed worker phase parks the story outright — see
 // `park()`'s `WORKER_PHASES.includes` branch in the driver — it is never
-// retried). `activeGate` below must skip them: without this, a story past
-// design/build with every real gate proceeding would still read as "stuck
-// at design" forever, since `design` can structurally never carry a proceed
-// verdict.
+// retried). Their channel blocks must therefore derive from phase/step
+// events via `workerPhaseDone` below, never from `latestVerdict`, which is
+// null for them by construction.
 var WORKER_PHASES = makeSet(['design', 'build']);
 
 var DEFAULT_GATES = ['design', 'design-review', 'build', 'audit', 'acceptance'];
@@ -128,20 +133,24 @@ function deriveBlocker(storySlug, stories) {
   return liveBlocker;
 }
 
-// Visual/label classification for a gauge's "off" states. Left to build-time
-// craft by the design doc's Open Questions #2 — this gives pending/blocked/
-// dropped each a distinct, legible label rather than one generic "off".
+// Visual/label classification for a channel's "off" states — pending/
+// blocked/dropped each get a distinct, legible label rather than one
+// generic "off". Labels speak the schema's own vocabulary where one exists
+// (PARKED is the ledger word; issue #98 principle 4 — no web-only words):
+// the aviation-era CAUTION/OFF — ON spellings were replaced when the board
+// moved to the control-room idiom. Codes are the stable contract the tests
+// pin; labels are the visible/aria text.
 function classifyGaugeState(storySlug, stories) {
   var all = stories || {};
   var story = all[storySlug] || {};
-  if (story.status === 'dropped') return { code: 'dropped', label: 'OFF — DROPPED' };
+  if (story.status === 'dropped') return { code: 'dropped', label: 'DROPPED' };
   var blocker = deriveBlocker(storySlug, all);
   if (blocker) {
     return blocker.dropped
-      ? { code: 'blocked-dead', label: 'OFF — ' + blocker.slug + ' DROPPED' }
-      : { code: 'blocked', label: 'OFF — ON ' + blocker.slug };
+      ? { code: 'blocked-dead', label: 'AWAIT ' + blocker.slug + ' — DROPPED' }
+      : { code: 'blocked', label: 'AWAIT ' + blocker.slug };
   }
-  if (story.status === 'parked') return { code: 'parked', label: 'CAUTION' };
+  if (story.status === 'parked') return { code: 'parked', label: 'PARKED' };
   if (story.status === 'landed') return { code: 'landed', label: 'LANDED' };
   if (story.status === 'pending') return { code: 'pending', label: 'STANDBY' };
   return { code: 'active', label: String(story.status || 'active').toUpperCase() };
@@ -158,31 +167,28 @@ function gaugeAriaLabel(storySlug, stories) {
   return title + ', status ' + cls.label;
 }
 
-function fixBudgetFraction(story, gate, maxFixCycles) {
-  var cap = maxFixCycles || MAX_FIX_CYCLES;
-  var n = (story && story.retries && story.retries[gate]) || 0;
-  return Math.max(0, Math.min(1, n / cap));
-}
-
-// The gate this story is currently working through, for wedge placement:
-// the first verdict-bearing gate in its own `gates` order with no proceed
-// verdict yet, or the last gate if every verdict-bearing gate has already
-// proceeded. Worker-phase entries (`design`/`build`, see WORKER_PHASES
-// above) are skipped while scanning — they can never carry a proceed
-// verdict, so treating them as candidates would strand every story at
-// `design` forever — but one is still returned as the fallback if `gates`
-// somehow contains nothing else (degrades to that phase's own "not yet
-// run" lamp rather than throwing).
-function activeGate(storySlug, stories, events) {
-  var all = stories || {};
-  var story = all[storySlug] || {};
-  var gates = story.gates && story.gates.length ? story.gates : DEFAULT_GATES;
-  for (var i = 0; i < gates.length; i++) {
-    if (WORKER_PHASES.has(gates[i])) continue;
-    var v = latestVerdict(storySlug, gates[i], events);
-    if (!(v && PROCEED_VERDICTS.has(v))) return gates[i];
+// The per-gate state a channel block renders. One of:
+//   'pass'  — worker phase done, or a proceed verdict recorded
+//   'fix'   — a non-proceed verdict recorded, or (for a parked story) the
+//             gate its recorded park reason names — the burn is visible even
+//             when the resumed event feed is too thin to carry the verdict
+//   'unrun' — nothing recorded yet
+// A landed story renders every block 'pass': the status field is
+// authoritative (a story cannot land without its final profiled gate's
+// proceed token); events enrich but never veto it — the same status-wins
+// rule the drawer's verdict trail does NOT apply, because there the events
+// ARE the content.
+function gateBlockState(storySlug, story, gate, events) {
+  var s = story || {};
+  if (s.status === 'landed') return 'pass';
+  if (WORKER_PHASES.has(gate)) return workerPhaseDone(storySlug, gate, events) ? 'pass' : 'unrun';
+  var v = latestVerdict(storySlug, gate, events);
+  if (v) return PROCEED_VERDICTS.has(v) ? 'pass' : 'fix';
+  if (s.status === 'parked') {
+    var parsed = parseParkReasonGate(s.reason);
+    if (parsed && parsed.gate === gate) return 'fix';
   }
-  return gates[gates.length - 1];
+  return 'unrun';
 }
 
 // Most recent gate-verdict event's verdict for (story, gate), or null if
@@ -420,30 +426,6 @@ function buildResolutionCommand(epicSlug, storySlug, story, maxFixCycles) {
   return cmd;
 }
 
-// Arc-endpoint math for the fix-budget wedge — dialSvg's functional core,
-// pulled out so this specific degenerate case is unit-testable without a
-// DOM shim (the "DOM wiring" note below still holds for dialSvg itself;
-// this piece has no DOM in it at all).
-//
-// SVG's elliptical-arc command degenerates to a zero-length no-op when its
-// endpoint is identical to its start point (SVG 1.1 §9.5.1, "Zero-length
-// path segments"). The wedge's arc always starts at the dial's 12 o'clock,
-// (20,3); at fraction===1 (retries[gate] >= MAX_FIX_CYCLES, the "fix budget
-// exhausted" state this gauge exists to surface) a literal 360-degree sweep
-// lands the endpoint back on that exact start point, so the browser drops
-// the arc silently and the exhausted-budget gauge renders a bare radius
-// line instead of a full wedge. The sweep is capped just short of a full
-// revolution (359.999deg) — visually indistinguishable from 360 but
-// numerically distinct, so start and end never coincide.
-function wedgePathD(fraction) {
-  var deg = Math.min(Math.round(fraction * 360), 359.999);
-  var large = deg > 180 ? 1 : 0;
-  var rad = (deg - 90) * (Math.PI / 180);
-  var x = 20 + 17 * Math.cos(rad);
-  var y = 20 + 17 * Math.sin(rad);
-  return 'M20,20 L20,3 A17,17 0 ' + large + ' 1 ' + x + ',' + y + ' Z';
-}
-
 // ---------------------------------------------------------------------------
 // DOM wiring — everything below touches `document`/`window`/`fetch`/
 // `EventSource`/`navigator`. Not unit-tested directly (that would need a DOM
@@ -454,22 +436,22 @@ function wedgePathD(fraction) {
 // decision this code makes.
 // ---------------------------------------------------------------------------
 
-var flightDeck = {
+var board = {
   order: [],
   acked: {},
   snapshot: { schemaVersion: 1, epic: { slug: '', status: 'unknown' }, stories: {}, events: [] },
 };
 
 function applySnapshot(snapshot) {
-  flightDeck.order = computeGaugeOrder(flightDeck.order, snapshot.stories);
+  board.order = computeGaugeOrder(board.order, snapshot.stories);
   var parked = parkedSlugs(snapshot.stories);
-  flightDeck.acked = reconcileAcked(flightDeck.acked, parked);
-  flightDeck.snapshot = snapshot;
+  board.acked = reconcileAcked(board.acked, parked);
+  board.snapshot = snapshot;
   render();
 }
 
 function ackMasterCaution() {
-  flightDeck.acked = parkedSlugs(flightDeck.snapshot.stories);
+  board.acked = parkedSlugs(board.snapshot.stories);
   render();
 }
 
@@ -486,63 +468,120 @@ function el(tag, attrs, children) {
   return node;
 }
 
-function dialSvg(fraction, code) {
+function svgLine(svg, x1, y1, x2, y2, cls) {
+  var l = document.createElementNS(svg.namespaceURI, 'line');
+  l.setAttribute('x1', x1); l.setAttribute('y1', y1);
+  l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+  l.setAttribute('class', cls);
+  svg.appendChild(l);
+}
+
+// The feed symbol between the dependency bus and a channel's tag block.
+// Closed (a plain line): the channel is live — its dependencies have landed
+// or it's already past dispatch. Open (a lifted blade between two
+// terminals, one-line-diagram style): the story is pending behind a
+// dependency; the tag block's await line names it. Decoration only
+// (aria-hidden) — the blocked state is carried by the await text and the
+// tag block's aria-label.
+function feedSvg(open) {
   var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 40 40');
-  svg.setAttribute('class', 'dial dial-' + code);
-  svg.setAttribute('aria-hidden', 'true'); // meaning lives in the button's aria-label and lamp text, not this graphic
-  var ring = document.createElementNS(svg.namespaceURI, 'circle');
-  ring.setAttribute('cx', '20'); ring.setAttribute('cy', '20'); ring.setAttribute('r', '17');
-  ring.setAttribute('class', 'dial-ring');
-  svg.appendChild(ring);
-  if (fraction > 0) {
-    var wedge = document.createElementNS(svg.namespaceURI, 'path');
-    wedge.setAttribute('d', wedgePathD(fraction));
-    wedge.setAttribute('class', 'dial-wedge');
-    svg.appendChild(wedge);
+  svg.setAttribute('width', '30'); svg.setAttribute('height', '14');
+  svg.setAttribute('aria-hidden', 'true');
+  if (!open) {
+    svgLine(svg, 0, 7, 30, 7, 'feed-line');
+    return svg;
   }
+  svgLine(svg, 0, 7, 9, 7, 'feed-line');
+  svgLine(svg, 9, 7, 23, 1, 'feed-blade');
+  svgLine(svg, 23, 7, 30, 7, 'feed-line');
+  ['9', '23'].forEach(function (cx) {
+    var c = document.createElementNS(svg.namespaceURI, 'circle');
+    c.setAttribute('cx', cx); c.setAttribute('cy', '7'); c.setAttribute('r', '2');
+    c.setAttribute('class', 'feed-terminal');
+    svg.appendChild(c);
+  });
   return svg;
 }
 
-function gaugeButton(storySlug) {
-  var stories = flightDeck.snapshot.stories;
-  var story = stories[storySlug] || {};
-  var cls = classifyGaugeState(storySlug, stories);
-  var gate = activeGate(storySlug, stories, flightDeck.snapshot.events);
-  var fraction = fixBudgetFraction(story, gate, MAX_FIX_CYCLES);
-  var gates = story.gates && story.gates.length ? story.gates : DEFAULT_GATES;
-
-  var lamps = el('div', { class: 'lamps' }, gates.map(function (g) {
-    if (WORKER_PHASES.has(g)) {
-      var done = workerPhaseDone(storySlug, g, flightDeck.snapshot.events);
-      var doneSymbol = done ? '●' : '○'; // filled / empty — worker phases have no "fix" (half) state: a failed one parks outright, never retries in place
-      var doneText = abbrevGate(g) + ' ' + doneSymbol + ' ' + (done ? 'done' : 'not yet run');
-      return el('span', { class: 'lamp lamp-' + (done ? 'pass' : 'unrun'), text: doneText });
+function gateBlock(storySlug, story, gate) {
+  var events = board.snapshot.events;
+  var st = gateBlockState(storySlug, story, gate, events);
+  var stateText;
+  if (WORKER_PHASES.has(gate)) {
+    stateText = st === 'pass' ? 'DONE' : '—';
+  } else {
+    var v = latestVerdict(storySlug, gate, events);
+    if (!v && st === 'fix') {
+      // thin resumed feed: the park reason is the only carrier of the verdict
+      var parsed = parseParkReasonGate(story.reason);
+      v = parsed && parsed.verdict;
     }
-    var verdict = latestVerdict(storySlug, g, flightDeck.snapshot.events);
-    var on = !!verdict && PROCEED_VERDICTS.has(verdict);
-    var symbol = verdict ? (on ? '●' : '◐') : '○'; // filled / half / empty — form, not hue
-    var text = abbrevGate(g) + ' ' + symbol + ' ' + (verdict || 'not yet run');
-    return el('span', { class: 'lamp lamp-' + (verdict ? (on ? 'pass' : 'fix') : 'unrun'), text: text });
-  }));
-
-  var label = el('div', { class: 'gauge-label', text: story.title || storySlug });
-  var status = el('div', { class: 'gauge-status status-' + cls.code, text: cls.label });
-
-  return el('button', {
-    type: 'button',
-    class: 'gauge',
-    'aria-label': gaugeAriaLabel(storySlug, stories),
-    onclick: function () { openDrawer(storySlug); },
-  }, [dialSvg(fraction, cls.code), label, status, lamps]);
+    if (!v && st === 'pass') v = 'DONE'; // landed story, feed too thin for the verdict event
+    stateText = v || '—';
+    var n = story.retries && story.retries[gate];
+    if (st === 'fix' && n) stateText += ' ✕' + n;
+  }
+  return el('div', { class: 'gblock ' + st }, [
+    el('div', { class: 'glabel', text: abbrevGate(gate) }),
+    el('div', { class: 'gstate', text: stateText }),
+  ]);
 }
 
-function renderGauges() {
-  var grid = document.getElementById('gauges');
-  grid.textContent = '';
-  flightDeck.order.forEach(function (slug) {
-    if (Object.prototype.hasOwnProperty.call(flightDeck.snapshot.stories, slug)) {
-      grid.appendChild(gaugeButton(slug));
+function channelRow(storySlug) {
+  var stories = board.snapshot.stories;
+  var story = stories[storySlug] || {};
+  var cls = classifyGaugeState(storySlug, stories);
+  var gates = story.gates && story.gates.length ? story.gates : DEFAULT_GATES;
+  var isOpen = cls.code === 'blocked' || cls.code === 'blocked-dead';
+
+  var feed = el('span', { class: 'feed' }, [
+    el('span', { class: 'wire' }),
+    feedSvg(isOpen),
+    el('span', { class: 'wire' }),
+  ]);
+
+  var tagChildren = [
+    el('span', { class: 'slug', text: storySlug.toUpperCase() }),
+    el('span', { class: 'title', text: story.title || storySlug }),
+  ];
+  if (isOpen) tagChildren.push(el('span', { class: 'await', text: 'FEED OPEN — ' + cls.label }));
+  var tag = el('button', {
+    type: 'button',
+    class: 'tagblock',
+    'aria-label': gaugeAriaLabel(storySlug, stories),
+    onclick: function () { openDrawer(storySlug); },
+  }, tagChildren);
+
+  var run = el('span', { class: 'run' });
+  gates.forEach(function (g) {
+    run.appendChild(el('span', { class: 'connector' }));
+    run.appendChild(gateBlock(storySlug, story, g));
+  });
+
+  var endText =
+    cls.code === 'landed' ? 'LANDED' :
+    cls.code === 'parked' ? 'PARKED' :
+    cls.code === 'dropped' ? 'DROPPED' :
+    cls.code === 'active' ? cls.label :
+    'STANDBY'; // pending, blocked, blocked-dead — the await line carries the rest
+  var end = el('span', {
+    class: 'endstate' + (cls.code === 'landed' ? ' landed' : '') + (cls.code === 'parked' ? ' parked' : ''),
+    text: endText,
+  });
+
+  return el('div', {
+    class: 'channel' +
+      (cls.code === 'landed' ? ' is-landed' : '') +
+      (cls.code === 'parked' ? ' is-parked' : ''),
+  }, [feed, tag, run, end]);
+}
+
+function renderChannels() {
+  var wrap = document.getElementById('channels');
+  wrap.textContent = '';
+  board.order.forEach(function (slug) {
+    if (Object.prototype.hasOwnProperty.call(board.snapshot.stories, slug)) {
+      wrap.appendChild(channelRow(slug));
     }
   });
 }
@@ -550,32 +589,45 @@ function renderGauges() {
 function renderCas() {
   var list = document.getElementById('cas-list');
   list.textContent = '';
-  var messages = buildCasMessages(flightDeck.snapshot.stories, flightDeck.snapshot.events);
+  var messages = buildCasMessages(board.snapshot.stories, board.snapshot.events);
   messages.forEach(function (m) {
-    list.appendChild(el('li', { class: 'cas-' + m.tier, text: m.text }));
+    var li = el('li', { class: 'cas-' + m.tier });
+    li.appendChild(el('span', { class: 't', text: (m.at || '').slice(11, 16) || '—' }));
+    li.appendChild(el('span', { text: m.text }));
+    list.appendChild(li);
   });
 }
 
 function renderMasterCaution() {
-  var parked = parkedSlugs(flightDeck.snapshot.stories);
+  var parked = parkedSlugs(board.snapshot.stories);
   var active = Object.keys(parked).length > 0;
-  var blinking = isMasterCautionBlinking(flightDeck.acked, parked);
+  var blinking = isMasterCautionBlinking(board.acked, parked);
   var btn = document.getElementById('master-caution');
   btn.disabled = !active;
   btn.classList.toggle('active', active);
   btn.classList.toggle('blinking', blinking);
   btn.setAttribute('aria-pressed', String(!blinking && active));
-  btn.textContent = active ? (blinking ? 'MASTER CAUTION — acknowledge' : 'MASTER CAUTION — acknowledged') : 'MASTER CAUTION';
+  btn.textContent = active ? (blinking ? 'ALARM ACK — acknowledge' : 'ALARM ACK — acknowledged') : 'ALARM ACK';
 }
 
 function renderHeader() {
-  var epic = flightDeck.snapshot.epic || {};
+  var epic = board.snapshot.epic || {};
   document.getElementById('epic-title').textContent = (epic.title || epic.slug || 'epic') + ' · ' + (epic.status || 'unknown');
+
+  var stories = board.snapshot.stories || {};
+  var slugs = Object.keys(stories);
+  var landed = slugs.filter(function (k) { return stories[k] && stories[k].status === 'landed'; }).length;
+  var alarms = Object.keys(parkedSlugs(stories)).length;
+  var counts = document.getElementById('epic-counts');
+  counts.textContent = '';
+  counts.appendChild(document.createTextNode(landed + '/' + slugs.length + ' LANDED · '));
+  counts.appendChild(el('span', { class: 'alarm', text: alarms + ' ALARM' + (alarms === 1 ? '' : 'S') }));
+  counts.appendChild(document.createTextNode(' · CAP ' + (epic.concurrency != null ? epic.concurrency : '—')));
 }
 
 function render() {
   renderHeader();
-  renderGauges();
+  renderChannels();
   renderCas();
   renderMasterCaution();
   renderDrawer(); // no-op (returns early) when the drawer is closed — see renderDrawer's own guard
@@ -599,15 +651,15 @@ function closeDrawer() {
 
 function renderDrawer() {
   if (!drawerStorySlug) return;
-  var stories = flightDeck.snapshot.stories;
+  var stories = board.snapshot.stories;
   var story = stories[drawerStorySlug] || {};
-  var epicSlug = (flightDeck.snapshot.epic && flightDeck.snapshot.epic.slug) || '';
+  var epicSlug = (board.snapshot.epic && board.snapshot.epic.slug) || '';
 
   document.getElementById('drawer-title').textContent = story.title || drawerStorySlug;
 
   var trailList = document.getElementById('drawer-trail');
   trailList.textContent = '';
-  buildVerdictTrail(drawerStorySlug, flightDeck.snapshot.events).forEach(function (v) {
+  buildVerdictTrail(drawerStorySlug, board.snapshot.events).forEach(function (v) {
     var text = v.gate + ': ' + v.verdict + (v.freshEyes ? ' (fresh eyes)' : '') + (v.sha ? ' @ ' + v.sha : '');
     trailList.appendChild(el('li', { text: text }));
   });
@@ -693,9 +745,7 @@ if (typeof module !== 'undefined' && module.exports) {
     deriveBlocker: deriveBlocker,
     classifyGaugeState: classifyGaugeState,
     gaugeAriaLabel: gaugeAriaLabel,
-    fixBudgetFraction: fixBudgetFraction,
-    wedgePathD: wedgePathD,
-    activeGate: activeGate,
+    gateBlockState: gateBlockState,
     latestVerdict: latestVerdict,
     workerPhaseDone: workerPhaseDone,
     hasPriorRetryBump: hasPriorRetryBump,

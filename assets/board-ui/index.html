@@ -3,71 +3,120 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Flight Deck</title>
+<title>Epic Overview</title>
 <!--
-  Flight Deck — bin/board-server's GET / response.
+  Epic Overview (the Operator Graphic) — bin/board-server's GET / response.
 
   Self-contained by construction: no external stylesheet, font, script, or
   image anywhere in this document — every rule lives in the <style> block
   below, every behavior in the inlined <script> block near the end (its
   body is substituted in verbatim from assets/board-ui/app.js by
   bin/board-server's render_page(); see that file for the actual logic and
-  tests/js/test_board_ui_app.js for its test coverage). This file itself
+  tests/js/test-board-ui-app.js for its test coverage). This file itself
   holds only markup and presentation, hand-authored, no build step.
+
+  The visual idiom is a utilities control room, one design with two shifts:
+  the light theme is a day-shift engineering one-line diagram (paper ground,
+  ink linework, a drawing title block); the dark theme is a night-shift
+  monochrome phosphor tube (green world, amber spent only on alarm-tier
+  state). Both are the same markup — every difference between them is a
+  token below, so the theme toggle moves between shifts without touching
+  structure. Parked is amber, never red; red appears nowhere in either
+  theme (issue #98 principle 3).
 -->
 <style>
+  /* ---- day shift: the engineering drawing ---- */
   :root {
     color-scheme: light dark;
-    --bg: #f4f5f7;
-    --surface: #ffffff;
-    --text: #1b1e23;
-    --text-dim: #545b66;
-    --border: #c7ccd4;
+    --bg: #edefe9;
+    --panel: #e2e5dd;
+    --text: #22281f;
+    --text-mid: #56604f;
+    --text-dim: #8b9483;
+    --strong: #22281f;
+    --wire: #22281f;
+    --rule: #b9c0af;
+    --hairline: #22281f;
     --focus: #0b5fff;
-    --amber: #7a4b00;
-    --amber-bg: #fff1d6;
-    --green: #14532d;
-    --green-bg: #e5f6ea;
-    --lamp-pass: #14532d;
-    --lamp-fix: #7a4b00;
-    --lamp-unrun: #6b7280;
-    --caution-bg: #d64545;
-    --caution-text: #ffffff;
+    --unrun-bg: #f6f7f3;
+    --unrun-border: #8b9483;
+    --unrun-text: #8b9483;
+    --pass-bg: #21833f;
+    --pass-border: #21833f;
+    --pass-text: #f0f7ef;
+    --fix-bg: #eda210;
+    --fix-border: #b57c07;
+    --fix-text: #2c1f01;
+    --amber: #9c6a05;
+    --amber-border: #eda210;
+    --amber-fill: #f7ecd2;
+    --alarm-row-bg: #f5e5bb;
+    --alarm-row-text: #6b4a04;
+    --landed: #21833f;
+    --glow-green: none;
+    --glow-amber: none;
+    --scanlines: none;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, "Roboto Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
 
+  /* ---- night shift: the phosphor tube ---- */
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #14161a;
-      --surface: #1d2026;
-      --text: #eef0f3;
-      --text-dim: #a7adb8;
-      --border: #383e48;
-      --focus: #6ea8ff;
-      --amber: #ffcf7a;
-      --amber-bg: #3a2a05;
-      --green: #86e0a4;
-      --green-bg: #0f2c19;
-      --lamp-pass: #86e0a4;
-      --lamp-fix: #ffcf7a;
-      --lamp-unrun: #8b93a1;
-      --caution-bg: #ff6b6b;
-      --caution-text: #1b1e23;
+      --bg: #070c08;
+      --panel: #050907;
+      --text: #9df5ae;
+      --text-mid: #2b9c44;
+      --text-dim: #1d6b30;
+      --strong: #46ec66;
+      --wire: #164f27;
+      --rule: #164f27;
+      --hairline: #164f27;
+      --focus: #46ec66;
+      --unrun-bg: transparent;
+      --unrun-border: #164f27;
+      --unrun-text: #2b9c44;
+      --pass-bg: #2b9c44;
+      --pass-border: #46ec66;
+      --pass-text: #04170a;
+      --fix-bg: repeating-linear-gradient(45deg, #ffb01f 0 7px, #b57708 7px 14px);
+      --fix-border: #ffb01f;
+      --fix-text: #2b1d00;
+      --amber: #ffb01f;
+      --amber-border: #ffb01f;
+      --amber-fill: #241804;
+      --alarm-row-bg: transparent;
+      --alarm-row-text: #ffb01f;
+      --landed: #46ec66;
+      --glow-green: 0 0 10px rgba(70, 236, 102, 0.25);
+      --glow-amber: 0 0 12px rgba(255, 176, 31, 0.3);
+      --scanlines: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px);
     }
   }
 
   /* Explicit override wins over the media query in either direction —
      set by the theme toggle button (see app.js's toggleTheme()). */
   :root[data-theme="light"] {
-    --bg: #f4f5f7; --surface: #ffffff; --text: #1b1e23; --text-dim: #545b66;
-    --border: #c7ccd4; --focus: #0b5fff; --amber: #7a4b00; --amber-bg: #fff1d6;
-    --green: #14532d; --green-bg: #e5f6ea; --lamp-pass: #14532d; --lamp-fix: #7a4b00;
-    --lamp-unrun: #6b7280; --caution-bg: #d64545; --caution-text: #ffffff;
+    --bg: #edefe9; --panel: #e2e5dd; --text: #22281f; --text-mid: #56604f; --text-dim: #8b9483;
+    --strong: #22281f; --wire: #22281f; --rule: #b9c0af; --hairline: #22281f; --focus: #0b5fff;
+    --unrun-bg: #f6f7f3; --unrun-border: #8b9483; --unrun-text: #8b9483;
+    --pass-bg: #21833f; --pass-border: #21833f; --pass-text: #f0f7ef;
+    --fix-bg: #eda210; --fix-border: #b57c07; --fix-text: #2c1f01;
+    --amber: #9c6a05; --amber-border: #eda210; --amber-fill: #f7ecd2;
+    --alarm-row-bg: #f5e5bb; --alarm-row-text: #6b4a04; --landed: #21833f;
+    --glow-green: none; --glow-amber: none; --scanlines: none;
   }
   :root[data-theme="dark"] {
-    --bg: #14161a; --surface: #1d2026; --text: #eef0f3; --text-dim: #a7adb8;
-    --border: #383e48; --focus: #6ea8ff; --amber: #ffcf7a; --amber-bg: #3a2a05;
-    --green: #86e0a4; --green-bg: #0f2c19; --lamp-pass: #86e0a4; --lamp-fix: #ffcf7a;
-    --lamp-unrun: #8b93a1; --caution-bg: #ff6b6b; --caution-text: #1b1e23;
+    --bg: #070c08; --panel: #050907; --text: #9df5ae; --text-mid: #2b9c44; --text-dim: #1d6b30;
+    --strong: #46ec66; --wire: #164f27; --rule: #164f27; --hairline: #164f27; --focus: #46ec66;
+    --unrun-bg: transparent; --unrun-border: #164f27; --unrun-text: #2b9c44;
+    --pass-bg: #2b9c44; --pass-border: #46ec66; --pass-text: #04170a;
+    --fix-bg: repeating-linear-gradient(45deg, #ffb01f 0 7px, #b57708 7px 14px);
+    --fix-border: #ffb01f; --fix-text: #2b1d00;
+    --amber: #ffb01f; --amber-border: #ffb01f; --amber-fill: #241804;
+    --alarm-row-bg: transparent; --alarm-row-text: #ffb01f; --landed: #46ec66;
+    --glow-green: 0 0 10px rgba(70, 236, 102, 0.25); --glow-amber: 0 0 12px rgba(255, 176, 31, 0.3);
+    --scanlines: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px 3px);
   }
 
   * { box-sizing: border-box; }
@@ -75,52 +124,84 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font: 13px/1.5 var(--mono);
+  }
+  /* night-shift tube texture — decoration only (static, no motion); every
+     meaning this page carries lives in text, form, and aria, never here */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: var(--scanlines);
   }
 
   a, button, input { font: inherit; color: inherit; }
 
   :focus-visible {
-    outline: 3px solid var(--focus);
+    outline: 2px solid var(--focus);
     outline-offset: 2px;
   }
 
+  /* ---- title block (drawing header / tube status bar) ---- */
   header {
     display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    border-bottom: 2px solid var(--hairline);
+    background: var(--bg);
     position: sticky;
     top: 0;
+    z-index: 1;
   }
-  header h1 { font-size: 1rem; margin: 0; font-weight: 600; }
-  #epic-title { color: var(--text-dim); font-weight: 400; }
-  #conn-status { margin-left: auto; color: var(--text-dim); font-size: 0.85rem; }
+  .tb-cell {
+    padding: 0.45rem 0.9rem;
+    border-right: 1.5px solid var(--hairline);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+  }
+  .tb-cell .k { font-size: 0.55rem; letter-spacing: 0.14em; color: var(--text-dim); text-transform: uppercase; }
+  .tb-cell .v { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; color: var(--strong); overflow-wrap: anywhere; }
+  .tb-cell.name .v { font-size: 0.9rem; letter-spacing: 0.12em; }
+  .tb-cell.actions {
+    border-right: none;
+    margin-left: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  #conn-status { color: var(--text-mid); font-size: 0.72rem; }
+  #epic-counts .alarm { color: var(--amber); }
 
   #theme-toggle {
-    border: 1px solid var(--border);
-    background: var(--surface);
-    border-radius: 6px;
+    border: 1.5px solid var(--hairline);
+    background: var(--panel);
+    border-radius: 2px;
     padding: 0.35rem 0.6rem;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     cursor: pointer;
+    color: var(--text);
   }
 
   #master-caution {
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 0.5rem 0.9rem;
+    border: 1.5px solid var(--hairline);
+    border-radius: 2px;
+    padding: 0.42rem 0.8rem;
     font-weight: 700;
-    letter-spacing: 0.02em;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
     cursor: pointer;
-    background: var(--surface);
-    color: var(--text-dim);
+    background: var(--panel);
+    color: var(--text-mid);
   }
   #master-caution.active {
-    background: var(--caution-bg);
-    color: var(--caution-text);
-    border-color: var(--caution-bg);
+    background: var(--amber-fill);
+    color: var(--amber);
+    border-color: var(--amber-border);
+    box-shadow: var(--glow-amber);
   }
   #master-caution.blinking {
     animation: mc-blink 1s steps(1, end) infinite;
@@ -131,180 +212,191 @@
       /* Meaning (active + unacked) is carried in the button's own text
          ("acknowledge" vs "acknowledged") and aria-pressed regardless of
          whether this highlight animates. */
-      box-shadow: 0 0 0 3px var(--caution-bg) inset;
+      box-shadow: 0 0 0 3px var(--amber-border) inset;
     }
   }
   @keyframes mc-blink {
     0%, 49% { opacity: 1; }
     50%, 100% { opacity: 0.55; }
   }
-  #master-caution:disabled { cursor: default; opacity: 0.6; }
+  #master-caution:disabled { cursor: default; opacity: 0.55; }
 
-  main {
-    display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
-    gap: 1rem;
-    padding: 1rem;
-    align-items: start;
-  }
-  @media (max-width: 780px) {
-    main { grid-template-columns: 1fr; }
-  }
-
-  section.panel {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 0.85rem;
-  }
+  /* ---- panels ---- */
+  main { padding-bottom: 1rem; }
+  section.panel { padding: 1.2rem 1rem 1.4rem; }
+  section.panel + section.panel { border-top: 2px solid var(--hairline); background: var(--panel); }
   section.panel > h2 {
-    margin: 0 0 0.6rem 0;
-    font-size: 0.8rem;
-    letter-spacing: 0.06em;
+    margin: 0 0 1.1rem;
+    font-size: 0.68rem;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: var(--text-dim);
+    color: var(--text-mid);
+    font-weight: 400;
   }
 
-  #gauges {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 0.75rem;
-  }
+  /* ---- story channels on the dependency bus ---- */
+  #channels-scroll { overflow-x: auto; }
+  #channels { position: relative; margin-left: 26px; display: flex; flex-direction: column; gap: 15px; min-width: max-content; }
+  /* the bus itself */
+  #channels::before { content: ""; position: absolute; left: -18px; top: 8px; bottom: 8px; width: 2px; background: var(--wire); }
 
-  .gauge {
+  .channel { display: flex; align-items: center; min-height: 54px; }
+
+  .feed { display: flex; align-items: center; width: 74px; flex-shrink: 0; }
+  .feed .wire { height: 2px; background: var(--wire); flex: 1; }
+  .feed svg { flex-shrink: 0; }
+  .feed-line { stroke: var(--wire); stroke-width: 2; }
+  .feed-blade { stroke: var(--text-mid); stroke-width: 2; }
+  .feed-terminal { fill: var(--bg); stroke: var(--wire); stroke-width: 1.5; }
+
+  .tagblock {
+    width: 190px;
+    flex-shrink: 0;
+    border: 1.5px solid var(--hairline);
+    padding: 0.4rem 0.6rem;
+    background: var(--panel);
+    text-align: left;
+    cursor: pointer;
+  }
+  .tagblock .slug { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; color: var(--strong); overflow-wrap: anywhere; display: block; }
+  .tagblock .title { font-size: 0.62rem; color: var(--text-mid); line-height: 1.35; margin-top: 2px; display: block; }
+  .tagblock .await { font-size: 0.6rem; letter-spacing: 0.06em; color: var(--text-mid); margin-top: 3px; display: block; font-style: italic; }
+  .channel.is-landed .tagblock { border-color: var(--landed); box-shadow: var(--glow-green); }
+  .channel.is-landed .tagblock .slug { color: var(--landed); }
+  .channel.is-parked .tagblock { border-color: var(--amber-border); background: var(--amber-fill); box-shadow: var(--glow-amber); }
+  .channel.is-parked .tagblock .slug { color: var(--amber); }
+
+  .run { display: flex; align-items: center; }
+  .connector { width: 16px; height: 2px; background: var(--wire); flex-shrink: 0; }
+  .gblock {
+    width: 96px;
+    height: 40px;
+    flex-shrink: 0;
+    border: 1.5px solid var(--unrun-border);
+    background: var(--unrun-bg);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.35rem;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 0.6rem 0.5rem;
-    cursor: pointer;
-    text-align: center;
-  }
-  .gauge:hover { border-color: var(--focus); }
-
-  .dial { width: 64px; height: 64px; }
-  .dial-ring { fill: none; stroke: var(--border); stroke-width: 3; }
-  .dial-wedge { fill: var(--amber); opacity: 0.85; }
-  @media (prefers-reduced-motion: no-preference) {
-    .dial-wedge { transition: d 0.25s ease; }
-  }
-
-  .gauge-label {
-    font-weight: 600;
-    font-size: 0.85rem;
-    overflow-wrap: anywhere;
-  }
-  .gauge-status {
-    font-size: 0.72rem;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-  }
-  .gauge-status.status-parked { color: var(--amber); font-weight: 700; }
-  .gauge-status.status-landed { color: var(--green); font-weight: 700; }
-  .gauge-status.status-blocked-dead { color: var(--amber); font-weight: 700; }
-
-  .lamps {
-    display: flex;
-    flex-wrap: wrap;
     justify-content: center;
-    gap: 0.25rem;
-    font-size: 0.68rem;
+    font-size: 0.66rem;
+    letter-spacing: 0.08em;
+    color: var(--unrun-text);
+    padding: 0 3px;
   }
-  .lamp {
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 0.1rem 0.3rem;
+  .gblock .glabel { font-weight: 700; }
+  .gblock .gstate { font-size: 0.56rem; margin-top: 1px; letter-spacing: 0.02em; text-align: center; }
+  .gblock.pass { background: var(--pass-bg); border-color: var(--pass-border); box-shadow: var(--glow-green); }
+  .gblock.pass .glabel, .gblock.pass .gstate { color: var(--pass-text); }
+  .gblock.fix { background: var(--fix-bg); border-color: var(--fix-border); box-shadow: var(--glow-amber); }
+  .gblock.fix .glabel, .gblock.fix .gstate { color: var(--fix-text); font-weight: 700; }
+
+  .endstate {
+    margin-left: 16px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    padding: 0.3rem 0.55rem;
+    border: 1.5px solid var(--unrun-border);
+    color: var(--text-mid);
     white-space: nowrap;
   }
-  .lamp-pass { color: var(--lamp-pass); }
-  .lamp-fix { color: var(--lamp-fix); }
-  .lamp-unrun { color: var(--lamp-unrun); }
+  .endstate.landed { border-color: var(--landed); color: var(--landed); box-shadow: var(--glow-green); }
+  .endstate.parked { border-color: var(--amber-border); color: var(--amber); background: var(--amber-fill); box-shadow: var(--glow-amber); }
 
+  /* ---- alarm summary / event journal ---- */
   #cas-list {
     list-style: none;
     margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
-    font-size: 0.85rem;
   }
   #cas-list li {
-    border-radius: 6px;
-    padding: 0.4rem 0.5rem;
-    border: 1px solid var(--border);
+    display: flex;
+    gap: 0.9rem;
+    padding: 0.32rem 0.2rem;
+    font-size: 0.74rem;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
   }
-  .cas-amber { background: var(--amber-bg); color: var(--amber); font-weight: 600; }
-  .cas-green { background: var(--green-bg); color: var(--green); }
-  .cas-empty { color: var(--text-dim); font-style: italic; }
+  #cas-list li .t { color: var(--text-dim); white-space: nowrap; width: 42px; flex-shrink: 0; }
+  .cas-amber { background: var(--alarm-row-bg); color: var(--alarm-row-text); font-weight: 700; }
+  .cas-green { color: var(--text-mid); }
+  .cas-empty { color: var(--text-dim); letter-spacing: 0.1em; }
 
+  /* ---- drawer (unchanged mechanics; re-skinned) ---- */
   dialog#drawer {
-    border: 1px solid var(--border);
-    border-radius: 12px;
+    border: 1.5px solid var(--hairline);
+    border-radius: 3px;
     padding: 0;
     width: min(560px, 92vw);
     color: var(--text);
-    background: var(--surface);
+    background: var(--bg);
   }
-  dialog#drawer::backdrop { background: rgba(0, 0, 0, 0.45); }
+  dialog#drawer::backdrop { background: rgba(0, 0, 0, 0.55); }
   .drawer-inner { padding: 1rem 1.1rem; }
-  .drawer-inner h2 { margin: 0 0 0.6rem 0; }
+  .drawer-inner h2 { margin: 0 0 0.6rem; font-size: 0.95rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--strong); }
   .drawer-inner h3 {
     margin: 0.9rem 0 0.35rem 0;
-    font-size: 0.75rem;
-    letter-spacing: 0.05em;
+    font-size: 0.66rem;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--text-dim);
+    color: var(--text-mid);
+    font-weight: 400;
   }
-  #drawer-trail { margin: 0; padding-left: 1.1rem; }
-  #drawer-worktree {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 0.85rem;
-    overflow-wrap: anywhere;
-  }
+  #drawer-trail { margin: 0; padding-left: 1.1rem; font-size: 0.8rem; }
+  #drawer-trail li { margin-bottom: 0.2rem; }
+  #drawer-worktree { font-size: 0.78rem; overflow-wrap: anywhere; color: var(--text-mid); }
   .command-row { display: flex; gap: 0.4rem; }
   #drawer-command {
     flex: 1;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 0.82rem;
+    font-size: 0.76rem;
     padding: 0.4rem 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg);
+    border: 1.5px solid var(--unrun-border);
+    border-radius: 2px;
+    background: var(--panel);
     color: var(--text);
   }
   #drawer-copy, #drawer-close {
-    border: 1px solid var(--border);
-    background: var(--bg);
-    border-radius: 6px;
+    border: 1.5px solid var(--hairline);
+    background: var(--panel);
+    border-radius: 2px;
     padding: 0.4rem 0.7rem;
     cursor: pointer;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
-  #copy-status { color: var(--text-dim); font-size: 0.8rem; min-height: 1.2em; margin-top: 0.3rem; }
+  #copy-status { color: var(--text-mid); font-size: 0.74rem; min-height: 1.2em; margin-top: 0.3rem; }
   .drawer-footer { margin-top: 1rem; display: flex; justify-content: flex-end; }
+
+  @media (max-width: 780px) {
+    .tb-cell { border-right: none; }
+    .tb-cell.actions { margin-left: 0; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>Flight Deck</h1>
-  <span id="epic-title">loading…</span>
-  <button type="button" id="master-caution" aria-pressed="false" disabled>MASTER CAUTION</button>
-  <button type="button" id="theme-toggle" aria-label="Toggle light/dark theme">Theme</button>
-  <span id="conn-status" role="status"></span>
+  <div class="tb-cell name"><span class="k">Board</span><span class="v">EPIC OVERVIEW — ONE-LINE</span></div>
+  <div class="tb-cell"><span class="k">Unit</span><span class="v" id="epic-title">loading…</span></div>
+  <div class="tb-cell"><span class="k">Status</span><span class="v" id="epic-counts">—</span></div>
+  <div class="tb-cell actions">
+    <span id="conn-status" role="status"></span>
+    <button type="button" id="master-caution" aria-pressed="false" disabled>ALARM ACK</button>
+    <button type="button" id="theme-toggle" aria-label="Toggle light/dark theme">Theme</button>
+  </div>
 </header>
 
 <main>
-  <section class="panel" aria-labelledby="gauges-heading">
-    <h2 id="gauges-heading">Instruments</h2>
-    <div id="gauges"></div>
+  <section class="panel" aria-labelledby="channels-heading">
+    <h2 id="channels-heading">Story channels — dependency bus</h2>
+    <div id="channels-scroll"><div id="channels"></div></div>
   </section>
 
   <section class="panel" aria-labelledby="cas-heading">
-    <h2 id="cas-heading">CAS messages</h2>
+    <h2 id="cas-heading">Alarm summary / event journal</h2>
     <ul id="cas-list" aria-live="polite"></ul>
   </section>
 </main>
