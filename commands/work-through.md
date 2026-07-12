@@ -203,6 +203,13 @@ integration checkout so the branch is checkoutable from the user's clone:
 `git worktree remove ".studious/worktrees/<slug>/__epic"`. Recap every story's verdict
 trail and remind the user the PR is theirs (`gh pr create` from the epic branch).
 
+A finale gate (audit or acceptance) whose fix cycles run out while it still holds its
+own retry token (`FIX AND RE-AUDIT` / `FIX AND RE-CHECK`) does not end the run reading
+as an unexplained "not ready": it adds one entry to the "Needs you" queue below naming
+the epic, not a story — `<epic-slug>--finale: <gate> returned <verdict> — stalled past
+2 fix cycles`. It is not a `/work-on`-resolvable story like the other entries in that
+queue; investigate the epic worktree directly, or amend and re-run `/work-through`.
+
 ## Skips, amendments, and un-parking
 
 Gate profiles fixed at plan time are the only built-in skip mechanism. Mid-flight,
