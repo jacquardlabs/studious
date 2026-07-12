@@ -96,19 +96,33 @@ When narrowed, dispatch exactly:
   from this pass go through the same post-compile Critical-challenge step as everyone
   else's.
 
-Every lane **not** in either group is carried forward: its most recent post-challenge
-finding set (PASS status, and any Important/Track findings it raised) is copied verbatim
-into this round's compiled report, unchanged, clearly labeled as carried forward with
-the sha it was last confirmed at. It is never silently omitted, and no fresh agent is
-asked to re-derive an opinion about it. This is a **new, distinct outcome** from the
-existing "AGENT DIED — no report; this lane is UNAUDITED" case in `joinReports` — a
-lane skipped by design (carried forward, contributes a known clean status) and a lane
-whose agent died this round (unknown status, forces the belt-and-braces `NEEDS
-DISCUSSION` floor) must never be conflated, in either direction. Conflating a real death
-into a carry-forward would silently downgrade a genuine gap into an unearned PASS —
-exactly the failure mode `joinReports`'s existing safety net exists to prevent, so this
-distinction is structural (two different labeled outcomes), not inferred from an absent
-report.
+Every lane **not** in either group is carried forward — but carry-forward is
+**PASS-status only**, not a verbatim replay of its prior finding set. The ledger record
+this mechanism reads (`{verdict, sha, ranAt, blockingLanes}`) proves exactly one fact
+about a non-blocking lane: it did not contribute a Confirmed Critical to the verdict
+that made this round's narrowing possible. It proves nothing about any Important/Track
+findings that lane may also have raised — those live only in the compiled report body,
+which today is emitted to the conversation on the standalone surface and held in an
+in-memory variable for the run's duration on the epic-driven surface, neither of which
+is a durable, cross-invocation store. Persisting per-lane finding sets to make a richer
+"verbatim Important/Track" promise true would mean growing the ledger record with an
+unbounded-size field per lane per round — the opposite of "one field, no new store,
+prefer reuse." So the promise is narrowed to match what's actually persisted: this
+round's compiled report carries forward a **PASS-status line** per non-blocking lane —
+"`<lane>`: carried forward, no Confirmed Critical as of `<sha>`" — and nothing else. Any
+Important/Track findings that lane raised in the prior round are not reproduced; if they
+still apply, the current round's fix-delta pass (which spot-checks the fix commit
+against every lane's rubric, not only the previously-blocking ones) or a future full
+audit is what would surface them again, not this carry-forward. It is never silently
+omitted, and no fresh agent is asked to re-derive an opinion about it. This is a **new,
+distinct outcome** from the existing "AGENT DIED — no report; this lane is UNAUDITED"
+case in `joinReports` — a lane skipped by design (carried forward, contributes a known
+clean status) and a lane whose agent died this round (unknown status, forces the
+belt-and-braces `NEEDS DISCUSSION` floor) must never be conflated, in either direction.
+Conflating a real death into a carry-forward would silently downgrade a genuine gap into
+an unearned PASS — exactly the failure mode `joinReports`'s existing safety net exists
+to prevent, so this distinction is structural (two different labeled outcomes), not
+inferred from an absent report.
 
 **When any of the three conditions above doesn't hold** — no prior FIX AND RE-AUDIT
 verdict at all, the recorded sha isn't an ancestor of `HEAD` (rebase, force-push,
@@ -139,6 +153,17 @@ criterion 5 (no drift between the two dispatch surfaces) as more than a coincide
 similar-looking code: they are reading and deciding from the identical persisted fact,
 not two independent implementations of the same intent that could quietly diverge.
 
+Carry-forward content parity is deliberate, not incidental. The in-run in-memory
+variable happens to hold each carried-forward lane's full prior Important/Track
+findings — richer information than a resumed run reconstructing from the ledger could
+ever have. `auditFanIn`'s carry-forward step does not use that extra fidelity: it
+extracts only the PASS-status line from the in-memory result, exactly what the
+ledger-reconstructed path can also prove. Without this constraint, the two surfaces
+would diverge precisely on this content — the in-run path emitting fuller carry-forward
+text than a resumed run ever could reproduce from the same ledger record — which is the
+drift acceptance criterion 5 forbids, even though both paths would still agree on
+*which* lanes to re-dispatch.
+
 The epic **finale**'s `finaleAuditRound` gets the identical treatment, not a narrower
 one. It shares `AUDITORS`, `joinReports`, and `auditFanIn` with the per-story path
 already, so extending it costs no new machinery — and issue #130's own framing names the
@@ -166,7 +191,11 @@ exactly as today.
 - **Stay in your lane** — every re-dispatched auditor still applies only its own
   rubric to the full changeset, exactly as today; the fix-delta pass is a distinct,
   narrowly-scoped concern of its own (a cheap net over a small, known-risky diff), not a
-  blended replacement for the 9 specialists' depth.
+  blended replacement for the 9 specialists' depth. Flagged explicitly: the fix-delta
+  pass is the one place in this design that deliberately reads across lane rubrics
+  rather than owning a single one, a bounded stretch of CLAUDE.md's "one agent = one
+  concern" invariant that exists only because of this retry-scoping mechanism — it is
+  not a precedent for any other agent to do the same.
 - **Lightweight and optional** — "you don't need every gate every time" extends to "you
   don't need every lane every re-audit time," with the same conservative bias the rest
   of the product uses: default to running, narrow only from firm evidence.
@@ -192,13 +221,18 @@ inside that step.
    ancestor sha with a two-lane blocking list it still recognizes, and dispatches four
    things: `security-auditor` and `test-auditor` (full changeset, fresh eyes) plus one
    fix-delta cross-lane pass (scoped to just the fix commit) plus the compile step. The
-   other 7 lanes are not relaunched; their most recent PASS (or Important/Track
-   findings) carry into the compiled report verbatim, labeled as carried forward.
+   other 7 lanes are not relaunched; each is carried forward as a PASS-status line only
+   ("no Confirmed Critical as of `<sha>`") — not a replay of any Important/Track findings
+   it previously raised, since the ledger record this narrowing reads proves only the
+   absence of a Confirmed Critical, nothing more.
 4. The compiled report reads the same as always — Summary, Critical, Important, Track,
-   Verdict — with one addition: the Summary states how many lanes ran this round and
-   why (e.g., "2 of 9 lanes re-dispatched (previously blocking) + 1 fix-delta pass; 7
-   lanes carried forward from round 1 at `<sha>`"). If the two findings are resolved and
-   nothing new survives the challenge step, the verdict is **PASS**.
+   Verdict — with one addition: the Summary states how many lanes ran this round and why,
+   and makes clear the 7 carried-forward lanes weren't left unchecked against the fix
+   itself (e.g., "2 of 9 lanes re-dispatched (previously blocking) + 1 fix-delta pass
+   spot-checking the fix commit against all 9 lanes' rubrics; 7 lanes carried forward as
+   PASS-status only from round 1 at `<sha>` — not re-audited in full, but the fix-delta
+   pass covered their subject matter against this round's change"). If the two findings
+   are resolved and nothing new survives the challenge step, the verdict is **PASS**.
 5. Separately: the persona rebases the branch between rounds (or a teammate
    force-pushes). **Changed nowhere visible on the happy path, but the fail-closed path
    fires:** the recorded prior sha is no longer an ancestor of `HEAD`, so `/gate-audit`
