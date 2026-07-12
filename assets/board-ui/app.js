@@ -143,15 +143,20 @@ function deriveBlocker(storySlug, stories) {
 function classifyGaugeState(storySlug, stories) {
   var all = stories || {};
   var story = all[storySlug] || {};
+  // A story's own terminal status outranks the derived blocked state: a
+  // parked story with a non-landed dependency must read PARKED at the
+  // channel, matching the amber the alarm summary already shows for it
+  // (acceptance finding: precedence previously let AWAIT/STANDBY mask a
+  // park at the channel while CAS showed it amber).
   if (story.status === 'dropped') return { code: 'dropped', label: 'DROPPED' };
+  if (story.status === 'parked') return { code: 'parked', label: 'PARKED' };
+  if (story.status === 'landed') return { code: 'landed', label: 'LANDED' };
   var blocker = deriveBlocker(storySlug, all);
   if (blocker) {
     return blocker.dropped
       ? { code: 'blocked-dead', label: 'AWAIT ' + blocker.slug + ' — DROPPED' }
       : { code: 'blocked', label: 'AWAIT ' + blocker.slug };
   }
-  if (story.status === 'parked') return { code: 'parked', label: 'PARKED' };
-  if (story.status === 'landed') return { code: 'landed', label: 'LANDED' };
   if (story.status === 'pending') return { code: 'pending', label: 'STANDBY' };
   return { code: 'active', label: String(story.status || 'active').toUpperCase() };
 }
@@ -193,7 +198,10 @@ function gaugeAriaLabel(storySlug, stories) {
 function gateBlockState(storySlug, story, gate, events) {
   var s = story || {};
   var n = s.retries && s.retries[gate];
-  var suffix = n ? ' ✕' + n : '';
+  // burn renders with its ceiling (✕1/2) — a bare count tells the operator
+  // nothing about how close to parking without knowing the cap (acceptance
+  // finding); MAX_FIX_CYCLES is the vendored driver cap
+  var suffix = n ? ' ✕' + n + '/' + MAX_FIX_CYCLES : '';
   if (WORKER_PHASES.has(gate)) {
     if (s.status === 'landed' || workerPhaseDone(storySlug, gate, events)) return { state: 'pass', text: 'DONE' };
     return { state: 'unrun', text: '—' };
@@ -395,7 +403,7 @@ function buildCasMessages(stories, events, opts) {
       green.push({ tier: 'green', slug: e.story, message: 'landed', text: e.story + ' landed', at: e.at });
     } else if (e.kind === 'story' && e.bumpRetryGate) {
       var count = e.retries != null ? e.retries : '?';
-      var cycleMsg = 'fix cycle ' + count + ' for ' + e.bumpRetryGate;
+      var cycleMsg = 'fix cycle ' + count + ' of ' + MAX_FIX_CYCLES + ' for ' + e.bumpRetryGate;
       green.push({ tier: 'green', slug: e.story, message: cycleMsg, text: e.story + ': ' + cycleMsg, at: e.at });
     }
   }
@@ -606,11 +614,24 @@ function channelRow(storySlug) {
 function renderChannels() {
   var wrap = document.getElementById('channels');
   wrap.textContent = '';
+  var any = false;
   board.order.forEach(function (slug) {
     if (Object.prototype.hasOwnProperty.call(board.snapshot.stories, slug)) {
       wrap.appendChild(channelRow(slug));
+      any = true;
     }
   });
+  if (!any) {
+    // A missing blackboard must not look like a healthy epic with no work:
+    // board-server returns status "unknown" with empty stories for a slug it
+    // can't resolve, and the board's whole job is at-a-glance legibility
+    // (acceptance finding: wrong slug rendered identically to all-nominal).
+    var epicStatus = (board.snapshot.epic && board.snapshot.epic.status) || 'unknown';
+    var text = epicStatus === 'unknown'
+      ? 'No blackboard found for this epic — check the slug passed to board-server.'
+      : 'No stories recorded for this epic yet.';
+    wrap.appendChild(el('div', { class: 'channels-empty', text: text }));
+  }
 }
 
 function renderCas() {
@@ -655,7 +676,9 @@ function renderHeader() {
   var counts = document.getElementById('epic-counts');
   counts.textContent = '';
   counts.appendChild(document.createTextNode(landed + '/' + slugs.length + ' LANDED · '));
-  counts.appendChild(el('span', { class: 'alarm', text: alarms + ' ALARM' + (alarms === 1 ? '' : 'S') }));
+  // amber only when there IS something demanding attention — "0 ALARMS" in
+  // the caution hue would dilute the amber=alarm-tier reservation
+  counts.appendChild(el('span', { class: alarms > 0 ? 'alarm' : '', text: alarms + ' ALARM' + (alarms === 1 ? '' : 'S') }));
   counts.appendChild(document.createTextNode(' · CAP ' + (epic.concurrency != null ? epic.concurrency : '—')));
 }
 
@@ -700,9 +723,17 @@ function renderDrawer() {
 
   document.getElementById('drawer-worktree').textContent = story.worktree || '(not recorded)';
 
-  var cmd = buildResolutionCommand(epicSlug, drawerStorySlug, story, MAX_FIX_CYCLES);
+  // The un-park recipe exists only for parked stories — offering it on any
+  // other drawer hands the operator a copy-able command that would flip a
+  // healthy or landed story back to pending (acceptance finding: the same
+  // trust hazard the conditional --reset-retry logic exists to prevent, one
+  // layer up). Non-parked drawers say so instead of arming the command.
+  var isParked = story.status === 'parked';
+  document.getElementById('drawer-resolution').hidden = !isParked;
+  document.getElementById('drawer-no-resolution').hidden = isParked;
   var cmdField = document.getElementById('drawer-command');
-  cmdField.value = cmd;
+  cmdField.value = isParked ? buildResolutionCommand(epicSlug, drawerStorySlug, story, MAX_FIX_CYCLES) : '';
+  if (!isParked) document.getElementById('copy-status').textContent = '';
 }
 
 function copyDrawerCommand() {

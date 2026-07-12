@@ -252,6 +252,14 @@
 
   .channel { display: flex; align-items: center; min-height: 54px; }
 
+  .channels-empty {
+    padding: 1.4rem 0.5rem;
+    color: var(--text-mid);
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
   .feed { display: flex; align-items: center; width: 74px; flex-shrink: 0; }
   .feed .wire { height: 2px; background: var(--wire); flex: 1; }
   .feed svg { flex-shrink: 0; }
@@ -280,7 +288,7 @@
   .connector { width: 16px; height: 2px; background: var(--wire); flex-shrink: 0; }
   .gblock {
     width: 96px;
-    height: 40px;
+    min-height: 40px; /* auto-grows so a wrapped verdict token + ✕n/2 suffix never spills the border */
     flex-shrink: 0;
     border: 1.5px solid var(--unrun-border);
     background: var(--unrun-bg);
@@ -388,6 +396,7 @@
     text-transform: uppercase;
   }
   #copy-status { color: var(--text-mid); font-size: 0.74rem; min-height: 1.2em; margin-top: 0.3rem; }
+  #drawer-no-resolution { margin: 0.9rem 0 0; font-size: 0.78rem; color: var(--text-mid); }
   .drawer-footer { margin-top: 1rem; display: flex; justify-content: flex-end; }
 
   @media (max-width: 780px) {
@@ -431,12 +440,15 @@
     <h3>Worktree</h3>
     <p id="drawer-worktree"></p>
 
-    <h3>Resolution command</h3>
-    <div class="command-row">
-      <input id="drawer-command" type="text" readonly aria-label="Copy-able resolution command">
-      <button type="button" id="drawer-copy">Copy</button>
+    <div id="drawer-resolution">
+      <h3>Resolution command</h3>
+      <div class="command-row">
+        <input id="drawer-command" type="text" readonly aria-label="Copy-able resolution command">
+        <button type="button" id="drawer-copy">Copy</button>
+      </div>
+      <div id="copy-status" role="status"></div>
     </div>
-    <div id="copy-status" role="status"></div>
+    <p id="drawer-no-resolution" hidden>No resolution needed — story is not parked.</p>
 
     <div class="drawer-footer">
       <button type="button" id="drawer-close">Close</button>

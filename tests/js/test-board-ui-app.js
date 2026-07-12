@@ -83,6 +83,16 @@ test('classifyGaugeState: blocked-on-dropped-dep is distinct from ordinary block
   assert.equal(app.classifyGaugeState('x', stories).code, 'blocked-dead');
 });
 
+test('classifyGaugeState: a story\'s own terminal status outranks a derived blocked state', () => {
+  // acceptance finding: a parked story with a non-landed dep previously read
+  // AWAIT/STANDBY at the channel while the alarm summary showed it amber —
+  // the same story telling two severities at once.
+  const stories = { x: { status: 'parked', deps: ['y'] }, y: { status: 'audit' } };
+  assert.equal(app.classifyGaugeState('x', stories).code, 'parked');
+  const landed = { x: { status: 'landed', deps: ['y'] }, y: { status: 'dropped' } };
+  assert.equal(app.classifyGaugeState('x', landed).code, 'landed');
+});
+
 // ---------------------------------------------------------------------------
 // gateBlockState — everything a channel block renders: {state, text}, derived
 // once in the pure core (audit finding: the text half previously lived
@@ -97,11 +107,11 @@ test('gateBlockState: a gate with a proceed verdict is pass, text is the token v
   assert.deepEqual(app.gateBlockState('x', { status: 'audit' }, 'audit', events), { state: 'pass', text: 'PASS' });
 });
 
-test('gateBlockState: a fix-and-retry verdict is fix, with the retry count suffixed', () => {
+test('gateBlockState: a fix-and-retry verdict is fix, with the burn and its ceiling suffixed', () => {
   const events = [{ kind: 'gate-verdict', story: 'x', gate: 'audit', verdict: 'FIX AND RE-AUDIT' }];
   assert.deepEqual(
     app.gateBlockState('x', { status: 'audit', retries: { audit: 1 } }, 'audit', events),
-    { state: 'fix', text: 'FIX AND RE-AUDIT ✕1' }
+    { state: 'fix', text: 'FIX AND RE-AUDIT ✕1/2' }
   );
 });
 
@@ -148,7 +158,7 @@ test('gateBlockState: landed outranks a stale non-proceed verdict — pass, degr
 
 test('gateBlockState: a parked story\'s reason-named gate is fix, verdict recovered from the reason', () => {
   const story = { status: 'parked', reason: 'audit: FIX AND RE-AUDIT — merge conflict', retries: { audit: 2 } };
-  assert.deepEqual(app.gateBlockState('x', story, 'audit', []), { state: 'fix', text: 'FIX AND RE-AUDIT ✕2' });
+  assert.deepEqual(app.gateBlockState('x', story, 'audit', []), { state: 'fix', text: 'FIX AND RE-AUDIT ✕2/2' });
   assert.deepEqual(app.gateBlockState('x', story, 'acceptance', []), { state: 'unrun', text: '—' });
 });
 
@@ -351,7 +361,7 @@ test('buildCasMessages: every entry carries message as a structured field, never
   messages.slice(1).forEach((m) => { bySlug[m.slug] = m.message; });
   assert.equal(bySlug.a, 'audit → PASS');
   assert.equal(bySlug.b, 'landed');
-  assert.equal(bySlug.c, 'fix cycle 1 for audit');
+  assert.equal(bySlug.c, 'fix cycle 1 of 2 for audit');
   const empty = app.buildCasMessages({}, []);
   assert.equal(empty[0].message, 'ALL SYSTEMS NOMINAL');
 });
