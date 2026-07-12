@@ -3,6 +3,7 @@ name: infra-auditor
 description: Infrastructure auditor. Reviews a changeset for IaC misconfiguration, change blast radius, CI/CD pipeline risk, and container hygiene. Diff-scoped and gate-invoked (/gate-audit); skipped when the changeset touches no infrastructure files.
 tools: Read, Grep, Glob, Bash
 model: opus
+effort: high
 ---
 
 # Infrastructure audit

@@ -55,14 +55,60 @@ Names encode two things — whether something is an action or a role, and what s
 - **One fan-out command, many subagents.** Parallel checks belong to subagents under a single entry point (`/gate-audit`, `/deep-review`), not to their own top-level commands. Don't add a command per check.
 - **Skills are named for the intent they detect** — `evaluate-feature-idea`, `review-design-before-build`, `acceptance-check-before-merge` — not for the command they call. The `description` carries the trigger; keep it conservative (fire on explicit intent, list what it should NOT match) so a gate never interrupts when it isn't wanted.
 
-## Model assignments
+## Model and effort assignments
 
-Pin by stakes, not by habit. An agent's `model` is `opus` when its core job is high-stakes reasoning or human judgment — where a weaker model ships worse decisions — and `inherit` (the session model) for mechanical, rule-based, or inventory work.
+Every agent carries two dispatch dials, and they move different multipliers. A dispatch's
+cost is roughly `context × turns × model_rate`: **`model` moves the rate, `effort` moves the
+turns.** Pin both by stakes, not by habit.
 
-- **`opus`** — security, architecture, and product/UX judgment: `security-auditor`, `infra-auditor`, `operability-auditor`, `architecture-auditor`, `product-reviewer`, `ux-reviewer`, `review-architecture`, `review-product-health`, `review-security-health`.
-- **`inherit`** — code hygiene, docs, tests, frontend code, inventory sweeps, and triage: `code-auditor`, `doc-auditor`, `test-auditor`, `frontend-reviewer`, `review-codebase-health`, `review-interface-health`, `review-readme`, `backlog-priorities`, `backlog-hygiene`.
+### `effort`
 
-Don't pin to a bare tier like `sonnet` — use `inherit` so the agent tracks the user's session model.
+`low` · `medium` · `high` · `xhigh` · `max`, set in the agent's frontmatter, overriding the
+session's effort. Lower effort means fewer and more-consolidated tool calls, less preamble,
+and terser output — so it is the primary lever on turn count, which is where most of a
+dispatch's tokens actually go (an agent's own prompt is ~1k tokens against tens of thousands
+spent reading and reasoning).
+
+- **`high`** — open-ended reasoning where a shallower pass ships a worse merge decision:
+  `security-auditor`, `architecture-auditor`, `infra-auditor`, `operability-auditor`,
+  `product-reviewer`, `review-architecture`, `review-product-health`, `review-security-health`.
+- **`medium`** — judgment that is rubric-driven rather than open-ended, and periodic reviews:
+  `code-auditor`, `test-auditor`, `frontend-reviewer`, `ux-reviewer`, `premortem-auditor`,
+  `review-codebase-health`, `review-interface-health`, `backlog-priorities`.
+- **`low`** — mechanical, rule-based, or inventory work: `doc-auditor`, `review-readme`,
+  `backlog-hygiene`.
+
+`premortem-auditor` sits at `medium` despite being merge-blocking: it verifies a fixed
+register item by item and never free-hunts, so it is structured verification, not open-ended
+reasoning.
+
+### `model`
+
+`opus` when the core job is high-stakes reasoning or human judgment — where a weaker model
+ships worse decisions.
+
+- **`opus`** — security, architecture, operational, and product/UX judgment:
+  `security-auditor`, `infra-auditor`, `operability-auditor`, `architecture-auditor`,
+  `premortem-auditor`, `product-reviewer`, `ux-reviewer`, `review-architecture`,
+  `review-product-health`, `review-security-health`.
+- **`sonnet`** — recommend-only synthesis and ranking judgment, no merge gate behind it:
+  `backlog-priorities`, `review-codebase-health`, `review-interface-health`.
+- **`haiku`** — recommend-only pure inventory and drift checks, no merge gate behind it:
+  `backlog-hygiene`, `review-readme`.
+- **`inherit`** — merge-blocking, mechanical or rule-based checks, pending an A/B against a
+  pinned drop (see below): `code-auditor`, `doc-auditor`, `test-auditor`,
+  `frontend-reviewer`.
+
+**`inherit` is a known defect, not a cheap tier — see [#136](https://github.com/jacquardlabs/studious/issues/136).** It resolves to the session model, so an
+agent still pinned to it is billed at whatever the user happens to have selected: identical
+to the `opus` tier in an Opus session, 2× that in a Fable one. Worse, it means the same
+branch audited on two different days can be judged by two different models. The four agents
+above are pinned to it only because they gate a merge and a model drop needs the A/B harness
+first — they are not "the cheap tier" by design, they are the remaining defect. The five
+`sonnet`/`haiku` agents above show the target shape: no merge gate behind an agent's output
+means no A/B is needed to drop its tier, since a weak result is visible and cheap for a human
+to catch. Do not add new `inherit` agents for that reason, and do not read `inherit`
+anywhere in this file as an endorsed default.
 
 ## What we won't merge
 

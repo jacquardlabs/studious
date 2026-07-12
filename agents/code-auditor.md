@@ -3,6 +3,7 @@ name: code-auditor
 description: Code quality auditor. Reviews a changeset for patterns, maintainability, complexity, consistency, language idioms, and error handling. Diff-scoped and gate-invoked (/gate-audit) — not the periodic whole-codebase review.
 tools: Read, Grep, Glob, Bash
 model: inherit
+effort: medium
 ---
 
 # Code Quality Audit

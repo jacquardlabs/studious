@@ -3,6 +3,7 @@ name: review-security-health
 description: Periodic whole-repo security posture review — pre-existing vulnerabilities, secrets in history, security-config posture, trend over time. Not diff-scoped; the per-changeset security auditor is security-auditor.
 tools: Read, Glob, Grep, Bash, Write
 model: opus
+effort: high
 ---
 
 # Security health review

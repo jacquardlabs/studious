@@ -3,6 +3,7 @@ name: security-auditor
 description: Comprehensive security analysis — OWASP Top 10, injection, auth, secrets, headers. Reviews a changeset; diff-scoped and gate-invoked (/gate-audit) — not the periodic whole-repo posture review, which review-security-health owns.
 tools: Read, Grep, Glob, Bash
 model: opus
+effort: high
 ---
 
 # Security Audit

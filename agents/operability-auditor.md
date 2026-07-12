@@ -3,6 +3,7 @@ name: operability-auditor
 description: Operability auditor. Reviews a changeset for production failure signal, resilience, and 12-factor runtime hygiene. Diff-scoped and gate-invoked (/gate-audit); skipped when the changeset touches no runtime surface.
 tools: Read, Grep, Glob, Bash
 model: opus
+effort: high
 ---
 
 # Operability audit
