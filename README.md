@@ -1,12 +1,16 @@
 # Studious
 
+[![CI](https://github.com/jacquardlabs/studious/actions/workflows/ci.yml/badge.svg)](https://github.com/jacquardlabs/studious/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/jacquardlabs/studious)](https://github.com/jacquardlabs/studious/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A product development workflow for Claude Code, from [Jacquard Labs](https://github.com/jacquardlabs).
 
 ## Why
 
 Claude Code made building cheap. That moved the bottleneck. The hard part is no longer *can we build it*. It's *should we build it, and did we build it right*.
 
-Studious adds that judgment back as one discipline entered at the scope of the work: a feature (the gates), a story (`/work-on`), or a whole milestone (`/work-through`). It owns the judgment — what to work on, whether a design serves users, whether the implementation delivers, whether the codebase stays healthy. The building enters through a contract (`reference/worker-contract.md`: story brief in, implementation + evidence out) that any executor can satisfy — you, a dispatched agent, or [Superpowers](https://github.com/obra/superpowers) if you use it.
+Studious adds that judgment back as one discipline entered at the scope of the work: a feature (the gates), a story (`/work-on`), or a whole milestone (`/work-through`). It owns the judgment: what to work on, whether a design serves users, whether the implementation delivers, whether the codebase stays healthy. The building enters through a contract (`reference/worker-contract.md`: story brief in, implementation and evidence out). Any executor can satisfy it — you, a dispatched agent, or [Superpowers](https://github.com/obra/superpowers) if you use it.
 
 ## How it works
 
@@ -36,11 +40,11 @@ Then, in any project:
 
 This creates your context documents (PRODUCT.md and DESIGN.md, extracted from the codebase as it actually is), scaffolds the `docs/studious/` review directories, and wires the workflow reference into CLAUDE.md so every future session knows the process. Review PRODUCT.md first. The extraction is evidence-based, but product principles and your "not building" list need your voice.
 
-Run `/studious-doctor` any time after — right after install, after a marketplace update, or whenever a gate feels like it ran with less than it should have. It's a read-only check, not a gate: required tooling (git/gh/jq), whether every shipped agent and skill actually registered this session, and whether your context docs are missing or still unedited templates. It fixes nothing, just tells you what to fix. Also fires from natural language — "is my Studious install healthy?".
+Run `/studious-doctor` any time after: right after install, after a marketplace update, or whenever a gate feels like it ran with less than it should have. It's a read-only check, not a gate: required tooling (git/gh/jq), whether every shipped agent and skill actually registered this session, and whether your context docs are missing or still unedited templates. It fixes nothing, just tells you what to fix. It also fires from natural language — "is my Studious install healthy?"
 
 **From here, the fastest way in is to stop reading and run one command:**
 
-- Building one thing? `/work-on [idea or issue]`. It runs one step of the flow, tells you what's next, and hands back to you at the two steps Studious doesn't own (writing the design, writing the code). Run it again — or just say "next" — when you're ready to keep going.
+- Building one thing? `/work-on [idea or issue]`. It runs one step of the flow, tells you what's next, and hands back to you at the two steps Studious doesn't own (writing the design, writing the code). Run it again, or just say "next," when you're ready to keep going.
 - Driving a batch? `/work-through [milestone, epic issue, or label]`. It proposes a story plan for your approval, then dispatched agents design, build, and gate each story in parallel, gated exactly like anything else.
 
 Everything past this point is what those two commands are driving underneath — read on for the detail, or to run a piece by hand.
@@ -51,13 +55,17 @@ Studious wraps feature development in quality gates. Between them you build, and
 
 ### Let `/work-on` navigate one feature
 
-`/work-on [idea or issue]` walks a feature through the gate sequence below, one piece per invocation. Each invocation runs exactly one step — a gate, or a handoff at the two steps Studious doesn't own (design doc, build) — then stops and tells you what the next piece is. There is no auto-advance. When you're ready, `/work-on` with no argument (or just "next", or "do the next piece") runs it; you never have to remember which gate comes after which. Position is tracked per feature in local, gitignored `.studious/` state, so the flow survives across sessions and picks up where the feature actually stands — including gates you ran by hand.
+`/work-on [idea or issue]` walks a feature through the gate sequence below, one piece per invocation. Each invocation runs exactly one step: a gate, or a handoff at the two steps Studious doesn't own (design doc, build). Then it stops and tells you what the next piece is. There is no auto-advance. When you're ready, `/work-on` with no argument (or just "next", or "do the next piece") runs it; you never have to remember which gate comes after which. Position is tracked per feature in local, gitignored `.studious/` state, so the flow survives across sessions and picks up where the feature actually stands, including gates you ran by hand.
 
 ### Let `/work-through` drive a whole milestone
 
-`/work-through [milestone, epic issue, or label]` scales the flow up a level. The first run reads the milestone's issues (read-only) and proposes a story plan — dependency order, acceptance criteria per story, which gates each story needs, an epic-level pre-mortem — then stops for your approval; nothing runs before it. Every run after that drives: agents design, build, and gate stories in parallel worktrees (3 at once by default), stories that pass their gates merge into an `epic/<name>` integration branch, and fix-it verdicts get at most 2 repair cycles with a fresh auditor each time. Judgment verdicts — RETHINK, NEEDS DISCUSSION, HOLD — never retry: that story parks for you while independent stories keep moving. When everything lands, the whole epic diff gets a final audit plus an acceptance check against the epic's goal, and the branch is yours (`gh pr create` — same ledger, same PR-time hook). Any parked story is a normal `/work-on` feature, so you can always take one over by hand. Fair warning: an epic run spends tokens like the 5–10 supervised flows it replaces.
+`/work-through [milestone, epic issue, or label]` scales the flow up a level. The first run reads the milestone's issues (read-only) and proposes a story plan: dependency order, acceptance criteria per story, which gates each story needs, an epic-level pre-mortem. Then it stops for your approval; nothing runs before it.
 
-The driver has two execution modes with identical semantics, interchangeable mid-epic: the primary mode runs the scheduling as a deterministic Workflow script (`workflows/epic-driver.js` — DAG order, concurrency, retry caps, and merge order in code, so bookkeeping never burns model context and cannot be improvised), and a prompt-driven fallback covers environments without the Workflow tool. Judgment — decompositions, gate verdicts, fixes, park explanations — lives in dispatched agents in both modes.
+Every run after that drives execution: agents design, build, and gate stories in parallel worktrees (3 at once by default). Stories that pass their gates merge into an `epic/<name>` integration branch, and fix-it verdicts get at most 2 repair cycles with a fresh auditor each time. Judgment verdicts (RETHINK, NEEDS DISCUSSION, HOLD) never retry: that story parks for you while independent stories keep moving.
+
+When everything lands, the whole epic diff gets a final audit plus an acceptance check against the epic's goal, and the branch is yours (`gh pr create`, same ledger, same PR-time hook). Any parked story is a normal `/work-on` feature, so you can always take one over by hand. Fair warning: an epic run spends tokens like the 5–10 supervised flows it replaces.
+
+The driver has two execution modes with identical semantics, interchangeable mid-epic. The primary mode runs the scheduling as a deterministic Workflow script (`workflows/epic-driver.js`, handling DAG order, concurrency, retry caps, and merge order in code, so bookkeeping never burns model context and cannot be improvised). A prompt-driven fallback covers environments without the Workflow tool. Judgment (decompositions, gate verdicts, fixes, park explanations) lives in dispatched agents in both modes.
 
 ### Run a gate directly
 
@@ -66,8 +74,8 @@ Each gate exists to catch a specific failure. Reach for one on its own when you 
 - Pick what to build with `/backlog-priorities` (ranks your open GitHub issues by severity/alignment/unblocking potential) or `/gate-should-we-build [idea]` (scores a raw idea against PRODUCT.md and the smallest version worth shipping). Catches building the wrong thing.
 - Gate the design with `/gate-design-review`. It walks your design doc as your primary persona would and flags where they'd get confused or frustrated. Catches a bad design before you spend build effort on it. On a passing verdict, it also writes a pre-mortem register (`docs/studious/premortems/<slug>.md`) — failure modes predicted at design time, checked back against the finished changeset at the end of the flow.
 - Build it with your own workflow — by hand or with any executor (Superpowers works well here). Studious steps back in the supervised flow; in `/work-through` epics, dispatched workers build to `reference/worker-contract.md` and are gated like anyone else.
-- Audit before merge with `/gate-audit`. Security, code quality, docs, architecture, and test adequacy always run; UX, frontend, and an accessibility pass (via the `web-design-guidelines` skill, or a vendored fallback when it isn't installed) join in on projects with a web surface; infrastructure joins in when the changeset touches IaC, container, or CI-pipeline files; operability joins in when the changeset touches runtime code — request handlers, queue consumers, daemons, outbound calls; and if the design-review gate recorded a pre-mortem register for this branch, a dedicated auditor checks each predicted failure mode — REALIZED / NOT REALIZED / CAN'T VERIFY, evidence attached. Up to 11 auditors, each staying in its lane.
-- Gate acceptance with `/gate-acceptance`. Product review, not code review: does the implementation actually deliver the experience? It walks every user-facing change, checks error states for human-friendly messaging, regression-tests the critical journeys in PRODUCT.md, and — same register, other half — verifies the pre-mortem's product-lane items against what shipped.
+- Audit before merge with `/gate-audit`. Security, code quality, docs, architecture, and test adequacy always run; UX, frontend, and an accessibility pass (via the `web-design-guidelines` skill, or a vendored fallback when it isn't installed) join in on projects with a web surface; infrastructure joins in when the changeset touches IaC, container, or CI-pipeline files; operability joins in when the changeset touches runtime code (request handlers, queue consumers, daemons, outbound calls); and if the design-review gate recorded a pre-mortem register for this branch, a dedicated auditor checks each predicted failure mode — REALIZED / NOT REALIZED / CAN'T VERIFY, evidence attached. Up to 11 auditors, each staying in its lane.
+- Gate acceptance with `/gate-acceptance`. Product review, not code review: does the implementation actually deliver the experience? It walks every user-facing change, checks error states for human-friendly messaging, regression-tests the critical journeys in PRODUCT.md, and verifies the pre-mortem's product-lane items against what shipped (same register, other half).
 
 ```
 /backlog-priorities  or  /gate-should-we-build [idea]
@@ -87,11 +95,11 @@ Each gate exists to catch a specific failure. Reach for one on its own when you 
        merge
 ```
 
-When you run `gh pr create`, a PR-time hook reads the gate verdicts recorded to a local `.studious/` ledger (which Studious adds to your `.gitignore` on first run) and gives a specific reminder — naming gates that never ran, ran on an older commit, or didn't pass — while staying non-blocking.
+When you run `gh pr create`, a PR-time hook reads the gate verdicts recorded to a local `.studious/` ledger (which Studious adds to your `.gitignore` on first run) and gives a specific reminder (naming gates that never ran, ran on an older commit, or didn't pass) while staying non-blocking.
 
 You don't need every gate every time. For small fixes, `/gate-audit` alone is enough. The gates exist to catch building the wrong thing or shipping a bad experience. Use judgment about when that risk applies.
 
-The three product gates also fire from natural language, not just the slash command — asking "should we build this?", "review this design before I build it", or "does this actually deliver?" routes to the matching gate. So does flow continuation — "do the next piece" resumes `/work-on`. Triggers are deliberately conservative, so you'll still reach for the commands directly most of the time.
+The three product gates also fire from natural language, not just the slash command: asking "should we build this?", "review this design before I build it", or "does this actually deliver?" routes to the matching gate. So does flow continuation — "do the next piece" resumes `/work-on`. Triggers are deliberately conservative, so you'll still reach for the commands directly most of the time.
 
 ## CI mode (optional)
 
@@ -127,7 +135,7 @@ Aim it at one area when you don't need the full sweep — each review has its ow
 
 ## Context documents
 
-Everything in Studious reads from 3 files in your project root. `/studious-init` creates them; you maintain them.
+Everything in Studious reads from 3 files in your project root. `/studious-init` creates them; you maintain them. To rebuild one on its own after drift, `/extract-design-system` and `/extract-product-context` re-run the same evidence-based extraction against the current codebase.
 
 | Document | What it holds | Updated by |
 |----------|---------------|------------|
@@ -137,11 +145,35 @@ Everything in Studious reads from 3 files in your project root. `/studious-init`
 
 Reviews propose updates to these docs. They never apply them. You review and approve. If a doc goes stale, the reviews tell you. That's the point.
 
+## Commands
+
+Every command Studious ships, for quick reference:
+
+| Command | What it does |
+|---------|---------------|
+| `/studious-init` | Creates PRODUCT.md and DESIGN.md, scaffolds review directories, and configures CLAUDE.md. |
+| `/studious-doctor` | Checks tooling, plugin registration, and context-doc health for silent-degradation risks. |
+| `/work-on [idea or issue]` | Navigates the feature flow one piece at a time. |
+| `/work-through [milestone, epic issue, or label]` | Drives a whole milestone through the gate flow with dispatched agents. |
+| `/backlog-priorities` | Curates a ranked shortlist from open GitHub issues based on your current intent. |
+| `/backlog-hygiene` | Identifies open GitHub issues that should be closed. Recommend-only. |
+| `/gate-should-we-build [idea]` | Evaluates whether a feature idea is worth building before any engineering begins. |
+| `/gate-design-review` | Product review of a design doc before implementation begins. |
+| `/gate-audit` | Runs the audit suite — security, code quality, docs, architecture, and tests, scoped to the changeset. |
+| `/gate-acceptance` | Product acceptance review after implementation, before merge. |
+| `/deep-review [area]` | Runs the periodic review suite: one area, or all 6 with a compiled summary. |
+| `/extract-design-system` | Extracts the interface design system from the codebase into DESIGN.md. |
+| `/extract-product-context` | Extracts product context from the codebase into PRODUCT.md. |
+
 ## Works well with
 
 - [Superpowers](https://github.com/obra/superpowers): an optional executor for the build step — brainstorming, planning, TDD, debugging. Studious owns the gates and the worker contract; any executor that satisfies the contract works, Superpowers included.
 - GitHub Issues: `/backlog-priorities` and `/backlog-hygiene` work with your tracker via the `gh` CLI.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to report issues, propose changes, and the structure conventions for agents, commands, and skills.
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
