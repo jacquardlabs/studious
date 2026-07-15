@@ -72,8 +72,7 @@ A changeset matches this signal if any changed file is:
 
 No match on any of these → no infrastructure signal.
 
-## Frontend signal (auditors 6–8 per-changeset clause / `ux-reviewer`, `frontend-reviewer`,
-Web Interface Guidelines)
+## Frontend signal (auditors 6–8 per-changeset clause / `ux-reviewer`, `frontend-reviewer`, Web Interface Guidelines)
 
 A changeset matches this signal if any changed file is:
 
