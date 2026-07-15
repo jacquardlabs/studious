@@ -253,6 +253,37 @@ function resolveReauditScope(priorResult, auditors, retryToken) {
   }
 }
 
+// First-round changeset routing (#138): decides which of `auditors` this round
+// dispatches vs routes out as not applicable to the changeset, from the mechanical
+// routing dispatch's {infraMatch, frontendMatch} flags (resolveRoutingMatchFlags,
+// added in a later story task) — holds no pattern-matching logic of its own; the
+// patterns themselves live in reference/audit-routing-signals.md, read by that
+// dispatch, so there is structurally one canonical list, never a second
+// hand-maintained copy here. Pure and explicitly parameterized (no closures over
+// module state), matching this file's own precedent (resolveReauditScope,
+// crashParkArgs, stalledFinaleEntry) for standalone extraction by
+// tests/python/test_audit_first_round_routing.py. Fails OPEN (routes a lane IN,
+// never out) on missing/malformed flags — the same fail-closed-to-more-auditing
+// posture resolveReauditScope already uses, and the same "when ambiguous, run"
+// bias commands/gate-audit.md's own routing rules use.
+function resolveAuditRoster(matchFlags, auditors) {
+  const infraMatch = !matchFlags || matchFlags.infraMatch !== false
+  const frontendMatch = !matchFlags || matchFlags.frontendMatch !== false
+  const routedOut = []
+  const routed = auditors.filter(a => {
+    if (a.endsWith(':infra-auditor') && !infraMatch) {
+      routedOut.push({ auditor: a, reason: 'no infrastructure changes detected' })
+      return false
+    }
+    if ((a.endsWith(':ux-reviewer') || a.endsWith(':frontend-reviewer')) && !frontendMatch) {
+      routedOut.push({ auditor: a, reason: 'no frontend changes detected' })
+      return false
+    }
+    return true
+  })
+  return { routed, routedOut }
+}
+
 // Label every auditor lane even when its agent died — filter-then-map shifts
 // indices and misattributes reports; a silently missing lane must never
 // compile into an unearned PASS. `dispatched` is the exact ordered list this

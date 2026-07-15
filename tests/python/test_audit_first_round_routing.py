@@ -88,3 +88,82 @@ def test_check_references_would_resolve_the_new_pointer() -> None:
     assert "reference/audit-routing-signals.md" in refs
     for ref in refs:
         assert (REPO_ROOT / ref).is_file(), f"{ref} referenced in gate-audit.md but missing"
+
+
+import json
+
+AUDITORS_JS = json.dumps([f"studious:{n}" for n in AUDITOR_SHORT_NAMES])
+
+
+# ---------- Task 2: resolveAuditRoster ----------
+
+
+def _resolve_roster(match_flags_js: str) -> dict:
+    source = DRIVER.read_text()
+    fn = _extract_function(source, "resolveAuditRoster")
+    script = f"""
+{fn}
+const matchFlags = {match_flags_js}
+console.log(JSON.stringify(resolveAuditRoster(matchFlags, {AUDITORS_JS})))
+"""
+    return _run_node(script)
+
+
+def test_both_signals_match_routes_all_nine_lanes_in() -> None:
+    result = _resolve_roster('{ infraMatch: true, frontendMatch: true }')
+    assert result["routed"] == [f"studious:{n}" for n in AUDITOR_SHORT_NAMES]
+    assert result["routedOut"] == []
+
+
+def test_no_infra_match_routes_out_only_infra_auditor() -> None:
+    result = _resolve_roster('{ infraMatch: false, frontendMatch: true }')
+    assert "studious:infra-auditor" not in result["routed"]
+    assert len(result["routed"]) == 8
+    assert result["routedOut"] == [
+        {"auditor": "studious:infra-auditor", "reason": "no infrastructure changes detected"}
+    ]
+
+
+def test_no_frontend_match_routes_out_ux_and_frontend_reviewer_only() -> None:
+    result = _resolve_roster('{ infraMatch: true, frontendMatch: false }')
+    assert "studious:ux-reviewer" not in result["routed"]
+    assert "studious:frontend-reviewer" not in result["routed"]
+    assert len(result["routed"]) == 7
+    reasons = {e["auditor"]: e["reason"] for e in result["routedOut"]}
+    assert reasons == {
+        "studious:ux-reviewer": "no frontend changes detected",
+        "studious:frontend-reviewer": "no frontend changes detected",
+    }
+
+
+def test_neither_signal_matches_routes_out_all_three_routable_lanes() -> None:
+    result = _resolve_roster('{ infraMatch: false, frontendMatch: false }')
+    assert set(result["routed"]) == {
+        "studious:security-auditor", "studious:code-auditor", "studious:doc-auditor",
+        "studious:architecture-auditor", "studious:test-auditor", "studious:operability-auditor",
+    }
+    assert len(result["routedOut"]) == 3
+
+
+def test_operability_is_never_routed_out_regardless_of_flags() -> None:
+    for flags in (
+        '{ infraMatch: true, frontendMatch: true }',
+        '{ infraMatch: false, frontendMatch: false }',
+    ):
+        result = _resolve_roster(flags)
+        assert "studious:operability-auditor" in result["routed"]
+
+
+def test_null_match_flags_fails_open_to_full_roster() -> None:
+    """A died/unparseable mechanical dispatch (matchFlags = null) must route
+    everything IN, never guess a partial roster — the same fail-closed-to-more-
+    auditing posture resolveReauditScope already uses."""
+    result = _resolve_roster('null')
+    assert result["routed"] == [f"studious:{n}" for n in AUDITOR_SHORT_NAMES]
+    assert result["routedOut"] == []
+
+
+def test_malformed_match_flags_missing_keys_fails_open() -> None:
+    result = _resolve_roster('{}')
+    assert result["routed"] == [f"studious:{n}" for n in AUDITOR_SHORT_NAMES]
+    assert result["routedOut"] == []
