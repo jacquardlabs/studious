@@ -167,3 +167,93 @@ def test_malformed_match_flags_missing_keys_fails_open() -> None:
     result = _resolve_roster('{}')
     assert result["routed"] == [f"studious:{n}" for n in AUDITOR_SHORT_NAMES]
     assert result["routedOut"] == []
+
+
+# ---------- Task 3: joinReports routedOut support ----------
+
+
+def _join_reports_with_routed_out(dispatched, reports, carried, prior_sha,
+                                    fix_delta_dispatched, fix_delta_report, routed_out) -> dict:
+    source = DRIVER.read_text()
+    fn = _extract_function(source, "joinReports")
+    script = f"""
+{fn}
+const result = joinReports(
+  {json.dumps(dispatched)},
+  {json.dumps(reports)},
+  {json.dumps(carried)},
+  {json.dumps(prior_sha)},
+  {json.dumps(fix_delta_dispatched)},
+  {json.dumps(fix_delta_report)},
+  {json.dumps(routed_out)}
+)
+console.log(JSON.stringify(result))
+"""
+    return _run_node(script)
+
+
+def test_join_reports_renders_routed_out_lanes_distinctly() -> None:
+    result = _join_reports_with_routed_out(
+        dispatched=["studious:security-auditor"],
+        reports=[{"findings": "clean"}],
+        carried=["studious:code-auditor"],
+        prior_sha="abc123",
+        fix_delta_dispatched=False,
+        fix_delta_report=None,
+        routed_out=[{"auditor": "studious:infra-auditor", "reason": "no infrastructure changes detected"}],
+    )
+    assert result["missing"] == []
+    assert (
+        "--- studious:infra-auditor --- (routed out — not applicable to this changeset: "
+        "no infrastructure changes detected; never dispatched, no prior report)" in result["joined"]
+    )
+    # Never conflated with carried-forward or AGENT DIED.
+    assert "studious:infra-auditor --- (carried forward" not in result["joined"]
+    assert "studious:infra-auditor --- (AGENT DIED" not in result["joined"]
+
+
+def test_join_reports_with_no_routed_out_lanes_is_unchanged_shape() -> None:
+    """Calling joinReports with routedOut=[] (or omitted) must read exactly as it
+    did before this story — no stray 'routed out' text appears."""
+    result = _join_reports_with_routed_out(
+        dispatched=["studious:security-auditor"],
+        reports=[{"findings": "clean"}],
+        carried=[],
+        prior_sha="",
+        fix_delta_dispatched=False,
+        fix_delta_report=None,
+        routed_out=[],
+    )
+    assert "routed out" not in result["joined"]
+
+
+# ---------- Task 3: auditFanIn laneNames sourced from `routed`, not AUDITORS ----------
+
+
+def test_audit_fan_in_lane_names_come_from_routed_not_full_auditors() -> None:
+    source = DRIVER.read_text()
+    fn = _extract_function(source, "auditFanIn")
+    assert "routed.map(a => a.split(':')[1])" in fn, (
+        "auditFanIn's laneNames must be built from the `routed` parameter, not the "
+        "full AUDITORS constant — otherwise a routed-out lane could be named in a "
+        "future round's blockingLanes despite never having been dispatched"
+    )
+    assert "AUDITORS.map(a => a.split(':')[1])" not in fn
+
+
+def test_audit_fan_in_instructs_a_visible_summary_line_per_routed_out_lane() -> None:
+    source = DRIVER.read_text()
+    fn = _extract_function(source, "auditFanIn")
+    assert "routed out — not applicable to this changeset" in fn, (
+        "auditFanIn must instruct the compiling agent to write a visible Summary "
+        "line per routed-out lane, matching /gate-audit's own skip-note convention"
+    )
+
+
+def test_audit_fan_in_distinguishes_routed_out_from_carried_forward_and_died_in_its_prose() -> None:
+    source = DRIVER.read_text()
+    fn = _extract_function(source, "auditFanIn")
+    assert "routed out" in fn and "THIRD" in fn.upper(), (
+        "auditFanIn's instructions to the compiling agent must explicitly name "
+        "'routed out' as a third, distinct state from carried-forward and AGENT DIED"
+    )
