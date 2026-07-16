@@ -2,6 +2,57 @@
 
 <!-- version list -->
 
+## v2.21.0 (2026-07-16)
+
+### Bug Fixes
+
+- **docs**: Join split H2 heading in audit-routing-signals reference
+  ([#141](https://github.com/jacquardlabs/studious/pull/141),
+  [`899d823`](https://github.com/jacquardlabs/studious/commit/899d8237bb021eba9ca115fa6424d803aa7b2bec))
+
+### Documentation
+
+- **design**: Add design doc + pre-mortem for epic audit first-round routing
+  ([#141](https://github.com/jacquardlabs/studious/pull/141),
+  [`899d823`](https://github.com/jacquardlabs/studious/commit/899d8237bb021eba9ca115fa6424d803aa7b2bec))
+
+- **plan**: Correct overstated "unaffected" claim per final review
+  ([#141](https://github.com/jacquardlabs/studious/pull/141),
+  [`899d823`](https://github.com/jacquardlabs/studious/commit/899d8237bb021eba9ca115fa6424d803aa7b2bec))
+
+- **plan**: Implementation plan for epic audit first-round routing
+  ([#141](https://github.com/jacquardlabs/studious/pull/141),
+  [`899d823`](https://github.com/jacquardlabs/studious/commit/899d8237bb021eba9ca115fa6424d803aa7b2bec))
+
+- **premortem**: Record the epic pre-mortem register for driver-cost-hardening
+  ([#140](https://github.com/jacquardlabs/studious/pull/140),
+  [`0bef3b6`](https://github.com/jacquardlabs/studious/commit/0bef3b68c6449d798c88682265613ec02daa5e83))
+
+### Features
+
+- **epic-driver**: Add resolveAuditRoster pure function
+  ([#141](https://github.com/jacquardlabs/studious/pull/141),
+  [`899d823`](https://github.com/jacquardlabs/studious/commit/899d8237bb021eba9ca115fa6424d803aa7b2bec))
+
+- **epic-driver**: Mechanical routing dispatch + routed-out lane rendering
+  ([#141](https://github.com/jacquardlabs/studious/pull/141),
+  [`899d823`](https://github.com/jacquardlabs/studious/commit/899d8237bb021eba9ca115fa6424d803aa7b2bec))
+
+- **epic-driver**: Wire first-round changeset routing into auditRound/finaleAuditRound
+  ([#141](https://github.com/jacquardlabs/studious/pull/141),
+  [`899d823`](https://github.com/jacquardlabs/studious/commit/899d8237bb021eba9ca115fa6424d803aa7b2bec))
+
+- **gate-audit**: Canonical audit-routing-signals reference file
+  ([#141](https://github.com/jacquardlabs/studious/pull/141),
+  [`899d823`](https://github.com/jacquardlabs/studious/commit/899d8237bb021eba9ca115fa6424d803aa7b2bec))
+
+### Testing
+
+- **audit-premortem-scope**: Relax auditFanIn call-site pin for #138's routed/routedOut params
+  ([#141](https://github.com/jacquardlabs/studious/pull/141),
+  [`899d823`](https://github.com/jacquardlabs/studious/commit/899d8237bb021eba9ca115fa6424d803aa7b2bec))
+
+
 ## v2.20.0 (2026-07-12)
 
 ### Features
