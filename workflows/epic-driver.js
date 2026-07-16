@@ -151,6 +151,16 @@ function ledgerScopeCheckPrompt(dir) {
   return `This is a mechanical fact-check, not a judgment call — report exactly what the commands show, never interpret or editorialize. From ${dir}, run: gate-ledger gate-get\n\nParse its JSON output (empty output means no ledger recorded for this branch). Return your findings as EXACTLY one line of compact JSON, nothing else:\n- If .gates.audit is absent, or .gates.audit.verdict is not exactly "FIX AND RE-AUDIT", or .gates.audit.blockingLanes is absent, empty, or not an array of strings: return {"hasNarrowableVerdict":false}\n- Otherwise also run: git -C "${dir}" merge-base --is-ancestor "<.gates.audit.sha>" HEAD — if that command's exit code is non-zero (or the sha can't be resolved at all), return {"hasNarrowableVerdict":false}\n- Otherwise return {"hasNarrowableVerdict":true,"sha":"<.gates.audit.sha>","blockingLanes":<.gates.audit.blockingLanes, verbatim, unreordered, unfiltered>}`
 }
 
+// First-round changeset routing (#138): a mechanical fact-check, not a judgment
+// call — the same shape as ledgerScopeCheckPrompt above. The Workflow script has
+// no filesystem/exec access, so this agent() dispatch is the only way to learn
+// what changed; it also reads reference/audit-routing-signals.md, the same
+// canonical pattern-list file commands/gate-audit.md's own auditor 9 / 6-8 routing
+// rules point at, so there is exactly one list to ever drift from.
+function routingScopeCheckPrompt(dir, base) {
+  return `This is a mechanical fact-check, not a judgment call — apply the listed patterns exactly, never interpret or editorialize. From ${dir}: compute the merge-base with ${base} (git merge-base ${base} HEAD) and run git diff --name-only <that merge-base> HEAD to get the changed-file list. Read reference/audit-routing-signals.md from the plugin root (the Studious plugin root is dirname "$(command -v gate-ledger)")/..) for the canonical IaC/CI/deploy and frontend file-pattern lists. Determine whether any changed file matches the IaC/CI/deploy list (infraMatch) and whether any changed file matches the frontend list (frontendMatch). When a changed file only loosely or ambiguously matches a pattern, resolve that pattern's match to true, never false — the same "when ambiguous, run" bias commands/gate-audit.md's own routing rules use. Return your findings as EXACTLY one line of compact JSON, nothing else: {"infraMatch":<true|false>,"frontendMatch":<true|false>}`
+}
+
 function premortemDispatchPrompt(fields) {
   const { repoRoot: repoRootVal, premortemPath, slug: slugVal, epicWorktreePath, contract } =
     requireFields(fields, ['repoRoot', 'premortemPath', 'slug', 'epicWorktreePath'], 'premortemDispatchPrompt')
@@ -253,6 +263,37 @@ function resolveReauditScope(priorResult, auditors, retryToken) {
   }
 }
 
+// First-round changeset routing (#138): decides which of `auditors` this round
+// dispatches vs routes out as not applicable to the changeset, from the mechanical
+// routing dispatch's {infraMatch, frontendMatch} flags (resolveRoutingMatchFlags,
+// added in a later story task) — holds no pattern-matching logic of its own; the
+// patterns themselves live in reference/audit-routing-signals.md, read by that
+// dispatch, so there is structurally one canonical list, never a second
+// hand-maintained copy here. Pure and explicitly parameterized (no closures over
+// module state), matching this file's own precedent (resolveReauditScope,
+// crashParkArgs, stalledFinaleEntry) for standalone extraction by
+// tests/python/test_audit_first_round_routing.py. Fails OPEN (routes a lane IN,
+// never out) on missing/malformed flags — the same fail-closed-to-more-auditing
+// posture resolveReauditScope already uses, and the same "when ambiguous, run"
+// bias commands/gate-audit.md's own routing rules use.
+function resolveAuditRoster(matchFlags, auditors) {
+  const infraMatch = !matchFlags || matchFlags.infraMatch !== false
+  const frontendMatch = !matchFlags || matchFlags.frontendMatch !== false
+  const routedOut = []
+  const routed = auditors.filter(a => {
+    if (a.endsWith(':infra-auditor') && !infraMatch) {
+      routedOut.push({ auditor: a, reason: 'no infrastructure changes detected' })
+      return false
+    }
+    if ((a.endsWith(':ux-reviewer') || a.endsWith(':frontend-reviewer')) && !frontendMatch) {
+      routedOut.push({ auditor: a, reason: 'no frontend changes detected' })
+      return false
+    }
+    return true
+  })
+  return { routed, routedOut }
+}
+
 // Label every auditor lane even when its agent died — filter-then-map shifts
 // indices and misattributes reports; a silently missing lane must never
 // compile into an unearned PASS. `dispatched` is the exact ordered list this
@@ -268,7 +309,7 @@ function resolveReauditScope(priorResult, auditors, retryToken) {
 // narrowed round, and — like every other lane — a died fix-delta pass is
 // UNAUDITED, added to `missing`, never silently absent from the compiled
 // report.
-function joinReports(dispatched, reports, carriedForward, priorSha, fixDeltaDispatched, fixDeltaReport) {
+function joinReports(dispatched, reports, carriedForward, priorSha, fixDeltaDispatched, fixDeltaReport, routedOut) {
   const missing = []
   const dispatchedBlocks = dispatched.map((a, i) => {
     const r = reports[i]
@@ -277,6 +318,14 @@ function joinReports(dispatched, reports, carriedForward, priorSha, fixDeltaDisp
   })
   const carriedBlocks = carriedForward.map(a =>
     `--- ${a} --- (carried forward: PASS, no Confirmed Critical as of ${priorSha || 'the prior round'} — not re-dispatched this round; not a replay of any Important/Track findings it previously raised)`)
+  // First-round changeset routing (#138): a THIRD lane state, distinct from both
+  // carried-forward (ran previously, cleared) and AGENT DIED (dispatched, no
+  // report). A routed-out lane was never dispatched because it does not apply to
+  // this changeset at all — conflating it with either of the other two would
+  // either launder a genuine gap into an unearned PASS, or falsely demand
+  // re-auditing of a lane with nothing to audit.
+  const routedOutBlocks = (routedOut || []).map(({ auditor, reason }) =>
+    `--- ${auditor} --- (routed out — not applicable to this changeset: ${reason}; never dispatched, no prior report)`)
   const fixDeltaBlocks = []
   if (fixDeltaDispatched) {
     if (fixDeltaReport) {
@@ -286,7 +335,7 @@ function joinReports(dispatched, reports, carriedForward, priorSha, fixDeltaDisp
       fixDeltaBlocks.push('--- fix-delta-cross-lane-pass --- (AGENT DIED — no report; this pass is UNAUDITED)')
     }
   }
-  const joined = [...dispatchedBlocks, ...carriedBlocks, ...fixDeltaBlocks].join('\n\n')
+  const joined = [...dispatchedBlocks, ...carriedBlocks, ...routedOutBlocks, ...fixDeltaBlocks].join('\n\n')
   return { joined, missing }
 }
 
@@ -315,9 +364,16 @@ function gatePrompt(story, gate, nextPhase) {
   return `${ctx(story)}\n\nRun Studious's ${g.command} gate against this story, exactly as the plugin defines it: read commands/${g.command}.md from the plugin root and execute its workflow with the story worktree as the project and the story branch as the changeset (diff base: epic/${slug}). Where that command dispatches subagents you cannot spawn, perform those roles' checks yourself by reading their agent files from the plugin root — apply their rubrics verbatim, do not invent criteria. The verdict vocabulary is canonical in reference/gate-vocabulary.md; emit exactly one token.\n\nRecord the verdict yourself, from inside the story worktree so it lands on the story branch: cd "${storyWorktree(story)}" && gate-ledger record --gate ${gate} --verdict "<TOKEN>" && gate-ledger work-log --slug "${workSlug(story)}" --step ${gate} --outcome "<TOKEN>" --phase "${nextPhase}"\n\nReturn: verdict (the bare token), sha, summary (for non-proceed verdicts, the findings a fixer needs).`
 }
 
-function auditFanIn(story, reports, base, dir, nextPhase) {
-  const laneNames = AUDITORS.map(a => a.split(':')[1]).join(', ')
-  return `You are compiling Studious's audit gate verdict. Read commands/gate-audit.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply ITS compilation rules and severity rubric to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-AUDIT.\n\nA lane marked "carried forward" (delta-scoped re-audit, #130) is NOT the same as UNAUDITED: it was not re-dispatched this round because the prior round's own compiled verdict already proved it had no Confirmed Critical. Treat its one-line carried-forward status as a clean, confirmed-clean fact for that lane — never as a gap that blocks the verdict, and never invent or replay any Important/Track findings for it beyond that line. A block labeled "fix-delta-cross-lane-pass" is a single, cheap, cross-lane spot-check over the small diff since the prior round, not a tenth specialist auditor — map its findings into the report's severity tiers exactly like any other lane's, tagged by whichever lane's vocabulary they resemble, and put them through the same Critical-challenge step as every other finding.\n\nOut of scope for this verdict: gate-audit.md's own text describes a pre-mortem-verification lane (auditor 11) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover only the 9 fixed lanes (security, code, doc, architecture, test, infra, operability, ux, frontend); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those 9 lanes otherwise support.\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\nIf, and only if, your verdict is FIX AND RE-AUDIT: also determine blockingLanes — the short name(s) (e.g. "security-auditor", not "studious:security-auditor") of every lane among {${laneNames}} whose report contained a Critical finding that survived your challenge as Confirmed and helped drive this verdict. Omit blockingLanes entirely (do not return an empty array) if your verdict is PASS or NEEDS DISCUSSION, or if ANY lane above is marked AGENT DIED this round — a died lane's true status is unknown, so the next round must default to a full re-audit rather than narrow off an unreliable list.\n\nRecord the verdict from inside ${dir} (substitute <TOKEN> with your verdict; only when you computed blockingLanes above, also append --blocking-lanes "<comma-separated lane names>" to this same command — omit that flag entirely otherwise, per the omission rule above): cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"` : ''}\n\nReturn: verdict (PASS | FIX AND RE-AUDIT | NEEDS DISCUSSION), sha, summary, blockingLanes (only when you computed one, per the rule above — omit the field entirely otherwise).`
+function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut) {
+  const laneNames = routed.map(a => a.split(':')[1]).join(', ')
+  const routedOutList = routedOut || []
+  const routedOutNote = routedOutList.length
+    ? ` This round additionally routed out ${routedOutList.length} lane(s) as not applicable to this changeset — ${routedOutList.map(r => `${r.auditor.split(':')[1]} (${r.reason})`).join(', ')} — never dispatched, present below as a distinct "routed out" block, not evidence of an unaudited gap; do not raise their absence as a finding, and do not let it depress the verdict below what the dispatched/carried-forward lanes actually support.`
+    : ''
+  const routedOutSummaryInstruction = routedOutList.length
+    ? `In your Summary section, include one plain line per routed-out lane in this exact form: "<lane>: routed out — not applicable to this changeset (<reason>)" — e.g. "${routedOutList[0].auditor.split(':')[1]}: routed out — not applicable to this changeset (${routedOutList[0].reason})". This must be visible in the report a human reads, the same way /gate-audit's own skip notes are, not only reflected in your internal reasoning.\n\n`
+    : ''
+  return `You are compiling Studious's audit gate verdict. Read commands/gate-audit.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply ITS compilation rules and severity rubric to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-AUDIT.\n\nA lane marked "carried forward" (delta-scoped re-audit, #130) is NOT the same as UNAUDITED: it was not re-dispatched this round because the prior round's own compiled verdict already proved it had no Confirmed Critical. Treat its one-line carried-forward status as a clean, confirmed-clean fact for that lane — never as a gap that blocks the verdict, and never invent or replay any Important/Track findings for it beyond that line. A lane marked "routed out" (first-round changeset routing, #138) is a THIRD, distinct state from both: it was never dispatched because it does not apply to this changeset at all — treat it as neutral, neither a gap nor a clean claim, and never conflate it with carried forward or AGENT DIED. A block labeled "fix-delta-cross-lane-pass" is a single, cheap, cross-lane spot-check over the small diff since the prior round, not a tenth specialist auditor — map its findings into the report's severity tiers exactly like any other lane's, tagged by whichever lane's vocabulary they resemble, and put them through the same Critical-challenge step as every other finding.\n\nOut of scope for this verdict: gate-audit.md's own text describes a pre-mortem-verification lane (auditor 11) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover this round's routed lane set (${laneNames}); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those routed lanes otherwise support.${routedOutNote}\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\n${routedOutSummaryInstruction}If, and only if, your verdict is FIX AND RE-AUDIT: also determine blockingLanes — the short name(s) (e.g. "security-auditor", not "studious:security-auditor") of every lane among {${laneNames}} whose report contained a Critical finding that survived your challenge as Confirmed and helped drive this verdict. Omit blockingLanes entirely (do not return an empty array) if your verdict is PASS or NEEDS DISCUSSION, or if ANY lane above is marked AGENT DIED this round — a died lane's true status is unknown, so the next round must default to a full re-audit rather than narrow off an unreliable list.\n\nRecord the verdict from inside ${dir} (substitute <TOKEN> with your verdict; only when you computed blockingLanes above, also append --blocking-lanes "<comma-separated lane names>" to this same command — omit that flag entirely otherwise, per the omission rule above): cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"` : ''}\n\nReturn: verdict (PASS | FIX AND RE-AUDIT | NEEDS DISCUSSION), sha, summary, blockingLanes (only when you computed one, per the rule above — omit the field entirely otherwise).`
 }
 
 function fixerPrompt(story, gate, findings) {
@@ -438,8 +494,10 @@ function unresolvedStories() {
 // returns narrowed: false), exactly matching the design's "the very first audit round
 // on a changeset is untouched."
 async function auditRound(story, note, nextPhase, priorResult) {
-  const scope = resolveReauditScope(priorResult, AUDITORS, GATES.audit.retry)
-  const dispatched = scope.narrowed ? scope.blockingAuditors : AUDITORS
+  const matchFlags = await resolveRoutingMatchFlags(storyWorktree(story), `epic/${slug}`, `audit:routing-scope:${story}`, `story:${story}`)
+  const { routed, routedOut } = resolveAuditRoster(matchFlags, AUDITORS)
+  const scope = resolveReauditScope(priorResult, routed, GATES.audit.retry)
+  const dispatched = scope.narrowed ? scope.blockingAuditors : routed
   const reports = await parallel(dispatched.map(a => () =>
     agent(auditDispatchPrompt({ ctxBlock: ctx(story), note, slug, storyWorktreePath: storyWorktree(story), contract: CONTRACT }),
       { agentType: a, label: `audit:${a.split(':')[1]}:${story}`, phase: `story:${story}`, schema: REPORT })))
@@ -447,9 +505,9 @@ async function auditRound(story, note, nextPhase, priorResult) {
     ? await agent(fixDeltaDispatchPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: storyWorktree(story), priorSha: scope.priorSha, contract: CONTRACT }),
         { label: `audit:fix-delta:${story}`, phase: `story:${story}`, schema: REPORT })
     : null
-  const carriedForward = scope.narrowed ? AUDITORS.filter(a => !dispatched.includes(a)) : []
-  const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport)
-  let result = await agent(auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase),
+  const carriedForward = scope.narrowed ? routed.filter(a => !dispatched.includes(a)) : []
+  const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport, routedOut)
+  let result = await agent(auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut),
     { label: `audit:compile:${story}`, phase: `story:${story}`, schema: GATE_RESULT, model: 'opus' })
   // Belt and braces: an unaudited lane (or a died fix-delta pass) can never compile
   // into PASS, whatever the compiler said, and can never leave a usable blockingLanes
@@ -490,6 +548,24 @@ async function ledgerAuditPrior(dir, label, phaseLabel) {
   try { parsed = JSON.parse(r.findings) } catch { return null }
   if (!parsed || !parsed.hasNarrowableVerdict) return null
   return { verdict: GATES.audit.retry, sha: parsed.sha, blockingLanes: parsed.blockingLanes }
+}
+
+// First-round changeset routing (#138), resumed/every-round fact resolution: runs
+// the mechanical dispatch above and parses its match flags. Recomputed every round
+// (not cached across an audit cycle — see the design doc's Alternatives section for
+// why staleness risk outweighs one low-effort dispatch). A died or unparseable
+// dispatch degrades to null, which resolveAuditRoster already treats as "route
+// everything in" — fails open to more auditing, never less, mirroring
+// ledgerAuditPrior's own try/catch-to-null convention immediately above.
+async function resolveRoutingMatchFlags(dir, base, label, phaseLabel) {
+  let r = null
+  try {
+    r = await agent(routingScopeCheckPrompt(dir, base), { label, phase: phaseLabel, schema: REPORT, effort: 'low' })
+  } catch {
+    return null
+  }
+  if (!r || !r.findings) return null
+  try { return JSON.parse(r.findings) } catch { return null }
 }
 
 async function runGate(story, gate, nextPhase) {
@@ -683,8 +759,10 @@ async function finaleAuditRound(note, priorResult) {
   // One story-slot fans out to 9 auditors + a compiler; the harness queues
   // beyond its own concurrency limit, so a cap-3 epic peaking above 10 agents
   // is throttled, not broken.
-  const scope = resolveReauditScope(priorResult, AUDITORS, GATES.audit.retry)
-  const dispatched = scope.narrowed ? scope.blockingAuditors : AUDITORS
+  const matchFlags = await resolveRoutingMatchFlags(epicWorktree, input.defaultBranch, 'finale:routing-scope', 'Finale')
+  const { routed, routedOut } = resolveAuditRoster(matchFlags, AUDITORS)
+  const scope = resolveReauditScope(priorResult, routed, GATES.audit.retry)
+  const dispatched = scope.narrowed ? scope.blockingAuditors : routed
   const reports = await parallel(dispatched.map(a => () =>
     agent(finaleAuditDispatchPrompt({ note, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, epicGoal: epic.goal, contract: CONTRACT }),
       { agentType: a, label: `finale:${a.split(':')[1]}`, phase: 'Finale', schema: REPORT })))
@@ -692,9 +770,9 @@ async function finaleAuditRound(note, priorResult) {
     ? await agent(finaleFixDeltaDispatchPrompt({ note, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, priorSha: scope.priorSha, contract: CONTRACT }),
         { label: 'finale:fix-delta', phase: 'Finale', schema: REPORT })
     : null
-  const carriedForward = scope.narrowed ? AUDITORS.filter(a => !dispatched.includes(a)) : []
-  const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport)
-  let result = await agent(auditFanIn(null, joined, input.defaultBranch, epicWorktree, ''),
+  const carriedForward = scope.narrowed ? routed.filter(a => !dispatched.includes(a)) : []
+  const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport, routedOut)
+  let result = await agent(auditFanIn(null, joined, input.defaultBranch, epicWorktree, '', routed, routedOut),
     { label: 'finale:audit-compile', phase: 'Finale', schema: GATE_RESULT, model: 'opus' })
   if (result && missing.length) {
     result = { ...result, blockingLanes: undefined }
