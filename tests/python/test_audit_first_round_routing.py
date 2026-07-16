@@ -257,3 +257,236 @@ def test_audit_fan_in_distinguishes_routed_out_from_carried_forward_and_died_in_
         "auditFanIn's instructions to the compiling agent must explicitly name "
         "'routed out' as a third, distinct state from carried-forward and AGENT DIED"
     )
+
+
+# ---------- Task 4: end-to-end, real driver under the documented harness shape ----------
+
+
+def _nine_lane_pass_rules(story: str) -> list[dict]:
+    return [
+        {"match": rf"^audit:{name}:{story}$", "result": {"findings": "clean"}}
+        for name in AUDITOR_SHORT_NAMES
+    ]
+
+
+_FINALE_CLEAN_RULES = [
+    {"match": rf"^finale:{name}$", "result": {"findings": "clean"}} for name in AUDITOR_SHORT_NAMES
+] + [
+    {"match": r"^finale:audit-compile$", "result": {"verdict": "PASS", "sha": "f1", "summary": "clean"}},
+    {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "f2", "summary": "ship it"}},
+    {"match": r"^finale:ready$", "result": {"verdict": "READY", "sha": "f3", "summary": "marked ready"}},
+]
+
+
+def test_full_surface_match_dispatches_all_nine_lanes_unchanged() -> None:
+    """Both signals matching (a changeset touching infra AND frontend files)
+    must dispatch every one of the 9 lanes — identical to pre-#138 behavior,
+    just with one extra cheap routing-scope dispatch first."""
+    story = "a"
+    epic = {
+        "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
+        "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
+    }
+    rules = [
+        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": True, "frontendMatch": True})}},
+        *_nine_lane_pass_rules(story),
+        {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "s1", "summary": "clean"}},
+        {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "s2", "notes": "clean"}},
+        *_FINALE_CLEAN_RULES,
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    labels = [c["label"] for c in out["calls"]]
+    assert labels.count(f"audit:routing-scope:{story}") == 1
+    for name in AUDITOR_SHORT_NAMES:
+        assert labels.count(f"audit:{name}:{story}") == 1
+    assert out["result"]["landed"] == 1
+
+
+def test_backend_only_changeset_routes_out_infra_and_frontend_lanes() -> None:
+    """The acceptance-critical case: no infra, no frontend signal → only the
+    6 always-applicable lanes dispatch, not all 9."""
+    story = "a"
+    epic = {
+        "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
+        "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
+    }
+    always_run = ["security-auditor", "code-auditor", "doc-auditor", "architecture-auditor", "test-auditor", "operability-auditor"]
+    routed_out_names = ["infra-auditor", "ux-reviewer", "frontend-reviewer"]
+    rules = [
+        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False})}},
+        *[{"match": rf"^audit:{name}:{story}$", "result": {"findings": "clean"}} for name in always_run],
+        {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "s1", "summary": "clean"}},
+        {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "s2", "notes": "clean"}},
+        *_FINALE_CLEAN_RULES,
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    labels = [c["label"] for c in out["calls"]]
+    for name in always_run:
+        assert labels.count(f"audit:{name}:{story}") == 1
+    for name in routed_out_names:
+        assert f"audit:{name}:{story}" not in labels, f"{name} was dispatched despite being routed out"
+    assert out["result"]["landed"] == 1
+
+
+def test_routed_out_lanes_appear_in_the_compile_prompt_with_plain_reasons() -> None:
+    story = "a"
+    epic = {
+        "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
+        "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
+    }
+    always_run = ["security-auditor", "code-auditor", "doc-auditor", "architecture-auditor", "test-auditor", "operability-auditor"]
+    rules = [
+        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False})}},
+        *[{"match": rf"^audit:{name}:{story}$", "result": {"findings": "clean"}} for name in always_run],
+        {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "s1", "summary": "clean"}},
+        {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "s2", "notes": "clean"}},
+        *_FINALE_CLEAN_RULES,
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    compile_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"audit:compile:{story}"]
+    assert len(compile_prompts) == 1
+    prompt = compile_prompts[0]
+    assert "studious:infra-auditor --- (routed out — not applicable to this changeset: no infrastructure changes detected" in prompt
+    assert "studious:ux-reviewer --- (routed out" in prompt
+    assert "studious:frontend-reviewer --- (routed out" in prompt
+    # No internal reference-file path leaks into the routed-out reason text.
+    assert "audit-routing-signals.md" not in prompt.split("routed out")[1][:200]
+    # The Summary instruction is present so the human-facing report gets the line too.
+    assert "routed out — not applicable to this changeset (<reason>)" in prompt
+
+
+def test_dead_routing_dispatch_fails_open_to_the_full_nine_lane_roster() -> None:
+    """Acceptance-critical failure mode: if the mechanical routing dispatch
+    dies, every one of the 9 lanes must still dispatch — never a partial,
+    guessed roster."""
+    story = "a"
+    epic = {
+        "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
+        "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
+    }
+    rules = [
+        {"match": rf"^audit:routing-scope:{story}$", "throw": "gate-ledger not found"},
+        *_nine_lane_pass_rules(story),
+        {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "s1", "summary": "clean"}},
+        {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "s2", "notes": "clean"}},
+        *_FINALE_CLEAN_RULES,
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"a died routing dispatch crashed the story instead of failing open: {out.get('error')}"
+    labels = [c["label"] for c in out["calls"]]
+    for name in AUDITOR_SHORT_NAMES:
+        assert labels.count(f"audit:{name}:{story}") == 1, (
+            f"{name} was not dispatched after the routing check died — must fail "
+            "open to the full roster, never a guessed partial one"
+        )
+    assert out["result"]["landed"] == 1
+
+
+def test_retry_narrowing_operates_within_the_routed_roster_never_a_routed_out_lane() -> None:
+    """A routed-out lane must never be re-dispatched on a narrowed retry, and
+    must never be listed as carried-forward — it stays routed-out across the
+    whole audit cycle."""
+    story = "a"
+    epic = {
+        "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
+        "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
+    }
+    always_run = ["security-auditor", "code-auditor", "doc-auditor", "architecture-auditor", "test-auditor", "operability-auditor"]
+    blocking_result = {
+        "verdict": "FIX AND RE-AUDIT", "sha": "s1", "summary": "security found a critical",
+        "blockingLanes": ["security-auditor"],
+    }
+    rules = [
+        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False})}},
+        *[{"match": rf"^audit:{name}:{story}$", "result": {"findings": "clean"}} for name in always_run],
+        {"match": rf"^audit:compile:{story}$", "result": blocking_result},
+        {"match": rf"^audit:fix-delta:{story}$", "result": {"findings": "fix-delta clean"}},
+        {"match": rf"^fix:audit:{story}$", "result": {"status": "done", "sha": "f1", "summary": "attempted", "evidence": "ran tests"}},
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+
+    labels = [c["label"] for c in out["calls"]]
+    total_rounds = 1 + MAX_FIX_CYCLES
+    assert labels.count(f"audit:security-auditor:{story}") == total_rounds
+    non_blocking_always_run = [n for n in always_run if n != "security-auditor"]
+    for name in non_blocking_always_run:
+        assert labels.count(f"audit:{name}:{story}") == 1, (
+            f"{name} was re-dispatched on a narrowed retry — should have been carried forward"
+        )
+    for name in ("infra-auditor", "ux-reviewer", "frontend-reviewer"):
+        assert f"audit:{name}:{story}" not in labels, f"{name} was dispatched despite being routed out for the whole cycle"
+
+    compile_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"audit:compile:{story}"]
+    for retry_prompt in compile_prompts[1:]:
+        # Routed-out lanes stay "routed out" across every round, never flip to
+        # "carried forward" once a retry cycle begins.
+        assert "studious:infra-auditor --- (routed out" in retry_prompt
+        assert "studious:infra-auditor --- (carried forward" not in retry_prompt
+        for name in non_blocking_always_run:
+            assert f"studious:{name} --- (carried forward: PASS" in retry_prompt
+
+
+def test_routing_scope_recomputes_each_round_not_cached_across_the_retry_loop() -> None:
+    """Operational readiness commitment: the mechanical routing dispatch is
+    recomputed every round, not cached across the audit cycle, so a fix commit
+    that changes the file surface mid-cycle is picked up by the very next
+    round rather than staying stale. `_run_driver`'s label-matched mock can't
+    vary its response by call order, so the observable proof is: the
+    routing-scope dispatch is invoked once PER ROUND, not once total — a
+    cached list would only ever call it once regardless of how many fix
+    cycles run."""
+    story = "a"
+    epic = {
+        "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
+        "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
+    }
+    always_run = ["security-auditor", "code-auditor", "doc-auditor", "architecture-auditor", "test-auditor", "operability-auditor"]
+    blocking_result = {
+        "verdict": "FIX AND RE-AUDIT", "sha": "s1", "summary": "security found a critical",
+        "blockingLanes": ["security-auditor"],
+    }
+    rules = [
+        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False})}},
+        *[{"match": rf"^audit:{name}:{story}$", "result": {"findings": "clean"}} for name in always_run],
+        {"match": rf"^audit:compile:{story}$", "result": blocking_result},
+        {"match": rf"^audit:fix-delta:{story}$", "result": {"findings": "fix-delta clean"}},
+        {"match": rf"^fix:audit:{story}$", "result": {"status": "done", "sha": "f1", "summary": "attempted", "evidence": "ran tests"}},
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    labels = [c["label"] for c in out["calls"]]
+    total_rounds = 1 + MAX_FIX_CYCLES
+    assert labels.count(f"audit:routing-scope:{story}") == total_rounds, (
+        "the routing-scope dispatch must run once per round, proving it isn't "
+        "cached across the retry loop — a cached list would call it only once"
+    )
+
+
+def test_finale_routing_mirrors_the_story_level_mechanism() -> None:
+    epic = {
+        "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
+        "stories": {"a": {"title": "A", "criteria": "c", "gates": ["acceptance"]}},
+    }
+    always_run = ["security-auditor", "code-auditor", "doc-auditor", "architecture-auditor", "test-auditor", "operability-auditor"]
+    rules = [
+        {"match": r"^acceptance:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
+        {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
+        {"match": r"^finale:routing-scope$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False})}},
+        *[{"match": rf"^finale:{name}$", "result": {"findings": "clean"}} for name in always_run],
+        {"match": r"^finale:audit-compile$", "result": {"verdict": "PASS", "sha": "f1", "summary": "clean"}},
+        {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "f2", "summary": "ship it"}},
+        {"match": r"^finale:ready$", "result": {"verdict": "READY", "sha": "f3", "summary": "marked ready"}},
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    labels = [c["label"] for c in out["calls"]]
+    assert labels.count("finale:routing-scope") == 1
+    for name in always_run:
+        assert labels.count(f"finale:{name}") == 1
+    for name in ("infra-auditor", "ux-reviewer", "frontend-reviewer"):
+        assert f"finale:{name}" not in labels
+    assert out["result"]["finale"]["ready"] is True

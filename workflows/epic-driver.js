@@ -494,8 +494,10 @@ function unresolvedStories() {
 // returns narrowed: false), exactly matching the design's "the very first audit round
 // on a changeset is untouched."
 async function auditRound(story, note, nextPhase, priorResult) {
-  const scope = resolveReauditScope(priorResult, AUDITORS, GATES.audit.retry)
-  const dispatched = scope.narrowed ? scope.blockingAuditors : AUDITORS
+  const matchFlags = await resolveRoutingMatchFlags(storyWorktree(story), `epic/${slug}`, `audit:routing-scope:${story}`, `story:${story}`)
+  const { routed, routedOut } = resolveAuditRoster(matchFlags, AUDITORS)
+  const scope = resolveReauditScope(priorResult, routed, GATES.audit.retry)
+  const dispatched = scope.narrowed ? scope.blockingAuditors : routed
   const reports = await parallel(dispatched.map(a => () =>
     agent(auditDispatchPrompt({ ctxBlock: ctx(story), note, slug, storyWorktreePath: storyWorktree(story), contract: CONTRACT }),
       { agentType: a, label: `audit:${a.split(':')[1]}:${story}`, phase: `story:${story}`, schema: REPORT })))
@@ -503,9 +505,9 @@ async function auditRound(story, note, nextPhase, priorResult) {
     ? await agent(fixDeltaDispatchPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: storyWorktree(story), priorSha: scope.priorSha, contract: CONTRACT }),
         { label: `audit:fix-delta:${story}`, phase: `story:${story}`, schema: REPORT })
     : null
-  const carriedForward = scope.narrowed ? AUDITORS.filter(a => !dispatched.includes(a)) : []
-  const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport)
-  let result = await agent(auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase),
+  const carriedForward = scope.narrowed ? routed.filter(a => !dispatched.includes(a)) : []
+  const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport, routedOut)
+  let result = await agent(auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut),
     { label: `audit:compile:${story}`, phase: `story:${story}`, schema: GATE_RESULT, model: 'opus' })
   // Belt and braces: an unaudited lane (or a died fix-delta pass) can never compile
   // into PASS, whatever the compiler said, and can never leave a usable blockingLanes
@@ -757,8 +759,10 @@ async function finaleAuditRound(note, priorResult) {
   // One story-slot fans out to 9 auditors + a compiler; the harness queues
   // beyond its own concurrency limit, so a cap-3 epic peaking above 10 agents
   // is throttled, not broken.
-  const scope = resolveReauditScope(priorResult, AUDITORS, GATES.audit.retry)
-  const dispatched = scope.narrowed ? scope.blockingAuditors : AUDITORS
+  const matchFlags = await resolveRoutingMatchFlags(epicWorktree, input.defaultBranch, 'finale:routing-scope', 'Finale')
+  const { routed, routedOut } = resolveAuditRoster(matchFlags, AUDITORS)
+  const scope = resolveReauditScope(priorResult, routed, GATES.audit.retry)
+  const dispatched = scope.narrowed ? scope.blockingAuditors : routed
   const reports = await parallel(dispatched.map(a => () =>
     agent(finaleAuditDispatchPrompt({ note, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, epicGoal: epic.goal, contract: CONTRACT }),
       { agentType: a, label: `finale:${a.split(':')[1]}`, phase: 'Finale', schema: REPORT })))
@@ -766,9 +770,9 @@ async function finaleAuditRound(note, priorResult) {
     ? await agent(finaleFixDeltaDispatchPrompt({ note, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, priorSha: scope.priorSha, contract: CONTRACT }),
         { label: 'finale:fix-delta', phase: 'Finale', schema: REPORT })
     : null
-  const carriedForward = scope.narrowed ? AUDITORS.filter(a => !dispatched.includes(a)) : []
-  const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport)
-  let result = await agent(auditFanIn(null, joined, input.defaultBranch, epicWorktree, ''),
+  const carriedForward = scope.narrowed ? routed.filter(a => !dispatched.includes(a)) : []
+  const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport, routedOut)
+  let result = await agent(auditFanIn(null, joined, input.defaultBranch, epicWorktree, '', routed, routedOut),
     { label: 'finale:audit-compile', phase: 'Finale', schema: GATE_RESULT, model: 'opus' })
   if (result && missing.length) {
     result = { ...result, blockingLanes: undefined }
