@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v2.22.0 (2026-07-17)
+
+### Features
+
+- Add writing-style block to the prompt contract and bound inline gate prose
+  ([#151](https://github.com/jacquardlabs/studious/pull/151),
+  [`fead646`](https://github.com/jacquardlabs/studious/commit/fead646407b084c91b49fd2fff981fb8a2d078d1))
+
+
 ## v2.21.0 (2026-07-16)
 
 ### Bug Fixes
