@@ -74,13 +74,16 @@ spent reading and reasoning).
   `product-reviewer`, `review-architecture`, `review-product-health`, `review-security-health`.
 - **`medium`** — judgment that is rubric-driven rather than open-ended, and periodic reviews:
   `code-auditor`, `test-auditor`, `frontend-reviewer`, `ux-reviewer`, `premortem-auditor`,
-  `review-codebase-health`, `review-interface-health`, `backlog-priorities`.
+  `dependency-auditor`, `review-codebase-health`, `review-interface-health`,
+  `backlog-priorities`.
 - **`low`** — mechanical, rule-based, or inventory work: `doc-auditor`, `review-readme`,
   `backlog-hygiene`.
 
 `premortem-auditor` sits at `medium` despite being merge-blocking: it verifies a fixed
 register item by item and never free-hunts, so it is structured verification, not open-ended
-reasoning.
+reasoning. `dependency-auditor` sits at `medium` by the same argument: it enumerates per
+changed dependency against a fixed rubric (advisory lookup, license, maintenance, drift)
+rather than sweeping an open surface.
 
 ### `model`
 
@@ -88,9 +91,9 @@ reasoning.
 ships worse decisions.
 
 - **`opus`** — security, architecture, operational, and product/UX judgment:
-  `security-auditor`, `infra-auditor`, `operability-auditor`, `architecture-auditor`,
-  `premortem-auditor`, `product-reviewer`, `ux-reviewer`, `review-architecture`,
-  `review-product-health`, `review-security-health`.
+  `security-auditor`, `infra-auditor`, `operability-auditor`, `dependency-auditor`,
+  `architecture-auditor`, `premortem-auditor`, `product-reviewer`, `ux-reviewer`,
+  `review-architecture`, `review-product-health`, `review-security-health`.
 - **`sonnet`** — recommend-only synthesis and ranking judgment, no merge gate behind it:
   `backlog-priorities`, `review-codebase-health`, `review-interface-health`.
 - **`haiku`** — recommend-only pure inventory and drift checks, no merge gate behind it:

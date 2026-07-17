@@ -125,7 +125,7 @@ Traced from the commands and the README's two-rhythm description.
 
 2. **Per-feature gate flow** — `/backlog-priorities` or `/gate-should-we-build [idea]`
    > design doc > `/gate-design-review` > build with your own workflow > `/gate-audit`
-   (parallel auditors; frontend, infrastructure, and operability lanes auto-skip when not applicable)
+   (parallel auditors; frontend, infrastructure, operability, and dependency lanes auto-skip when not applicable)
    > `/gate-acceptance` > merge. Each gate catches a specific failure; the user skips
    gates the risk doesn't warrant.
 

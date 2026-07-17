@@ -64,7 +64,7 @@ Key invariants when adding or changing prompts:
 - **One fan-out command, many subagents.** Parallel checks live as subagents under a single entry point (`/gate-audit`, `/deep-review`) — never add a top-level command per check.
 - **Recommend-only.** Commands report; they never modify external state (issues, PRs, files outside `docs/studious/` in the consuming project). The sole exception: gate commands record verdicts, and `/work-on` records flow position, to local, gitignored `.studious/` state.
 - **Reviews write to the consuming project, not here.** Review reports land in the user's `docs/studious/` subdirectories. This plugin repo never accumulates them.
-- **Every agent/command reads PRODUCT.md, DESIGN.md, or CLAUDE.md** for project context. The 17 review/audit agents share a standardized prompt contract (posture, output format, calibration) — match it when adding an agent.
+- **Every agent/command reads PRODUCT.md, DESIGN.md, or CLAUDE.md** for project context. The 18 review/audit agents share a standardized prompt contract (posture, output format, calibration) — match it when adding an agent.
 - **Code owns bookkeeping; prompts own judgment.** Schedulers, DAG order, retry caps, and ledgers live in code (`bin/gate-ledger`, `workflows/epic-driver.js`); prompts carry decomposition, verdicts, and briefs. Retry counting or cap math inside a command prompt is a defect.
 
 ## Repo boundaries

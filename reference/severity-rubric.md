@@ -21,6 +21,7 @@ Never introduce a fourth tier; map every auditor's labels into these three.
 | security-auditor | Critical, High | Medium | Low |
 | infra-auditor | Critical, High | Medium | Low |
 | operability-auditor | Critical, High | Medium | Low |
+| dependency-auditor | Critical, High | Medium | Low |
 | code-auditor | Critical | High, Medium | Low |
 | test-auditor | Critical | High, Medium | Low |
 | architecture-auditor | Critical | High, Medium | Low |
