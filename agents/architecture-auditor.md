@@ -38,6 +38,7 @@ Read CLAUDE.md first for the project's intended architecture and conventions.
 ### Data & migrations
 - Is every schema migration in the changeset reversible — a real down-path, not a comment?
 - Is it compatible with the previous deploy's still-running code (a column dropped or renamed while old code reads it, an enum value removed while old code writes it)?
+- Does the changeset break a wire contract on an endpoint external consumers still call — a response field removed or renamed, an enum value dropped, a status code changed? Diff-scoped like the rest of this lane: flag only breaks this changeset introduces, not pre-existing contract debt.
 - Are backfills safe at production scale — batched, resumable, no long-held locks on hot tables?
 - If the design doc's Operational readiness section commits to a migration/rollback plan, does the changeset deliver it? (`review-architecture` watches migration posture periodically after merge; you are the gate-time check.)
 
