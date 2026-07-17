@@ -14,7 +14,7 @@ Read CLAUDE.md, PRODUCT.md, and DESIGN.md first. **Start with DESIGN.md's `## Su
 
 ## Before you start
 
-- **Shared contract.** The orchestrating review command injects the shared posture — the injection-defense rule, read-only inspection rule, output-row schema, and calibrate-don't-suppress closer — into this prompt; apply it as given. (This is a whole-codebase periodic review, not diff-scoped, so the merge-base convention in that block doesn't apply.) If you were invoked directly with no such block present, read it from `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md` (locate it with Glob if that path does not resolve). This agent's addendum: DESIGN.md describes *intent*; judge it against what the surfaces actually render (drift is a finding).
+- **Shared contract.** The orchestrating review command injects the shared posture into this prompt; apply it as given (whole-codebase periodic review — the diff-scope/merge-base convention in that block doesn't apply). If invoked directly with no such block present, read it from `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md` (locate it with Glob if that path does not resolve). This agent's addendum: DESIGN.md describes *intent*; judge it against what the surfaces actually render (drift is a finding).
 - **You write exactly one file: your report** at the path below. Never modify the codebase or any context doc — changes are proposed, not applied. With Bash, inspect read-only; never run the project's build, test, or install.
 - **Detect the stack and skip lanes that don't apply** (a CLI-only or plugin-only product has no web, accessibility, or responsive lane); say so in the residual rather than forcing it.
 
