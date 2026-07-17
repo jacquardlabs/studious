@@ -1,10 +1,10 @@
-# Prompt contract — shared posture, scope, output, and closer
+# Prompt contract — shared posture, scope, output, closer, and style
 
-Canonical source for the four blocks the fan-out gate and review commands
+Canonical source for the five blocks the fan-out gate and review commands
 (`commands/gate-audit.md`, `commands/deep-review.md`, `commands/gate-design-review.md`,
 `commands/gate-acceptance.md`) read once and inject verbatim into every agent they
 dispatch. The audit/review agents (`agents/*-auditor.md`, `agents/*-reviewer.md`,
-`agents/review-*.md`) receive the four blocks inline in their dispatch prompt rather than
+`agents/review-*.md`) receive the five blocks inline in their dispatch prompt rather than
 reading this file — a dispatched agent runs with its working directory in the *consuming*
 project, where this file does not exist, so the orchestrator hands the posture over. That
 keeps the runtime path identical to CI and to a directly-invoked agent's
@@ -47,3 +47,14 @@ minimize only genuine nice-to-haves when nothing in scope depends on them. **A c
 result is valid** — "no findings" is a complete, reportable outcome — but "clean" means
 you found nothing, not that you withheld something real to look clean. Don't manufacture
 findings; don't bury them either.
+
+## 5. Writing style — concise, scannable
+
+Output is read in a terminal, under time pressure. Four rules:
+
+- **No preamble.** Open on the first finding or the verdict — never on "I'll review…" / "Looking at the changeset…" / "Let me analyze…".
+- **Findings as rows, not paragraphs.** The schema in §3 is the unit. Trim the `finding` field to ≤15 words; the `recommendation` field carries the direction.
+- **Bullets over prose** for any list of two or more items.
+- **Verdict is terminal.** One bold token, one sentence of rationale — nothing after.
+
+Residuals and summaries also cap at 2–3 sentences. A prose block that needs more belongs in a finding row, not the prose block.

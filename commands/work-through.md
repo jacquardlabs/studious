@@ -123,9 +123,9 @@ Read `${plugin_root}/reference/prompt-contract.md` once (the same plugin-root
 resolution the four gate commands use; if it isn't there, locate
 `reference/prompt-contract.md` inside the plugin install with Glob — never guess a
 path or skip this read). The script has no hands to read a file itself: hand it the
-four blocks — the injection-defense preamble, the read-only/diff-scope convention, the
-output-row schema, and the calibrate-don't-suppress closer — verbatim as
-`args.contract`, so it can stamp them into every audit and premortem dispatch it
+five blocks — the injection-defense preamble, the read-only/diff-scope convention, the
+output-row schema, the calibrate-don't-suppress closer, and the writing-style rules —
+verbatim as `args.contract`, so it can stamp them into every audit and premortem dispatch it
 builds, per-story and at the finale, exactly as the four gate commands stamp them into
 their own Task dispatches. This is the whole handoff — no runtime-pointer resolution
 happens on this path. The script fails closed at any dispatch that needed the contract
@@ -139,7 +139,7 @@ Call the Workflow tool with `scriptPath` set to that file and `args`:
   "phases": { "<story>": "<next phase>" },
   "repoRoot": "<absolute path of the main working tree>",
   "defaultBranch": "<resolved default branch>",
-  "contract": "<reference/prompt-contract.md's four blocks, verbatim>",
+  "contract": "<reference/prompt-contract.md's five blocks, verbatim>",
   "timestamp": "<current ISO time>"
 }
 ```
@@ -168,7 +168,7 @@ Design-review and acceptance need no extra step — the single dispatched agent 
 its gate command and self-injects exactly as it would from the script path. Audit is
 different here too: read `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md`
 yourself (same anchored resolution, Glob fallback if it doesn't substitute) and stamp
-its four blocks into every audit and premortem Task prompt you dispatch in this
+its five blocks into every audit and premortem Task prompt you dispatch in this
 mode — you are the assembly point on this path exactly as your own read is on the
 script path. Log every step with
 `gate-ledger work-log --slug "<slug>--<story>" --step <phase> --outcome "<token>" --phase "<next phase>"`
