@@ -493,18 +493,35 @@ function unresolvedStories() {
 // first round is always full and unnarrowed (resolveReauditScope(null, ...) always
 // returns narrowed: false), exactly matching the design's "the very first audit round
 // on a changeset is untouched."
-async function auditRound(story, note, nextPhase, priorResult) {
-  const matchFlags = await resolveRoutingMatchFlags(storyWorktree(story), `epic/${slug}`, `audit:routing-scope:${story}`, `story:${story}`)
+// `preMatchFlags`: routing flags already resolved concurrently by the caller for
+// THIS round (runGate's resumed-retry path) — `undefined` means not precomputed,
+// resolve here as always; `null` is a legitimate precomputed value (died/unparseable
+// check → route everything in), so the sentinel is strictly `undefined`, never
+// falsiness. Routing is still recomputed every round either way — this only moves
+// WHERE one round's resolution happens, never caches it across rounds.
+async function auditRound(story, note, nextPhase, priorResult, preMatchFlags) {
+  const matchFlags = preMatchFlags !== undefined
+    ? preMatchFlags
+    : await resolveRoutingMatchFlags(storyWorktree(story), `epic/${slug}`, `audit:routing-scope:${story}`, `story:${story}`)
   const { routed, routedOut } = resolveAuditRoster(matchFlags, AUDITORS)
   const scope = resolveReauditScope(priorResult, routed, GATES.audit.retry)
   const dispatched = scope.narrowed ? scope.blockingAuditors : routed
-  const reports = await parallel(dispatched.map(a => () =>
+  // The fix-delta pass depends only on the prior round's recorded sha, never on this
+  // round's auditor reports — it rides the same parallel() barrier as the lanes
+  // instead of serializing one extra agent-latency after them. Through parallel(), a
+  // thrown fix-delta dispatch resolves to null exactly like a died lane's, which
+  // joinReports already renders as UNAUDITED — same fail-closed outcome as before.
+  const thunks = dispatched.map(a => () =>
     agent(auditDispatchPrompt({ ctxBlock: ctx(story), note, slug, storyWorktreePath: storyWorktree(story), contract: CONTRACT }),
-      { agentType: a, label: `audit:${a.split(':')[1]}:${story}`, phase: `story:${story}`, schema: REPORT })))
-  const fixDeltaReport = scope.narrowed
-    ? await agent(fixDeltaDispatchPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: storyWorktree(story), priorSha: scope.priorSha, contract: CONTRACT }),
-        { label: `audit:fix-delta:${story}`, phase: `story:${story}`, schema: REPORT })
-    : null
+      { agentType: a, label: `audit:${a.split(':')[1]}:${story}`, phase: `story:${story}`, schema: REPORT }))
+  if (scope.narrowed) {
+    thunks.push(() =>
+      agent(fixDeltaDispatchPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: storyWorktree(story), priorSha: scope.priorSha, contract: CONTRACT }),
+        { label: `audit:fix-delta:${story}`, phase: `story:${story}`, schema: REPORT }))
+  }
+  const all = await parallel(thunks)
+  const reports = all.slice(0, dispatched.length)
+  const fixDeltaReport = scope.narrowed ? all[dispatched.length] || null : null
   const carriedForward = scope.narrowed ? routed.filter(a => !dispatched.includes(a)) : []
   const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport, routedOut)
   let result = await agent(auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut),
@@ -536,7 +553,9 @@ async function auditRound(story, note, nextPhase, priorResult) {
 async function ledgerAuditPrior(dir, label, phaseLabel) {
   let r = null
   try {
-    r = await agent(ledgerScopeCheckPrompt(dir), { label, phase: phaseLabel, schema: REPORT, effort: 'low' })
+    // Mechanical fact-check (two shell commands, one JSON line back): pinned to the
+    // cheapest model — inheriting the session model buys nothing here.
+    r = await agent(ledgerScopeCheckPrompt(dir), { label, phase: phaseLabel, schema: REPORT, model: 'haiku', effort: 'low' })
   } catch {
     // A died ledger-scope-check must never crash the story — it only means the
     // resumed-run narrowing optimization is unavailable; fails closed to a full,
@@ -560,7 +579,8 @@ async function ledgerAuditPrior(dir, label, phaseLabel) {
 async function resolveRoutingMatchFlags(dir, base, label, phaseLabel) {
   let r = null
   try {
-    r = await agent(routingScopeCheckPrompt(dir, base), { label, phase: phaseLabel, schema: REPORT, effort: 'low' })
+    // Mechanical pattern-match dispatch, same posture as ledgerAuditPrior's: haiku.
+    r = await agent(routingScopeCheckPrompt(dir, base), { label, phase: phaseLabel, schema: REPORT, model: 'haiku', effort: 'low' })
   } catch {
     return null
   }
@@ -573,12 +593,22 @@ async function runGate(story, gate, nextPhase) {
   let attempts = (stories[story].retries && stories[story].retries[gate]) || 0
   let priorAuditResult = null
   let initialNote = ''
+  let preMatchFlags
   if (gate === 'audit' && attempts > 0) {
-    priorAuditResult = await ledgerAuditPrior(storyWorktree(story), `audit:ledger-scope:${story}`, `story:${story}`)
+    // Two mechanical fact-checks with no mutual dependency — resolve them
+    // concurrently instead of paying two agent-latencies back to back. The routing
+    // flags are this same round's resolution, handed into auditRound below via
+    // `preMatchFlags`; every later round in the retry loop still resolves its own.
+    const [prior, flags] = await Promise.all([
+      ledgerAuditPrior(storyWorktree(story), `audit:ledger-scope:${story}`, `story:${story}`),
+      resolveRoutingMatchFlags(storyWorktree(story), `epic/${slug}`, `audit:routing-scope:${story}`, `story:${story}`),
+    ])
+    priorAuditResult = prior
+    preMatchFlags = flags
     if (priorAuditResult) initialNote = 'Re-audit with fresh eyes — resuming after a fix landed in a prior run.'
   }
   let result = gate === 'audit'
-    ? await auditRound(story, initialNote, nextPhase, priorAuditResult)
+    ? await auditRound(story, initialNote, nextPhase, priorAuditResult, preMatchFlags)
     : await agent(gatePrompt(story, gate, nextPhase), { label: `${gate}:${story}`, phase: `story:${story}`, schema: GATE_RESULT, model: 'opus' })
   if (!result) return { verdict: 'NEEDS DISCUSSION', summary: 'gate agent died; treating as judgment verdict', sha: '' }
 
@@ -612,7 +642,7 @@ async function park(story, gate, verdict, reason) {
   let parked = null
   try {
     parked = await agent(parkPrompt(story, gate, verdict, reason),
-      { label: `park:${story}`, phase: `story:${story}`, schema: GATE_RESULT, effort: 'low' })
+      { label: `park:${story}`, phase: `story:${story}`, schema: GATE_RESULT, model: 'haiku', effort: 'low' })
   } catch {
     // fall through with parked === null
   }
@@ -763,13 +793,20 @@ async function finaleAuditRound(note, priorResult) {
   const { routed, routedOut } = resolveAuditRoster(matchFlags, AUDITORS)
   const scope = resolveReauditScope(priorResult, routed, GATES.audit.retry)
   const dispatched = scope.narrowed ? scope.blockingAuditors : routed
-  const reports = await parallel(dispatched.map(a => () =>
+  // Same shape as the story-level auditRound: the fix-delta pass has no dependency
+  // on this round's lane reports, so it joins the same parallel() barrier; a thrown
+  // dispatch resolves to null → UNAUDITED via joinReports, as before.
+  const thunks = dispatched.map(a => () =>
     agent(finaleAuditDispatchPrompt({ note, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, epicGoal: epic.goal, contract: CONTRACT }),
-      { agentType: a, label: `finale:${a.split(':')[1]}`, phase: 'Finale', schema: REPORT })))
-  const fixDeltaReport = scope.narrowed
-    ? await agent(finaleFixDeltaDispatchPrompt({ note, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, priorSha: scope.priorSha, contract: CONTRACT }),
-        { label: 'finale:fix-delta', phase: 'Finale', schema: REPORT })
-    : null
+      { agentType: a, label: `finale:${a.split(':')[1]}`, phase: 'Finale', schema: REPORT }))
+  if (scope.narrowed) {
+    thunks.push(() =>
+      agent(finaleFixDeltaDispatchPrompt({ note, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, priorSha: scope.priorSha, contract: CONTRACT }),
+        { label: 'finale:fix-delta', phase: 'Finale', schema: REPORT }))
+  }
+  const all = await parallel(thunks)
+  const reports = all.slice(0, dispatched.length)
+  const fixDeltaReport = scope.narrowed ? all[dispatched.length] || null : null
   const carriedForward = scope.narrowed ? routed.filter(a => !dispatched.includes(a)) : []
   const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport, routedOut)
   let result = await agent(auditFanIn(null, joined, input.defaultBranch, epicWorktree, '', routed, routedOut),
@@ -817,6 +854,10 @@ function stalledFinaleEntry(epicSlug, gate, result, retryToken, maxCycles) {
 // second arg (JS silently drops an unused extra argument); the audit gate's closure
 // threads it into finaleAuditRound's own `priorResult` param (delta-scoped re-audit,
 // #130) so a narrowed retry's in-run fast path costs nothing extra.
+// Returns { result, cycles }: `cycles` counts fixer dispatches, so a caller can tell
+// whether this gate may have mutated the epic branch (any fixer — even one that later
+// blocked — may have committed before blocking). The concurrent premortem below is
+// the consumer: cycles > 0 means its early read raced a mutation and must be redone.
 async function finaleGate(gate, runOnce) {
   let result = await runOnce('', null)
   let cycles = 0
@@ -828,7 +869,7 @@ async function finaleGate(gate, runOnce) {
     if (!fix || fix.status === 'blocked') break
     result = await runOnce('Re-run with fresh eyes — a fix landed since the last check.', result)
   }
-  return result
+  return { result, cycles }
 }
 
 // ---------- run ----------
@@ -862,20 +903,36 @@ let finale = null
 if (landedCount + droppedCount === allSettled.length && landedCount > 0) {
   phase('Finale')
   log('All stories landed/dropped — running the epic finale on the integration branch')
-  const auditVerdict = await finaleGate('audit', (note, prior) => finaleAuditRound(note, prior))
+  const { result: auditVerdict } = await finaleGate('audit', (note, prior) => finaleAuditRound(note, prior))
   const stalledAudit = stalledFinaleEntry(slug, 'audit', auditVerdict, GATES.audit.retry, MAX_FIX_CYCLES)
   if (stalledAudit) parkedThisRun.push(stalledAudit)
 
-  const acceptance = await finaleGate('acceptance', note => agent(
+  // The premortem register verification is independent of the acceptance VERDICT, so
+  // it runs concurrently with acceptance's first round instead of serializing after
+  // it. It is NOT independent of acceptance's FIXERS — a fix cycle commits to the
+  // same epic branch the register is verified against — so when any fixer was
+  // dispatched (cycles > 0), the raced read is discarded and one fresh premortem
+  // dispatch replaces it below. Audit's own fixers are no hazard here: this dispatch
+  // is created only after the audit finaleGate fully resolved. `.catch(() => null)`
+  // matches the died-agent shape the `premortem &&` reads below already handle —
+  // a thrown dispatch must not crash the finale (same convention as park()).
+  const premortemDispatch = () =>
+    agent(premortemDispatchPrompt({ repoRoot, premortemPath: epic.premortem, slug, epicWorktreePath: epicWorktree, contract: CONTRACT }),
+      { agentType: 'studious:premortem-auditor', label: 'finale:premortem', phase: 'Finale', schema: REPORT })
+      .catch(() => null)
+  const premortemPromise = epic.premortem ? premortemDispatch() : null
+
+  const { result: acceptance, cycles: acceptanceFixCycles } = await finaleGate('acceptance', note => agent(
     `${note} Run Studious's acceptance gate against the WHOLE epic, not any single story: read commands/gate-acceptance.md from the plugin root (gate-ledger is on PATH; plugin root is its dirname, up one) and execute its workflow in ${epicWorktree} judging against the epic goal: "${epic.goal}" and the epic's stories' acceptance criteria. Where the command dispatches subagents you cannot spawn, perform those roles' checks yourself from their agent files — rubrics verbatim. If this review writes or produces any file in ${epicWorktree} — a note, a register, anything, prescribed or your own initiative — commit it before recording: gate-ledger record stamps the verdict's sha from HEAD at that moment, and a file committed afterward leaves the PR-time hook and this epic's own ready-check seeing a stale gate over a commit that changed nothing substantive. Commit first, then record from inside the epic worktree: cd "${epicWorktree}" && gate-ledger record --gate acceptance --verdict "<TOKEN>". Return: verdict, sha, summary.`,
     { label: 'finale:acceptance', phase: 'Finale', schema: GATE_RESULT, model: 'opus' }))
   const stalledAcceptance = stalledFinaleEntry(slug, 'acceptance', acceptance, GATES.acceptance.retry, MAX_FIX_CYCLES)
   if (stalledAcceptance) parkedThisRun.push(stalledAcceptance)
 
-  const premortem = epic.premortem
-    ? await agent(premortemDispatchPrompt({ repoRoot, premortemPath: epic.premortem, slug, epicWorktreePath: epicWorktree, contract: CONTRACT }),
-        { agentType: 'studious:premortem-auditor', label: 'finale:premortem', phase: 'Finale', schema: REPORT })
-    : null
+  let premortem = premortemPromise ? await premortemPromise : null
+  if (premortemPromise && acceptanceFixCycles > 0) {
+    log('finale: acceptance fix cycle(s) mutated the epic branch — re-running premortem verification fresh')
+    premortem = await premortemDispatch()
+  }
 
   // eslint-disable-next-line local/no-fail-open-boolean -- fail-closed: only read via `auditOk && shipOk` (line below) and `Boolean(auditOk && ...)` (ready, below) — a died/null auditVerdict makes auditOk falsy, which is fail-closed for both without ever needing a bare `!auditOk`.
   const auditOk = auditVerdict && auditVerdict.verdict === 'PASS'
@@ -885,7 +942,7 @@ if (landedCount + droppedCount === allSettled.length && landedCount > 0) {
   if (auditOk && shipOk) {
     const rec = await agent(
       `Mark the epic ready and release the integration worktree so the user can check the branch out. From ${repoRoot}: gate-ledger epic-set --slug "${slug}" --status ready && git worktree remove "${epicWorktree}". Return: verdict (echo READY), sha (epic branch HEAD), summary (one line).`,
-      { label: 'finale:ready', phase: 'Finale', schema: GATE_RESULT, effort: 'low' })
+      { label: 'finale:ready', phase: 'Finale', schema: GATE_RESULT, model: 'haiku', effort: 'low' })
     readyRecorded = Boolean(rec)
   }
   finale = {
