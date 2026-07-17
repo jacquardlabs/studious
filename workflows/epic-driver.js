@@ -22,7 +22,7 @@ export const meta = {
 //               proceeded at HEAD and only the merge onto the epic branch is missing,
 //   repoRoot:   absolute path of the MAIN working tree,
 //   defaultBranch: e.g. 'main',
-//   contract:   reference/prompt-contract.md's four blocks, verbatim, read once by
+//   contract:   reference/prompt-contract.md's five blocks, verbatim, read once by
 //               work-through.md from the plugin root and handed over as data — never
 //               a pointer for this script to go resolve itself
 // }
@@ -56,10 +56,10 @@ const AUDITORS = [
 
 // Shared prompt contract every DIRECTLY-dispatched auditor/reviewer must run under.
 // The gate COMMANDS read reference/prompt-contract.md via ${CLAUDE_PLUGIN_ROOT} and
-// stamp its four blocks into each Task prompt; this driver fans out to the auditors
+// stamp its five blocks into each Task prompt; this driver fans out to the auditors
 // itself (bypassing gate-audit.md to keep the parallel lanes + died-lane detection),
 // and has no hands to read a file itself — so commands/work-through.md reads the
-// contract once, the same way the four gate commands do, and hands its four blocks
+// contract once, the same way the four gate commands do, and hands its five blocks
 // over verbatim as args.contract before invoking this script. CONTRACT below IS that
 // text, not a pointer telling an auditor where to go look it up at runtime: no
 // runtime-pointer resolution remains on this path. requireContract() (below) fails
@@ -84,7 +84,7 @@ function requireContract(contract) {
     throw new Error(
       'epic-driver: missing prompt contract (args.contract) — refusing to dispatch an ' +
       'unguarded auditor. Re-run /work-through: commands/work-through.md must read ' +
-      'reference/prompt-contract.md and hand its four blocks over before invoking this script.'
+      'reference/prompt-contract.md and hand its five blocks over before invoking this script.'
     )
   }
   return contract

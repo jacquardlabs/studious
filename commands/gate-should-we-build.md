@@ -27,6 +27,8 @@ Do not be a yes-man. If this is a bad idea, say so plainly and suggest what we s
 
 End with a clear recommendation: **BUILD**, **BUILD SMALLER** (with the scoped-down version), **DEFER** (with what to prioritize instead), or **DON'T BUILD** (with why).
 
+Write concisely: 1–2 sentences per numbered criterion, no preamble before the findings. End on the bold verdict token followed by one sentence of rationale.
+
 ## Record the verdict
 
 After stating the recommendation, record it to the local gate ledger so `/work-on`
