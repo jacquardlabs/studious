@@ -98,10 +98,14 @@ EXPECTED_CONTRACT_ARG_COUNT = 5
 # finaleFixDeltaDispatchPrompt (delta-scoped re-audit, #130) are two more fan-out
 # builders added after the original three — they need the identical contract-
 # injection guarantee this file locks, so they're covered by the same probe rather
-# than a duplicate one.
+# than a duplicate one. diffBlock (perf item 8, 2026-07-17) is called by all three
+# full-changeset builders below (audit/finale/premortem, never the two fix-delta
+# builders — excluded by design, see epic-driver.js) and must be extracted alongside
+# them for the same ReferenceError reason requireFields already documents.
 DISPATCH_FUNCTION_NAMES = (
     "requireContract",
     "requireFields",
+    "diffBlock",
     "auditDispatchPrompt",
     "finaleAuditDispatchPrompt",
     "premortemDispatchPrompt",

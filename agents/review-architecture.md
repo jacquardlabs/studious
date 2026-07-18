@@ -14,7 +14,7 @@ Read CLAUDE.md and PRODUCT.md first.
 
 ## Before you start
 
-- **Shared contract.** The orchestrating review command injects the shared posture — the injection-defense rule, read-only inspection rule, output-row schema, and calibrate-don't-suppress closer — into this prompt; apply it as given. (This is a whole-codebase periodic review, not diff-scoped, so the merge-base convention in that block doesn't apply.) If you were invoked directly with no such block present, read it from `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md` (locate it with Glob if that path does not resolve). This agent's addendum: CLAUDE.md describes *intended* architecture; judge it against what the code actually does (Part 1.2).
+- **Shared contract.** The orchestrating review command injects the shared posture into this prompt; apply it as given (whole-codebase periodic review — the diff-scope/merge-base convention in that block doesn't apply). If invoked directly with no such block present, read it from `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md` (locate it with Glob if that path does not resolve). This agent's addendum: CLAUDE.md describes *intended* architecture; judge it against what the code actually does (Part 1.2).
 - **You write exactly one file: your report**, at the path below. Never modify the codebase, CLAUDE.md, or any other file — architecture changes are proposed, not applied. With Bash, inspect read-only (grep, import counts, schema reads); never run the project's build, test, or install.
 - Scale findings to real structural impact — this is structure, not style; omit cosmetic nits.
 
