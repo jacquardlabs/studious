@@ -34,7 +34,14 @@ const input = typeof args === 'string' ? JSON.parse(args) : args
 const epic = input.epic
 const slug = epic.slug
 const stories = epic.stories || {}
-const cap = epic.concurrency || 3
+// Default raised 3 -> 5 (perf item 13, 2026-07-17): a cap-3 epic already peaks
+// above 10 concurrent agents once each in-flight story's own audit fan-out is
+// counted (see the finaleAuditRound comment below), well under the harness's
+// own ~10-16 concurrent-agent ceiling — 3 was leaving story-level concurrency
+// on the table, not protecting against it. Still a knob: `epic.concurrency` in
+// the plan overrides it per epic, since more concurrent stories means more
+// simultaneous token spend, a real cost dial, not just a speed one.
+const cap = epic.concurrency || 5
 const repoRoot = input.repoRoot
 const worktreesDir = `${repoRoot}/.studious/worktrees/${slug}`
 const epicWorktree = `${worktreesDir}/__epic`
