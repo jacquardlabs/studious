@@ -2,6 +2,60 @@
 
 <!-- version list -->
 
+## v2.23.0 (2026-07-18)
+
+### Documentation
+
+- **design**: Decision-journal story design doc
+  ([#153](https://github.com/jacquardlabs/studious/pull/153),
+  [`de96a9e`](https://github.com/jacquardlabs/studious/commit/de96a9ee99b13f0bf18145c8250d3bcba0054aef))
+
+- **design**: Design doc for dependency-auditor gate lane
+  ([#153](https://github.com/jacquardlabs/studious/pull/153),
+  [`de96a9e`](https://github.com/jacquardlabs/studious/commit/de96a9ee99b13f0bf18145c8250d3bcba0054aef))
+
+- **design**: Design doc for prompt-auditor gate lane and deep-review area
+  ([#153](https://github.com/jacquardlabs/studious/pull/153),
+  [`de96a9e`](https://github.com/jacquardlabs/studious/commit/de96a9ee99b13f0bf18145c8250d3bcba0054aef))
+
+- **premortem**: Record decision-journal design-review pre-mortem register
+  ([#153](https://github.com/jacquardlabs/studious/pull/153),
+  [`de96a9e`](https://github.com/jacquardlabs/studious/commit/de96a9ee99b13f0bf18145c8250d3bcba0054aef))
+
+- **premortem**: Record prompt-auditor register on design-review PROCEED TO PLAN
+  ([#153](https://github.com/jacquardlabs/studious/pull/153),
+  [`de96a9e`](https://github.com/jacquardlabs/studious/commit/de96a9ee99b13f0bf18145c8250d3bcba0054aef))
+
+- **premortem**: Record the epic pre-mortem register for expand-gate-coverage
+  ([#153](https://github.com/jacquardlabs/studious/pull/153),
+  [`de96a9e`](https://github.com/jacquardlabs/studious/commit/de96a9ee99b13f0bf18145c8250d3bcba0054aef))
+
+### Features
+
+- Add dependency and prompt audit lanes, decision journal, and rubric expansions (M3)
+  ([#153](https://github.com/jacquardlabs/studious/pull/153),
+  [`de96a9e`](https://github.com/jacquardlabs/studious/commit/de96a9ee99b13f0bf18145c8250d3bcba0054aef))
+
+- Add dependency-auditor gate lane ([#153](https://github.com/jacquardlabs/studious/pull/153),
+  [`de96a9e`](https://github.com/jacquardlabs/studious/commit/de96a9ee99b13f0bf18145c8250d3bcba0054aef))
+
+- Add PII signatures to security checklist and wire-contract break bullet to architecture auditor
+  ([#153](https://github.com/jacquardlabs/studious/pull/153),
+  [`de96a9e`](https://github.com/jacquardlabs/studious/commit/de96a9ee99b13f0bf18145c8250d3bcba0054aef))
+
+- Add prompt-auditor gate lane and prompts deep-review area
+  ([#153](https://github.com/jacquardlabs/studious/pull/153),
+  [`de96a9e`](https://github.com/jacquardlabs/studious/commit/de96a9ee99b13f0bf18145c8250d3bcba0054aef))
+
+- Give /gate-should-we-build a decision journal of past verdicts
+  ([#153](https://github.com/jacquardlabs/studious/pull/153),
+  [`de96a9e`](https://github.com/jacquardlabs/studious/commit/de96a9ee99b13f0bf18145c8250d3bcba0054aef))
+
+- Require a success-metrics section in the design-doc contract
+  ([#153](https://github.com/jacquardlabs/studious/pull/153),
+  [`de96a9e`](https://github.com/jacquardlabs/studious/commit/de96a9ee99b13f0bf18145c8250d3bcba0054aef))
+
+
 ## v2.22.1 (2026-07-18)
 
 ### Performance Improvements
