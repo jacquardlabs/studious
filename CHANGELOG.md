@@ -2,6 +2,41 @@
 
 <!-- version list -->
 
+## v2.22.1 (2026-07-18)
+
+### Performance Improvements
+
+- Dispatch parallelism, hook overhead, and prompt-size cuts across gate-audit and epic-driver
+  ([#152](https://github.com/jacquardlabs/studious/pull/152),
+  [`22711e5`](https://github.com/jacquardlabs/studious/commit/22711e51917809ee80c5f0c6539d3f8f0da6f39d))
+
+- Exit the evidence-capture hook on the token filter before spawning gate-ledger
+  ([#152](https://github.com/jacquardlabs/studious/pull/152),
+  [`22711e5`](https://github.com/jacquardlabs/studious/commit/22711e51917809ee80c5f0c6539d3f8f0da6f39d))
+
+- Extend item 8's diff-precompute to the epic-driver dispatch path
+  ([#152](https://github.com/jacquardlabs/studious/pull/152),
+  [`22711e5`](https://github.com/jacquardlabs/studious/commit/22711e51917809ee80c5f0c6539d3f8f0da6f39d))
+
+- Parallelize independent epic-driver dispatches, pin mechanical ones to haiku
+  ([#152](https://github.com/jacquardlabs/studious/pull/152),
+  [`22711e5`](https://github.com/jacquardlabs/studious/commit/22711e51917809ee80c5f0c6539d3f8f0da6f39d))
+
+- Precompute the changeset diff for small-changeset audit dispatches
+  ([#152](https://github.com/jacquardlabs/studious/pull/152),
+  [`22711e5`](https://github.com/jacquardlabs/studious/commit/22711e51917809ee80c5f0c6539d3f8f0da6f39d))
+
+- Raise epic-driver's default concurrency from 3 to 5
+  ([#152](https://github.com/jacquardlabs/studious/pull/152),
+  [`22711e5`](https://github.com/jacquardlabs/studious/commit/22711e51917809ee80c5f0c6539d3f8f0da6f39d))
+
+### Refactoring
+
+- Compress the repeated shared-contract paragraph across 17 agent files
+  ([#152](https://github.com/jacquardlabs/studious/pull/152),
+  [`22711e5`](https://github.com/jacquardlabs/studious/commit/22711e51917809ee80c5f0c6539d3f8f0da6f39d))
+
+
 ## v2.22.0 (2026-07-17)
 
 ### Features
