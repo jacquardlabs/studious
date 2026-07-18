@@ -74,7 +74,7 @@ Each gate exists to catch a specific failure. Reach for one on its own when you 
 - Pick what to build with `/backlog-priorities` (ranks your open GitHub issues by severity/alignment/unblocking potential) or `/gate-should-we-build [idea]` (scores a raw idea against PRODUCT.md and the smallest version worth shipping). Catches building the wrong thing.
 - Gate the design with `/gate-design-review`. It walks your design doc as your primary persona would and flags where they'd get confused or frustrated. Catches a bad design before you spend build effort on it. On a passing verdict, it also writes a pre-mortem register (`docs/studious/premortems/<slug>.md`) — failure modes predicted at design time, checked back against the finished changeset at the end of the flow.
 - Build it with your own workflow — by hand or with any executor (Superpowers works well here). Studious steps back in the supervised flow; in `/work-through` epics, dispatched workers build to `reference/worker-contract.md` and are gated like anyone else.
-- Audit before merge with `/gate-audit`. Security, code quality, docs, architecture, and test adequacy always run; UX, frontend, and an accessibility pass (via the `web-design-guidelines` skill, or a vendored fallback when it isn't installed) join in on projects with a web surface; infrastructure joins in when the changeset touches IaC, container, or CI-pipeline files; operability joins in when the changeset touches runtime code (request handlers, queue consumers, daemons, outbound calls); a dependency check joins in when the changeset touches dependency manifests or lockfiles (new or updated packages, known vulnerabilities, license compatibility, maintenance signal, lockfile-manifest drift); and if the design-review gate recorded a pre-mortem register for this branch, a dedicated auditor checks each predicted failure mode — REALIZED / NOT REALIZED / CAN'T VERIFY, evidence attached. Up to 12 auditors, each staying in its lane.
+- Audit before merge with `/gate-audit`. Security, code quality, docs, architecture, and test adequacy always run; UX, frontend, and an accessibility pass (via the `web-design-guidelines` skill, or a vendored fallback when it isn't installed) join in on projects with a web surface; infrastructure joins in when the changeset touches IaC, container, or CI-pipeline files; operability joins in when the changeset touches runtime code (request handlers, queue consumers, daemons, outbound calls); a dependency check joins in when the changeset touches dependency manifests or lockfiles (new or updated packages, known vulnerabilities, license compatibility, maintenance signal, lockfile-manifest drift); a prompt check joins in when the changeset touches prompt files — agent/command/skill definitions, model-facing instruction docs, prompt templates (trigger reliability, instruction conflicts, orchestrator-subagent contract drift, duplication, injection safety, runtime identity, token economy); and if the design-review gate recorded a pre-mortem register for this branch, a dedicated auditor checks each predicted failure mode — REALIZED / NOT REALIZED / CAN'T VERIFY, evidence attached. Up to 13 auditors, each staying in its lane.
 - Gate acceptance with `/gate-acceptance`. Product review, not code review: does the implementation actually deliver the experience? It walks every user-facing change, checks error states for human-friendly messaging, regression-tests the critical journeys in PRODUCT.md, and verifies the pre-mortem's product-lane items against what shipped (same register, other half).
 
 ```
@@ -103,7 +103,7 @@ The three product gates also fire from natural language, not just the slash comm
 
 ## CI mode (optional)
 
-`.github/workflows/gate-audit-pr.yml` runs `/gate-audit` non-interactively against a PR and posts the report as a PR comment — the same auditor fan-out you'd get locally (up to 12, depending on the project's web surface, whether the changeset touches infrastructure files, runtime code, or dependency manifests, and whether a pre-mortem register exists), without anyone having to remember to run it. It ships **dormant** (manual `workflow_dispatch` trigger only): pick a PR, run the workflow from the Actions tab with that PR's number as input, and it audits that PR and comments on it. It does not fire automatically on every PR yet.
+`.github/workflows/gate-audit-pr.yml` runs `/gate-audit` non-interactively against a PR and posts the report as a PR comment — the same auditor fan-out you'd get locally (up to 13, depending on the project's web surface, whether the changeset touches infrastructure files, runtime code, dependency manifests, or prompt files, and whether a pre-mortem register exists), without anyone having to remember to run it. It ships **dormant** (manual `workflow_dispatch` trigger only): pick a PR, run the workflow from the Actions tab with that PR's number as input, and it audits that PR and comments on it. It does not fire automatically on every PR yet.
 
 To set it up:
 
@@ -117,7 +117,7 @@ It refuses draft PRs and fork PRs (no repository secrets are available to fork-t
 
 Separate from the feature flow: periodic reviews that assess overall project health. These run against main, not feature branches.
 
-`/deep-review` dispatches all 6 review agents in parallel and compiles a master summary: it cross-references findings across reviews, produces a prioritized action plan, and proposes updates to your context docs for approval. Metrics are captured each run for trend tracking.
+`/deep-review` dispatches all 7 review agents in parallel and compiles a master summary: it cross-references findings across reviews, produces a prioritized action plan, and proposes updates to your context docs for approval. Metrics are captured each run for trend tracking.
 
 Aim it at one area when you don't need the full sweep — each review has its own natural cadence:
 
@@ -129,7 +129,8 @@ Aim it at one area when you don't need the full sweep — each review has its ow
 | Product health | PRODUCT.md accuracy, persona drift, scope creep | Monthly or when it feels off | `/deep-review product` |
 | Security health | Whole-repo vulnerability posture, secrets in git history, security-config posture | Monthly | `/deep-review security` |
 | README drift | Stale claims, broken commands, voice | After a release or feature batch | `/deep-review readme` |
-| Everything | All 6, cross-referenced into one summary | Monthly | `/deep-review` |
+| Prompt health | Trigger coverage, instruction consistency, contract alignment, duplication, injection posture, token economy | Monthly (repos with a prompt surface; auto-skips otherwise) | `/deep-review prompts` |
+| Everything | All 7, cross-referenced into one summary | Monthly | `/deep-review` |
 
 `/backlog-hygiene` scans open GitHub issues against recent commits, PRODUCT.md, and review reports, then flags the ones that are resolved/obsolete/duplicated. Run it after a `/deep-review` to catch what that cycle's fixes resolved. It reports, never modifies.
 
@@ -161,7 +162,7 @@ Every command Studious ships, for quick reference:
 | `/gate-design-review` | Product review of a design doc before implementation begins. |
 | `/gate-audit` | Runs the audit suite — security, code quality, docs, architecture, and tests, scoped to the changeset. |
 | `/gate-acceptance` | Product acceptance review after implementation, before merge. |
-| `/deep-review [area]` | Runs the periodic review suite: one area, or all 6 with a compiled summary. |
+| `/deep-review [area]` | Runs the periodic review suite: one area, or all 7 with a compiled summary. |
 | `/extract-design-system` | Extracts the interface design system from the codebase into DESIGN.md. |
 | `/extract-product-context` | Extracts product context from the codebase into PRODUCT.md. |
 

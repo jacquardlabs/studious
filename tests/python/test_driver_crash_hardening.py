@@ -213,7 +213,7 @@ def test_finale_section_pushes_both_stalled_gate_entries() -> None:
 AUDITOR_SHORT_NAMES = [
     "security-auditor", "code-auditor", "doc-auditor", "architecture-auditor",
     "test-auditor", "infra-auditor", "operability-auditor", "dependency-auditor",
-    "ux-reviewer", "frontend-reviewer",
+    "prompt-auditor", "ux-reviewer", "frontend-reviewer",
 ]
 
 

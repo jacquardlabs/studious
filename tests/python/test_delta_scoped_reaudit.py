@@ -248,7 +248,7 @@ def test_gate_audit_md_and_epic_driver_agree_on_the_ten_lane_roster() -> None:
         for lane in auditors_match.group(1).split(",")
         if lane.strip()
     }
-    assert len(driver_lanes) == 10
+    assert len(driver_lanes) == 11
 
     gate_audit_text = GATE_AUDIT_MD.read_text()
     start = gate_audit_text.index("## Resolve re-audit scope")
@@ -352,7 +352,7 @@ def test_retry_narrows_to_blocking_lanes_and_fix_delta_pass_only() -> None:
     assert labels.count(f"audit:security-auditor:{story}") == total_rounds
     assert labels.count(f"audit:test-auditor:{story}") == total_rounds
     non_blocking = [n for n in AUDITOR_SHORT_NAMES if n not in ("security-auditor", "test-auditor")]
-    assert len(non_blocking) == 8
+    assert len(non_blocking) == 9
     for name in non_blocking:
         assert labels.count(f"audit:{name}:{story}") == 1, (
             f"{name} was re-dispatched on a narrowed retry — only the "
