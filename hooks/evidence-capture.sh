@@ -38,16 +38,6 @@ event=$(printf '%s' "$input" | jq -r '.hook_event_name // empty')
 command_str=$(printf '%s' "$input" | jq -r '.tool_input.command // empty')
 [ -n "$command_str" ] || exit 0
 
-# --- armed check: current branch must be a branch gate-ledger already knows
-# about (a work file's .branch, written by /work-on or /work-through's driver
-# when the story was set up — an existing step, not a new one). work-list's
-# column 3 is the branch, exact string match (not the gates ledger's slug —
-# no collision risk here, this compares full branch names).
-branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || exit 0
-[ -n "$branch" ] && [ "$branch" != "HEAD" ] || exit 0
-armed=$("$ledger" work-list 2>/dev/null | cut -f3 | grep -qxF "$branch" && echo yes || echo no)
-[ "$armed" = "yes" ] || exit 0
-
 # --- verification-relevant filter: conservative, over-inclusive allow-list.
 # Data, not prose — edit this array to tune coverage for a toolchain this list
 # misses (see reference/evidence-format.md's Open questions). Word-boundary
@@ -58,6 +48,10 @@ armed=$("$ledger" work-list 2>/dev/null | cut -f3 | grep -qxF "$branch" && echo 
 # go test / cargo test|build / npm test / npm run test|build need no explicit
 # entry: they already contain the bare "test"/"build" token, so the catch-all
 # alone covers them — do not add a redundant compound pattern for these.
+# Runs BEFORE the armed check: this hook fires on every Bash call in the
+# session, and this filter is pure bash + one grep, while the armed check
+# spawns git and gate-ledger — the common non-verification command must exit
+# here without ever paying those spawns.
 VERIFICATION_TOKENS=(
   pytest jest vitest rspec phpunit                    # test runners (named)
   eslint ruff flake8 shellcheck 'markdownlint(-cli2)?' # lint/static analysis
@@ -71,6 +65,16 @@ for tok in "${VERIFICATION_TOKENS[@]}"; do
 done
 pattern="(^|[^A-Za-z0-9])(${alt})(\$|[^A-Za-z0-9])"
 printf '%s' "$command_str" | grep -Eq "$pattern" || exit 0
+
+# --- armed check: current branch must be a branch gate-ledger already knows
+# about (a work file's .branch, written by /work-on or /work-through's driver
+# when the story was set up — an existing step, not a new one). work-list's
+# column 3 is the branch, exact string match (not the gates ledger's slug —
+# no collision risk here, this compares full branch names).
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || exit 0
+[ -n "$branch" ] && [ "$branch" != "HEAD" ] || exit 0
+armed=$("$ledger" work-list 2>/dev/null | cut -f3 | grep -qxF "$branch" && echo yes || echo no)
+[ "$armed" = "yes" ] || exit 0
 
 # --- origin: agent_id is documented as present only when the hook fires
 # inside a subagent call (code.claude.com/docs/en/hooks, "Common input

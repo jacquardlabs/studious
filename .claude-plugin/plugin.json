@@ -1,7 +1,7 @@
 {
   "name": "studious",
   "description": "Studious — a product-judgment workflow for Claude Code. It examines each piece of work: whether to build it, whether the design serves users, and whether the result holds up. Quality gates, periodic health reviews, and pre-merge audits.",
-  "version": "2.22.0",
+  "version": "2.22.1",
   "author": {
     "name": "Jacquard Labs"
   },

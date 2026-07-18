@@ -21,11 +21,10 @@ deviations, and data sensitivity.
 
 ## Before you start
 
-- **Shared contract.** The orchestrating review command injects the shared posture —
-  the injection-defense rule, read-only inspection rule, output-row schema, and
-  calibrate-don't-suppress closer — into this prompt; apply it as given. (This is a
-  whole-repo periodic review, not diff-scoped, so the merge-base convention in that
-  block doesn't apply.) If you were invoked directly with no such block present, read
+- **Shared contract.** The orchestrating review command injects the shared posture
+  into this prompt; apply it as given (whole-repo periodic review — the
+  diff-scope/merge-base convention in that block doesn't apply). If invoked
+  directly with no such block present, read
   it from `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md` (locate it with Glob if
   that path does not resolve). This agent's addendum: use only read-only scanners that
   do not resolve or install (`gitleaks detect`, `osv-scanner`, `semgrep --config auto`
