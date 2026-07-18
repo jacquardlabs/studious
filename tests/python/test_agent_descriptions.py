@@ -35,6 +35,8 @@ CHANGESET_AGENTS = (
     "infra-auditor",
     "test-auditor",
     "operability-auditor",
+    "dependency-auditor",
+    "prompt-auditor",
 )
 
 FRONTMATTER_DESC_RE = re.compile(r"^description:\s*(.+)$", re.MULTILINE)
@@ -86,6 +88,31 @@ def test_frontend_agents_do_not_claim_periodic_review() -> None:
         and "not a periodic" not in _description(agent).lower()
     }
     assert offenders == {}, f"frontend agents still claim a periodic review: {offenders}"
+
+
+def test_prompt_agents_disambiguate_gate_from_periodic() -> None:
+    """The two prompt agents split gate/periodic the same way the code pair does.
+
+    ``prompt-auditor`` is diff-scoped and gate-invoked (covered by the
+    CHANGESET_AGENTS tests above, which it is a member of); its periodic twin
+    ``review-prompt-health`` must claim the periodic whole-repo phrasing and must
+    NOT advertise the gate path, so "review my prompts' health" never lands on
+    the diff-scoped lane and a gate dispatch never lands on the periodic one.
+    """
+    auditor_desc = _description("prompt-auditor")
+    assert "review-prompt-health" in auditor_desc, (
+        "prompt-auditor's description no longer points periodic requests at "
+        "review-prompt-health"
+    )
+    health_desc = _description("review-prompt-health").lower()
+    assert "periodic" in health_desc, "review-prompt-health no longer marks itself periodic"
+    assert "whole-repo" in health_desc, (
+        "review-prompt-health no longer claims the whole-repo scope that "
+        "disambiguates it from the diff-scoped gate lane"
+    )
+    assert "/gate-audit" not in health_desc, (
+        "review-prompt-health must not advertise the gate invocation path"
+    )
 
 
 def test_periodic_interface_review_owns_frontend_routing() -> None:

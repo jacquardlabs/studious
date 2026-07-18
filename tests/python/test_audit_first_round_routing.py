@@ -38,16 +38,22 @@ ROUTING_SIGNALS_MD = REPO_ROOT / "reference" / "audit-routing-signals.md"
 # ---------- Task 1: canonical reference file ----------
 
 
-def test_routing_signals_reference_file_exists_with_both_signal_sections() -> None:
+def test_routing_signals_reference_file_exists_with_all_signal_sections() -> None:
     assert ROUTING_SIGNALS_MD.is_file(), "reference/audit-routing-signals.md is missing"
     text = ROUTING_SIGNALS_MD.read_text()
     assert "## Infrastructure signal" in text
     assert "## Frontend signal" in text
+    assert "## Dependency signal" in text
     # Spot-check a few tokens moved from gate-audit.md's old inline prose.
     for token in ("*.tf", "Dockerfile*", ".github/workflows"):
         assert token in text, f"expected infra pattern {token!r} in the reference file"
     for token in ("*.jsx", "*.tsx", "*.css"):
         assert token in text, f"expected frontend pattern {token!r} in the reference file"
+    for token in ("package.json", "uv.lock", "go.mod", "Cargo.lock", "vendor/"):
+        assert token in text, f"expected dependency pattern {token!r} in the reference file"
+    assert "## Prompt signal" in text
+    for token in ("agents/*.md", "commands/*.md", "CLAUDE.md", ".cursorrules", "prompt_templates"):
+        assert token in text, f"expected prompt pattern {token!r} in the reference file"
 
 
 def test_routing_signals_file_documents_the_bare_js_ts_exclusion() -> None:
@@ -109,26 +115,26 @@ console.log(JSON.stringify(resolveAuditRoster(matchFlags, {AUDITORS_JS})))
     return _run_node(script)
 
 
-def test_both_signals_match_routes_all_nine_lanes_in() -> None:
-    result = _resolve_roster('{ infraMatch: true, frontendMatch: true }')
+def test_all_signals_match_routes_the_full_roster_in() -> None:
+    result = _resolve_roster('{ infraMatch: true, frontendMatch: true, depMatch: true, promptMatch: true }')
     assert result["routed"] == [f"studious:{n}" for n in AUDITOR_SHORT_NAMES]
     assert result["routedOut"] == []
 
 
 def test_no_infra_match_routes_out_only_infra_auditor() -> None:
-    result = _resolve_roster('{ infraMatch: false, frontendMatch: true }')
+    result = _resolve_roster('{ infraMatch: false, frontendMatch: true, depMatch: true, promptMatch: true }')
     assert "studious:infra-auditor" not in result["routed"]
-    assert len(result["routed"]) == 8
+    assert len(result["routed"]) == 10
     assert result["routedOut"] == [
         {"auditor": "studious:infra-auditor", "reason": "no infrastructure changes detected"}
     ]
 
 
 def test_no_frontend_match_routes_out_ux_and_frontend_reviewer_only() -> None:
-    result = _resolve_roster('{ infraMatch: true, frontendMatch: false }')
+    result = _resolve_roster('{ infraMatch: true, frontendMatch: false, depMatch: true, promptMatch: true }')
     assert "studious:ux-reviewer" not in result["routed"]
     assert "studious:frontend-reviewer" not in result["routed"]
-    assert len(result["routed"]) == 7
+    assert len(result["routed"]) == 9
     reasons = {e["auditor"]: e["reason"] for e in result["routedOut"]}
     assert reasons == {
         "studious:ux-reviewer": "no frontend changes detected",
@@ -136,19 +142,55 @@ def test_no_frontend_match_routes_out_ux_and_frontend_reviewer_only() -> None:
     }
 
 
-def test_neither_signal_matches_routes_out_all_three_routable_lanes() -> None:
-    result = _resolve_roster('{ infraMatch: false, frontendMatch: false }')
+def test_no_dep_match_routes_out_only_dependency_auditor() -> None:
+    result = _resolve_roster('{ infraMatch: true, frontendMatch: true, depMatch: false, promptMatch: true }')
+    assert "studious:dependency-auditor" not in result["routed"]
+    assert len(result["routed"]) == 10
+    assert result["routedOut"] == [
+        {"auditor": "studious:dependency-auditor",
+         "reason": "no dependency manifest or lockfile changes detected"}
+    ]
+
+
+def test_no_prompt_match_routes_out_only_prompt_auditor() -> None:
+    result = _resolve_roster('{ infraMatch: true, frontendMatch: true, depMatch: true, promptMatch: false }')
+    assert "studious:prompt-auditor" not in result["routed"]
+    assert len(result["routed"]) == 10
+    assert result["routedOut"] == [
+        {"auditor": "studious:prompt-auditor",
+         "reason": "no prompt-file changes detected"}
+    ]
+
+
+def test_absent_dep_match_flag_fails_open_routes_dependency_lane_in() -> None:
+    """A two-flag dispatch (a pre-upgrade prompt, or a malformed reply that dropped
+    depMatch) must route the dependency lane IN — absent is never false."""
+    result = _resolve_roster('{ infraMatch: true, frontendMatch: true }')
+    assert "studious:dependency-auditor" in result["routed"]
+    assert result["routedOut"] == []
+
+
+def test_absent_prompt_match_flag_fails_open_routes_prompt_lane_in() -> None:
+    """A three-flag dispatch (a pre-upgrade prompt, or a malformed reply that
+    dropped promptMatch) must route the prompt lane IN — absent is never false."""
+    result = _resolve_roster('{ infraMatch: true, frontendMatch: true, depMatch: true }')
+    assert "studious:prompt-auditor" in result["routed"]
+    assert result["routedOut"] == []
+
+
+def test_no_signal_matches_routes_out_all_five_routable_lanes() -> None:
+    result = _resolve_roster('{ infraMatch: false, frontendMatch: false, depMatch: false, promptMatch: false }')
     assert set(result["routed"]) == {
         "studious:security-auditor", "studious:code-auditor", "studious:doc-auditor",
         "studious:architecture-auditor", "studious:test-auditor", "studious:operability-auditor",
     }
-    assert len(result["routedOut"]) == 3
+    assert len(result["routedOut"]) == 5
 
 
 def test_operability_is_never_routed_out_regardless_of_flags() -> None:
     for flags in (
-        '{ infraMatch: true, frontendMatch: true }',
-        '{ infraMatch: false, frontendMatch: false }',
+        '{ infraMatch: true, frontendMatch: true, depMatch: true, promptMatch: true }',
+        '{ infraMatch: false, frontendMatch: false, depMatch: false, promptMatch: false }',
     ):
         result = _resolve_roster(flags)
         assert "studious:operability-auditor" in result["routed"]
@@ -262,7 +304,7 @@ def test_audit_fan_in_distinguishes_routed_out_from_carried_forward_and_died_in_
 # ---------- Task 4: end-to-end, real driver under the documented harness shape ----------
 
 
-def _nine_lane_pass_rules(story: str) -> list[dict]:
+def _full_roster_pass_rules(story: str) -> list[dict]:
     return [
         {"match": rf"^audit:{name}:{story}$", "result": {"findings": "clean"}}
         for name in AUDITOR_SHORT_NAMES
@@ -278,18 +320,19 @@ _FINALE_CLEAN_RULES = [
 ]
 
 
-def test_full_surface_match_dispatches_all_nine_lanes_unchanged() -> None:
-    """Both signals matching (a changeset touching infra AND frontend files)
-    must dispatch every one of the 9 lanes — identical to pre-#138 behavior,
-    just with one extra cheap routing-scope dispatch first."""
+def test_full_surface_match_dispatches_the_full_roster_unchanged() -> None:
+    """Every signal matching (a changeset touching infra AND frontend AND
+    dependency AND prompt files) must dispatch every one of the 11 lanes —
+    identical to pre-#138 behavior, just with one extra cheap routing-scope
+    dispatch first."""
     story = "a"
     epic = {
         "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
         "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
     }
     rules = [
-        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": True, "frontendMatch": True})}},
-        *_nine_lane_pass_rules(story),
+        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": True, "frontendMatch": True, "depMatch": True, "promptMatch": True})}},
+        *_full_roster_pass_rules(story),
         {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "s1", "summary": "clean"}},
         {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "s2", "notes": "clean"}},
         *_FINALE_CLEAN_RULES,
@@ -303,18 +346,18 @@ def test_full_surface_match_dispatches_all_nine_lanes_unchanged() -> None:
     assert out["result"]["landed"] == 1
 
 
-def test_backend_only_changeset_routes_out_infra_and_frontend_lanes() -> None:
-    """The acceptance-critical case: no infra, no frontend signal → only the
-    6 always-applicable lanes dispatch, not all 9."""
+def test_backend_only_changeset_routes_out_infra_frontend_dependency_and_prompt_lanes() -> None:
+    """The acceptance-critical case: no infra, no frontend, no dependency, no
+    prompt signal → only the 6 always-applicable lanes dispatch, not all 11."""
     story = "a"
     epic = {
         "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
         "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
     }
     always_run = ["security-auditor", "code-auditor", "doc-auditor", "architecture-auditor", "test-auditor", "operability-auditor"]
-    routed_out_names = ["infra-auditor", "ux-reviewer", "frontend-reviewer"]
+    routed_out_names = ["infra-auditor", "ux-reviewer", "frontend-reviewer", "dependency-auditor", "prompt-auditor"]
     rules = [
-        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False})}},
+        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False, "depMatch": False, "promptMatch": False})}},
         *[{"match": rf"^audit:{name}:{story}$", "result": {"findings": "clean"}} for name in always_run],
         {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "s1", "summary": "clean"}},
         {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "s2", "notes": "clean"}},
@@ -338,7 +381,7 @@ def test_routed_out_lanes_appear_in_the_compile_prompt_with_plain_reasons() -> N
     }
     always_run = ["security-auditor", "code-auditor", "doc-auditor", "architecture-auditor", "test-auditor", "operability-auditor"]
     rules = [
-        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False})}},
+        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False, "depMatch": False, "promptMatch": False})}},
         *[{"match": rf"^audit:{name}:{story}$", "result": {"findings": "clean"}} for name in always_run],
         {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "s1", "summary": "clean"}},
         {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "s2", "notes": "clean"}},
@@ -350,6 +393,8 @@ def test_routed_out_lanes_appear_in_the_compile_prompt_with_plain_reasons() -> N
     assert len(compile_prompts) == 1
     prompt = compile_prompts[0]
     assert "studious:infra-auditor --- (routed out — not applicable to this changeset: no infrastructure changes detected" in prompt
+    assert "studious:dependency-auditor --- (routed out — not applicable to this changeset: no dependency manifest or lockfile changes detected" in prompt
+    assert "studious:prompt-auditor --- (routed out — not applicable to this changeset: no prompt-file changes detected" in prompt
     assert "studious:ux-reviewer --- (routed out" in prompt
     assert "studious:frontend-reviewer --- (routed out" in prompt
     # No internal reference-file path leaks into the routed-out reason text.
@@ -358,9 +403,9 @@ def test_routed_out_lanes_appear_in_the_compile_prompt_with_plain_reasons() -> N
     assert "routed out — not applicable to this changeset (<reason>)" in prompt
 
 
-def test_dead_routing_dispatch_fails_open_to_the_full_nine_lane_roster() -> None:
+def test_dead_routing_dispatch_fails_open_to_the_full_roster() -> None:
     """Acceptance-critical failure mode: if the mechanical routing dispatch
-    dies, every one of the 9 lanes must still dispatch — never a partial,
+    dies, every one of the 11 lanes must still dispatch — never a partial,
     guessed roster."""
     story = "a"
     epic = {
@@ -369,7 +414,7 @@ def test_dead_routing_dispatch_fails_open_to_the_full_nine_lane_roster() -> None
     }
     rules = [
         {"match": rf"^audit:routing-scope:{story}$", "throw": "gate-ledger not found"},
-        *_nine_lane_pass_rules(story),
+        *_full_roster_pass_rules(story),
         {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "s1", "summary": "clean"}},
         {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "s2", "notes": "clean"}},
         *_FINALE_CLEAN_RULES,
@@ -400,7 +445,7 @@ def test_retry_narrowing_operates_within_the_routed_roster_never_a_routed_out_la
         "blockingLanes": ["security-auditor"],
     }
     rules = [
-        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False})}},
+        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False, "depMatch": False, "promptMatch": False})}},
         *[{"match": rf"^audit:{name}:{story}$", "result": {"findings": "clean"}} for name in always_run],
         {"match": rf"^audit:compile:{story}$", "result": blocking_result},
         {"match": rf"^audit:fix-delta:{story}$", "result": {"findings": "fix-delta clean"}},
@@ -417,7 +462,7 @@ def test_retry_narrowing_operates_within_the_routed_roster_never_a_routed_out_la
         assert labels.count(f"audit:{name}:{story}") == 1, (
             f"{name} was re-dispatched on a narrowed retry — should have been carried forward"
         )
-    for name in ("infra-auditor", "ux-reviewer", "frontend-reviewer"):
+    for name in ("infra-auditor", "ux-reviewer", "frontend-reviewer", "dependency-auditor", "prompt-auditor"):
         assert f"audit:{name}:{story}" not in labels, f"{name} was dispatched despite being routed out for the whole cycle"
 
     compile_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"audit:compile:{story}"]
@@ -450,7 +495,7 @@ def test_routing_scope_recomputes_each_round_not_cached_across_the_retry_loop() 
         "blockingLanes": ["security-auditor"],
     }
     rules = [
-        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False})}},
+        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False, "depMatch": False, "promptMatch": False})}},
         *[{"match": rf"^audit:{name}:{story}$", "result": {"findings": "clean"}} for name in always_run],
         {"match": rf"^audit:compile:{story}$", "result": blocking_result},
         {"match": rf"^audit:fix-delta:{story}$", "result": {"findings": "fix-delta clean"}},
@@ -475,7 +520,7 @@ def test_finale_routing_mirrors_the_story_level_mechanism() -> None:
     rules = [
         {"match": r"^acceptance:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
         {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
-        {"match": r"^finale:routing-scope$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False})}},
+        {"match": r"^finale:routing-scope$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False, "depMatch": False, "promptMatch": False})}},
         *[{"match": rf"^finale:{name}$", "result": {"findings": "clean"}} for name in always_run],
         {"match": r"^finale:audit-compile$", "result": {"verdict": "PASS", "sha": "f1", "summary": "clean"}},
         {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "f2", "summary": "ship it"}},
@@ -487,6 +532,6 @@ def test_finale_routing_mirrors_the_story_level_mechanism() -> None:
     assert labels.count("finale:routing-scope") == 1
     for name in always_run:
         assert labels.count(f"finale:{name}") == 1
-    for name in ("infra-auditor", "ux-reviewer", "frontend-reviewer"):
+    for name in ("infra-auditor", "ux-reviewer", "frontend-reviewer", "dependency-auditor", "prompt-auditor"):
         assert f"finale:{name}" not in labels
     assert out["result"]["finale"]["ready"] is True

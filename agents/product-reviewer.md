@@ -31,6 +31,8 @@ Evaluate against these questions:
 
 6. **User mental model**: Will the user understand this feature without explanation? If it requires onboarding, a tooltip, or documentation, it's probably too complex for the stated principles.
 
+7. **Success metrics**: Does the doc say how we will know the feature worked — an observable signal tied to the persona's job-to-be-done, and where it will be read? "N/A — no measurable surface" with a one-line reason satisfies this check; a missing or empty answer is a finding, not a pass. Don't accept a number with no tie to the persona's job — that's a vanity metric, and it's a finding too.
+
 ## When reviewing an IMPLEMENTATION (acceptance gate — after build):
 
 Evaluate against these questions:

@@ -74,7 +74,7 @@ gate-ledger work-log --slug "<slug>" --step decide --outcome "<verdict>" --phase
 
 Studious doesn't author design docs (`reference/design-doc-contract.md` — authoring stays with the user's how-layer). Set the user up, then stop:
 
-- Hand over the decide verdict, the (possibly scoped-down) title, and the contract's six required sections; point at `templates/design-doc.md` as the scaffold.
+- Hand over the decide verdict, the (possibly scoped-down) title, and the contract's required sections; point at `templates/design-doc.md` as the scaffold.
 - If Superpowers is installed, note that its brainstorming and planning workflow produces a doc satisfying the contract; otherwise any hand-written spec does.
 - Do not draft the doc yourself. It may well get written right here in the session — that work belongs to the user and their workflow, not to this command.
 

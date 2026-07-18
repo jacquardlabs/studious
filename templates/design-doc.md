@@ -31,6 +31,14 @@
 
 <!-- At least one simpler alternative and why it was rejected. -->
 
+## Success metrics
+
+<!-- How will we know the feature worked? Name an observable signal tied to the
+     persona's job — adoption, completion, time saved, errors avoided — and where it
+     will be read. Operational readiness below covers "is it functioning"; this covers
+     "did it change the user's outcome". Write "N/A — no measurable surface" with a
+     one-line reason if that's the truth — don't omit the section. -->
+
 ## Operational readiness
 
 <!-- Migration plan and its rollback, rollout strategy, and how you'll know the feature

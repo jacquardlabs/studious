@@ -57,7 +57,7 @@ const MAX_FIX_CYCLES = 2
 const AUDITORS = [
   'studious:security-auditor', 'studious:code-auditor', 'studious:doc-auditor',
   'studious:architecture-auditor', 'studious:test-auditor', 'studious:infra-auditor',
-  'studious:operability-auditor',
+  'studious:operability-auditor', 'studious:dependency-auditor', 'studious:prompt-auditor',
   'studious:ux-reviewer', 'studious:frontend-reviewer',
 ]
 
@@ -143,20 +143,20 @@ function finaleAuditDispatchPrompt(fields) {
 
 // Delta-scoped re-audit (#130): the single, cheap, cross-lane spot-check dispatched
 // alongside a narrowed round's previously-blocking lanes. Scoped ONLY to the diff since
-// the prior round's recorded sha — not a tenth registered auditor, not a blend of the
-// nine specialists' full depth, an explicit bounded exception to "one agent = one
+// the prior round's recorded sha — not a twelfth registered auditor, not a blend of the
+// eleven specialists' full depth, an explicit bounded exception to "one agent = one
 // concern" that exists solely because of this retry-scoping mechanism (see the design
 // doc's "Stay in your lane" principle).
 function fixDeltaDispatchPrompt(fields) {
   const { ctxBlock, note, storyWorktreePath, priorSha, contract } =
     requireFields(fields, ['ctxBlock', 'note', 'storyWorktreePath', 'priorSha'], 'fixDeltaDispatchPrompt')
-  return `${ctxBlock}\n\n${note} You are the fix-delta cross-lane pass: a single, cheap, broad check scoped ONLY to the diff between ${priorSha} and current HEAD in ${storyWorktreePath} — the fix commit(s) that landed since the last audit round, not the whole changeset. Read every one of Studious's audit lane rubrics (security, code quality, docs, architecture, tests, infrastructure, operability, UX, frontend) as a checklist, and flag anything in this small delta that any lane would flag. This is a spot-check over a small, known-risky diff, not a claim to replace any specialist's full depth. Tag each finding with whichever lane's vocabulary it most resembles. If the delta introduces nothing any lane would flag, say so and return no findings.\n\n${requireContract(contract)}`
+  return `${ctxBlock}\n\n${note} You are the fix-delta cross-lane pass: a single, cheap, broad check scoped ONLY to the diff between ${priorSha} and current HEAD in ${storyWorktreePath} — the fix commit(s) that landed since the last audit round, not the whole changeset. Read every one of Studious's audit lane rubrics (security, code quality, docs, architecture, tests, infrastructure, operability, dependencies, prompts, UX, frontend) as a checklist, and flag anything in this small delta that any lane would flag. This is a spot-check over a small, known-risky diff, not a claim to replace any specialist's full depth. Tag each finding with whichever lane's vocabulary it most resembles. If the delta introduces nothing any lane would flag, say so and return no findings.\n\n${requireContract(contract)}`
 }
 
 function finaleFixDeltaDispatchPrompt(fields) {
   const { note, repoRoot: repoRootVal, epicWorktreePath, slug: slugVal, defaultBranch: defaultBranchVal, priorSha, contract } =
     requireFields(fields, ['note', 'repoRoot', 'epicWorktreePath', 'slug', 'defaultBranch', 'priorSha'], 'finaleFixDeltaDispatchPrompt')
-  return `${note} You are the fix-delta cross-lane pass for the epic finale: a single, cheap, broad check scoped ONLY to the diff between ${priorSha} and current HEAD in the epic worktree ${epicWorktreePath} (branch epic/${slugVal}) — the fix commit(s) that landed since the last finale audit round, not the whole epic diff. Repo: ${repoRootVal}; default branch ${defaultBranchVal}. Read every one of Studious's audit lane rubrics (security, code quality, docs, architecture, tests, infrastructure, operability, UX, frontend) as a checklist, and flag anything in this small delta that any lane would flag. This is a spot-check over a small, known-risky diff, not a claim to replace any specialist's full depth. Tag each finding with whichever lane's vocabulary it most resembles. If the delta introduces nothing any lane would flag, say so and return no findings.\n\n${requireContract(contract)}`
+  return `${note} You are the fix-delta cross-lane pass for the epic finale: a single, cheap, broad check scoped ONLY to the diff between ${priorSha} and current HEAD in the epic worktree ${epicWorktreePath} (branch epic/${slugVal}) — the fix commit(s) that landed since the last finale audit round, not the whole epic diff. Repo: ${repoRootVal}; default branch ${defaultBranchVal}. Read every one of Studious's audit lane rubrics (security, code quality, docs, architecture, tests, infrastructure, operability, dependencies, prompts, UX, frontend) as a checklist, and flag anything in this small delta that any lane would flag. This is a spot-check over a small, known-risky diff, not a claim to replace any specialist's full depth. Tag each finding with whichever lane's vocabulary it most resembles. If the delta introduces nothing any lane would flag, say so and return no findings.\n\n${requireContract(contract)}`
 }
 
 // Delta-scoped re-audit (#130), resumed-process fallback: `runGate`'s in-run retry
@@ -176,8 +176,8 @@ function ledgerScopeCheckPrompt(dir) {
 // call — the same shape as ledgerScopeCheckPrompt above. The Workflow script has
 // no filesystem/exec access, so this agent() dispatch is the only way to learn
 // what changed; it also reads reference/audit-routing-signals.md, the same
-// canonical pattern-list file commands/gate-audit.md's own auditor 9 / 6-8 routing
-// rules point at, so there is exactly one list to ever drift from.
+// canonical pattern-list file commands/gate-audit.md's own auditor 9 / 11 / 12 / 6-8
+// routing rules point at, so there is exactly one list to ever drift from.
 //
 // Perf item 8, epic-driver half (2026-07-17): this dispatch already computes the
 // merge-base every round for routing purposes, so it also fetches the changeset
@@ -186,7 +186,7 @@ function ledgerScopeCheckPrompt(dir) {
 // diff" step; at or above it, or on any doubt, "diff" comes back empty, which
 // diffBlock() above already treats as "add no block" (fail open to self-discovery).
 function routingScopeCheckPrompt(dir, base) {
-  return `This is a mechanical fact-check, not a judgment call — apply the listed patterns exactly, never interpret or editorialize. From ${dir}: compute the merge-base with ${base} (git merge-base ${base} HEAD) and run git diff --name-only <that merge-base> HEAD to get the changed-file list. Read reference/audit-routing-signals.md from the plugin root (the Studious plugin root is dirname "$(command -v gate-ledger)")/..) for the canonical IaC/CI/deploy and frontend file-pattern lists. Determine whether any changed file matches the IaC/CI/deploy list (infraMatch) and whether any changed file matches the frontend list (frontendMatch). When a changed file only loosely or ambiguously matches a pattern, resolve that pattern's match to true, never false — the same "when ambiguous, run" bias commands/gate-audit.md's own routing rules use. Also run git diff <that merge-base> HEAD | wc -l for the changed-line count: under 400, also run git diff <that merge-base> HEAD and include its complete raw output verbatim, JSON-escaped, as "diff"; at 400 or above, or on any error, set "diff" to an empty string rather than guessing. Return your findings as EXACTLY one line of compact JSON, nothing else: {"infraMatch":<true|false>,"frontendMatch":<true|false>,"diff":"<the diff text, JSON-escaped, or empty string>"}`
+  return `This is a mechanical fact-check, not a judgment call — apply the listed patterns exactly, never interpret or editorialize. From ${dir}: compute the merge-base with ${base} (git merge-base ${base} HEAD) and run git diff --name-only <that merge-base> HEAD to get the changed-file list. Read reference/audit-routing-signals.md from the plugin root (the Studious plugin root is dirname "$(command -v gate-ledger)")/..) for the canonical IaC/CI/deploy, frontend, dependency, and prompt file-pattern lists. Determine whether any changed file matches the IaC/CI/deploy list (infraMatch), whether any changed file matches the frontend list (frontendMatch), whether any changed file matches the dependency manifest/lockfile list (depMatch), and whether any changed file matches the prompt-surface list (promptMatch — including its repo-state condition: the reference/** pattern applies only when a .claude-plugin/ manifest exists, one existence check). When a changed file only loosely or ambiguously matches a pattern, resolve that pattern's match to true, never false — the same "when ambiguous, run" bias commands/gate-audit.md's own routing rules use. Also run git diff <that merge-base> HEAD | wc -l for the changed-line count: under 400, also run git diff <that merge-base> HEAD and include its complete raw output verbatim, JSON-escaped, as "diff"; at 400 or above, or on any error, set "diff" to an empty string rather than guessing. Return your findings as EXACTLY one line of compact JSON, nothing else: {"infraMatch":<true|false>,"frontendMatch":<true|false>,"depMatch":<true|false>,"promptMatch":<true|false>,"diff":"<the diff text, JSON-escaped, or empty string>"}`
 }
 
 function premortemDispatchPrompt(fields) {
@@ -293,7 +293,7 @@ function resolveReauditScope(priorResult, auditors, retryToken) {
 
 // First-round changeset routing (#138): decides which of `auditors` this round
 // dispatches vs routes out as not applicable to the changeset, from the mechanical
-// routing dispatch's {infraMatch, frontendMatch} flags (resolveRoutingMatchFlags,
+// routing dispatch's {infraMatch, frontendMatch, depMatch, promptMatch} flags (resolveRoutingMatchFlags,
 // added in a later story task) — holds no pattern-matching logic of its own; the
 // patterns themselves live in reference/audit-routing-signals.md, read by that
 // dispatch, so there is structurally one canonical list, never a second
@@ -307,6 +307,8 @@ function resolveReauditScope(priorResult, auditors, retryToken) {
 function resolveAuditRoster(matchFlags, auditors) {
   const infraMatch = !matchFlags || matchFlags.infraMatch !== false
   const frontendMatch = !matchFlags || matchFlags.frontendMatch !== false
+  const depMatch = !matchFlags || matchFlags.depMatch !== false
+  const promptMatch = !matchFlags || matchFlags.promptMatch !== false
   const routedOut = []
   const routed = auditors.filter(a => {
     if (a.endsWith(':infra-auditor') && !infraMatch) {
@@ -315,6 +317,14 @@ function resolveAuditRoster(matchFlags, auditors) {
     }
     if ((a.endsWith(':ux-reviewer') || a.endsWith(':frontend-reviewer')) && !frontendMatch) {
       routedOut.push({ auditor: a, reason: 'no frontend changes detected' })
+      return false
+    }
+    if (a.endsWith(':dependency-auditor') && !depMatch) {
+      routedOut.push({ auditor: a, reason: 'no dependency manifest or lockfile changes detected' })
+      return false
+    }
+    if (a.endsWith(':prompt-auditor') && !promptMatch) {
+      routedOut.push({ auditor: a, reason: 'no prompt-file changes detected' })
       return false
     }
     return true
@@ -401,7 +411,7 @@ function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut) {
   const routedOutSummaryInstruction = routedOutList.length
     ? `In your Summary section, include one plain line per routed-out lane in this exact form: "<lane>: routed out — not applicable to this changeset (<reason>)" — e.g. "${routedOutList[0].auditor.split(':')[1]}: routed out — not applicable to this changeset (${routedOutList[0].reason})". This must be visible in the report a human reads, the same way /gate-audit's own skip notes are, not only reflected in your internal reasoning.\n\n`
     : ''
-  return `You are compiling Studious's audit gate verdict. Read commands/gate-audit.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply ITS compilation rules and severity rubric to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-AUDIT.\n\nA lane marked "carried forward" (delta-scoped re-audit, #130) is NOT the same as UNAUDITED: it was not re-dispatched this round because the prior round's own compiled verdict already proved it had no Confirmed Critical. Treat its one-line carried-forward status as a clean, confirmed-clean fact for that lane — never as a gap that blocks the verdict, and never invent or replay any Important/Track findings for it beyond that line. A lane marked "routed out" (first-round changeset routing, #138) is a THIRD, distinct state from both: it was never dispatched because it does not apply to this changeset at all — treat it as neutral, neither a gap nor a clean claim, and never conflate it with carried forward or AGENT DIED. A block labeled "fix-delta-cross-lane-pass" is a single, cheap, cross-lane spot-check over the small diff since the prior round, not a tenth specialist auditor — map its findings into the report's severity tiers exactly like any other lane's, tagged by whichever lane's vocabulary they resemble, and put them through the same Critical-challenge step as every other finding.\n\nOut of scope for this verdict: gate-audit.md's own text describes a pre-mortem-verification lane (auditor 11) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover this round's routed lane set (${laneNames}); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those routed lanes otherwise support.${routedOutNote}\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\n${routedOutSummaryInstruction}If, and only if, your verdict is FIX AND RE-AUDIT: also determine blockingLanes — the short name(s) (e.g. "security-auditor", not "studious:security-auditor") of every lane among {${laneNames}} whose report contained a Critical finding that survived your challenge as Confirmed and helped drive this verdict. Omit blockingLanes entirely (do not return an empty array) if your verdict is PASS or NEEDS DISCUSSION, or if ANY lane above is marked AGENT DIED this round — a died lane's true status is unknown, so the next round must default to a full re-audit rather than narrow off an unreliable list.\n\nRecord the verdict from inside ${dir} (substitute <TOKEN> with your verdict; only when you computed blockingLanes above, also append --blocking-lanes "<comma-separated lane names>" to this same command — omit that flag entirely otherwise, per the omission rule above): cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"` : ''}\n\nReturn: verdict (PASS | FIX AND RE-AUDIT | NEEDS DISCUSSION), sha, summary, blockingLanes (only when you computed one, per the rule above — omit the field entirely otherwise).`
+  return `You are compiling Studious's audit gate verdict. Read commands/gate-audit.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply ITS compilation rules and severity rubric to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-AUDIT.\n\nA lane marked "carried forward" (delta-scoped re-audit, #130) is NOT the same as UNAUDITED: it was not re-dispatched this round because the prior round's own compiled verdict already proved it had no Confirmed Critical. Treat its one-line carried-forward status as a clean, confirmed-clean fact for that lane — never as a gap that blocks the verdict, and never invent or replay any Important/Track findings for it beyond that line. A lane marked "routed out" (first-round changeset routing, #138) is a THIRD, distinct state from both: it was never dispatched because it does not apply to this changeset at all — treat it as neutral, neither a gap nor a clean claim, and never conflate it with carried forward or AGENT DIED. A block labeled "fix-delta-cross-lane-pass" is a single, cheap, cross-lane spot-check over the small diff since the prior round, not a twelfth specialist auditor — map its findings into the report's severity tiers exactly like any other lane's, tagged by whichever lane's vocabulary they resemble, and put them through the same Critical-challenge step as every other finding.\n\nOut of scope for this verdict: gate-audit.md's own text describes a pre-mortem-verification lane (auditor 13) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover this round's routed lane set (${laneNames}); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those routed lanes otherwise support.${routedOutNote}\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\n${routedOutSummaryInstruction}If, and only if, your verdict is FIX AND RE-AUDIT: also determine blockingLanes — the short name(s) (e.g. "security-auditor", not "studious:security-auditor") of every lane among {${laneNames}} whose report contained a Critical finding that survived your challenge as Confirmed and helped drive this verdict. Omit blockingLanes entirely (do not return an empty array) if your verdict is PASS or NEEDS DISCUSSION, or if ANY lane above is marked AGENT DIED this round — a died lane's true status is unknown, so the next round must default to a full re-audit rather than narrow off an unreliable list.\n\nRecord the verdict from inside ${dir} (substitute <TOKEN> with your verdict; only when you computed blockingLanes above, also append --blocking-lanes "<comma-separated lane names>" to this same command — omit that flag entirely otherwise, per the omission rule above): cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"` : ''}\n\nReturn: verdict (PASS | FIX AND RE-AUDIT | NEEDS DISCUSSION), sha, summary, blockingLanes (only when you computed one, per the rule above — omit the field entirely otherwise).`
 }
 
 function fixerPrompt(story, gate, findings) {
@@ -819,8 +829,8 @@ async function runStory(story) {
 // from" — fails closed to a full round, correct, simply not optimized for that rare
 // case the way the story path (which has a free, persisted attempts counter) is.
 async function finaleAuditRound(note, priorResult) {
-  // One story-slot fans out to 9 auditors + a compiler; the harness queues
-  // beyond its own concurrency limit, so a cap-3 epic peaking above 10 agents
+  // One story-slot fans out to 11 auditors + a compiler; the harness queues
+  // beyond its own concurrency limit, so a cap-3 epic peaking above 12 agents
   // is throttled, not broken.
   const matchFlags = await resolveRoutingMatchFlags(epicWorktree, input.defaultBranch, 'finale:routing-scope', 'Finale')
   const { routed, routedOut } = resolveAuditRoster(matchFlags, AUDITORS)

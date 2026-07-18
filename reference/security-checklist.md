@@ -36,6 +36,14 @@ Scan **git history**, not just HEAD (`git log -p` or a history-aware scanner). A
 - High-entropy strings assigned to `secret`/`token`/`password`/`api_key`; `.env` committed; secrets inlined in client bundles.
 - Also: **dependency confusion** (internal package names resolvable from a public registry) and lockfile-integrity gaps.
 
+## PII signatures
+
+Severity stays exposure-gated per the core rubric: rate on where the data actually lands and who can read it — a third-party sink or shared log store is live exposure; a guarded, internal-only path drops a tier and is marked `Potential`.
+
+- **PII in logs** — user identifiers, emails, phone numbers, or session/API tokens interpolated into `logger.*` / `console.log` / `print` calls; whole request, user, or session objects dumped on error paths; auth headers echoed into access logs.
+- **PII stored without retention** — a new table/column/bucket persisting emails, names, addresses, or free-text user content with no TTL, purge job, or documented retention decision; PII copied into analytics or backup stores that outlive the source record.
+- **PII in error messages to third-party trackers** — exception messages or breadcrumbs carrying emails/IDs/tokens shipped to a tracker (Sentry, Datadog, Bugsnag, Rollbar) without a scrubber — `before_send`/`beforeSend` absent, attribute allow-lists missing, default PII filtering disabled.
+
 ## Per-stack defaults
 
 The framework sets what "missing" means — detect it from the manifest before rating CSRF/header/session findings.

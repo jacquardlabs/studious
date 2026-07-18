@@ -235,8 +235,8 @@ def test_gate_result_schema_gains_an_optional_blocking_lanes_field() -> None:
 # ---------- acceptance criterion 5: no drift between the two dispatch surfaces ----------
 
 
-def test_gate_audit_md_and_epic_driver_agree_on_the_nine_lane_roster() -> None:
-    """The 9-lane roster commands/gate-audit.md's re-audit-scope step names must
+def test_gate_audit_md_and_epic_driver_agree_on_the_ten_lane_roster() -> None:
+    """The 10-lane roster commands/gate-audit.md's re-audit-scope step names must
     match workflows/epic-driver.js's AUDITORS exactly — a future auditor added to
     one and not the other would let the two surfaces silently narrow differently,
     exactly the drift acceptance criterion 5 forbids."""
@@ -248,7 +248,7 @@ def test_gate_audit_md_and_epic_driver_agree_on_the_nine_lane_roster() -> None:
         for lane in auditors_match.group(1).split(",")
         if lane.strip()
     }
-    assert len(driver_lanes) == 9
+    assert len(driver_lanes) == 11
 
     gate_audit_text = GATE_AUDIT_MD.read_text()
     start = gate_audit_text.index("## Resolve re-audit scope")
@@ -272,7 +272,7 @@ def test_both_dispatch_surfaces_cite_the_identical_blocking_lanes_flag() -> None
 # ---------- end-to-end: run the real driver under the documented harness shape ----------
 
 
-def _nine_lane_pass_rules(story: str) -> list[dict]:
+def _full_roster_pass_rules(story: str) -> list[dict]:
     return [
         {"match": rf"^audit:{name}:{story}$", "result": {"findings": "clean"}}
         for name in AUDITOR_SHORT_NAMES
@@ -305,7 +305,7 @@ def test_first_round_is_always_full_never_narrowed_even_with_no_prior_context() 
         "stories": {"a": {"title": "A", "criteria": "c", "gates": ["audit"]}},
     }
     rules = [
-        *_nine_lane_pass_rules("a"),
+        *_full_roster_pass_rules("a"),
         {"match": r"^audit:compile:a$", "result": {"verdict": "PASS", "sha": "s1", "summary": "clean"}},
         {"match": r"^merge:a$", "result": {"merged": True, "sha": "s2", "notes": "clean"}},
         *_FINALE_CLEAN_RULES,
@@ -339,7 +339,7 @@ def test_retry_narrows_to_blocking_lanes_and_fix_delta_pass_only() -> None:
         "blockingLanes": ["security-auditor", "test-auditor"],
     }
     rules = [
-        *_nine_lane_pass_rules(story),
+        *_full_roster_pass_rules(story),
         {"match": rf"^audit:compile:{story}$", "result": blocking_result},
         {"match": rf"^audit:fix-delta:{story}$", "result": {"findings": "fix-delta clean"}},
         {"match": rf"^fix:audit:{story}$", "result": {"status": "done", "sha": "f1", "summary": "attempted", "evidence": "ran tests"}},
@@ -352,7 +352,7 @@ def test_retry_narrows_to_blocking_lanes_and_fix_delta_pass_only() -> None:
     assert labels.count(f"audit:security-auditor:{story}") == total_rounds
     assert labels.count(f"audit:test-auditor:{story}") == total_rounds
     non_blocking = [n for n in AUDITOR_SHORT_NAMES if n not in ("security-auditor", "test-auditor")]
-    assert len(non_blocking) == 7
+    assert len(non_blocking) == 9
     for name in non_blocking:
         assert labels.count(f"audit:{name}:{story}") == 1, (
             f"{name} was re-dispatched on a narrowed retry — only the "
@@ -384,7 +384,7 @@ def test_retry_compile_prompt_carries_forward_non_blocking_lanes_and_never_confu
         "blockingLanes": ["security-auditor"],
     }
     rules = [
-        *_nine_lane_pass_rules(story),
+        *_full_roster_pass_rules(story),
         {"match": rf"^audit:compile:{story}$", "result": blocking_result},
         {"match": rf"^audit:fix-delta:{story}$", "result": {"findings": "fix-delta clean"}},
         {"match": rf"^fix:audit:{story}$", "result": {"status": "done", "sha": "f1", "summary": "attempted", "evidence": "ran tests"}},
@@ -464,7 +464,7 @@ def test_resumed_process_with_no_narrowable_ledger_verdict_runs_full() -> None:
     }
     rules = [
         {"match": rf"^audit:ledger-scope:{story}$", "result": {"findings": json.dumps({"hasNarrowableVerdict": False})}},
-        *_nine_lane_pass_rules(story),
+        *_full_roster_pass_rules(story),
         {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "s1", "summary": "clean"}},
         {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "s2", "notes": "clean"}},
         *_FINALE_CLEAN_RULES,
@@ -522,7 +522,7 @@ def test_ledger_scope_check_death_fails_closed_to_a_full_round_not_a_crash() -> 
     }
     rules = [
         {"match": rf"^audit:ledger-scope:{story}$", "throw": "gate-ledger not found"},
-        *_nine_lane_pass_rules(story),
+        *_full_roster_pass_rules(story),
         {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "s1", "summary": "clean"}},
         {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "s2", "notes": "clean"}},
         *_FINALE_CLEAN_RULES,

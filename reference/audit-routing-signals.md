@@ -1,8 +1,8 @@
 # Audit routing signals — canonical file-pattern lists
 
 Canonical source for the deterministic (non-content-judged) first-round changeset-routing
-rules `commands/gate-audit.md` (auditor 9, and auditors 6–8's per-changeset clause) and
-`workflows/epic-driver.js`'s mechanical routing dispatch both apply. Neither restates these
+rules `commands/gate-audit.md` (auditor 9, auditor 11, auditor 12, and auditors 6–8's
+per-changeset clause) and `workflows/epic-driver.js`'s mechanical routing dispatch both apply. Neither restates these
 lists inline — both point here, so there is exactly one list to ever drift from. Auditor 10
 (operability) is deliberately not covered here: its skip condition is content-judged ("Judge
 from the diff's content… not file paths alone" — see `commands/gate-audit.md`), not a
@@ -50,3 +50,59 @@ a separate check `gate-audit.md`'s own prose still owns directly (see
 `/extract-design-system` Step 1's canonical web-signal list); it is not part of this file
 and not applied by `workflows/epic-driver.js`'s routing dispatch (see the design doc for
 issue #138, Out of scope).
+
+## Dependency signal (auditor 11 / `dependency-auditor`)
+
+A changeset matches this signal if any changed file is:
+
+- JS/TS: `package.json`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `bun.lockb`,
+  `npm-shrinkwrap.json`
+- Python: `pyproject.toml`, `requirements*.txt`, `uv.lock`, `poetry.lock`, `Pipfile`,
+  `Pipfile.lock`, `setup.py`, `setup.cfg`
+- Go: `go.mod`, `go.sum`
+- Rust: `Cargo.toml`, `Cargo.lock`
+- Ruby: `Gemfile`, `Gemfile.lock`, `*.gemspec`
+- PHP: `composer.json`, `composer.lock`
+- JVM: `pom.xml`, `build.gradle`, `build.gradle.kts`, `gradle.lockfile`, `libs.versions.toml`
+- .NET: `*.csproj`, `packages.config`, `packages.lock.json`, `Directory.Packages.props`
+- Elixir: `mix.exs`, `mix.lock`
+- Vendored trees: anything under `vendor/` or `third_party/`
+
+No match on any of these → no dependency signal.
+
+A file-level match deliberately over-fires: a `pyproject.toml` edited only in `[tool.*]`
+tables, or a `package.json` edited only in `scripts`, still routes the lane in — the
+agent's own content-level self-skip (see `agents/dependency-auditor.md`) is the second
+layer, the same way a CI-config-comment-only edit still dispatches `infra-auditor`.
+Routing stays deterministic so the mechanical dispatch can apply it without judgment.
+
+## Prompt signal (auditor 12 / `prompt-auditor`)
+
+A changeset matches this signal if any changed file is:
+
+- Claude Code prompt surfaces: `agents/*.md`, `commands/*.md`, `skills/**` (any
+  `SKILL.md`), `.claude/agents/**`, `.claude/commands/**`, `.claude/skills/**`,
+  `output-styles/**`
+- Model-facing instruction docs: `CLAUDE.md` (at any depth), `AGENTS.md`,
+  `.cursorrules`, `.cursor/rules/**`, `.github/copilot-instructions.md`, `GEMINI.md`
+- Prompt templates and named prompt files: any file or directory whose name contains
+  `prompt` (`prompts/`, `prompt_templates/`, `system_prompt.py`, `*.prompt`,
+  `*.prompt.md`)
+- Plugin reference rubrics consumed by agents at run time: `reference/**` when the repo
+  is a Claude Code plugin (a `.claude-plugin/` manifest exists)
+
+No match on any of these → no prompt signal.
+
+Deliberately excludes bare source files, mirroring the Frontend signal's bare-`.js`/`.ts`
+precedent: a plain `.py`/`.ts`/`.go` file is not a reliable prompt signal even when it
+embeds an LLM call — it's the same extension every non-LLM module uses. `/gate-audit`'s
+own agent-executed check may still route the lane in on judgment when the diff's content
+shows prompt strings at an SDK call site; `workflows/epic-driver.js`'s mechanical routing
+dispatch, which has no such judgment, applies this list literally and does not. The
+`*prompt*`-name pattern keeps the common embedded-prompt convention deterministic without
+that judgment.
+
+A file-level match deliberately over-fires: a CLAUDE.md hunk that only fixes a typo'd
+command example still routes the lane in — the agent's own content-level self-skip (see
+`agents/prompt-auditor.md`) is the second layer, the same two-layer shape the Dependency
+signal uses.

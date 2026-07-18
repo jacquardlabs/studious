@@ -41,7 +41,7 @@ Missing CSRF protection on state-changing operations (relative to the framework'
 Sensitive data in responses, stack traces / debug info in production errors, PII in logs, verbose errors leaking internals.
 
 ### 8. Dependencies
-Run ONLY read-only scanners that do not resolve or install: `npm audit --json`, `pip-audit`, `osv-scanner`, `gitleaks detect`. Flag known CVEs; also consider dependency confusion and lockfile integrity. Never run install/build/test. If no scanner is available, still name the CVEs you know affect an outdated pinned version, marked `Potential` ("a scanner would confirm the transitive set") — "could not verify" means information you lack, never knowledge you withhold.
+dependency-auditor owns the supply chain of the diff — advisories, licenses, maintenance signal, and manifest/lockfile drift in the changeset's dependency changes; escalate a supply-chain smell you stumble on to that lane rather than hunting it, so two lanes never duplicate CVE lookups on the same diff. You keep everything the project's *own* code does with a dependency — unsafe use of a loaded package (deserialization of untrusted input, dynamic `require`/`import` from user input) — and secrets everywhere, including in lockfiles and registry configs (`.npmrc`, `pip.conf` tokens). `gitleaks detect` stays yours; leave `npm audit`/`pip-audit`/`osv-scanner` advisory sweeps to dependency-auditor.
 
 ### Beyond the core eight
 Also check, per `reference/security-checklist.md`: SSRF, insecure deserialization, path traversal, SSTI, XXE, cryptographic failures, mass assignment, file-upload handling, ReDoS, open redirect. Reason about business-logic flaws on state-changing and money-touching paths.

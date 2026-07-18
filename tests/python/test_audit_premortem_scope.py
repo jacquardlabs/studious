@@ -62,8 +62,8 @@ def test_audit_fan_in_scopes_out_premortem_verification() -> None:
     assert re.search(r"pre-?mortem", body, re.IGNORECASE), (
         "auditFanIn's scope carve-out does not mention pre-mortem verification"
     )
-    assert "auditor 11" in body, (
-        "auditFanIn does not name gate-audit.md's auditor-11 pre-mortem lane"
+    assert "auditor 13" in body, (
+        "auditFanIn does not name gate-audit.md's auditor-13 pre-mortem lane"
     )
 
 
