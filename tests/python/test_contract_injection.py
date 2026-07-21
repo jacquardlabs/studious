@@ -86,8 +86,9 @@ OLD_POINTER_MARKER = "Shared contract: before you begin"
 CONTRACT_ARG_SUBSTRING = "contract: CONTRACT"
 # auditRound (auditor dispatch), auditRound (fix-delta pass, #130, narrowed rounds
 # only), finaleAuditRound (auditor dispatch), finaleAuditRound (fix-delta pass, #130),
-# premortem dispatch.
-EXPECTED_CONTRACT_ARG_COUNT = 5
+# premortem dispatch, acceptanceRound (product-review dispatch, perf item 10),
+# acceptanceRound (walkthrough dispatch, perf item 10).
+EXPECTED_CONTRACT_ARG_COUNT = 7
 
 # The driver's pure, explicitly-parameterized prompt-assembly functions (see
 # workflows/epic-driver.js). Extracted verbatim below and executed by a plain Node

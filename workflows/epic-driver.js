@@ -74,8 +74,12 @@ const AUDITORS = [
 // missing, rather than silently reverting to the old pointer sentence or splicing an
 // empty string into an auditor's prompt — a directly-dispatched auditor, security
 // included, never runs unguarded on the fully-automatic epic path.
-// The design-review/acceptance gates need no equivalent: they dispatch a single agent
-// that reads the gate command and runs its workflow, so the command does the injecting.
+// The design-review gate needs no equivalent yet: it dispatches a single agent that
+// reads the gate command and runs its workflow, so the command does the injecting.
+// The acceptance gate's story-level fan-out (perf item 10) stamps CONTRACT directly
+// into its own product-reviewer/walkthrough dispatches below, same as the auditors
+// above — the finale acceptance dispatch is a deliberately separate follow-up, not
+// yet fanned out, and still self-injects the same way design-review does.
 const CONTRACT = input.contract
 
 // Fails closed at the exact dispatch that needed it — called from inside each of the
@@ -193,6 +197,115 @@ function premortemDispatchPrompt(fields) {
   const { repoRoot: repoRootVal, premortemPath, slug: slugVal, epicWorktreePath, contract, diff } =
     requireFields(fields, ['repoRoot', 'premortemPath', 'slug', 'epicWorktreePath'], 'premortemDispatchPrompt')
   return `Verify the epic pre-mortem register at ${repoRootVal}/${premortemPath} against the epic branch epic/${slugVal} (worktree ${epicWorktreePath}), per your role. Report REALIZED / NOT REALIZED / CAN'T VERIFY per item.${diffBlock(diff)}\n\n${requireContract(contract)}`
+}
+
+// Perf item 10 (2026-07-20): fans out the acceptance gate the way auditRound above
+// already fans out audit — the interactive gate-acceptance.md dispatches
+// @agent-product-reviewer for Part 1 and self-performs the Part 3 walkthrough
+// serially inside one agent (case study: issue #142, a single acceptance dispatch
+// that took 117 minutes); this driver dispatches both concurrently instead, using
+// the same registered product-reviewer agentType the interactive command reads
+// from ${CLAUDE_PLUGIN_ROOT}. Part 2 (pre-mortem verification) is deliberately
+// never part of this fan-out: no per-story register exists to verify — the epic's
+// cross-story register is verified once, at the finale (see auditFanIn's own
+// comment above). The finale acceptance dispatch is a separate, deliberately
+// unfanned-out follow-up (still the single self-performing dispatch below): its
+// scope is the epic goal plus every story's acceptance criteria, not one design
+// doc, so it doesn't reuse acceptanceScopeCheckPrompt's design-doc resolution
+// unchanged the way finaleAuditDispatchPrompt reuses auditDispatchPrompt's shape.
+
+// product-reviewer has no Bash (agents/product-reviewer.md: tools: Read, Glob,
+// Grep) and cannot compute the diff or find its own design doc —
+// commands/gate-acceptance.md's Part 0 resolves both before dispatching for
+// exactly this reason (issue #89); this mechanical, judgment-free dispatch does
+// the same resolution so the driver can hand the real agentType the same explicit
+// scope the interactive command does. Same posture as every other mechanical
+// fact-check in this file: pinned to haiku, fails closed to null (no files
+// resolved) on a died or unparseable dispatch — acceptanceRound below treats that
+// as an UNREVIEWED product-reviewer lane, never a silent empty scope handed to an
+// agent with no Bash to fall back on.
+function acceptanceScopeCheckPrompt(dir, base, workSlugVal) {
+  return `This is a mechanical fact-check, not a judgment call — report exactly what the commands show, never interpret or editorialize. From ${dir}: compute the merge-base with ${base} (git merge-base ${base} HEAD) and run git diff --name-only <that merge-base> HEAD to get the changeset file list. Then run gate-ledger work-get --slug "${workSlugVal}" and read its .designDoc field (absent or empty means no design doc is recorded for this story — report that, do not search further). Return your findings as EXACTLY one line of compact JSON, nothing else: {"files":[...],"designDoc":"<path relative to the worktree root, or empty string if none recorded>"}`
+}
+
+function acceptanceProductReviewPrompt(fields) {
+  const { ctxBlock, note, storyWorktreePath, files, designDoc, contract } =
+    requireFields(fields, ['ctxBlock', 'note', 'storyWorktreePath', 'files', 'designDoc', 'contract'], 'acceptanceProductReviewPrompt')
+  const docLine = designDoc
+    ? `Design doc: ${storyWorktreePath}/${designDoc}.`
+    : `No design doc is recorded for this story — review the implementation against PRODUCT.md and the story's acceptance criteria above instead.`
+  return `${ctxBlock}\n\n${note} This is a post-implementation product acceptance review. Review the implementation in ${storyWorktreePath}. Changeset file list, already resolved — you have no Bash, so treat this as your scope; never bounce back for scope or improvise it from Glob/Grep: ${JSON.stringify(files)}. ${docLine} Read PRODUCT.md at ${storyWorktreePath}/PRODUCT.md.\n\n${requireContract(contract)}`
+}
+
+function acceptanceWalkthroughPrompt(fields) {
+  const { ctxBlock, note, storyWorktreePath, base, contract } =
+    requireFields(fields, ['ctxBlock', 'note', 'storyWorktreePath', 'base', 'contract'], 'acceptanceWalkthroughPrompt')
+  return `${ctxBlock}\n\n${note} Walk through every user-facing change in the story worktree ${storyWorktreePath} (diff base ${base}) yourself, using @agent-product-reviewer's "When reviewing an IMPLEMENTATION" checklist (agents/product-reviewer.md from the plugin root) as the lens — a separate reviewer already ran that checklist as a subagent in parallel with you; don't re-derive the questions, just apply them directly as you walk the branch. Write concisely: 1-2 sentences per checklist item, bullets when listing multiple issues, no preamble.\n\nClose with two gate-specific questions the checklist doesn't ask:\n\n- One complaint — what's the single thing a real user would complain about if we shipped this as-is? Be specific. There's always something.\n- Operability — does the branch deliver what the design doc's Operational readiness section committed to (the migration and its rollback, the rollout strategy, the working/failing signals)? If the section said "N/A — no operational surface", confirm that still holds. If there's no design doc for this story, or it predates the Operational readiness section, note that and assess operability from the changeset directly.\n\nReturn your findings as structured text.\n\n${requireContract(contract)}`
+}
+
+function acceptanceFanIn(story, productBlock, walkthroughBlock, base, dir, nextPhase) {
+  return `You are compiling Studious's acceptance gate verdict for this story. Read commands/gate-acceptance.md's Part 4 from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply ITS verdict rubric to the two reports below — you judge compilation only, you do not re-review. A lane marked UNREVIEWED (its agent died, or the mechanical scope-check that resolves its file list and design doc died or returned unparseable output) means you cannot certify a SHIP: the verdict is at best HOLD.\n\nChangeset: ${dir}, diff base ${base}.\n\nProduct review:\n${productBlock}\n\nImplementation walkthrough:\n${walkthroughBlock}\n\nRecord the verdict from inside ${dir}: cd "${dir}" && gate-ledger record --gate acceptance --verdict "<TOKEN>" && gate-ledger work-log --slug "${workSlug(story)}" --step acceptance --outcome "<TOKEN>" --phase "${nextPhase}"\n\nReturn: verdict (SHIP | FIX AND RE-CHECK | HOLD), sha, summary (for non-SHIP verdicts, the findings a fixer needs — specific enough to go directly into the engineering chain as fix tasks).`
+}
+
+// Orchestrates the three-dispatch fan-out above: a mechanical scope-check, then
+// product-review and the walkthrough concurrently (parallel(), not Promise.all, so
+// ONE dying degrades that lane to UNREVIEWED rather than crashing the whole round —
+// the same fault-isolation auditRound's own lane fan-out gets), then a compile step
+// that maps both into a single verdict. The compile dispatch is deliberately NOT
+// wrapped in try/catch, matching auditFanIn's own precedent: a died compiler
+// crashes the story via runStory's outer catch, exactly like a died gate agent
+// always has.
+async function acceptanceRound(story, note, nextPhase) {
+  const dir = storyWorktree(story)
+  const base = `epic/${slug}`
+  let scope = null
+  try {
+    scope = await agent(acceptanceScopeCheckPrompt(dir, base, workSlug(story)),
+      { label: `acceptance:scope:${story}`, phase: `story:${story}`, schema: REPORT, model: 'haiku', effort: 'low' })
+  } catch {
+    scope = null
+  }
+  let parsedScope = null
+  if (scope && scope.findings) {
+    try { parsedScope = JSON.parse(scope.findings) } catch { parsedScope = null }
+  }
+  const files = parsedScope && Array.isArray(parsedScope.files) ? parsedScope.files : null
+  const designDoc = parsedScope ? parsedScope.designDoc || '' : ''
+
+  const [productReport, walkthroughReport] = await parallel([
+    () => files === null
+      ? Promise.resolve(null)
+      : agent(acceptanceProductReviewPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: dir, files, designDoc, contract: CONTRACT }),
+          { agentType: 'studious:product-reviewer', label: `acceptance:product-review:${story}`, phase: `story:${story}`, schema: REPORT }),
+    () => agent(acceptanceWalkthroughPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: dir, base, contract: CONTRACT }),
+        { label: `acceptance:walkthrough:${story}`, phase: `story:${story}`, schema: REPORT }),
+  ])
+
+  const missing = []
+  let productBlock
+  if (productReport) {
+    productBlock = `--- product-reviewer ---\n${productReport.findings}`
+  } else {
+    missing.push('product-reviewer')
+    productBlock = '--- product-reviewer --- (AGENT DIED, or the scope-check died/returned unparseable output — no report; this lane is UNREVIEWED)'
+  }
+  let walkthroughBlock
+  if (walkthroughReport) {
+    walkthroughBlock = `--- walkthrough ---\n${walkthroughReport.findings}`
+  } else {
+    missing.push('walkthrough')
+    walkthroughBlock = '--- walkthrough --- (AGENT DIED — no report; this lane is UNREVIEWED)'
+  }
+
+  let result = await agent(acceptanceFanIn(story, productBlock, walkthroughBlock, base, dir, nextPhase),
+    { label: `acceptance:compile:${story}`, phase: `story:${story}`, schema: GATE_RESULT, model: 'opus' })
+  // Belt and braces, same posture as auditRound's own missing-lane guard: an
+  // UNREVIEWED lane can never compile into an earned SHIP, whatever the compiler
+  // said — never trust prompt compliance alone for a fail-closed guarantee.
+  if (result && missing.length && result.verdict === 'SHIP') {
+    result = { ...result, verdict: 'HOLD', summary: `unreviewed lane(s) — agent died: ${missing.join(', ')}. ${result.summary}` }
+  }
+  return result
 }
 
 const GATE_RESULT = {
@@ -652,7 +765,9 @@ async function runGate(story, gate, nextPhase) {
   }
   let result = gate === 'audit'
     ? await auditRound(story, initialNote, nextPhase, priorAuditResult, preMatchFlags)
-    : await agent(gatePrompt(story, gate, nextPhase), { label: `${gate}:${story}`, phase: `story:${story}`, schema: GATE_RESULT, model: 'opus' })
+    : gate === 'acceptance'
+      ? await acceptanceRound(story, initialNote, nextPhase)
+      : await agent(gatePrompt(story, gate, nextPhase), { label: `${gate}:${story}`, phase: `story:${story}`, schema: GATE_RESULT, model: 'opus' })
   if (!result) return { verdict: 'NEEDS DISCUSSION', summary: 'gate agent died; treating as judgment verdict', sha: '' }
 
   while (result.verdict === GATES[gate].retry && attempts < MAX_FIX_CYCLES) {
@@ -669,7 +784,9 @@ async function runGate(story, gate, nextPhase) {
     // never needs to round-trip through gate-ledger to decide scope.
     result = gate === 'audit'
       ? await auditRound(story, 'Re-audit with fresh eyes — a fix landed since the last audit.', nextPhase, result)
-      : await agent(gatePrompt(story, gate, nextPhase), { label: `${gate}:retry${attempts}:${story}`, phase: `story:${story}`, schema: GATE_RESULT, model: 'opus' })
+      : gate === 'acceptance'
+        ? await acceptanceRound(story, 'Re-check with fresh eyes — a fix landed since the last check.', nextPhase)
+        : await agent(gatePrompt(story, gate, nextPhase), { label: `${gate}:retry${attempts}:${story}`, phase: `story:${story}`, schema: GATE_RESULT, model: 'opus' })
     if (!result) return { verdict: 'NEEDS DISCUSSION', summary: 'gate agent died on re-run', sha: '' }
   }
   return result

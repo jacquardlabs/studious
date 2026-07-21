@@ -294,7 +294,13 @@ def _two_story_epic(story_a_gates: list[str]) -> dict:
 
 
 SIBLING_LANDS_RULES = [
-    {"match": r"^acceptance:b$", "result": {"verdict": "SHIP", "sha": "b1", "summary": "ok"}},
+    # Story b's acceptance gate is the story-level fan-out (perf item 10): a
+    # mechanical scope-check, then product-review + walkthrough, then a compile
+    # step — four dispatches replacing what was one `acceptance:b` label before.
+    {"match": r"^acceptance:scope:b$", "result": {"findings": json.dumps({"files": ["b.py"], "designDoc": ""})}},
+    {"match": r"^acceptance:product-review:b$", "result": {"findings": "looks good"}},
+    {"match": r"^acceptance:walkthrough:b$", "result": {"findings": "looks good"}},
+    {"match": r"^acceptance:compile:b$", "result": {"verdict": "SHIP", "sha": "b1", "summary": "ok"}},
     {"match": r"^merge:b$", "result": {"merged": True, "sha": "b2", "notes": "clean"}},
     # `park:a` is deliberately left unmocked in the three crash scenarios below:
     # it falls through to the mock's "UNMOCKED" rejection, which exercises
@@ -332,7 +338,14 @@ def test_worker_throw_parks_that_story_blocked_and_sibling_lands() -> None:
 def test_gate_throw_parks_that_story_blocked_and_sibling_lands() -> None:
     epic = _two_story_epic(story_a_gates=["acceptance"])
     rules = [
-        {"match": r"^acceptance:a$", "throw": "gate agent exploded"},
+        # The compile step is the one acceptance-round dispatch left unwrapped by
+        # try/catch or parallel()'s per-lane fault isolation (matching auditFanIn's
+        # own precedent) — a throw here is the equivalent of the old single
+        # `acceptance:a` dispatch throwing.
+        {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
+        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:compile:a$", "throw": "gate agent exploded"},
         *SIBLING_LANDS_RULES,
     ]
     out = _run_driver(epic, rules)
@@ -355,7 +368,10 @@ def test_gate_throw_parks_that_story_blocked_and_sibling_lands() -> None:
 def test_merge_throw_parks_that_story_blocked_and_sibling_lands() -> None:
     epic = _two_story_epic(story_a_gates=["acceptance"])
     rules = [
-        {"match": r"^acceptance:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
+        {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
+        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
         {"match": r"^merge:a$", "throw": "merge agent exploded"},
         *SIBLING_LANDS_RULES,
     ]
@@ -389,7 +405,10 @@ def _one_story_epic_ready_for_finale() -> dict:
 
 
 LAND_STORY_A_RULES = [
-    {"match": r"^acceptance:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
+    {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
+    {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+    {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "looks good"}},
+    {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
     {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
 ]
 FINALE_AUDITORS_PASS = [
@@ -456,8 +475,7 @@ def test_needs_you_is_empty_on_an_unremarkable_two_story_run() -> None:
     """
     epic = _two_story_epic(story_a_gates=["acceptance"])
     rules = [
-        {"match": r"^acceptance:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
-        {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
+        *LAND_STORY_A_RULES,
         *SIBLING_LANDS_RULES,
         *FINALE_AUDITORS_PASS,
         {"match": r"^finale:audit-compile$", "result": {"verdict": "PASS", "sha": "f1", "summary": "clean"}},
