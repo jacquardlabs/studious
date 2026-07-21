@@ -57,6 +57,8 @@ Map the product-reviewer's severities — and the premortem-auditor's REALIZED f
 - **FIX AND RE-CHECK** — one or more SHOULD FIX findings, or a BLOCKER fixable with targeted work. List them with severity, then re-run this gate.
 - **HOLD** — a BLOCKER that's a fundamental gap between design intent and implementation, needing rework beyond quick fixes.
 
+If calibrating a finding's severity against precedent — has this exact gap been flagged before, and how was it classified — search cheaply first: `git log --oneline --grep <topic>` against commit messages, not full diffs. Read a matching commit's full diff (`git show`) only if the message/summary doesn't resolve the question; don't default to a full-diff read for a precedent lookup (#142).
+
 For FIX AND RE-CHECK items, be specific enough that they can go directly into the engineering chain as fix tasks.
 
 ## Record the verdict
