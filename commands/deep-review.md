@@ -46,7 +46,7 @@ Before Phase 1, run one Glob/Grep pass against the prompt-surface signature tabl
 
 ### Phase 1 — Run all seven reviews in parallel
 
-Spawn all seven subagents simultaneously with the Task tool (or six, when the prompt-surface check above found none) — do not run them sequentially. Use the `subagent_type` values from the table above. Each agent already knows its full workflow — just tell it the project path and today's date. Run them all with `run_in_background: true`. Once `review-codebase-health` returns, also run the **idiom feedback step** below.
+Spawn all seven subagents simultaneously with the Task tool (or six, when the prompt-surface check above found none) — do not run them sequentially. Use the `subagent_type` values from the table above. Each agent already knows its full workflow — just tell it the project path and today's date. Run them all with `run_in_background: true`. In this same batch, also spawn `code-auditor` for the **idiom feedback step**'s Step 1 below — its repo-wide sweep has no data dependency on `review-codebase-health`'s own report (Step 2 reads code-auditor's finished output, not review-codebase-health's), so it does not need to wait for that reviewer to return; spawning it concurrently removes a whole review's latency from this phase's critical path.
 
 ### Phase 2 — Compile master summary
 
@@ -127,7 +127,7 @@ Propose-only, per Studious's own recommend-only posture (this plugin never write
 
 ### Step 1 — run code-auditor repo-wide
 
-Spawn `code-auditor` with the Task tool (`run_in_background: true`). Override its default diff-scoped behavior explicitly in the prompt: tell it there is no changeset — it should treat the entire repository as in scope and walk every source file its checks and linters would normally cover, not a branch diff. This is a heavier pass than code-auditor's usual gate-time diff scope; expect it to take longer and surface more findings than a typical `/gate-audit` run — that's expected for a periodic repo-wide sweep, not a miscalibration.
+On the full sweep, `code-auditor` was already spawned in Phase 1's batch — use its result here rather than dispatching a second one. On a single-area `codebase`/`health` run (no Phase 1 batch to ride along with), spawn it now with the Task tool (`run_in_background: true`). Either way, its dispatch prompt overrides its default diff-scoped behavior explicitly: tell it there is no changeset — it should treat the entire repository as in scope and walk every source file its checks and linters would normally cover, not a branch diff. This is a heavier pass than code-auditor's usual gate-time diff scope; expect it to take longer and surface more findings than a typical `/gate-audit` run — that's expected for a periodic repo-wide sweep, not a miscalibration.
 
 Save its report verbatim to `docs/studious/health-reviews/YYYY-MM-DD-code-idioms.md` — same directory as the health-review report, a distinct filename so idiom-specific findings don't mix with `review-codebase-health`'s broader report.
 
