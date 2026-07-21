@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v2.24.0 (2026-07-21)
+
+### Features
+
+- Wire jig as a first-class executor across the build seam
+  ([#155](https://github.com/jacquardlabs/studious/pull/155),
+  [`482df21`](https://github.com/jacquardlabs/studious/commit/482df21a7c49efeec9e55a95394c610abc2ad3ca))
+
+
 ## v2.23.1 (2026-07-21)
 
 ### Bug Fixes
