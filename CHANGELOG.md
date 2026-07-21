@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v2.24.1 (2026-07-21)
+
+### Performance Improvements
+
+- Deliver diffs via scratch file instead of re-emitting them through dispatch prompts
+  ([#156](https://github.com/jacquardlabs/studious/pull/156),
+  [`ee0d1aa`](https://github.com/jacquardlabs/studious/commit/ee0d1aa6e8dc1126b7436cb84f5fb863cb073694))
+
+
 ## v2.24.0 (2026-07-21)
 
 ### Features
