@@ -91,23 +91,32 @@ If the epic's status is still `approved`, mark the run started:
 ### 1 · Reconcile — evidence first
 
 Recorded state must match evidence before anything is dispatched; evidence wins, and
-the files get corrected (via `gate-ledger`, never by hand) when they disagree:
+the files get corrected (via `gate-ledger`, never by hand) when they disagree. One
+call resolves all of it:
 
-- Epic and stories: `gate-ledger epic-get --slug "<slug>"`; per-story phase:
-  `gate-ledger work-get --slug "<slug>--<story>"` — every epic-dispatched work file is
-  keyed by this epic-qualified slug, never the bare story slug (see Record keeping).
-- Verdicts: `gate-ledger gate-get --branch "epic/<slug>--<story>"` — a passing verdict
-  counts only at that branch's HEAD sha.
-- Design docs: each recorded `designDoc` path exists in its story worktree.
-- Landed: the story's merge is actually on the epic branch
-  (`git -C .studious/worktrees/<slug>/__epic log --oneline`); a story marked `landed`
-  without its merge isn't landed.
+```bash
+gate-ledger epic-reconcile --slug "<slug>"
+```
+
+The payload's `.epic` is the same epic-and-stories state a bare `epic-get` returns.
+Each `.stories.<story>` entry (keyed by the bare story slug) carries that story's
+work-file state (`.work` — every epic-dispatched work file is recorded under the
+epic-qualified slug `<slug>--<story>`, never the bare story slug, but this payload
+already keys it back to the bare slug for you; `null` if the story hasn't reached
+`design` yet — see Record keeping), its gate verdicts at the story branch's HEAD
+(`.gate`, `null` if no gate has ever run; a passing verdict counts only when
+`.storyBranchHeadSha` matches the verdict's own recorded sha), its story-branch HEAD
+sha (`.storyBranchHeadSha`, empty if the branch doesn't exist yet), whether its
+recorded `designDoc` exists on disk (`.designDocExists`), and whether a story recorded
+`landed` is actually merged onto the epic branch (`.landedButUnmerged`) — a `landed`
+story with `landedButUnmerged: true` isn't landed; flag it and correct the recorded
+status via `gate-ledger` rather than trusting it.
 
 From the reconciled state, derive each unfinished story's **next phase** (first phase
-in its gate profile whose evidence is missing). One special value: if every profiled
-gate has already proceeded at the story branch's HEAD and only the merge onto the epic
-branch is missing, the next phase is the sentinel `merge` — the script jumps straight
-to landing the story instead of re-running its profile.
+in its gate profile whose evidence is missing) exactly as before. One special value: if
+every profiled gate has already proceeded at the story branch's HEAD and only the merge
+onto the epic branch is missing, the next phase is the sentinel `merge` — the script
+jumps straight to landing the story instead of re-running its profile.
 
 ### 2 · Run the driver script (primary mode)
 
@@ -135,7 +144,7 @@ Call the Workflow tool with `scriptPath` set to that file and `args`:
 
 ```json
 {
-  "epic": "<the epic-get JSON, verbatim>",
+  "epic": "<the epic-reconcile payload's .epic field, verbatim — no second epic-get call>",
   "phases": { "<story>": "<next phase>" },
   "repoRoot": "<absolute path of the main working tree>",
   "defaultBranch": "<resolved default branch>",
@@ -256,7 +265,10 @@ there), or after `git worktree remove` on it.
 
 All state goes through `gate-ledger` — `epic-set`, `epic-get`, `epic-list`,
 `epic-story-set` for the epic; `work-set`, `work-log`, `work-get` for stories;
-`gate-get` for verdicts. `work-set`/`work-log`/`work-get` key every epic-dispatched
+`gate-get` for verdicts; `epic-reconcile` composites all three read verbs plus the
+design-doc-existence and landed/merged checks into the one call the Reconcile step
+above makes — it never mutates, so every write above still goes through the same
+verbs it always did. `work-set`/`work-log`/`work-get` key every epic-dispatched
 story's work file to the epic-qualified slug `<slug>--<story>` — mirroring the
 separator `epic/<slug>--<story>` already uses for branch names — never the bare story
 slug alone, so a work file can never collide with an identically-named story in a

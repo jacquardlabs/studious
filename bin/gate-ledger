@@ -671,6 +671,111 @@ cmd_epic_story_set() {
   return "$rc"
 }
 
+cmd_epic_reconcile() { # --slug E -> one JSON payload replacing work-through's ~15-20 sequential reads
+  # Composes cmd_epic_get / cmd_work_get / cmd_gate_get as in-process bash calls
+  # (reuse, not re-derivation of their path/slug logic — see the design doc),
+  # then adds two mechanical, non-judgment checks per story: whether its
+  # recorded designDoc exists on disk, and whether a story recorded `landed`
+  # is actually an ancestor of the epic branch. This verb only aggregates and
+  # computes; it never corrects a mismatch or decides a story's next phase —
+  # that judgment stays in commands/work-through.md's prose.
+  local slug=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --slug) slug="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug required" >&2
+    return 2
+  fi
+  if ! have jq || ! have git; then
+    echo "gate-ledger: epic-reconcile skipped (jq and git required)" >&2
+    return 0
+  fi
+
+  slug=$(slugify "$slug")
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug reduced to nothing after slugify" >&2
+    return 2
+  fi
+
+  local epic_json; epic_json=$(cmd_epic_get --slug "$slug")
+  [ -n "$epic_json" ] || return 0  # no epic recorded — mirror epic-get's own "nothing" behavior
+  if ! printf '%s' "$epic_json" | jq empty 2>/dev/null; then
+    echo "gate-ledger: epic-reconcile: corrupted epic file for '$slug'" >&2
+    return 1
+  fi
+
+  local root; root=$(repo_root) || root="$PWD"
+  local story_slugs; story_slugs=$(printf '%s' "$epic_json" | jq -r '.stories | keys[]')
+
+  local stories_json="{}"
+  local s work_json gate_json story_status design_doc story_sha wt_base design_exists landed_unmerged
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+
+    work_json=$(cmd_work_get --slug "$slug--$s")
+    if [ -n "$work_json" ] && ! printf '%s' "$work_json" | jq empty 2>/dev/null; then
+      echo "gate-ledger: epic-reconcile: corrupted work file for story '$s' (epic '$slug')" >&2
+      return 1
+    fi
+
+    gate_json=$(cmd_gate_get --branch "epic/$slug--$s")
+    if [ -n "$gate_json" ] && ! printf '%s' "$gate_json" | jq empty 2>/dev/null; then
+      echo "gate-ledger: epic-reconcile: corrupted gate ledger for story '$s' (epic '$slug')" >&2
+      return 1
+    fi
+
+    story_status=$(printf '%s' "$epic_json" | jq -r --arg s "$s" '.stories[$s].status // ""')
+    story_sha=$(git rev-parse --short "refs/heads/epic/$slug--$s" 2>/dev/null || echo "")
+
+    # designDocExists: null when no designDoc is recorded, or when the
+    # worktree it would live in is already gone (degrade, don't crash or
+    # false-flag — see the design doc's open question on this).
+    design_doc=""
+    [ -n "$work_json" ] && design_doc=$(printf '%s' "$work_json" | jq -r '.designDoc // ""')
+    if [ -z "$design_doc" ]; then
+      design_exists="null"
+    else
+      if [ "$story_status" = "landed" ]; then
+        wt_base="$root/.studious/worktrees/$slug/__epic"
+      else
+        wt_base="$root/.studious/worktrees/$slug/$s"
+      fi
+      if [ ! -d "$wt_base" ]; then
+        design_exists="null"
+      elif [ -f "$wt_base/$design_doc" ]; then
+        design_exists="true"
+      else
+        design_exists="false"
+      fi
+    fi
+
+    # landedButUnmerged: only meaningful for a story recorded `landed`.
+    # merge-base --is-ancestor collapses "never merged", "branch doesn't
+    # exist", and "not an ancestor yet" to the same non-zero exit — exactly
+    # "not verified merged," which is the fail-closed answer this wants.
+    landed_unmerged="false"
+    if [ "$story_status" = "landed" ] && ! git merge-base --is-ancestor \
+        "refs/heads/epic/$slug--$s" "refs/heads/epic/$slug" 2>/dev/null; then
+      landed_unmerged="true"
+    fi
+
+    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+    stories_json=$(jq -n \
+      --argjson stories "$stories_json" --arg s "$s" \
+      --argjson work "${work_json:-null}" --argjson gate "${gate_json:-null}" \
+      --arg sha "$story_sha" --argjson designExists "$design_exists" --argjson landedUnmerged "$landed_unmerged" \
+      '$stories + {($s): {work: $work, gate: $gate, storyBranchHeadSha: $sha,
+                           designDocExists: $designExists, landedButUnmerged: $landedUnmerged}}')
+  done <<< "$story_slugs"
+
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  jq -n --argjson epic "$epic_json" --argjson stories "$stories_json" '{epic: $epic, stories: $stories}'
+}
+
 cmd_epic_list() {
   if ! have jq; then return 0; fi
   local dir; dir=$(epic_dir)
@@ -802,9 +907,10 @@ case "${1:-}" in
   epic-set)        shift; cmd_epic_set "$@" ;;
   epic-get)        shift; cmd_epic_get "$@" ;;
   epic-story-set)  shift; cmd_epic_story_set "$@" ;;
+  epic-reconcile)  shift; cmd_epic_reconcile "$@" ;;
   epic-list)       shift; cmd_epic_list "$@" ;;
   evidence-append) shift; cmd_evidence_append "$@" ;;
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] | gc}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] | gc}" >&2; exit 2 ;;
 esac
