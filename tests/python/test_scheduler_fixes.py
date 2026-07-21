@@ -40,7 +40,8 @@ DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 # The four gate-ledger verbs whose --slug argument must carry the epic-qualified
 # slug. epic-story-set is deliberately excluded: it takes its own --epic argument
 # and is out of scope for this story (see the design doc's "Out of scope").
-WORK_VERB_SLUG_CALL_COUNT = 6
+# Perf item 10 added acceptanceFanIn's own work-log call site, bumping this from 6.
+WORK_VERB_SLUG_CALL_COUNT = 7
 EPIC_STORY_SET_BARE_SLUG_COUNT = 4
 DISPLAY_WORK_SLUG_COUNT = 6
 

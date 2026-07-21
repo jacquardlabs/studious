@@ -518,7 +518,10 @@ def test_finale_routing_mirrors_the_story_level_mechanism() -> None:
     }
     always_run = ["security-auditor", "code-auditor", "doc-auditor", "architecture-auditor", "test-auditor", "operability-auditor"]
     rules = [
-        {"match": r"^acceptance:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
+        {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
+        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
         {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
         {"match": r"^finale:routing-scope$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False, "depMatch": False, "promptMatch": False})}},
         *[{"match": rf"^finale:{name}$", "result": {"findings": "clean"}} for name in always_run],
