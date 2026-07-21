@@ -6,8 +6,9 @@ explicitly approved epic plan. This file names the interface between the driver 
 worker: what every dispatch brief must hand over, and what a worker must hand back
 before its phase counts as done. It is the build-side analogue of
 `reference/design-doc-contract.md`. The contract, not any particular executor, is
-normative — a worker MAY use Superpowers' plan/execute workflow when it's installed,
-but a worker without it must still satisfy every row below.
+normative — a worker MAY use Superpowers' plan/execute workflow when it's installed, or
+jig's `/plan` + `/build` workflow, but a worker without either must still satisfy every
+row below.
 
 Workers never gate. A worker must not run a gate command, record a verdict, or
 self-assess against a gate's rubric — the gates judge its output blind, from the diff
@@ -38,6 +39,19 @@ branch's and the finale's concern, not the worker's.
 | A summary | What changed and why, at the level the gates read — files touched, behavior added, deliberate deviations from the design doc called out rather than hidden. |
 | Evidence | Commands actually run with their captured output: the test suite passing, the new tests failing before / passing after, lint or build results. "Done" without artifacts is not done — an assertion of success with no output attached is treated as not run. |
 | Tests | New behavior arrives with tests per the project's conventions; bug fixes arrive with regression tests. |
+
+## Status reporting
+
+A worker MAY additionally report its own terminal status for the phase it just
+finished. First resolve which work file is this feature's the same way `/work-on` does
+it: `gate-ledger work-list`, match the current branch's row. Found → `gate-ledger
+work-log --slug "<that-slug>" --step <phase> --outcome "<status>"`, omitting `--phase`
+(the phase judgment stays `/work-on`'s call). No match, or `gate-ledger` not on `PATH`
+at all → skip silently; this is best-effort corroboration, not a required part of the
+contract. This is a first-person status report, not a gate verdict or a self-assessment
+against a rubric, and does not conflict with "workers never... record a verdict" below
+— jig's `/build` reports `BUILT | PAUSED | ESCALATED` this way when `gate-ledger` is
+present.
 
 ## Boundaries
 

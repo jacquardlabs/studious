@@ -51,6 +51,7 @@ The work file's `phase` names the next piece, but verify it against evidence bef
 - **Design doc** — the `designDoc` path in the work file, else discover a candidate the way `/gate-design-review` does. When found, record it: `work-set --design-doc "<path>"`.
 - **Pre-mortem register** — `docs/studious/premortems/<doc-slug>.md`, where `<doc-slug>` is the recorded `designDoc`'s filename without its extension — `/gate-design-review` names the register after the design doc, not the feature slug, so don't reuse this flow's `<slug>` here. A register found at that path with a `Branch:` header matching the current branch is evidence design-review already returned **PROCEED TO PLAN**.
 - **Build progress** — implementation commits since the design-review sha. If the phase says `build` and there are none, the build piece isn't done: say so rather than advancing (re-offering the handoff is fine).
+- **Executor-reported build status** — an executor satisfying `reference/worker-contract.md` may log its own terminal status for the build piece without setting `--phase` itself (phase judgment stays this command's call). Read it with `gate-ledger work-get --slug "<slug>"`'s `.history`, most recent `step: "build"` entry. Trust it only when its `sha` is still HEAD — commits since mean the report is stale and the commit-evidence check above wins instead. If current: `BUILT` corroborates the commit check; `PAUSED` — stay at phase `build`, and say so using the reported status rather than a generic "no commits yet"; `ESCALATED` — regress phase to `design` and surface the reported reason, the same shape as design-review's `RETHINK` → `design` below.
 
 ## Run exactly one piece
 
@@ -76,6 +77,7 @@ Studious doesn't author design docs (`reference/design-doc-contract.md` — auth
 
 - Hand over the decide verdict, the (possibly scoped-down) title, and the contract's required sections; point at `templates/design-doc.md` as the scaffold.
 - If Superpowers is installed, note that its brainstorming and planning workflow produces a doc satisfying the contract; otherwise any hand-written spec does.
+- If jig is installed, note that its `/design` workflow (batch interview → drafted doc → viva sign-off) produces a doc satisfying the contract; otherwise any hand-written spec does.
 - Do not draft the doc yourself. It may well get written right here in the session — that work belongs to the user and their workflow, not to this command.
 
 Log the handoff: `work-log --step design --outcome HANDED-OFF` (phase stays `design`; the evidence check advances the flow once the doc exists).
@@ -97,6 +99,7 @@ Studious steps back here (README: build with your own workflow). Hand over the w
 - The design doc path, the pre-mortem register path (its items are what `/gate-audit` and `/gate-acceptance` verify at the end), the scoped title, and the source issue if any.
 - Once a feature branch exists, record it — the gate ledger is per-branch, so later pieces need it: `work-set --branch "<branch>"`.
 - If Superpowers is installed, its plan/execute workflow picks up from the design doc; otherwise the user builds however they like.
+- If jig is installed, its `/plan` + `/build` workflow picks up from the design doc and reports `BUILT | PAUSED | ESCALATED` back into this work file (see "Find the next piece — evidence first" below) — the next `/work-on` invocation resumes from that without asking.
 
 Log `work-log --step build --outcome HANDED-OFF`. Phase stays `build`; the evidence check advances it when implementation commits exist.
 
