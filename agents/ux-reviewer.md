@@ -75,7 +75,7 @@ This agent's headline limitation: this is a static source review with no rendere
 
 ## What you do NOT review
 
-- Accessibility (WCAG, ARIA, keyboard nav) — the web-design-guidelines accessibility check (auditor 7 in `/gate-audit`) handles this
+- Accessibility (WCAG, ARIA, keyboard nav) — the web-design-guidelines accessibility check (auditor 8 in `/gate-audit`) handles this
 - Frontend code quality (component structure, state management) — frontend-reviewer handles this
 - Security — security-auditor handles this
 - Backend logic — out of scope entirely

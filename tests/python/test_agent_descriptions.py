@@ -32,6 +32,7 @@ CHANGESET_AGENTS = (
     "security-auditor",
     "frontend-reviewer",
     "ux-reviewer",
+    "accessibility-auditor",
     "infra-auditor",
     "test-auditor",
     "operability-auditor",

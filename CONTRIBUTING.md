@@ -73,9 +73,9 @@ spent reading and reasoning).
   `security-auditor`, `architecture-auditor`, `infra-auditor`, `operability-auditor`,
   `product-reviewer`, `review-architecture`, `review-product-health`, `review-security-health`.
 - **`medium`** — judgment that is rubric-driven rather than open-ended, and periodic reviews:
-  `code-auditor`, `test-auditor`, `frontend-reviewer`, `ux-reviewer`, `premortem-auditor`,
-  `dependency-auditor`, `prompt-auditor`, `review-codebase-health`, `review-interface-health`,
-  `review-prompt-health`, `backlog-priorities`.
+  `code-auditor`, `test-auditor`, `frontend-reviewer`, `ux-reviewer`, `accessibility-auditor`,
+  `premortem-auditor`, `dependency-auditor`, `prompt-auditor`, `review-codebase-health`,
+  `review-interface-health`, `review-prompt-health`, `backlog-priorities`.
 - **`low`** — mechanical, rule-based, or inventory work: `doc-auditor`, `review-readme`,
   `backlog-hygiene`.
 
@@ -86,7 +86,10 @@ changed dependency against a fixed rubric (advisory lookup, license, maintenance
 rather than sweeping an open surface. `prompt-auditor` sits at `medium` by the same
 argument again: it enumerates per changed prompt file against a fixed seven-dimension
 rubric, and the lane fires often in LLM-native repos, so over-provisioning it would tax
-most diffs.
+most diffs. `accessibility-auditor` sits at `medium` by the same argument once more: it
+walks each modified frontend file against the vendored checklist's four fixed sections
+(keyboard access, contrast, focus management, semantic HTML) rather than an open-ended
+sweep.
 
 ### `model`
 
@@ -96,7 +99,8 @@ ships worse decisions.
 - **`opus`** — security, architecture, operational, instruction-semantics, and product/UX
   judgment: `security-auditor`, `infra-auditor`, `operability-auditor`, `dependency-auditor`,
   `prompt-auditor`, `architecture-auditor`, `premortem-auditor`, `product-reviewer`,
-  `ux-reviewer`, `review-architecture`, `review-product-health`, `review-security-health`.
+  `ux-reviewer`, `accessibility-auditor`, `review-architecture`, `review-product-health`,
+  `review-security-health`.
 - **`sonnet`** — recommend-only synthesis and ranking judgment, no merge gate behind it:
   `backlog-priorities`, `review-codebase-health`, `review-interface-health`,
   `review-prompt-health`.
