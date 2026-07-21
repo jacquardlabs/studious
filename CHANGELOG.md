@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v2.23.1 (2026-07-21)
+
+### Bug Fixes
+
+- Bound gate-acceptance's precedent-diff search to commit messages first
+  ([#154](https://github.com/jacquardlabs/studious/pull/154),
+  [`0f1f91e`](https://github.com/jacquardlabs/studious/commit/0f1f91e7d5512670ab95c9d3b99553da1e8afada))
+
+### Performance Improvements
+
+- Fan out story-level acceptance gate, bound precedent search
+  ([#154](https://github.com/jacquardlabs/studious/pull/154),
+  [`0f1f91e`](https://github.com/jacquardlabs/studious/commit/0f1f91e7d5512670ab95c9d3b99553da1e8afada))
+
+- Fan out the story-level acceptance gate (item 10)
+  ([#154](https://github.com/jacquardlabs/studious/pull/154),
+  [`0f1f91e`](https://github.com/jacquardlabs/studious/commit/0f1f91e7d5512670ab95c9d3b99553da1e8afada))
+
+
 ## v2.23.0 (2026-07-18)
 
 ### Documentation
