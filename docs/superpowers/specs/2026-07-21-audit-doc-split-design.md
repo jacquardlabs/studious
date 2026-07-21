@@ -45,6 +45,20 @@ One relocation, two pointer edits, one vocabulary unification. No new mechanism,
 behavior change, no verdict-token change — per the epic's own boundary: "without changing
 any gate's judgment, only its cost or visibility."
 
+**Principles this leans on.** CLAUDE.md's architecture section states the rule this story
+applies one file down from where it's usually applied: "`reference/` — curated rubrics
+agents read at audit time... Agents consult these instead of restating them inline — keep
+depth in `reference/`, keep agents pointing at it." Today only the *auditors'* rubrics
+(`reference/security-checklist.md` and siblings) follow that rule; the *compiler's* own
+rubric has been sitting inline in `gate-audit.md` instead. `reference/severity-rubric.md`
+and `reference/audit-routing-signals.md` already established the pattern of one canonical
+file two call sites cite instead of restate — this story is the same move for the
+compile-time half. Folding "routed out" into the shared vocabulary also touches "Code owns
+bookkeeping; prompts own judgment": the routing *decision* stays exactly where it already
+lives (JS in `epic-driver.js` for the epic path, prose in `gate-audit.md`'s Launch section
+for the standalone path) — this story only gives the *prompt* layer, which reports on that
+decision at compile time, one consistent vocabulary to report it in.
+
 ### 1. New file: `reference/audit-compilation.md`
 
 Move `gate-audit.md`'s entire `## After all auditors return` section (lines 112–159)
@@ -141,10 +155,12 @@ point.
    `gate-audit.md` to find the ~48 lines of compile rules it applies — 28,049 bytes read to
    use 7,823 of them.
 3. **After this story:** the same dispatch reads `reference/audit-compilation.md` directly —
-   7,823 bytes, the exact rules it needs, nothing else. The compiled report it produces is
-   unchanged in shape and content: same Summary/Critical/Important/Track structure, same
-   three lane-state labels (now including "routed out" by name where it was previously
-   implicit), same severity mapping, same verdict tokens.
+   close to the 7,823 bytes of the extracted section (modestly larger once the two-caller
+   header and the routed-out fold-in are added), the rules it needs and nothing from the
+   other 189-line file's dispatch mechanics. The compiled report it produces is unchanged in
+   shape and content: same Summary/Critical/Important/Track structure, same three lane-state
+   labels (now including "routed out" by name where it was previously implicit), same
+   severity mapping, same verdict tokens.
 4. This recurs on every `FIX AND RE-AUDIT` retry round for the story (up to
    `MAX_FIX_CYCLES`), and once more at the epic finale via `finaleAuditRound`, compounding the
    savings across the whole epic run.
@@ -209,15 +225,26 @@ No user-facing or production-telemetry surface — this is an internal prompt-co
 documentation-hygiene change; there is no runtime dashboard to read it from. Per the
 design-doc contract, the observable signal is structural and directly checkable in the repo:
 
-- **Bytes the compile dispatch is pointed at:** 7,823 bytes / 48 lines
-  (`reference/audit-compilation.md`) vs. 28,049 bytes / 189 lines (whole `gate-audit.md`)
-  today — a ~72% reduction in reference material `auditFanIn`'s dispatched compiler reads, on
+- **Bytes the compile dispatch is pointed at:** today, the extracted section alone is 7,823
+  bytes / 48 lines against 28,049 bytes / 189 lines for the whole `gate-audit.md` — a ~72%
+  reduction floor. `reference/audit-compilation.md` will land somewhat above 7,823 bytes (the
+  two-caller header and the routed-out fold-in add a little), so treat ~65–70% as the honest
+  post-split reduction in reference material `auditFanIn`'s dispatched compiler reads, on
   every story audit round (including retries) and every epic finale round. Verifiable with
   `wc -l`/`wc -c` on both files post-split, and by diffing `auditFanIn`'s opening sentence
   before/after.
-- **Zero duplicate copies:** a grep for a distinctive string from the moved section (e.g. "map
-  each one's labels into the report's three tiers") resolves to exactly one file,
-  `reference/audit-compilation.md` — this is acceptance criterion 3's own static check.
+- **Zero duplicate copies, held durably, not just at merge time:** acceptance criterion 3 is a
+  static check, but `scripts/check_references.py` only scans `commands/`, `agents/`,
+  `skills/`, `reference/` — it never reads `workflows/epic-driver.js`, so a passing AC4 does
+  not by itself prove AC3 stays true after this story merges. Build should add a small,
+  committed regression test (this repo's existing pattern for exactly this drift risk:
+  `test_gate_audit_md_and_epic_driver_agree_on_the_ten_lane_roster`,
+  `test_both_dispatch_surfaces_cite_the_identical_blocking_lanes_flag`) asserting
+  `commands/gate-audit.md` and `workflows/epic-driver.js` both cite the literal string
+  `reference/audit-compilation.md` and that no second copy of a distinctive line from the
+  moved section (e.g. "map each one's labels into the report's three tiers") exists anywhere
+  in the repo — so a future edit that reintroduces a copy fails CI, not just this story's
+  one-time acceptance check.
 - **`scripts/check_references.py` continues to pass** (acceptance criterion 4) — the
   mechanical proof both pointers resolve to a real file.
 
