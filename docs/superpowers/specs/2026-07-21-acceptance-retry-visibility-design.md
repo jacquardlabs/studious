@@ -160,17 +160,38 @@ report — visible without ever opening a transcript directory.
 
 ### The change: one step in `commands/work-through.md`'s reporting
 
-For every story this run's report names (`landedThisRun` or a `needsYou` entry),
-re-read that story's `gate-ledger work-get --slug "<slug>--<story>"` (the reporting
-step already has the slug; the Reconcile step already made one such call per story
-before the driver ran, so this is one more read of the same kind, only for stories the
-report is about to render, not every story every invocation) and render each phase's
-elapsed time next to its verdict in the trail:
+Durations are reconstructed from `work-get`'s own `history` array, not from the
+driver's in-memory `trail` string — deliberately. `epic-driver.js`'s `trail` (built by
+`runStory`'s `trail.push(...)` calls) collapses a gate's whole `MAX_FIX_CYCLES` loop
+into one entry: `runGate` returns only the *terminal* verdict, so a story that took a
+`FIX AND RE-CHECK` round and then a `SHIP` round shows one `acceptance: SHIP` in
+`trail`, not two. `work-log`'s `history`, by contrast, keeps every recorded round as
+its own entry — which is exactly the granularity this mitigation needs, and it exists
+identically whether the story landed or parked (a park is a real gate verdict too;
+`park()` never suppresses the work-log entry the gate agent already wrote before
+parking). So: for every story this run's report names (`landedThisRun` **or** a
+`needsYou` entry — a parked story has just as complete a `history` as a landed one),
+re-read `gate-ledger work-get --slug "<slug>--<story>"` (the reporting step already
+has the slug; Reconcile already made one such call per story before the driver ran,
+so this is one more read of the same kind, only for stories the report is about to
+render) and render every phase-transition entry in `history` with its elapsed time,
+in place of (not appended to) the driver's own collapsed `trail`/`reason` text:
 
 ```
 Landed this run: acceptance-retry-visibility — design-review: PROCEED TO PLAN (13m) →
   build: DONE (15m) → audit: PASS (8m) → acceptance: SHIP (5m)
+
+Needs you:
+  - plan-skill: acceptance returned FIX AND RE-CHECK — <fixer's one clause>
+    (design-review: PROCEED TO PLAN (4m) → build: DONE (22m) → audit: PASS (6m) →
+     acceptance: FIX AND RE-CHECK (117m))
 ```
+
+The second example is issue #142's own incident, reconstructed: `history` retains
+*both* the anomalous 117-minute `FIX AND RE-CHECK` round and (once the fix cycle
+completes) a following `acceptance: SHIP (Xm)` entry — strictly more informative than
+annotating the driver's collapsed trail could ever be, since the collapsed form would
+have shown only the final `SHIP` and lost the 117-minute round entirely.
 
 Nothing about *which* durations are "long" is computed or asserted anywhere — every
 phase gets a number, always, healthy or not. The report never uses the words
@@ -201,21 +222,26 @@ audit rounds as extending it.
 
 1. The primary persona runs `/work-through` on a multi-story epic. A story's
    acceptance gate silently stalls once and is retried at the harness layer, then
-   succeeds — exactly issue #142's incident, reproduced conceptually.
-2. **Before this story:** the report reads `acceptance: FIX AND RE-CHECK` (or `SHIP`)
-   with no hint that the dispatch took 117 minutes instead of the story's own 5-8
-   minute pattern for every other phase. Finding out requires knowing raw transcript
-   directories exist and reading their mtimes by hand — exactly what the issue's "How
-   I found this" section describes doing.
-3. **After this story:** the same report reads `acceptance: FIX AND RE-CHECK (117m)`
-   sitting next to `audit: PASS (8m)` in the same trail. The persona notices the
-   outlier immediately, in the surface they already read every invocation, and can
-   decide whether to investigate further (raw transcripts, a re-run, nothing at all)
-   — the decision stays theirs; the report only makes the anomaly visible.
+   returns a real `FIX AND RE-CHECK` verdict that exhausts `MAX_FIX_CYCLES` and parks
+   — exactly issue #142's incident, reproduced conceptually (its own recorded verdict
+   was `FIX AND RE-CHECK`, not a landing `SHIP`).
+2. **Before this story:** the "Needs you" line reads `plan-skill: acceptance returned
+   FIX AND RE-CHECK — <clause>`, with no hint that the dispatch behind that verdict
+   took 117 minutes instead of the story's own 5-8 minute pattern for every other
+   phase. Finding out requires knowing raw transcript directories exist and reading
+   their mtimes by hand — exactly what the issue's "How I found this" section
+   describes doing.
+3. **After this story:** the same "Needs you" entry carries the story's reconstructed
+   phase history alongside it, and `acceptance: FIX AND RE-CHECK (117m)` sits right
+   next to `audit: PASS (8m)` from the same story. The persona notices the outlier
+   immediately, in the surface they already read every invocation, and can decide
+   whether to investigate further (raw transcripts, a re-run, nothing at all) — the
+   decision stays theirs; the report only makes the anomaly visible.
 4. **Must not regress:** a story whose every phase runs at a normal pace shows normal
-   numbers and nothing else — no flag, no warning, no different report shape. The
-   verdict trail's tokens are byte-identical to today; only a duration is appended
-   after each one.
+   numbers and nothing else — no flag, no warning, no different report shape. Every
+   verdict token rendered is byte-identical to what `work-log` already recorded today
+   — this reconstructs and displays that history, it never re-labels or reinterprets
+   an entry's `outcome`.
 
 ## Out of scope
 
@@ -260,11 +286,13 @@ audit rounds as extending it.
   single `await agent(...)` — there is no timestamp-able seam at the point the
   supersede happened, so this approach has no more resolving power for *this specific
   failure mode* than the free at-delta computation below, at real added cost. (2) It
-  touches `workflows/epic-driver.js`'s gate-dispatch/retry loop, which the epic's own
-  plan-time risk register already names as a merge-conflict hotspot with
-  `audit-doc-split` (#159, which edits `auditFanIn`'s prompt string in the same file)
-  — real, avoidable coordination cost for equivalent detection power. (3) It only
-  instruments the primary Workflow-script path; the fallback prose driver would need
+  touches `workflows/epic-driver.js`'s gate-dispatch/retry loop — the same file
+  `audit-doc-split` (issue #159, a sibling story in this same epic) edits to point
+  `auditFanIn`'s compile-prompt at a relocated reference file. Given (1) already shows
+  this alternative buys no extra detection power over the free at-delta computation,
+  adding a second story's edit to that same file for it is avoidable coordination cost
+  with nothing to show for it. (3) It only instruments the primary
+  Workflow-script path; the fallback prose driver would need
   a separate, parallel change to stay symmetric, whereas the at-delta approach reads
   data both modes already write identically.
 - **A new `gate-ledger` read verb** (e.g. `work-durations --slug <slug>`) computing
@@ -272,11 +300,14 @@ audit rounds as extending it.
   `commands/work-through.md`'s prose. More aligned with "code owns bookkeeping" in
   spirit, and it would give `tests/test_gate_ledger.sh` a natural home for regression
   coverage. Deferred, not rejected outright — `bin/gate-ledger`'s own dispatch `case`
-  table is a second file the epic's plan-time risk register flags as a hotspot
-  (`epic-reconcile-verb` and `evidence-list-dedupe` both add verb surface there this
-  same epic); a prose-level `jq` computation gets the same user-visible result without
-  adding a third edit to that file this cycle. Left to Open questions rather than
-  decided unilaterally here.
+  table is a second shared-file surface: `gate-ledger epic-get --slug
+  perf-audit-followups` (run directly, live, against this epic) shows two sibling
+  stories in the same epic, `epic-reconcile-verb` (issue #160) and
+  `evidence-list-dedupe` (issue #162), whose own titles ("Add a composite gate-ledger
+  epic-reconcile verb...", "Add a collapsing mode to gate-ledger evidence-list...")
+  both name new verb surface in that same file. A third addition there this cycle is
+  avoidable; a prose-level `jq` computation gets the same user-visible result without
+  it. Left to Open questions rather than decided unilaterally here.
 - **Instructing each dispatched gate agent to log an explicit `DISPATCHED` work-log
   entry as its own first action**, so a silently-retried gate would show two
   `DISPATCHED` entries before one verdict instead of one. Rejected: it depends on an
@@ -286,14 +317,13 @@ audit rounds as extending it.
   process (in which case it never would). It also adds a new write path to every gate
   dispatch's prompt text for a signal no more reliable than the zero-cost at-delta
   read below.
-- **Document the gap and ship no mitigation at all.** The epic's own plan-time risk
-  register explicitly sanctions this as an accepted outcome ("ship a
-  heuristic/staleness mitigation... or a documented limitation instead of the
-  originally-imagined direct fix"). Rejected in favor of shipping the at-delta
-  reporting addition specifically because it costs nothing beyond one prose edit and
-  one extra read per reported story — there's no reason to leave the reporter's own
-  manual diagnostic technique undocumented and unsurfaced when the data it needs is
-  already sitting in every `work-get` call.
+- **Document the gap and ship no mitigation at all.** Acceptance criterion 3 itself
+  treats "the design doc documents that concretely" as sufficient on its own — a
+  mitigation is invited, not mandated. Rejected anyway, in favor of shipping the
+  at-delta reporting addition, specifically because it costs nothing beyond one prose
+  edit and one extra read per reported story: there's no reason to leave the
+  reporter's own manual diagnostic technique undocumented and unsurfaced when the data
+  it needs is already sitting in every `work-get` call.
 
 ## Success metrics
 
@@ -339,8 +369,8 @@ signal is structural, per the design-doc contract's allowance for that shape her
 ## Open questions
 
 - **Where the delta arithmetic lives** — prose-level `jq` inside
-  `commands/work-through.md`'s reporting step (this doc's working default: lowest
-  conflict risk against the epic's own flagged `bin/gate-ledger` hotspot) versus a new
+  `commands/work-through.md`'s reporting step (this doc's working default: avoids a
+  third edit to `bin/gate-ledger`'s shared dispatch table this cycle) versus a new
   `gate-ledger` read verb (more aligned with "code owns bookkeeping," testable in
   `tests/test_gate_ledger.sh`, but a third edit to a file two sibling stories already
   touch this cycle). Not decided here — design-review's call, informed by whether
@@ -350,11 +380,12 @@ signal is structural, per the design-doc contract's allowance for that shape her
 - **Whether the same technique should extend to `finaleGate`'s epic-level phases** in
   this story or a follow-up — mechanically identical, deliberately deferred to keep
   this diff scoped to what issue #142 actually reported (a story-level gate).
-- **Exact rendering** — inline in the arrow-chained trail (`design-review: PROCEED TO
+- **Exact rendering** — an arrow-chained reconstruction (`design-review: PROCEED TO
   PLAN (13m) → ...`, this doc's working assumption) versus a separate per-story timing
-  line or table. Cosmetic, left to build, as long as every phase's duration is shown
-  unconditionally (never selectively, which would reintroduce a judgment call this
-  design deliberately avoids).
+  line or table, and whether it sits inline with or below each `landedThisRun`/
+  `needsYou` entry. Cosmetic, left to build, as long as every phase's duration is
+  shown unconditionally (never selectively, which would reintroduce a judgment call
+  this design deliberately avoids).
 - **Whether `reference/gate-vocabulary.md` or `bin/gate-ledger`'s usage string should
   gain a one-line note that `RETRY` is deliberately not a token this layer ever
   writes**, so a future reader who remembers issue #142's suggested fix doesn't wonder
