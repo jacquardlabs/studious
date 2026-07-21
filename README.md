@@ -169,6 +169,7 @@ Every command Studious ships, for quick reference:
 ## Works well with
 
 - [Superpowers](https://github.com/obra/superpowers): an optional executor for the build step — brainstorming, planning, TDD, debugging. Studious owns the gates and the worker contract; any executor that satisfies the contract works, Superpowers included.
+- [jig](https://github.com/jacquardlabs/jig): a purpose-built executor for the build step — `/design`, `/plan`, `/build`, `/finish` satisfy the worker contract directly and report back into the same flow state.
 - GitHub Issues: `/backlog-priorities` and `/backlog-hygiene` work with your tracker via the `gh` CLI.
 
 ## Contributing
