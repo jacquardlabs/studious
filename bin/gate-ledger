@@ -771,11 +771,12 @@ cmd_evidence_append() { # append-only: one jq -nc object per call, >> the branch
                     configuration: [{name: $command}]}}' >> "$file"
 }
 
-cmd_evidence_list() { # optional --branch B: print that branch's evidence .jsonl verbatim, nothing if absent
-  local branch=""
+cmd_evidence_list() { # optional --branch B: print that branch's evidence .jsonl verbatim; optional --dedupe: collapse to one record per distinct command (most recent wins), nothing if absent
+  local branch="" dedupe=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --branch) branch="$2"; shift 2 ;;
+      --dedupe) dedupe=1; shift ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
@@ -784,11 +785,36 @@ cmd_evidence_list() { # optional --branch B: print that branch's evidence .jsonl
   # itself — one place this store's location lives, reused by both the
   # writer and this reader. Mirrors cmd_gate_get's shape: resolve one
   # branch's file, print it verbatim, nothing if it doesn't exist yet.
-  # Never requires jq: reading and emitting the raw file needs no JSON parsing.
   local slug; slug=$(branch_slug "$branch")
   local file; file="$(evidence_dir)/$slug.jsonl"
   [ -f "$file" ] || return 0
-  cat "$file"
+
+  if [ -z "$dedupe" ]; then
+    # Never requires jq: reading and emitting the raw file needs no JSON parsing.
+    cat "$file"
+    return 0
+  fi
+
+  # --dedupe: keep exactly one record per distinct `command` value — the one
+  # appended last — printed in the survivors' original (chronological)
+  # relative order. Index-based (to_entries/reduce over a command->last-index
+  # map), deliberately not unique_by (which sorts by the grouping key and
+  # would reorder output alphabetically by command) or whole-object equality
+  # (a latent bug for two records byte-identical in every field, including
+  # capturedAt — both would match and both would survive). See
+  # docs/superpowers/specs/2026-07-21-evidence-list-dedupe-design.md.
+  # Fails closed: no jq, or a malformed line, means no stdout and a non-zero
+  # exit — every existing caller already treats an evidence-list error
+  # identically to empty output.
+  if ! have jq; then
+    echo "gate-ledger: evidence-list --dedupe requires jq" >&2
+    return 1
+  fi
+  jq -c -s 'to_entries as $es
+    | (reduce $es[] as $e ({}; .[$e.value.command] = $e.key)) as $last_idx
+    | $es[] | select(.key == $last_idx[.value.command]) | .value' \
+    "$file" \
+    || { echo "gate-ledger: evidence-list --dedupe failed to parse $file" >&2; return 1; }
 }
 
 case "${1:-}" in
@@ -806,5 +832,5 @@ case "${1:-}" in
   evidence-append) shift; cmd_evidence_append "$@" ;;
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] | gc}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc}" >&2; exit 2 ;;
 esac
