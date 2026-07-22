@@ -8,7 +8,7 @@ The auditors don't share a severity vocabulary — map each one's labels into th
 
 ## Three lane states
 
-Every one of this round's auditor lanes lands in exactly one of three states before compiling. Report each one under its own visibly distinct label — never conflate any two of them, and never infer one from another's absence.
+Every one of this round's auditor lanes lands in exactly one of three states before compiling. Classify each one under its own visibly distinct label — never conflate any two of them, and never infer one from another's absence. That label disambiguates which state a lane is in; whether a state also earns its own line in the compiled Summary is answered per state below, not by this rule.
 
 ### Carried forward
 
@@ -21,6 +21,8 @@ A lane that *was* dispatched this round but returned no report is `AGENT DIED �
 ### Routed out
 
 A lane that first-round changeset routing (#138) determined does not apply to this changeset at all was never dispatched, and is a third, distinct state from both of the above: **routed out**. Treat it as neutral — neither a gap that blocks the verdict nor a clean claim like carried-forward's. Never conflate a routed-out lane with carried-forward (it never ran even once, on any round, so there is no prior clean verdict to carry forward) or with AGENT DIED (its absence is a deliberate routing decision, not a dispatch failure) — do not raise its absence as a finding, and do not let it depress the verdict below what the dispatched/carried-forward lanes actually support.
+
+Whether a routed-out lane also gets its own line in the compiled Summary is decided by the caller's dispatch prompt, not by this file — emit one only when that prompt says to. The dispatched compiler `workflows/epic-driver.js`'s `auditFanIn()` invokes has no launch-time skip-note channel back to the human — the standalone session's per-auditor skip note (below) never reaches it — so `auditFanIn()` separately injects an explicit instruction telling that compiler to add the Summary line itself. `/gate-audit`'s own session needs no such instruction: it already surfaces each routing decision to the user at launch time, via the skip note each routed auditor's own entry states in `commands/gate-audit.md` (e.g. "No infrastructure changes detected — infrastructure audit skipped."). This file gives the standalone session no additional instruction to also compile a routed-out Summary line, so it doesn't — that visibility is already covered by the launch-time note, unchanged from before this lane state existed.
 
 ## Challenge every Critical before it can decide the verdict
 
