@@ -145,13 +145,31 @@ this section, not silently leave it stale, once that run produces a real answer.
 
 ## Reading the log: `evidence-list`
 
-`bin/gate-ledger evidence-list [--branch B]` is the one read verb for this store,
-added by `handback-skill` (`commands/handback.md`). It resolves the branch's
+`bin/gate-ledger evidence-list [--branch B] [--dedupe]` is the one read verb for this
+store, added by `handback-skill` (`commands/handback.md`). It resolves the branch's
 `.jsonl` path through the same `evidence_dir()`/`branch_slug()` functions
 `evidence-append` already writes through and prints the file verbatim — nothing if
 it's absent — so no caller re-derives repo-root/slug anchoring on the read side
 either. `gates-cite-evidence`, when it lands, reuses this verb rather than adding a
 second reader; see "Consumers that must stay in sync" below.
+
+**`--dedupe`** (added by story `evidence-list-dedupe`, issue #162) collapses the
+printed output to exactly one record per distinct `command` value — the one that was
+appended *last* — in the survivors' original chronological relative order. No record's
+shape is changed by this flag; it only changes which records are selected. This exists
+because a long-running branch's log grows one line per verification command per fix
+cycle, most of which are superseded by a later re-run of the same command — a
+test-auditor/premortem-auditor dispatch citing a stale, superseded record over the
+current one would be a mistake either way, and `--dedupe` removes that exposure without
+changing what a gate is allowed to conclude. **Requires `jq`** (unlike the plain,
+dependency-free read) and **fails closed**: no `jq`, or a malformed line in the file,
+means no stdout and a non-zero exit — never a plausible-looking partial result. Every
+existing caller of `evidence-list` already documents "treat an error identically to
+empty output, degrade silently," so a `--dedupe` failure needs no new caller-side
+handling. `commands/gate-audit.md`'s test-auditor/premortem-auditor dispatches and
+`commands/gate-acceptance.md`'s premortem dispatch use `--dedupe`;
+`commands/handback.md` deliberately keeps reading the raw (non-deduped) form, since its
+manifest's job is a complete history, not current-state-only.
 
 ## Consumers that must stay in sync
 
@@ -162,12 +180,17 @@ second reader; see "Consumers that must stay in sync" below.
 - `tests/test_gate_ledger.sh`'s `evidence-list` tests assert it reads through the
   same anchoring `evidence-append` writes through, including from a linked
   worktree — update both together.
+- `tests/test_gate_ledger.sh`'s `evidence-list --dedupe` fixture asserts the
+  collapsed record count is smaller than the raw count, that it equals the number of
+  distinct commands, and that each distinct command's surviving record is its
+  **last**-appended one — update both together.
 - `commands/handback.md` reads this file's pinned shape before assembling its
   manifest table (timestamp, command, `predicate.result`, origin, `outputDigest`
   only — never any other field).
 - `gate-ledger evidence-list` is a plain passthrough of this shape, one line per
-  record — it reshapes nothing written here. `commands/gate-audit.md` and
-  `commands/gate-acceptance.md` stamp its raw output into `@agent-test-auditor`'s
+  record (or, with `--dedupe`, one line per distinct `command`) — neither mode
+  reshapes a record, only which ones are selected. `commands/gate-audit.md` and
+  `commands/gate-acceptance.md` stamp its `--dedupe` output into `@agent-test-auditor`'s
   and `@agent-premortem-auditor`'s dispatch prompts; both agents read `command`,
   `predicate.result`, and `capturedAt` directly off records in this shape when
   citing an entry.

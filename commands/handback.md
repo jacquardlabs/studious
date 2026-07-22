@@ -53,6 +53,11 @@ records filed against the shared main-tree store. Never read
 `.studious/evidence/*.jsonl` directly or re-derive the branch-slug/repo-root logic here —
 one place that store's location lives.
 
+Deliberately **do not** pass `--dedupe` here, unlike `/gate-audit`'s and
+`/gate-acceptance`'s evidence dispatches: a handback manifest's job is a complete
+historical record of every verification attempt across every fix cycle, not
+current-state-only — the opposite of what `--dedupe` is for.
+
 ## 3. No log, or an empty one — report and stop
 
 If step 2 printed nothing, this branch has no evidence to hand back. **Before reporting,

@@ -796,6 +796,67 @@ out=$(cd "$d25/.studious/worktrees/e/s" && "$LEDGER" evidence-list)
 check "evidence-list from a linked worktree reads the MAIN root evidence file" "pytest tests/" \
   "$(printf '%s' "$out" | jq -r '.command')"
 
+# --- evidence-list --dedupe collapses to one record per distinct command,
+# keeping the most recent (last-appended) one, in the survivors' original
+# order (evidence-list-dedupe, #162) ---
+d27=$(sandbox)
+( cd "$d27" && "$LEDGER" evidence-append --command "pytest tests/" --exit-code 1 \
+    --output-digest "sha256:deadbeef" --origin interactive )
+( cd "$d27" && "$LEDGER" evidence-append --command "npm test" --exit-code 0 \
+    --output-digest "sha256:cafebabe" --origin interactive )
+( cd "$d27" && "$LEDGER" evidence-append --command "pytest tests/" --exit-code 0 \
+    --output-digest "sha256:f00dface" --origin interactive )
+
+raw27=$(cd "$d27" && "$LEDGER" evidence-list)
+check "evidence-list (no flag) line count equals every evidence-append call — unchanged by this story" \
+  "3" "$(printf '%s\n' "$raw27" | wc -l | tr -d ' ')"
+
+dedup27=$(cd "$d27" && "$LEDGER" evidence-list --dedupe)
+dedup27_count=$(printf '%s\n' "$dedup27" | wc -l | tr -d ' ')
+check "evidence-list --dedupe returns fewer records than the raw form (acceptance criterion 3)" \
+  "yes" "$([ "$dedup27_count" -lt 3 ] && echo yes || echo no)"
+check "evidence-list --dedupe record count equals the number of distinct commands" \
+  "2" "$dedup27_count"
+check "evidence-list --dedupe keeps the last-appended record's predicate.result for a repeated command" \
+  "PASSED" "$(printf '%s' "$dedup27" | jq -r 'select(.command == "pytest tests/") | .predicate.result')"
+check "evidence-list --dedupe still includes a once-only command exactly once" \
+  "1" "$(printf '%s' "$dedup27" | jq -r 'select(.command == "npm test") | .command' | wc -l | tr -d ' ')"
+
+# --dedupe on another branch still resolves through the same evidence_dir()/
+# branch_slug() anchoring the plain --branch read already relies on (line ~618).
+( cd "$d27" && git checkout -q -b feat/other )
+out27other=$(cd "$d27" && "$LEDGER" evidence-list --dedupe --branch feat/foo)
+check "evidence-list --dedupe --branch reads the named branch's log through the same anchoring" \
+  "2" "$(printf '%s\n' "$out27other" | wc -l | tr -d ' ')"
+
+# --- evidence-list --dedupe fails closed when jq is unavailable: nothing to
+# stdout, a stderr line naming the requirement, non-zero exit ---
+d28=$(sandbox)
+( cd "$d28" && "$LEDGER" evidence-append --command "pytest tests/" --exit-code 0 \
+    --output-digest "sha256:deadbeef" --origin interactive )
+stdout28=$(cd "$d28" && PATH="$fakebin" "$LEDGER" evidence-list --dedupe 2>/dev/null)
+err28=$(cd "$d28" && PATH="$fakebin" "$LEDGER" evidence-list --dedupe 2>&1 1>/dev/null)
+rc28=$(cd "$d28" && PATH="$fakebin" "$LEDGER" evidence-list --dedupe >/dev/null 2>&1; echo $?)
+check "evidence-list --dedupe prints nothing to stdout when jq is unavailable" "" "$stdout28"
+contains "evidence-list --dedupe signals on stderr when jq is unavailable" \
+  "gate-ledger: evidence-list --dedupe requires jq" "$err28"
+check "evidence-list --dedupe exits non-zero when jq is unavailable" "yes" \
+  "$([ "$rc28" -ne 0 ] && echo yes || echo no)"
+
+# --- evidence-list --dedupe fails closed on a malformed line: nothing to
+# stdout, non-zero exit (fail closed, never a plausible-looking partial result) ---
+d29=$(sandbox)
+mkdir -p "$d29/.studious/evidence"
+printf '{"command":"pytest tests/"\n' > "$d29/.studious/evidence/feat-foo.jsonl"
+stdout29=$(cd "$d29" && "$LEDGER" evidence-list --dedupe 2>/dev/null)
+err29=$(cd "$d29" && "$LEDGER" evidence-list --dedupe 2>&1 1>/dev/null)
+rc29=$(cd "$d29" && "$LEDGER" evidence-list --dedupe >/dev/null 2>&1; echo $?)
+check "evidence-list --dedupe prints nothing to stdout on a malformed line" "" "$stdout29"
+contains "evidence-list --dedupe signals on stderr on a malformed line, naming the file" \
+  "failed to parse" "$err29"
+check "evidence-list --dedupe exits non-zero on a malformed line" "yes" \
+  "$([ "$rc29" -ne 0 ] && echo yes || echo no)"
+
 # --- record appends a gate-verdict event to the epic's events.jsonl
 # (board-events-log, #98; reference/events-format.md) ---
 d26=$(sandbox)
