@@ -1,10 +1,47 @@
 # Investigate silent gate-acceptance dispatch retries, and surface what's actually visible
 
-**Date:** 2026-07-21
-**Status:** Design, pre-implementation
+**Date:** 2026-07-21 (revised 2026-07-22)
+**Status:** Design, revision — responding to `gate-acceptance`'s `HOLD` verdict against
+the first build (recorded 2026-07-22T00:56:37Z), pre-reimplementation
 **Source:** [#142](https://github.com/jacquardlabs/studious/issues/142) (Finding 2 only —
 Finding 1, the unbounded precedent-diff search, already shipped via PR #154), story
 `acceptance-retry-visibility` of epic `perf-audit-followups`
+
+## Revision history (gate-acceptance HOLD)
+
+The first build shipped exactly what the sections below originally proposed: per-phase
+durations computed as the raw delta between consecutive `history` entries. `gate-acceptance`
+returned `HOLD` against it (`commands/work-through.md:246-262`): the delta is computed
+between array-adjacent entries with no awareness of whether they were recorded in the same
+`/work-through` invocation or two invocations separated by real wall-clock idle time — a
+story that parks, sits, and resumes renders its resumed phase's *idle* time as if it were
+that phase's *work* time. Concrete symptom named in the finding: audit `PASS`, a weekend of
+inactivity, then a real 5-minute acceptance dispatch renders as `acceptance: SHIP (2877m)` —
+a false ~48-hour outlier structurally indistinguishable, in the old rendering, from a
+genuine 2877-minute stall. This is not a new problem class from issue #142's own — it is
+the *same* silent-latency-vs-idle-time confusion the mitigation was built to expose,
+reintroduced by the mitigation's own arithmetic. This revision:
+
+1. Adds a **run-boundary marker** to the `history` schema (`## Proposed design` below) —
+   revisiting, for a narrower and different purpose, the `DISPATCHED`-entry alternative
+   the original design rejected (`## Alternatives considered` below explains exactly what's
+   the same and what's different about this decision the second time).
+2. Changes the render rule from "always compute a delta" to "compute a delta only when the
+   predecessor entry is real work from the *same* run; render bare otherwise" — the literal
+   fix for the HOLD finding's concrete symptom.
+3. Confirms, by reading `workflows/epic-driver.js` directly, that the driver never pauses
+   for human input *between* phases within one run — every judgment verdict, retry-cap
+   exhaustion, or crash ends the run for that story outright (`park()`/`settle()`), so the
+   run-boundary gap this fix targets is exclusively a *cross-invocation* phenomenon, never
+   a mid-run one. No broadening beyond resumed stories is needed; see the new subsection
+   below.
+4. Updates the stale claims in the original text that this ships with "no new work-log
+   outcome token" — it does now, a reserved `step` name, not a code/schema change to
+   `bin/gate-ledger` itself. `## Out of scope` and `## Operational readiness` are corrected.
+
+The original Problem & persona and investigation sections below are otherwise unchanged —
+issue #142's own investigation and its determination (no accessible retry-detection signal
+exists) still stand and are not reopened by this revision.
 
 ## Problem & persona
 
@@ -111,14 +148,99 @@ fresh work-log entry when the re-run completes). That mechanism needs nothing fr
 this story. Issue #142's silent retry is a different thing entirely: it happened
 *inside* a single one of those `agent()` calls, invisible by construction.
 
+### What the shipped mitigation got wrong: `gate-acceptance`'s `HOLD`
+
+The determination above (no accessible retry-detection signal exists) is unchanged by
+this revision — it answers a question about a *single* `agent()` dispatch's internals,
+which this story still cannot see into. The `HOLD` finding is about something else
+entirely: the mitigation's own arithmetic, run across `history` entries that may not
+share a run at all.
+
+**Root cause, concretely.** `commands/work-through.md`'s duration computation
+(`:246-262`) walks `history` as one flat array and takes `entry[i].at - entry[i-1].at`
+for every `i`, unconditionally. `history` is written by whichever agent (worker or
+gate) completes that phase, on whatever wall-clock day that happens to be — nothing in
+the array itself distinguishes "the next entry was recorded eleven minutes after this
+one, in the same `/work-through` invocation" from "the next entry was recorded two days
+later, after the invocation ended and a fresh one eventually ran." Both look
+identical to the delta computation: two JSON objects with an `at` field. The **HOW a
+gap this large can happen** is exactly what the code already documents about itself,
+not a new discovery: `workflows/epic-driver.js`'s own header comment states the script's
+in-memory state is "a WORKING COPY, never the record" (line 12), and
+`commands/work-through.md:153` states plainly that "a killed run resumes by re-running
+this command" — a `/work-through` invocation (or the session running it) can end between
+any two phases for reasons that have nothing to do with a gate verdict at all: the user
+closes their laptop, the session hits an external limit, the process is killed. The
+concrete symptom named in the finding — audit `PASS` on a Friday, nothing until Monday,
+then a real 5-minute acceptance dispatch — is precisely this: not a graceful `park()` (a
+`PASS` is a proceed token; nothing in the gate's own verdict stopped the story), but an
+externally-ended run that a later invocation's Reconcile step picks back up, exactly the
+crash-recovery path the script's own comments already describe. A judgment-verdict park
+(`RETHINK`/`NEEDS DISCUSSION`/`HOLD`) produces the identical shape once the user resolves
+it and re-invokes — same gap, different cause.
+
+**Why the design-review pre-mortem didn't catch this.** The register already on file
+(`docs/studious/premortems/2026-07-21-acceptance-retry-visibility-design.md`, item 5)
+asked exactly the right question at the wrong resolution: "a resumed story would surface
+prior-run phases too" — a question about *which phases render* (full history vs.
+this-run-only), which the original design answered ("intentional, not a bug"). It never
+asked whether the *arithmetic between* those phases stays valid across the same
+boundary — a narrower, sharper version of the same risk that the register's own phrasing
+didn't reach. This revision closes that specific gap; it does not reopen items 1-4, 6, or
+7, which the shipped build already satisfies unchanged (verified against
+`tests/python/test_acceptance_retry_visibility.py`'s existing coverage for each).
+
+### Confirming there is no *within-run* version of this gap
+
+Acceptance criterion 3 asks whether `epic-driver.js` ever pauses for human input *between*
+phases inside a single run — if so, the fix would need to cover same-run gaps too, not just
+cross-invocation ones. Read directly against the file, not assumed:
+
+- `runStory`'s phase loop (`workflows/epic-driver.js:887-930`) advances with `idx++;
+  continue` the instant a gate returns its proceed token (line 902) or a worker phase
+  reports done (line 914-915) — the very next loop iteration dispatches the next phase
+  immediately, in the same `async function` call, with no `await` on anything a human
+  could be answering. There is no code path where the loop suspends after one phase,
+  waits for a person, and then resumes the same `runStory` invocation.
+- Every other outcome — a judgment verdict, a retry-cap exhaustion, an unknown phase, a
+  thrown exception (`crashParkArgs`, line 842) — routes to `return park(...)` (lines 867,
+  882, 905, 912, 919, 928, 946) or the `NEEDS DISCUSSION` fallback in `runGate` (line 789).
+  Every one of those `return`s calls `settle(story, 'parked')` (inside `park()`, line
+  813-829) and **exits `runStory` for that story entirely** — there is no code after a
+  park that waits for a resolution and continues; the *next* phase for that story, if
+  any, only happens when the user resolves the park and a **new** `/work-through`
+  invocation's Reconcile step schedules it again.
+- `runGate`'s own bounded fix-cycle loop (`workflows/epic-driver.js:791-809`, the
+  `MAX_FIX_CYCLES` retry) is also fully automatic end to end — the fixer dispatch and the
+  fresh-eyes gate re-run both happen with no human step in between, matching the
+  already-visible-retry carve-out this doc's own investigation section above already
+  documents.
+- The fallback (no-Workflow-tool) driver mirrors this exactly by its own text
+  (`commands/work-through.md:159-188`): "Semantics are identical to the script's" — proceed
+  advances immediately, fix-and-retry loops automatically up to the same cap, and
+  "Judgment or unknown → park immediately," the same hard stop.
+
+**Determination:** confirmed, not assumed — the driver never pauses for human input
+between phases within one run, in either mode. A judgment verdict, a retry-cap
+exhaustion, or a crash always ends the run for that story; the story's next phase, if
+one exists, is always dispatched by a **subsequent** invocation. The run-boundary gap
+this revision fixes is therefore exclusively a cross-invocation phenomenon — criterion
+3's "broaden to within-run stories too" branch does not apply; there is no within-run
+case to broaden to.
+
 ## Proposed design
 
 Ship the mitigation acceptance criterion 3 names as its own example: a staleness
 signal in reporting, not a retry-detection mechanism. Concretely: **surface per-phase
-wall-clock duration in `/work-through`'s existing report**, computed entirely from
-data `gate-ledger work-log` already records today — no new instrumentation, no
-`epic-driver.js` change, no `bin/gate-ledger` change, no new work-log outcome token,
-no ledger schema change.
+wall-clock duration in `/work-through`'s existing report**, computed from data
+`gate-ledger work-log` already records today, plus one small addition this revision
+makes: a reserved `history` entry marking where each `/work-through` invocation began
+touching a story, so the render can tell "real work" apart from "time that elapsed
+between invocations." No `epic-driver.js` change, no `bin/gate-ledger` code/schema
+change — the marker is a new *convention* over the existing free-form `--step`/
+`--outcome` arguments `cmd_work_log` already accepts unchanged, not a new code path.
+(The original draft claimed "no new work-log outcome token" — corrected here; seeing
+that claim fail is exactly what the HOLD finding forced.)
 
 ### The data already exists
 
@@ -158,6 +280,65 @@ timeline, the same computation would have rendered `acceptance: FIX AND RE-CHECK
 (117m)` sitting right next to a sibling's `acceptance: SHIP (5m)` in the standard
 report — visible without ever opening a transcript directory.
 
+### The missing piece: marking where a run begins
+
+`history` has no notion of a `/work-through` invocation boundary — every entry looks
+alike whether its neighbor landed eleven minutes or eleven days apart. The fix adds
+exactly one thing: before a `/work-through` invocation dispatches anything, its
+**Reconcile** step (`commands/work-through.md`, "1 · Reconcile — evidence first")
+writes a marker to any story it's about to touch whose work file already exists —
+i.e., a story some *earlier* invocation already started:
+
+```bash
+# Reconcile already runs gate-ledger work-get --slug "<slug>--<story>" once per
+# unfinished story to derive its next phase — inspect the SAME JSON, no extra read:
+last_step=$(echo "$work_get_json" | jq -r '.history[-1].step // ""')
+if [ -n "$work_get_json" ] && [ "$last_step" != "run-boundary" ] && [ "$next_phase" != "merge" ]; then
+  gate-ledger work-log --slug "<slug>--<story>" --step "run-boundary" --outcome "DISPATCHED"
+fi
+```
+
+Three conditions, each doing real work:
+
+- **`work_get_json` non-empty** — a story's work file is only ever created by the first
+  dispatch that actually runs for it (`epic-driver.js`'s `ctx()`, the conditional
+  "if the worktree does not exist yet" `work-set` call every dispatch prompt carries).
+  Since Reconcile runs once, before any dispatch, "the file already exists" can only
+  mean an **earlier** invocation created it — this invocation could not have. A brand
+  new story (no file yet) gets no marker and needs none: its very first `history` entry
+  still measures against the work file's own `createdAt`, set by that same first
+  dispatch a moment before — exactly today's behavior, unchanged, no regression.
+- **Last entry isn't already a marker** — dedups repeated no-progress invocations (a
+  story blocked on a dependency, or one whose actual dispatch stalls behind the
+  concurrency cap every time Reconcile runs) into at most one pending marker, never an
+  unbounded run of them. Whichever marker is there, fresh or stale, produces the exact
+  same (correct) render decision below — the dedup bounds storage, not correctness.
+- **Next phase isn't the `merge` sentinel** — a story with only its merge left never
+  writes another `work-log` entry (`epic-story-set --status landed`, not `work-log`), so
+  a marker there would sit unused forever; skipping it is a pure cleanliness win, not a
+  correctness requirement.
+
+`run-boundary` is a reserved `step` name, chosen to collide with nothing in
+`FULL_PROFILE`/`GATES`/`WORKER_PHASES` (`design`, `design-review`, `build`, `audit`,
+`acceptance`, `merge`). `commands/work-on.md`'s own `history` reader
+(`## Run exactly one piece`, "most recent `step: "build"` entry") filters on an exact
+step name already, so it never sees or misreads this entry — and never will, since
+`/work-on` reads a different, non-epic-qualified work file for a standalone feature and
+never calls this Reconcile step at all. `reference/events-format.md`'s write-site table
+needs no update: `cmd_work_log` already appends a `step` event for *any* `--step`/
+`--outcome` pair (its trigger condition is "always," not conditioned on which step name)
+— this ships a new value flowing through an unmodified write path, not a new write path.
+
+This is deliberately **not** the `DISPATCHED` entry the original design rejected. That
+alternative asked each *gate agent* to log its own dispatch start as its literal first
+action, to try to detect whether the harness silently restarted it mid-flight — a
+question about `agent()`'s own internals this story still cannot answer (unchanged
+above). This marker asks something the orchestrating context can answer with certainty,
+because it's the one making the call: "did *this invocation* just start touching this
+story, or was its work file already here from before?" No assumption about harness
+retry behavior is needed or made. See `## Alternatives considered` below for the
+full comparison.
+
 ### The change: one step in `commands/work-through.md`'s reporting
 
 Durations are reconstructed from `work-get`'s own `history` array, not from the
@@ -175,7 +356,10 @@ re-read `gate-ledger work-get --slug "<slug>--<story>"` (the reporting step alre
 has the slug; Reconcile already made one such call per story before the driver ran,
 so this is one more read of the same kind, only for stories the report is about to
 render) and render every phase-transition entry in `history` with its elapsed time,
-in place of (not appended to) the driver's own collapsed `trail`/`reason` text:
+in place of (not appended to) the driver's own collapsed `trail`/`reason` text —
+**except** a `run-boundary` marker itself (never rendered as a line of its own) and
+**except** the real phase entry immediately following one (rendered with no duration
+at all, since its true predecessor is idle/inter-invocation time, not work):
 
 ```
 Landed this run: acceptance-retry-visibility — design-review: PROCEED TO PLAN (13m) →
@@ -193,13 +377,39 @@ completes) a following `acceptance: SHIP (Xm)` entry — strictly more informati
 annotating the driver's collapsed trail could ever be, since the collapsed form would
 have shown only the final `SHIP` and lost the 117-minute round entirely.
 
+**The `HOLD` finding's own scenario, reconstructed with the fix applied:**
+
+```json
+{"step": "audit",         "outcome": "PASS",       "at": "2026-07-18T17:03:11Z"},
+{"step": "run-boundary",  "outcome": "DISPATCHED", "at": "2026-07-20T09:14:02Z"},
+{"step": "acceptance",    "outcome": "SHIP",       "at": "2026-07-20T09:19:47Z"}
+```
+
+renders as:
+
+```
+audit: PASS (26m) → acceptance: SHIP
+```
+
+`acceptance`'s immediate predecessor in the array is the marker written when Monday's
+invocation started, not Friday's `audit: PASS` — so its render rule finds "predecessor
+is a run-boundary marker," not "predecessor is 2877 minutes ago," and shows no number
+at all rather than either the misleading 2877m or a manufactured, only-approximately-true
+"5m" computed against the marker's own timestamp (see `## Alternatives considered` for
+why suppression was chosen over that second option). `audit: PASS (26m)` is untouched —
+its predecessor was real same-run work (`build: DONE`, not shown above), so it still
+gets its accurate number exactly as before.
+
 Nothing about *which* durations are "long" is computed or asserted anywhere — every
-phase gets a number, always, healthy or not. The report never uses the words
-"stalled," "retried," or "abandoned." A human reads the numbers and decides whether
-one is worth investigating, exactly as the issue #142 reporter did with the two real
-timestamps they had. This is what satisfies acceptance criterion 4 directly: nothing
-here can misreport a healthy long-running gate, because nothing here *reports* on
-health at all — it reports a duration, full stop, the same fact-not-judgment posture
+phase gets a number, always, healthy or not, **except** the one case named above,
+where showing no number at all is itself the fact being reported (a run boundary sat
+between this phase and the one before it — not a judgment that it was slow). The report
+never uses the words "stalled," "retried," or "abandoned." A human reads the numbers and
+decides whether one is worth investigating, exactly as the issue #142 reporter did with
+the two real timestamps they had. This is what satisfies acceptance criterion 4
+directly: nothing here can misreport a healthy long-running gate, because nothing here
+*reports* on health at all — it reports a duration, full stop (or explicitly declines to,
+when a duration would be measuring the wrong thing), the same fact-not-judgment posture
 `bin/gate-ledger`'s existing read verbs already take.
 
 **Honest limitation, stated plainly rather than papered over:** this is retrospective.
@@ -237,11 +447,23 @@ audit rounds as extending it.
    immediately, in the surface they already read every invocation, and can decide
    whether to investigate further (raw transcripts, a re-run, nothing at all) — the
    decision stays theirs; the report only makes the anomaly visible.
-4. **Must not regress:** a story whose every phase runs at a normal pace shows normal
-   numbers and nothing else — no flag, no warning, no different report shape. Every
-   verdict token rendered is byte-identical to what `work-log` already recorded today
-   — this reconstructs and displays that history, it never re-labels or reinterprets
-   an entry's `outcome`.
+4. **Must not regress:** a story whose every phase runs at a normal pace, in one
+   invocation, shows normal numbers and nothing else — no flag, no warning, no
+   different report shape, and (per this revision) no marker either: Reconcile only
+   writes one when a story's work file already existed before this invocation started,
+   which a healthy single-invocation story never triggers. Every verdict token rendered
+   is byte-identical to what `work-log` already recorded today — this reconstructs and
+   displays that history, it never re-labels or reinterprets an entry's `outcome`.
+5. **This revision's own scenario:** a story's audit passes Friday; the invocation ends
+   (parked, or the session simply wasn't re-run) before acceptance dispatches; a fresh
+   `/work-through` Monday morning resumes it, and acceptance genuinely ships in 5 real
+   minutes. **Before this revision:** the report would have rendered
+   `acceptance: SHIP (2877m)` right next to healthy same-run numbers — a false outlier
+   the persona has no way to distinguish from a real one without opening a transcript,
+   the exact failure mode `gate-acceptance`'s `HOLD` finding named. **After this
+   revision:** the same entry renders `acceptance: SHIP` with no parenthetical at all —
+   visibly different from every genuinely-timed number around it, and never a number
+   that could send the persona chasing a stall that was actually a weekend.
 
 ## Out of scope
 
@@ -255,12 +477,26 @@ audit rounds as extending it.
   The epic's own boundary ("without changing any gate's judgment, only its cost or
   visibility") is not touched from the code side at all here — this ships as a
   `commands/work-through.md` reporting change exclusively.
-- **Any change to `bin/gate-ledger`'s schema, verbs, or dispatch table.** No new
-  outcome token, no new flag, no new verb. See Alternatives considered and Open
-  questions for why a new read verb was considered and deferred rather than shipped.
+- **Any code or schema change to `bin/gate-ledger`.** No new flag, no new verb, no
+  change to `cmd_work_log`'s existing (unconditional) behavior. **Corrected from the
+  original draft:** this revision does add one new *value* flowing through that
+  unchanged code path — a reserved `step: "run-boundary"` convention — since criterion
+  1 explicitly asks for a run-boundary marker in the `history` schema. That is a
+  documented convention over existing free-form arguments, not a code change; see
+  Alternatives considered and Open questions for why a new `gate-ledger` read verb was
+  considered and deferred rather than shipped.
 - **Real-time, mid-run staleness alerting.** Explicitly named as a limitation above,
   not solved here — `/work-through`'s report renders once, after the driver call
   returns.
+- **A parked epic story taken over by hand via `/work-on`.** `commands/work-through.md`
+  itself documents this path ("a parked story is always also a valid `/work-on`
+  feature"). `/work-on` has its own state machine and never runs `/work-through`'s
+  Reconcile step, so a story handed off this way could still append a `history` entry
+  with a real cross-boundary gap and no marker ahead of it — the same false-outlier
+  shape this story fixes for the `/work-through`-only path, just via a different door.
+  Out of scope here: fixing it means teaching `/work-on` to write the same marker on
+  takeover, a second command's prose, not a narrow extension of this one. Left as an
+  Open question below, not silently dropped.
 - **Finale-level (epic-wide audit/acceptance/premortem) duration surfacing.** The same
   technique applies mechanically to `finaleGate`'s phases, but bundling it here widens
   this story's diff for a case issue #142 didn't report on. A natural, narrow
@@ -310,20 +546,55 @@ audit rounds as extending it.
   it. Left to Open questions rather than decided unilaterally here.
 - **Instructing each dispatched gate agent to log an explicit `DISPATCHED` work-log
   entry as its own first action**, so a silently-retried gate would show two
-  `DISPATCHED` entries before one verdict instead of one. Rejected: it depends on an
-  assumption this investigation could not confirm any more than issue #142's original
-  ambiguity — whether a harness-level retry restarts a fresh agent from the top of its
-  prompt (in which case the second `DISPATCHED` line fires) or resumes some existing
-  process (in which case it never would). It also adds a new write path to every gate
-  dispatch's prompt text for a signal no more reliable than the zero-cost at-delta
-  read below.
+  `DISPATCHED` entries before one verdict instead of one. **Still rejected, unchanged,
+  for that original purpose:** it depends on an assumption this investigation could not
+  confirm any more than issue #142's original ambiguity — whether a harness-level retry
+  restarts a fresh agent from the top of its prompt (in which case the second
+  `DISPATCHED` line fires) or resumes some existing process (in which case it never
+  would). It also adds a new write path to *every gate dispatch's prompt text* — a
+  cost paid on every single gate call, for a signal that would still never resolve
+  issue #142's own ambiguity.
+
+  **Revisited for a different purpose, and adopted in a narrower form.** This
+  revision's `run-boundary` marker is *not* this alternative reincarnated — it answers
+  a different, decidable question ("did this `/work-through` invocation just start
+  touching this story?"), asked once per invocation from the orchestrating context that
+  already knows the answer with certainty (Reconcile can see whether a work file
+  pre-dates this invocation), not once per gate dispatch from an agent guessing at its
+  own harness's internals. The cost is also structurally smaller: one conditional
+  `gate-ledger work-log` call per story per invocation in Reconcile's own prose (already
+  running one `work-get` per story there), never a change to any of the three gate- or
+  worker-dispatch prompt builders (`gatePrompt`, `workerPrompt`, `acceptanceFanIn`,
+  `auditFanIn`) `epic-driver.js` assembles.
+- **Re-scope the duration against the marker instead of suppressing it** — i.e., when a
+  phase's predecessor is a `run-boundary` marker, compute its duration against the
+  *marker's* `at` instead of the real predecessor two-or-more entries back (the marker's
+  timestamp is close to real dispatch start), giving back an approximate number instead
+  of a blank. Rejected in favor of plain suppression for
+  two reasons: (1) the marker is written once per invocation at Reconcile time, before
+  the concurrency semaphore (`workflows/epic-driver.js`'s `sem.acquire()`) admits this
+  specific story's dispatch — under a busy epic near its cap, a story can queue behind
+  others for real minutes between the marker and its actual gate/worker dispatch,
+  which would silently fold queueing delay into a number presented as "how long the
+  gate took," a smaller but real version of the exact conflation this whole story exists
+  to remove. (2) Simplicity: suppression needs only "is the predecessor a marker,"
+  never a value from it; re-scoping needs the marker's `at` threaded through the same
+  arithmetic as a real predecessor, doubling the number of code paths that must handle
+  a missing/malformed timestamp gracefully (pre-mortem item 2's finding) for a number
+  whose own precision this design cannot fully vouch for regardless. Acceptance
+  criterion 2's literal rendering example (`'<phase>: <outcome>'` with no `(Nm)`) is
+  exactly this choice, not a looser illustration of it.
 - **Document the gap and ship no mitigation at all.** Acceptance criterion 3 itself
   treats "the design doc documents that concretely" as sufficient on its own — a
   mitigation is invited, not mandated. Rejected anyway, in favor of shipping the
   at-delta reporting addition, specifically because it costs nothing beyond one prose
   edit and one extra read per reported story: there's no reason to leave the
   reporter's own manual diagnostic technique undocumented and unsurfaced when the data
-  it needs is already sitting in every `work-get` call.
+  it needs is already sitting in every `work-get` call. The same "ship the free fix"
+  logic applies to the run-boundary marker: leaving the HOLD finding merely documented,
+  with no fix, would mean the very first future weekend-resumed story renders the exact
+  false outlier the finding already named, for a fix that costs one conditional
+  `work-log` write per invocation.
 
 ## Success metrics
 
@@ -345,26 +616,53 @@ signal is structural, per the design-doc contract's allowance for that shape her
   ~117 minutes — the exact anomaly the reporter surfaced by hand — proving this
   mitigation would have made that specific incident visible in the standard report
   had it existed at the time.
+- **The `HOLD` finding's own counterfactual, post-fix:** applying the revised
+  computation to the reconstructed audit-Friday/acceptance-Monday fixture above
+  (`## Proposed design`) yields `acceptance: SHIP` with no parenthetical — proving the
+  specific false outlier the finding named (`(2877m)`) cannot render once the marker
+  is in place, and that the unaffected `audit: PASS (26m)` entry in the same fixture is
+  untouched, confirming the fix is scoped to the crossing phase alone. This is exactly
+  the regression check acceptance criterion 4 asks for restated: no new false-outlier
+  failure mode, verified against the incident that motivated this revision, not just
+  the original two.
 
 ## Operational readiness
 
-- **Migration:** none. Purely additive to `commands/work-through.md`'s reporting
-  prose; no `.studious/` file shape changes, no new `gate-ledger` verb, no new
-  outcome token. Every existing work file (including every one already on disk in
-  this repo) already carries everything this needs.
-- **Rollback:** revert the `commands/work-through.md` prose edit. No data to migrate
-  back — nothing on disk changes shape either direction.
-- **Rollout:** ships via the plugin's normal release cadence; the next
-  `/work-through` invocation on any epic renders durations automatically, no flag.
-- **Working/failing signal:** this is a prose-level computation (`jq` or equivalent)
-  over `work-get`'s `history` array, not a gate verdict — its failure mode is a
-  malformed or hand-edited `at`/`history` entry breaking the delta computation for
-  one story. Recommend a best-effort degrade (skip the duration for the one entry
-  that can't be computed; never block or corrupt the rest of the report) since this
-  is a display nicety layered on top of already-recorded verdicts, not a judgment a
-  gate depends on — failing loudly here would make a display bug look like a gate
-  problem. `npx markdownlint-cli2` still needs to pass on the edited command file;
-  no new cross-references are introduced for `scripts/check_references.py` to check.
+- **Migration:** additive to `commands/work-through.md`'s Reconcile and reporting
+  prose; no `.studious/` file *shape* changes, no new `gate-ledger` verb or flag.
+  **One real migration note, stated plainly:** every work file already on disk today
+  was written before this ships, so none of them carry a `run-boundary` marker yet. A
+  story resumed for the first time after this ships still renders its resumed phase
+  bare (never the old misleading number — Reconcile writes the marker *before*
+  dispatching that resumed phase, so the render rule already sees it in time) — the
+  only cost is that a story's *first* post-upgrade resumption can't distinguish "this
+  is genuinely the first touch since upgrade" from any other resumption, which is
+  harmless: both cases correctly suppress.
+- **Rollback:** revert the `commands/work-through.md` prose edit (both the Reconcile
+  addition and the render-rule change together — reverting only one half would either
+  write markers nothing reads, or read for markers nothing writes; neither is wrong,
+  but reverting as one unit is cleaner). Any `run-boundary` entries already written
+  stay on disk, inert — `commands/work-on.md`'s exact-step-name reader already ignores
+  them, and nothing else reads `history` structurally, so a partial rollback state
+  is not a corruption risk either way.
+- **Rollout:** ships via the plugin's normal release cadence; the next `/work-through`
+  invocation on any epic writes markers and renders durations with the corrected rule
+  automatically, no flag.
+- **Working/failing signal:** two independent prose-level steps, neither a gate
+  verdict. The Reconcile marker-write degrades exactly like every other `gate-ledger`
+  write already does in this file (best-effort; a failed write there is a missed
+  marker, never a blocked dispatch — the story still runs, its next duration render
+  just can't distinguish this particular resumption from a same-run entry, the same
+  degrade the pre-fix code already had for every resumption). The render step's failure
+  mode is unchanged from the original design: a malformed or hand-edited `at`/`history`
+  entry breaks the delta computation for one entry or one story; best-effort degrade
+  (skip the duration for the one entry that can't be computed, or fall back to the
+  driver's own trail/reason text for the one story) never blocks or corrupts the rest
+  of the report — a display bug must never read as a gate problem. `npx
+  markdownlint-cli2` still needs to pass on the edited command file; no new
+  cross-references are introduced for `scripts/check_references.py` to check;
+  `reference/events-format.md`'s write-site table needs no edit (see `## Proposed
+  design`).
 
 ## Open questions
 
@@ -376,17 +674,35 @@ signal is structural, per the design-doc contract's allowance for that shape her
   touch this cycle). Not decided here — design-review's call, informed by whether
   `epic-reconcile-verb` and `evidence-list-dedupe` have already landed by the time
   this builds (which would settle how crowded that file's dispatch table actually
-  gets).
+  gets). Unchanged by this revision, beyond noting the marker-write would move to the
+  same verb if this is ever decided in favor of one.
 - **Whether the same technique should extend to `finaleGate`'s epic-level phases** in
   this story or a follow-up — mechanically identical, deliberately deferred to keep
-  this diff scoped to what issue #142 actually reported (a story-level gate).
+  this diff scoped to what issue #142 actually reported (a story-level gate). The
+  run-boundary marker would need the same treatment there if/when it does: written by
+  whichever prose step reconciles the epic finale before dispatching it.
 - **Exact rendering** — an arrow-chained reconstruction (`design-review: PROCEED TO
   PLAN (13m) → ...`, this doc's working assumption) versus a separate per-story timing
   line or table, and whether it sits inline with or below each `landedThisRun`/
   `needsYou` entry. Cosmetic, left to build, as long as every phase's duration is
-  shown unconditionally (never selectively, which would reintroduce a judgment call
-  this design deliberately avoids).
+  shown unconditionally except the one case this revision defines (a run-boundary
+  marker immediately precedes it) — never selectively suppressed for any other reason,
+  which would reintroduce a judgment call this design deliberately avoids.
+- **Whether the suppressed phase should carry a small factual tag** (e.g.
+  `acceptance: SHIP (resumed)`) instead of rendering fully bare, so a reader can tell
+  "no data" apart from "the report forgot this one." Cosmetic, deferred to build/
+  design-review's judgment — acceptance criterion 2's own literal example
+  (`'<phase>: <outcome>'`, nothing else) is satisfied either way; a tag would be an
+  enhancement on top of it, not a requirement.
+- **Whether a parked epic story taken over by hand via `/work-on` should get the same
+  marker treatment** (`## Out of scope` above) — real, same-shaped gap, left as a
+  follow-up rather than widening this story into a second command's prose.
 - **Whether `reference/gate-vocabulary.md` or `bin/gate-ledger`'s usage string should
   gain a one-line note that `RETRY` is deliberately not a token this layer ever
   writes**, so a future reader who remembers issue #142's suggested fix doesn't wonder
   why it's absent. Small documentation follow-up; not blocking.
+- **Whether `reference/events-format.md` should gain a one-line example row showing a
+  `run-boundary`/`DISPATCHED` event**, matching its existing per-write-site example
+  lines, purely for a future reader's benefit — the write path itself needs no code
+  change (see `## Proposed design`), so this is documentation polish, not a
+  functional gap.
