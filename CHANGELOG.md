@@ -2,6 +2,145 @@
 
 <!-- version list -->
 
+## v2.25.0 (2026-07-22)
+
+### Bug Fixes
+
+- Bind work_get_json from the captured epic-reconcile payload
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Make the resumed-phase tag state its own meaning explicitly
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Tag resumed gate phases instead of rendering their duration bare
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+### Documentation
+
+- Design doc for dispatching auditor 8 (accessibility) as a parallel Task
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Design doc for handback.md single evidence-list read
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Design doc for splitting gate-audit.md compile rules into reference/audit-compilation.md
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Design doc for surfacing silent gate-acceptance dispatch retries
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Disambiguate routed-out Summary-line ownership in audit-compilation.md
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Disclose same-run semaphore-queueing false outlier in design doc
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Fix trail/history mismatch and unverifiable citations in design doc
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Fix-delta's ad hoc dispatch defeats the grant-based AC2 argument
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Name principles, harden AC3 durability, and correct byte-count framing in the design doc
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Persist design-review pre-mortem register for a11y parallel-dispatch
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Persist design-review pre-mortem register for acceptance-retry-visibility
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Persist design-review pre-mortem register for audit-doc-split
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Pre-mortem register for handback single-evidence-read design review
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Reconcile CLAUDE.md's contract-sharing agent count to 21
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Revise acceptance-retry-visibility design for gate-acceptance HOLD
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Strengthen design doc's principle citation and NOT-building cross-check
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- **design**: Design doc for gate-ledger epic-reconcile verb
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- **design**: Design doc for gate-ledger evidence-list --dedupe
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- **premortem**: Design-review pre-mortem register for epic-reconcile verb
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- **premortem**: Record the epic pre-mortem register for perf-audit-followups
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- **premortem**: Regenerate register for Revision 2 design-review PROCEED TO PLAN
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- **premortem**: Register for evidence-list --dedupe design review
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+### Features
+
+- Add --dedupe collapsing mode to gate-ledger evidence-list
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Add gate-ledger epic-reconcile verb for one-call epic reconciliation
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Dispatch accessibility auditor 8's vendored-fallback path as a parallel Task
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Surface per-phase gate durations in /work-through's report
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+### Performance Improvements
+
+- Parallel a11y dispatch, audit-doc split, epic-reconcile verb, and resumed-gate duration visibility
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Read handback evidence log once instead of four times
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+- Split gate-audit.md's compile rules into reference/audit-compilation.md
+  ([#167](https://github.com/jacquardlabs/studious/pull/167),
+  [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
+
+
 ## v2.24.1 (2026-07-21)
 
 ### Performance Improvements
