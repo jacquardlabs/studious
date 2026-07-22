@@ -63,6 +63,15 @@ counts from that one captured value. No new file, no new `gate-ledger` verb, no
 change to step 2 (the emptiness check that gates entry into step 3 vs. step 4) or to
 any other step.
 
+**Principle this leans on:** PRODUCT.md's "Code owns bookkeeping; prompts own
+judgment" — `cmd_evidence_list` in `bin/gate-ledger` already owns reading and
+emitting the log; this design doesn't move that logic, duplicate it, or give the
+prompt any new say over how the store is read. It only stops the prompt from asking
+gate-ledger for the same answer four times when the prompt itself has nowhere else
+to put the first answer but a variable. The read stays exactly one call into code;
+the four derivations stay exactly where they already were, in the prompt's own
+`jq`/`wc`/`grep` — this changes call count, not which layer owns which job.
+
 ### Before (current step 4, four reads)
 
 ```bash
@@ -147,6 +156,12 @@ worker's own close-out action at that seam, not a gate itself.
    armed-but-empty). This story's diff starts and ends inside step 4.
 
 ## Out of scope
+
+Cross-checked against PRODUCT.md's "What we're NOT building": none of that list
+(being a methodology, a separate orchestration product, auto-applying changes,
+replacing the issue tracker, a monetization layer, a hosted service/dashboard) bears
+on a shell-call-count reduction inside one existing command's own step — nothing
+there is adjacent enough to this story to need an explicit carve-out.
 
 - **Step 2's separate read** (the emptiness check gating step 3 vs. step 4). Issue
   #161 and this story's acceptance criteria both scope the fix to "the manifest-
