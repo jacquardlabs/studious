@@ -29,6 +29,20 @@ per-story, never abort the whole report), finding 3 (prose-level `jq`, not a new
 back to the driver's own trail when a story's history can't be read), finding 5 (full
 history renders, intentionally, not scoped to this run), finding 6 (the rendered text never
 asserts health), and finding 7 (a compact parenthetical, not a separate table).
+
+**Revision 2 (`gate-design-review` REVISE, criterion-4 false negative):** the design doc's
+first revision fixed `gate-acceptance`'s `HOLD` (a resumed phase's idle time rendering as a
+misleading duration) by suppressing the duration entirely for any phase immediately
+following a `run-boundary` marker — but that suppression rendered a genuinely slow resumed
+phase (issue #142's own 117-minute stall, landing at a resume boundary) byte-identical to a
+healthy 5-minute resume: both bare, no flag. This revision promotes the `(resumed)` tag from
+a deferred cosmetic Open Question to a requirement, so every phase following a
+`run-boundary` marker carries an explicit, uniform flag rather than rendering fully bare.
+The tests below marked "Revision 2" lock this: the marker never renders as its own line, the
+phase immediately after one always carries `(resumed)` regardless of how long the real
+dispatch behind it actually took (the specific false-negative regression), and only the
+*immediately* following phase is tagged — a later phase in the same story computes its
+delta normally against its own real predecessor.
 """
 
 from __future__ import annotations
@@ -56,6 +70,15 @@ def _close_section() -> str:
     text = _command_text()
     start = text.index("## Close every invocation the same way")
     end = text.index("## Record keeping")
+    return text[start:end]
+
+
+def _reconcile_section() -> str:
+    """The `### 1 · Reconcile` step this story's Revision 2 edits to add the
+    run-boundary marker write, isolated the same way `_close_section` is."""
+    text = _command_text()
+    start = text.index("### 1 · Reconcile")
+    end = text.index("### 2 · Run the driver script")
     return text[start:end]
 
 
@@ -250,6 +273,138 @@ def test_jq_pipeline_empty_history_degrades_to_empty_not_an_error() -> None:
     payload = {"createdAt": "2026-07-11T13:32:09Z", "history": []}
     out = _run_jq(_extract_jq_filter(), payload)
     assert out == ""
+
+
+# --- Revision 2: run-boundary marker + the `(resumed)` tag requirement ---
+# (gate-design-review REVISE, criterion-4 false negative)
+
+
+def test_run_boundary_marker_never_rendered_as_its_own_line() -> None:
+    """The marker itself carries no phase transition worth a line — only the
+    phase it precedes is affected."""
+    payload = {
+        "createdAt": "2026-07-18T16:50:00Z",
+        "history": [
+            {"step": "audit", "outcome": "PASS", "at": "2026-07-18T17:03:11Z"},
+            {"step": "run-boundary", "outcome": "DISPATCHED", "at": "2026-07-20T09:14:02Z"},
+            {"step": "acceptance", "outcome": "SHIP", "at": "2026-07-20T09:19:47Z"},
+        ],
+    }
+    out = _run_jq(_extract_jq_filter(), payload)
+    assert "run-boundary" not in out
+    assert "DISPATCHED" not in out
+    assert out == "audit: PASS (13m) → acceptance: SHIP (resumed)"
+
+
+def test_run_boundary_tags_a_fast_resumed_phase() -> None:
+    """The `HOLD` finding's own scenario: a fast (5-minute) resumed phase must
+    never render its idle-time delta (`(2877m)`) — it renders `(resumed)`."""
+    payload = {
+        "createdAt": "2026-07-18T16:50:00Z",
+        "history": [
+            {"step": "audit", "outcome": "PASS", "at": "2026-07-18T17:03:11Z"},
+            {"step": "run-boundary", "outcome": "DISPATCHED", "at": "2026-07-20T09:14:02Z"},
+            {"step": "acceptance", "outcome": "SHIP", "at": "2026-07-20T09:19:47Z"},
+        ],
+    }
+    out = _run_jq(_extract_jq_filter(), payload)
+    assert "acceptance: SHIP (resumed)" in out
+    assert "2877" not in out
+    assert "(5m)" not in out
+
+
+def test_run_boundary_tags_a_slow_resumed_phase_the_same_way() -> None:
+    """The BLOCKING regression this revision fixes: `gate-design-review`'s
+    second-round finding showed the pre-Revision-2 bare rendering hid a
+    genuinely slow resumed phase (issue #142's own 117-minute stall, landing
+    at a resume boundary) exactly as it hid a healthy one — byte-identical,
+    zero signal either way. Locking that the slow case now carries the same
+    explicit `(resumed)` tag as the fast case (never a bare render, and never
+    a differentiating number the design doc's own Alternatives section
+    rejected on queueing-delay grounds)."""
+    payload = {
+        "createdAt": "2026-07-18T16:50:00Z",
+        "history": [
+            {"step": "audit", "outcome": "PASS", "at": "2026-07-18T17:03:11Z"},
+            {"step": "run-boundary", "outcome": "DISPATCHED", "at": "2026-07-21T08:00:00Z"},
+            {"step": "acceptance", "outcome": "SHIP", "at": "2026-07-21T09:57:00Z"},
+        ],
+    }
+    out = _run_jq(_extract_jq_filter(), payload)
+    assert out == "audit: PASS (13m) → acceptance: SHIP (resumed)"
+    # Never fully bare — the pre-Revision-2 failure mode this test guards against.
+    assert out.strip().endswith("acceptance: SHIP (resumed)")
+    assert "acceptance: SHIP\n" not in out
+    assert not out.rstrip().endswith("acceptance: SHIP")
+
+
+def test_run_boundary_tag_is_scoped_to_the_immediately_following_phase_only() -> None:
+    """A second phase after the marker (e.g. a fix-and-retry round following
+    the resumed dispatch) has a real same-run predecessor and must compute a
+    normal duration — the tag doesn't leak past the one phase it's honest
+    about."""
+    payload = {
+        "createdAt": "2026-07-18T16:50:00Z",
+        "history": [
+            {"step": "audit", "outcome": "PASS", "at": "2026-07-18T17:03:11Z"},
+            {"step": "run-boundary", "outcome": "DISPATCHED", "at": "2026-07-20T09:14:02Z"},
+            {
+                "step": "acceptance",
+                "outcome": "FIX AND RE-CHECK",
+                "at": "2026-07-20T09:19:47Z",
+            },
+            {"step": "acceptance", "outcome": "SHIP", "at": "2026-07-20T09:30:00Z"},
+        ],
+    }
+    out = _run_jq(_extract_jq_filter(), payload)
+    assert out == (
+        "audit: PASS (13m) → acceptance: FIX AND RE-CHECK (resumed) → "
+        "acceptance: SHIP (10m)"
+    )
+
+
+def test_reconcile_writes_run_boundary_marker_for_pre_existing_work_files() -> None:
+    """Criterion 1: the run-boundary marker itself, written once per invocation
+    in Reconcile for any story whose work file already existed (an earlier
+    invocation started it) — never for a brand-new story, never twice, never
+    for a story with only its merge left."""
+    text = _reconcile_section()
+    assert 'gate-ledger work-log --slug "<slug>--<story>" --step "run-boundary"' in text
+    assert '--outcome "DISPATCHED"' in text
+    assert '"$last_step" != "run-boundary"' in text
+    assert '"$next_phase" != "merge"' in text
+
+
+def test_run_boundary_reserved_step_name_documented_collision_free() -> None:
+    text = _reconcile_section()
+    assert "reserved" in text.lower()
+    assert "design-review" in text and "audit" in text and "merge" in text
+
+
+def test_resumed_tag_required_not_cosmetic_in_close_section() -> None:
+    """The Open Question this story's design doc originally deferred
+    ("whether the suppressed phase should carry a small factual tag") was
+    promoted to a requirement by `gate-design-review`'s second round — locking
+    that the command prose actually states the tag is mandatory, not merely
+    possible."""
+    text = _close_section()
+    assert "(resumed)" in text
+    assert "never a bare render" in text or "never silently bare" in text
+
+
+def test_resumed_tag_rationale_names_the_false_negative_it_fixes() -> None:
+    """Locks that the command prose itself explains *why* a bare render was
+    rejected — not just that the tag exists — so a future editor can't quietly
+    revert to bare suppression without re-breaking criterion 4."""
+    text = _close_section()
+    assert "5" in text and "117" in text
+    assert "queueing-delay" in text or "queueing delay" in text
+
+
+def test_report_template_documents_resumed_placeholder() -> None:
+    text = _close_section()
+    assert "(resumed)" in text
+    assert "<Nm>" in text
 
 
 # --- the cited design doc actually exists (consumers-must-stay-in-sync style) ---

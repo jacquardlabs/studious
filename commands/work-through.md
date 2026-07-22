@@ -109,6 +109,32 @@ gate has already proceeded at the story branch's HEAD and only the merge onto th
 branch is missing, the next phase is the sentinel `merge` — the script jumps straight
 to landing the story instead of re-running its profile.
 
+**Mark the run boundary, before anything dispatches.** A story's work file only exists
+if some invocation already started it — this one runs Reconcile first, before any
+dispatch, so "the file already exists" can only mean an *earlier* invocation created
+it. For each such story (skip a brand-new story with no work file yet — its first
+phase measures against the work file's own `createdAt`, unchanged), reuse the same
+`work-get` JSON already read above (no extra call) and write one marker unless the
+last entry is already one or the derived next phase is the `merge` sentinel (nothing
+ever reads `history` again for a story that's only got its merge left):
+
+```bash
+last_step=$(echo "$work_get_json" | jq -r '.history[-1].step // ""')
+if [ -n "$work_get_json" ] && [ "$last_step" != "run-boundary" ] && [ "$next_phase" != "merge" ]; then
+  gate-ledger work-log --slug "<slug>--<story>" --step "run-boundary" --outcome "DISPATCHED"
+fi
+```
+
+`run-boundary` is a reserved `step` name — it collides with nothing in the gate/worker
+phase vocabulary (`design`, `design-review`, `build`, `audit`, `acceptance`, `merge`)
+and `/work-on`'s own `history` reader filters on an exact different step name, so it
+never sees or misreads this entry. This exists solely so the closing report's duration
+render (below) can tell a real same-run predecessor apart from idle/inter-invocation
+time — see
+`docs/superpowers/specs/2026-07-21-acceptance-retry-visibility-design.md` for the full
+rationale, including why this is a convention over the existing free-form `--step`/
+`--outcome` arguments rather than a new `gate-ledger` verb or schema change.
+
 ### 2 · Run the driver script (primary mode)
 
 The scheduler is code, not prose. Resolve the plugin root (the plugin's `bin/` is on
@@ -243,9 +269,13 @@ actual story (i.e. has a `<slug>--<story>` work file — the epic finale's own s
 pseudo-entry below does not and falls through the degrade rule at the end of this
 section unchanged), read `gate-ledger work-get --slug "<slug>--<story>"` — one more read
 of the same kind Reconcile already made per story, scoped only to the stories this
-report is about to print — and, for each entry in its `history` array, compute elapsed
-time as that entry's `at` minus the previous entry's `at` (or the work file's own
-`createdAt` for the first entry, which has no predecessor):
+report is about to print — and, for each real phase entry in its `history` array,
+compute elapsed time as that entry's `at` minus the previous entry's `at` (or the work
+file's own `createdAt` for the first entry, which has no predecessor) — **except** a
+phase whose immediate predecessor is a `run-boundary` marker (written by Reconcile
+above): its true predecessor is idle/inter-invocation time, not work, so it renders a
+factual `(resumed)` tag instead of a computed number, never a bare render and never a
+misleading one:
 
 ```bash
 gate-ledger work-get --slug "<slug>--<story>" | jq -r '
@@ -253,10 +283,17 @@ gate-ledger work-get --slug "<slug>--<story>" | jq -r '
   [(.history // [])[]] as $h |
   [range(0; ($h | length))] | map(
     ($h[.]) as $entry |
-    (if . == 0 then $created else $h[. - 1].at end) as $prev |
-    (try (($entry.at | fromdateiso8601) - ($prev | fromdateiso8601)) catch null) as $secs |
-    if $secs == null or $secs < 0 then "\($entry.step): \($entry.outcome)"
-    else "\($entry.step): \($entry.outcome) (\(($secs / 60) | round)m)"
+    if $entry.step == "run-boundary" then empty
+    else
+      (. > 0 and $h[. - 1].step == "run-boundary") as $resumed |
+      if $resumed then "\($entry.step): \($entry.outcome) (resumed)"
+      else
+        (if . == 0 then $created else $h[. - 1].at end) as $prev |
+        (try (($entry.at | fromdateiso8601) - ($prev | fromdateiso8601)) catch null) as $secs |
+        if $secs == null or $secs < 0 then "\($entry.step): \($entry.outcome)"
+        else "\($entry.step): \($entry.outcome) (\(($secs / 60) | round)m)"
+        end
+      end
     end
   ) | join(" → ")
 '
@@ -269,12 +306,21 @@ every recorded round, including a fix-cycle round the driver's own in-memory `tr
 collapses to its terminal verdict — issue #142's own 117-minute round renders right
 next to the `SHIP` that eventually followed it, not lost to it.
 
-Two things this deliberately does, per
+Three things this deliberately does, per
 `docs/superpowers/specs/2026-07-21-acceptance-retry-visibility-design.md`:
 
-- **Never asserts health.** Every phase gets a number, always — nothing here decides
-  or says "slow," "stalled," or "retried." A human reads the numbers and decides
-  whether one is worth investigating, same as the issue #142 reporter did by hand.
+- **Never asserts health.** Every phase gets a number or the `(resumed)` tag, always —
+  nothing here decides or says "slow," "stalled," or "retried." A human reads the
+  numbers (and the tag, when present) and decides whether one is worth investigating,
+  same as the issue #142 reporter did by hand.
+- **A resumed phase is always flagged, never silently bare.** A phase immediately
+  following a `run-boundary` marker gets `(resumed)` whether the actual dispatch behind
+  it took 5 minutes or 117 — the tag can't and doesn't claim to tell those apart (doing
+  so would need the marker's own timestamp, rejected in the design doc on
+  queueing-delay grounds), but it converts a render that would otherwise look
+  identical to a healthy same-run phase into an explicit, uniform invitation to check
+  by hand. A fully bare render hides a genuinely slow resumed gate as easily as it
+  hides a healthy one — the tag exists precisely so that never happens silently.
 - **Renders full history, not just this run's phases.** A resumed story's `history`
   carries every prior run's phases too; that's intentional, not a bug to fix — the
   chain is the story's complete gate-flow record to date, not a diff against the last
@@ -298,11 +344,14 @@ Landed this run: <story> — <phase>: <outcome> (<Nm>) → <phase>: <outcome> (<
 Run /work-through when you're ready, or resolve the queue first.
 ```
 
-Omit `Needs you:` when nothing is parked. When the epic reaches `ready`, the last line
-becomes the `gh pr create` handoff; `stopped` states what ended it. A parked story is
-always also a valid `/work-on` feature — say so when the queue is non-empty; taking a
-story over by hand happens inside its worktree (the story branch is checked out
-there), or after `git worktree remove` on it.
+`(<Nm>)` is a computed duration for a phase whose predecessor was real same-run work;
+a phase resumed across a run boundary (above) renders `(resumed)` in that same
+position instead, never omitted and never a manufactured number. Omit `Needs you:`
+when nothing is parked. When the epic reaches `ready`, the last line becomes the
+`gh pr create` handoff; `stopped` states what ended it. A parked story is always also
+a valid `/work-on` feature — say so when the queue is non-empty; taking a story over
+by hand happens inside its worktree (the story branch is checked out there), or after
+`git worktree remove` on it.
 
 ## Record keeping
 
