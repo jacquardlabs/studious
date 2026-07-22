@@ -545,6 +545,38 @@ against wall-clock now (the same technique this mitigation formalizes) — this 
 does not add that as a new capability, only documents that the data enabling it
 already exists and makes the retrospective half of it automatic.
 
+**A second, narrower honest limitation, distinct from the retrospective one above:** a
+non-resumed phase's rendered `(Nm)` is not purely "how long the gate's own work took,"
+even when no `run-boundary` marker sits between it and its predecessor. For a phase
+whose predecessor in `history` is a real prior completion entry (not a marker), the
+rendered delta spans predecessor-completion → this-phase-completion — and `runStory`'s
+phase loop calls `await sem.acquire()` (`workflows/epic-driver.js:890`) immediately
+before dispatching each phase, releasing it only in the `finally` after that phase's
+gate or worker writes its own `work-log` completion entry (line 924). Neither endpoint
+of the rendered delta is a dispatch-start timestamp, so when an epic runs near `sem`'s
+concurrency cap, a story can queue behind capped siblings for real minutes between the
+predecessor's completion and this phase's own `sem.acquire()` returning — and that
+queueing wait folds into the delta rendered as this phase's duration, indistinguishable
+from genuine work. A story that queues 15 real minutes behind capped siblings and then
+builds in 3 renders `build: DONE (18m)` — a same-run false outlier, invisible in the
+report and not caught by the `(resumed)` tag, since no `run-boundary` marker sits
+between these two entries: this isn't a cross-run resume, it's same-run queueing. This
+is the same mechanism `## Alternatives considered` names when explaining why
+re-scoping a resumed phase's duration against its `run-boundary` marker's own
+timestamp was rejected (queueing can land between the marker and the real dispatch
+too) — here it applies to the ordinary, non-resumed case this design otherwise
+presents as a trustworthy measurement of "how long the gate's own work took." It is a
+smaller-magnitude version of the same false-outlier class acceptance criterion 4 asks
+this design to avoid, via a different mechanism than the cross-run gap the
+`run-boundary` marker fixes: bounded by the epic's own concurrency cap and however
+long a queue behind it runs — minutes, not the days a weekend resume can span — but
+real, and not eliminated by anything this design ships. No mitigation is proposed here,
+for the same reason `## Alternatives considered` already gives for the resumed case:
+there is no recorded timestamp for "when the semaphore admitted this phase" to
+distinguish queue wait from work, short of a new write to `epic-driver.js`'s dispatch
+path this design's own boundary (`## Out of scope`, no `epic-driver.js` dispatch
+change) declines to add.
+
 ## User journey
 
 Extends PRODUCT.md's critical user journey #2 ("Per-feature gate flow") at epic scale,
