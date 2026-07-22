@@ -1,11 +1,16 @@
 # Investigate silent gate-acceptance dispatch retries, and surface what's actually visible
 
-**Date:** 2026-07-21 (revised 2026-07-22; revised again same day)
-**Status:** Design, revision 2 — Revision 1 responded to `gate-acceptance`'s `HOLD`
-verdict against the first build (recorded 2026-07-22T00:56:37Z); Revision 2 responds to
+**Date:** 2026-07-21 (revised 2026-07-22; revised again same day; revised a third time
+same day)
+**Status:** Design, revision 3 — Revision 1 responded to `gate-acceptance`'s `HOLD`
+verdict against the first build (recorded 2026-07-22T00:56:37Z); Revision 2 responded to
 `gate-design-review`'s `REVISE` verdict against Revision 1 (a criterion-4 false negative
-the render rule introduced). Pre-reimplementation — the branch's shipped build
-(commit 66419fb) is Revision 1's flat-array design, not yet updated for either revision.
+the render rule introduced); Revision 3 responds to `gate-acceptance`'s
+`FIX AND RE-CHECK` verdict against the Revision 2 build (recorded 2026-07-22T02:58:31Z,
+sha `e3eaae7`) — the bare `(resumed)` tag still read as a benign lifecycle fact to a
+scanning maintainer rather than an invitation to check a potentially slow gate. The
+branch's shipped build implements Revision 2 in full (commit `bf1ecde`); this revision's
+tag-text enrichment ships in the commit that carries this doc edit.
 **Source:** [#142](https://github.com/jacquardlabs/studious/issues/142) (Finding 2 only —
 Finding 1, the unbounded precedent-diff search, already shipped via PR #154), story
 `acceptance-retry-visibility` of epic `perf-audit-followups`
@@ -74,6 +79,35 @@ silent about. This revision:
 Nothing else changes: the run-boundary marker's placement, write condition, and reserved
 step name; the confirmation that the driver never pauses mid-run; and the Problem/
 investigation sections are all unchanged from Revision 1.
+
+### Revision 3 (gate-acceptance FIX AND RE-CHECK, Finding 1)
+
+`gate-acceptance` returned `FIX AND RE-CHECK` against the Revision 2 build: Finding 1
+(product-reviewer, SHOULD FIX) held that the bare `(resumed)` tag Revision 2 shipped
+"reads as a benign lifecycle fact" to a maintainer scanning the report, not as the
+explicit invitation to investigate that criterion 4 requires — a genuinely slow resumed
+gate stays effectively invisible next to a healthy one unless the tag's own words say to
+check, reopening one level up the exact false negative Revision 2 closed for the
+*presence* of a flag. The fix task was explicit about what not to reopen: whether to have
+a tag at all (`gate-design-review` already settled that in Revision 2) and whether to add
+a minute count to it (criterion 2 forbids a number for a resumed phase, regardless).
+Only the tag's own literal wording changes. This revision:
+
+1. Enriches the tag's rendered text from the bare `(resumed)` to
+   `(resumed — no same-run duration; worth a gate-ledger work-get check)` — stating
+   plainly, in the text a maintainer actually reads, both halves of what the tag has
+   always meant structurally: no same-run measurement exists for this phase, and a
+   manual `gate-ledger work-get` check is the same diagnostic step the issue #142
+   reporter already took by hand. `## Proposed design`'s render-rule definition and its
+   two worked-example fences, and `## Success metrics`'s counterfactual bullets, are
+   updated to the new literal string.
+2. Changes nothing else: the run-boundary marker's placement, write condition, and
+   reserved step name; the confirmation that the driver never pauses mid-run; which
+   phases get the tag versus a computed number; and the tag's own uniformity across a
+   fast and a slow resume (still, deliberately, byte-identical to each other — see
+   `## Proposed design`'s false-negative walkthrough, unchanged by this revision) are
+   all exactly as Revision 2 left them. The word "resumed" stays the tag's anchor —
+   this revision extends what follows it, not what it's called.
 
 ## Problem & persona
 
@@ -390,10 +424,13 @@ so this is one more read of the same kind, only for stories the report is about 
 render) and render every phase-transition entry in `history` with its elapsed time,
 in place of (not appended to) the driver's own collapsed `trail`/`reason` text —
 **except** a `run-boundary` marker itself (never rendered as a line of its own) and
-**except** the real phase entry immediately following one (rendered `<phase>: <outcome>
-(resumed)` in place of a computed duration — never fully bare — since its true
-predecessor is idle/inter-invocation time, not work; see Revision 2's note above for
-why bare rendering alone doesn't satisfy criterion 4):
+**except** the real phase entry immediately following one (rendered
+`<phase>: <outcome> (resumed — no same-run duration; worth a gate-ledger work-get
+check)` in place of a computed duration — never fully bare, and never the bare
+`(resumed)` word alone — since its true predecessor is idle/inter-invocation time, not
+work; see Revision 2's note above for why bare rendering alone doesn't satisfy
+criterion 4, and Revision 3's note above for why the bare tag word alone didn't
+either):
 
 ```
 Landed this run: acceptance-retry-visibility — design-review: PROCEED TO PLAN (13m) →
@@ -422,7 +459,8 @@ have shown only the final `SHIP` and lost the 117-minute round entirely.
 renders as:
 
 ```
-audit: PASS (26m) → acceptance: SHIP (resumed)
+audit: PASS (26m) → acceptance: SHIP (resumed — no same-run duration; worth a
+gate-ledger work-get check)
 ```
 
 `acceptance`'s immediate predecessor in the array is the marker written when Monday's
@@ -453,7 +491,8 @@ and acceptance genuinely stalls 117 minutes before shipping:
 renders as:
 
 ```
-audit: PASS (26m) → acceptance: SHIP (resumed)
+audit: PASS (26m) → acceptance: SHIP (resumed — no same-run duration; worth a
+gate-ledger work-get check)
 ```
 
 Byte-identical to the healthy 5-minute resume above — the tag cannot and does not claim
@@ -462,14 +501,21 @@ re-scoped, caveat-laden number `## Alternatives considered` rejects on its own m
 What it changes from the un-tagged bare rendering Revision 1 shipped and
 `gate-design-review` held on: a bare `acceptance: SHIP` reads, to a scanning
 maintainer, as "nothing to see" — indistinguishable from a phase that simply had no
-duration computed for some uninteresting reason. `acceptance: SHIP (resumed)` reads as
-"this number isn't backed by a same-run measurement" on *every* resumed phase, healthy
-or not — an explicit, uniform invitation to run `gate-ledger work-get` by hand on any
-story whose other context (a bumped retry counter, a parked history, a sibling story's
-pattern) makes it worth a second look. That is the same manual-diagnostic step the
-issue #142 reporter already took by hand (`## Problem & persona` above); the tag makes
-clear when it's worth taking, rather than leaving a genuinely-stalled resume looking
-identical to every other completed phase in the report.
+duration computed for some uninteresting reason. Revision 2's bare `(resumed)` word
+improved on that by flagging the phase at all, but — per `gate-acceptance`'s own
+Finding 1 against that build — still left the flag's *meaning* to be inferred: a
+maintainer scanning past it could read "resumed, fine" as easily as "resumed, worth a
+look." Revision 3's enriched tag,
+`acceptance: SHIP (resumed — no same-run duration; worth a gate-ledger work-get
+check)`, states plainly, in its own literal words, that this number isn't backed by a
+same-run measurement and that running `gate-ledger work-get` by hand on this story is
+worth doing — the same manual-diagnostic step the issue #142 reporter already took by
+hand (`## Problem & persona` above), no longer left for the reader to infer on *every*
+resumed phase, healthy or not. It stays deliberately uniform regardless of a story's
+other context (a bumped retry counter, a parked history, a sibling story's pattern) —
+the tag says a glance is always worth taking, not that this particular instance is
+worse than another, rather than leaving a genuinely-stalled resume looking identical to
+every other completed phase in the report.
 
 Nothing about *which* durations are "long" is computed or asserted anywhere — every
 phase gets either a number or the `(resumed)` tag, always, healthy or not: the tag is
@@ -539,10 +585,10 @@ audit rounds as extending it.
    (superseded by item 6 below):** the same entry rendered `acceptance: SHIP` with no
    parenthetical at all — visibly different from every genuinely-timed number around
    it, but, per `gate-design-review`'s second-round finding, byte-identical to a
-   genuinely-stalled resume. **After Revision 2:** the same entry renders
-   `acceptance: SHIP (resumed)` — still never a number that could send the persona
-   chasing a stall that was actually a weekend, and now carrying an explicit flag
-   instead of silent absence.
+   genuinely-stalled resume. **After Revision 2 (superseded by item 7 below):** the
+   same entry renders `acceptance: SHIP (resumed)` — still never a number that could
+   send the persona chasing a stall that was actually a weekend, and now carrying an
+   explicit flag instead of silent absence.
 6. **The false negative Revision 2 closes:** a *third* story's audit also passes Friday,
    its invocation also ends before acceptance dispatches, and Monday's resumed
    acceptance genuinely stalls 117 minutes (issue #142's own incident, landing at a
@@ -552,12 +598,24 @@ audit rounds as extending it.
    no way to tell why. The persona reading both entries side by side saw two identical
    "resume, fine" lines and never learned one gate ran roughly 20x its sibling's
    pattern — the same invisibility this epic exists to fix, reintroduced by the fix
-   itself. Under Revision 2, both entries render `acceptance: SHIP (resumed)` — still
-   identical to each other (the tag cannot distinguish fast from slow without the
-   re-scoped number this design rejects twice over), but each now carries an explicit
-   signal that its duration isn't a same-run measurement, inviting the same manual
-   `gate-ledger work-get` check the issue #142 reporter did by hand for any story whose
-   other context makes it worth a second look.
+   itself. Under Revision 2 (superseded by item 7 below), both entries render
+   `acceptance: SHIP (resumed)` — still identical to each other (the tag cannot
+   distinguish fast from slow without the re-scoped number this design rejects twice
+   over), but each now carries an explicit flag that its duration isn't a same-run
+   measurement.
+7. **Revision 3 (`gate-acceptance` FIX AND RE-CHECK, Finding 1):** the bare `(resumed)`
+   word from Revision 2, while present, still asked a scanning maintainer to *infer*
+   that it meant "no measurement, maybe worth a check" — Finding 1 held that a
+   maintainer skimming a long report could read it as a benign lifecycle note and pass
+   right over the slow-resume case in item 6 above, the exact invisibility this epic
+   exists to fix. **After Revision 3:** both the item-5 (healthy) and item-6
+   (117-minute stall) entries render
+   `acceptance: SHIP (resumed — no same-run duration; worth a gate-ledger work-get
+   check)` — still byte-identical to each other, by the same deliberate choice items
+   5-6 already explain (the tag cannot and does not claim to distinguish fast from
+   slow), but now the tag's own words say what it means and what to do about it,
+   inviting the same manual `gate-ledger work-get` check the issue #142 reporter did
+   by hand, instead of leaving that meaning for the reader to infer from a single word.
 
 ## Out of scope
 
@@ -715,18 +773,29 @@ signal is structural, per the design-doc contract's allowance for that shape her
   had it existed at the time.
 - **The `HOLD` finding's own counterfactual, post-fix:** applying the revised
   computation to the reconstructed audit-Friday/acceptance-Monday fixture above
-  (`## Proposed design`) yields `acceptance: SHIP (resumed)` — proving the
-  specific false outlier the finding named (`(2877m)`) cannot render once the marker
-  is in place, and that the unaffected `audit: PASS (26m)` entry in the same fixture is
-  untouched, confirming the fix is scoped to the crossing phase alone.
+  (`## Proposed design`) yields
+  `acceptance: SHIP (resumed — no same-run duration; worth a gate-ledger work-get
+  check)` — proving the specific false outlier the finding named (`(2877m)`) cannot
+  render once the marker is in place, and that the unaffected `audit: PASS (26m)`
+  entry in the same fixture is untouched, confirming the fix is scoped to the
+  crossing phase alone.
 - **`gate-design-review`'s own second-round counterfactual:** applying the identical
   computation to a *slow* resumed phase (the 117-minute-stall fixture above, landing at
-  a resume boundary instead of mid-run) yields `acceptance: SHIP (resumed)` — the same
-  tag as the healthy fast-resume case, never a bare render indistinguishable from
-  "nothing recorded." This is the regression check acceptance criterion 4 actually asks
-  for: not a differentiating number (rejected twice over — see `## Alternatives
-  considered`), but confirmation that no resumed phase, fast or slow, ever renders
-  identically to a phase whose duration genuinely wasn't worth a second look.
+  a resume boundary instead of mid-run) yields the identical
+  `acceptance: SHIP (resumed — no same-run duration; worth a gate-ledger work-get
+  check)` tag as the healthy fast-resume case, never a bare render indistinguishable
+  from "nothing recorded." This is the regression check acceptance criterion 4
+  actually asks for: not a differentiating number (rejected twice over — see
+  `## Alternatives considered`), but confirmation that no resumed phase, fast or slow,
+  ever renders identically to a phase whose duration genuinely wasn't worth a second
+  look.
+- **`gate-acceptance`'s own Finding-1 counterfactual (Revision 3):** the tag's literal
+  rendered text now contains `gate-ledger work-get` and `no same-run duration`, and
+  contains no digit and none of "slow," "stalled," or "retried" — confirming a
+  maintainer reading the tag in isolation, with no design doc open, sees an actionable
+  instruction rather than a bare lifecycle word, without the tag smuggling in either a
+  health verdict or a minute count. Locked as an executable regression in
+  `tests/python/test_acceptance_retry_visibility.py::test_resumed_tag_states_no_measurement_and_invites_a_manual_check`.
 
 ## Operational readiness
 
@@ -793,13 +862,18 @@ signal is structural, per the design-doc contract's allowance for that shape her
   marker immediately precedes it, rendering `(resumed)` in place of a number) — never
   selectively suppressed for any other reason, which would reintroduce a judgment call
   this design deliberately avoids.
-- **Whether the suppressed phase should carry a small factual tag — resolved this
-  revision, promoted to a requirement, not left cosmetic.** `gate-design-review`'s
-  second-round finding showed the fully-bare rendering creates its own false-outlier
-  failure mode (a genuinely slow resumed phase renders identically to a healthy one,
-  both invisible); every phase immediately following a `run-boundary` marker now
-  renders `<phase>: <outcome> (resumed)`, never bare. See `## Proposed design`'s
-  false-negative walkthrough and `## Revision history`'s Revision 2 note.
+- **Whether the suppressed phase should carry a small factual tag — resolved in
+  Revision 2, promoted to a requirement, not left cosmetic; the tag's exact wording
+  further resolved in Revision 3.** `gate-design-review`'s second-round finding showed
+  the fully-bare rendering creates its own false-outlier failure mode (a genuinely
+  slow resumed phase renders identically to a healthy one, both invisible); every
+  phase immediately following a `run-boundary` marker renders a non-bare tag, never
+  bare. `gate-acceptance`'s subsequent FIX AND RE-CHECK (Finding 1) held that Revision
+  2's bare `(resumed)` word still left that tag's meaning to be inferred; Revision 3
+  enriches it to
+  `<phase>: <outcome> (resumed — no same-run duration; worth a gate-ledger work-get
+  check)`. See `## Proposed design`'s false-negative walkthrough and `## Revision
+  history`'s Revision 2 and Revision 3 notes.
 - **Whether a parked epic story taken over by hand via `/work-on` should get the same
   marker treatment** (`## Out of scope` above) — real, same-shaped gap, left as a
   follow-up rather than widening this story into a second command's prose.

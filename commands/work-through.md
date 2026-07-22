@@ -273,9 +273,11 @@ report is about to print — and, for each real phase entry in its `history` arr
 compute elapsed time as that entry's `at` minus the previous entry's `at` (or the work
 file's own `createdAt` for the first entry, which has no predecessor) — **except** a
 phase whose immediate predecessor is a `run-boundary` marker (written by Reconcile
-above): its true predecessor is idle/inter-invocation time, not work, so it renders a
-factual `(resumed)` tag instead of a computed number, never a bare render and never a
-misleading one:
+above): its true predecessor is idle/inter-invocation time, not work, so it renders an
+explicit `(resumed)` tag instead of a computed number — one that states plainly, in its
+own literal text, that no same-run duration was measured and that a manual
+`gate-ledger work-get` check may be worth taking, never a bare render, never a bare
+`(resumed)` label standing alone, and never a misleading number:
 
 ```bash
 gate-ledger work-get --slug "<slug>--<story>" | jq -r '
@@ -286,7 +288,7 @@ gate-ledger work-get --slug "<slug>--<story>" | jq -r '
     if $entry.step == "run-boundary" then empty
     else
       (. > 0 and $h[. - 1].step == "run-boundary") as $resumed |
-      if $resumed then "\($entry.step): \($entry.outcome) (resumed)"
+      if $resumed then "\($entry.step): \($entry.outcome) (resumed — no same-run duration; worth a gate-ledger work-get check)"
       else
         (if . == 0 then $created else $h[. - 1].at end) as $prev |
         (try (($entry.at | fromdateiso8601) - ($prev | fromdateiso8601)) catch null) as $secs |
@@ -313,14 +315,18 @@ Three things this deliberately does, per
   nothing here decides or says "slow," "stalled," or "retried." A human reads the
   numbers (and the tag, when present) and decides whether one is worth investigating,
   same as the issue #142 reporter did by hand.
-- **A resumed phase is always flagged, never silently bare.** A phase immediately
-  following a `run-boundary` marker gets `(resumed)` whether the actual dispatch behind
-  it took 5 minutes or 117 — the tag can't and doesn't claim to tell those apart (doing
-  so would need the marker's own timestamp, rejected in the design doc on
-  queueing-delay grounds), but it converts a render that would otherwise look
-  identical to a healthy same-run phase into an explicit, uniform invitation to check
-  by hand. A fully bare render hides a genuinely slow resumed gate as easily as it
-  hides a healthy one — the tag exists precisely so that never happens silently.
+- **A resumed phase is always flagged, never silently bare, and the flag says why.**
+  A phase immediately following a `run-boundary` marker gets the
+  `(resumed — no same-run duration; worth a gate-ledger work-get check)` tag whether
+  the actual dispatch behind it took 5 minutes or 117 — the tag can't and doesn't claim
+  to tell those apart (doing so would need the marker's own timestamp, rejected in the
+  design doc on queueing-delay grounds), but its own literal words state plainly that no
+  same-run duration was measured and invite the same manual check the issue #142
+  reporter took by hand, rather than reading as a benign lifecycle fact a scanning
+  maintainer could pass over. A fully bare render — or a bare `(resumed)` label that
+  names the lifecycle event without saying to do anything about it — hides a genuinely
+  slow resumed gate as easily as it hides a healthy one; the explicit wording exists
+  precisely so that never happens silently.
 - **Renders full history, not just this run's phases.** A resumed story's `history`
   carries every prior run's phases too; that's intentional, not a bug to fix — the
   chain is the story's complete gate-flow record to date, not a diff against the last
@@ -345,8 +351,10 @@ Run /work-through when you're ready, or resolve the queue first.
 ```
 
 `(<Nm>)` is a computed duration for a phase whose predecessor was real same-run work;
-a phase resumed across a run boundary (above) renders `(resumed)` in that same
-position instead, never omitted and never a manufactured number. Omit `Needs you:`
+a phase resumed across a run boundary (above) renders the
+`(resumed — no same-run duration; worth a gate-ledger work-get check)` tag in that same
+position instead, never omitted, never a bare `(resumed)` alone, and never a
+manufactured number. Omit `Needs you:`
 when nothing is parked. When the epic reaches `ready`, the last line becomes the
 `gh pr create` handoff; `stopped` states what ended it. A parked story is always also
 a valid `/work-on` feature — say so when the queue is non-empty; taking a story over

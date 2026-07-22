@@ -39,10 +39,22 @@ healthy 5-minute resume: both bare, no flag. This revision promotes the `(resume
 a deferred cosmetic Open Question to a requirement, so every phase following a
 `run-boundary` marker carries an explicit, uniform flag rather than rendering fully bare.
 The tests below marked "Revision 2" lock this: the marker never renders as its own line, the
-phase immediately after one always carries `(resumed)` regardless of how long the real
+phase immediately after one always carries the resumed tag regardless of how long the real
 dispatch behind it actually took (the specific false-negative regression), and only the
 *immediately* following phase is tagged — a later phase in the same story computes its
 delta normally against its own real predecessor.
+
+**Revision 3 (`gate-acceptance` FIX AND RE-CHECK, Finding 1):** Revision 2's bare `(resumed)`
+tag was itself found to read, to a scanning maintainer, as a benign lifecycle fact rather
+than an invitation to check a potentially slow gate — reopening the same false negative
+Revision 2 exists to close, one level up: the *presence* of a flag no longer distinguished
+fast from slow, but its *meaning* still had to be inferred rather than stated. This revision
+enriches the tag's own literal text (`RESUMED_TAG` below, copied verbatim from the `jq`
+filter so the two can't drift apart silently) to say plainly that no same-run duration was
+measured and that a manual `gate-ledger work-get` check may be worth taking — never
+reopening whether to have a tag at all (settled by `gate-design-review`) and never adding a
+minute count to it (forbidden by criterion 2; a resumed phase still can't be measured, only
+flagged more legibly).
 """
 
 from __future__ import annotations
@@ -57,6 +69,16 @@ WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
 DESIGN_DOC = (
     REPO_ROOT / "docs" / "superpowers" / "specs" / "2026-07-21-acceptance-retry-visibility-design.md"
 )
+
+# `gate-acceptance` FIX AND RE-CHECK, Finding 1: a bare `(resumed)` tag reads as a
+# benign lifecycle fact to a scanning maintainer, not an invitation to investigate a
+# potentially slow gate — reopening the exact false negative Revision 2 exists to
+# close. The tag's literal text now states plainly that no same-run duration was
+# measured and that a manual `gate-ledger work-get` check may be worth taking, never
+# a health verdict (forbidden by criterion 4) and never a minute count (forbidden by
+# criterion 2). A single hardcoded constant, not re-typed per assertion, so a byte-level
+# mismatch (an em dash vs. a hyphen, say) can't slip between two assertions silently.
+RESUMED_TAG = "(resumed — no same-run duration; worth a gate-ledger work-get check)"
 
 def _command_text() -> str:
     return WORK_THROUGH.read_text()
@@ -293,12 +315,12 @@ def test_run_boundary_marker_never_rendered_as_its_own_line() -> None:
     out = _run_jq(_extract_jq_filter(), payload)
     assert "run-boundary" not in out
     assert "DISPATCHED" not in out
-    assert out == "audit: PASS (13m) → acceptance: SHIP (resumed)"
+    assert out == f"audit: PASS (13m) → acceptance: SHIP {RESUMED_TAG}"
 
 
 def test_run_boundary_tags_a_fast_resumed_phase() -> None:
     """The `HOLD` finding's own scenario: a fast (5-minute) resumed phase must
-    never render its idle-time delta (`(2877m)`) — it renders `(resumed)`."""
+    never render its idle-time delta (`(2877m)`) — it renders the resumed tag."""
     payload = {
         "createdAt": "2026-07-18T16:50:00Z",
         "history": [
@@ -308,7 +330,7 @@ def test_run_boundary_tags_a_fast_resumed_phase() -> None:
         ],
     }
     out = _run_jq(_extract_jq_filter(), payload)
-    assert "acceptance: SHIP (resumed)" in out
+    assert f"acceptance: SHIP {RESUMED_TAG}" in out
     assert "2877" not in out
     assert "(5m)" not in out
 
@@ -319,7 +341,7 @@ def test_run_boundary_tags_a_slow_resumed_phase_the_same_way() -> None:
     genuinely slow resumed phase (issue #142's own 117-minute stall, landing
     at a resume boundary) exactly as it hid a healthy one — byte-identical,
     zero signal either way. Locking that the slow case now carries the same
-    explicit `(resumed)` tag as the fast case (never a bare render, and never
+    explicit resumed tag as the fast case (never a bare render, and never
     a differentiating number the design doc's own Alternatives section
     rejected on queueing-delay grounds)."""
     payload = {
@@ -331,9 +353,9 @@ def test_run_boundary_tags_a_slow_resumed_phase_the_same_way() -> None:
         ],
     }
     out = _run_jq(_extract_jq_filter(), payload)
-    assert out == "audit: PASS (13m) → acceptance: SHIP (resumed)"
+    assert out == f"audit: PASS (13m) → acceptance: SHIP {RESUMED_TAG}"
     # Never fully bare — the pre-Revision-2 failure mode this test guards against.
-    assert out.strip().endswith("acceptance: SHIP (resumed)")
+    assert out.strip().endswith(f"acceptance: SHIP {RESUMED_TAG}")
     assert "acceptance: SHIP\n" not in out
     assert not out.rstrip().endswith("acceptance: SHIP")
 
@@ -358,9 +380,54 @@ def test_run_boundary_tag_is_scoped_to_the_immediately_following_phase_only() ->
     }
     out = _run_jq(_extract_jq_filter(), payload)
     assert out == (
-        "audit: PASS (13m) → acceptance: FIX AND RE-CHECK (resumed) → "
+        f"audit: PASS (13m) → acceptance: FIX AND RE-CHECK {RESUMED_TAG} → "
         "acceptance: SHIP (10m)"
     )
+
+
+# --- Revision 3: the resumed tag's literal text states no-measurement + a check ---
+# (gate-acceptance FIX AND RE-CHECK, Finding 1)
+
+
+def test_resumed_tag_states_no_measurement_and_invites_a_manual_check() -> None:
+    """`gate-acceptance` FIX AND RE-CHECK, Finding 1: the bare `(resumed)` tag read as
+    a benign lifecycle fact to a scanning maintainer, not an invitation to check a
+    potentially slow gate — reopening the false negative Revision 2 exists to close.
+    The tag's literal rendered text must now say both that no same-run duration was
+    measured and that a manual `gate-ledger work-get` check may be worth taking,
+    without smuggling in a health verdict (forbidden by criterion 4) or a minute
+    count (forbidden by criterion 2)."""
+    payload = {
+        "createdAt": "2026-07-18T16:50:00Z",
+        "history": [
+            {"step": "audit", "outcome": "PASS", "at": "2026-07-18T17:03:11Z"},
+            {"step": "run-boundary", "outcome": "DISPATCHED", "at": "2026-07-20T09:14:02Z"},
+            {"step": "acceptance", "outcome": "SHIP", "at": "2026-07-20T09:19:47Z"},
+        ],
+    }
+    out = _run_jq(_extract_jq_filter(), payload)
+    tag = out[out.index("(resumed") :]
+    assert "gate-ledger work-get" in tag
+    assert "no same-run duration" in tag
+    assert not re.search(r"\d", tag), f"a minute-count leaked into the tag: {tag!r}"
+    for banned in ("slow", "stalled", "retried"):
+        assert banned not in tag.lower(), f"a health verdict leaked into the tag: {tag!r}"
+
+
+def test_resumed_tag_matches_the_hardcoded_regression_constant() -> None:
+    """Guards `RESUMED_TAG` itself against silent drift from the actual rendered
+    text — if a future edit changes the tag's wording in `commands/work-through.md`
+    without updating this module's constant, this is the test that catches it."""
+    payload = {
+        "createdAt": "2026-07-18T16:50:00Z",
+        "history": [
+            {"step": "audit", "outcome": "PASS", "at": "2026-07-18T17:03:11Z"},
+            {"step": "run-boundary", "outcome": "DISPATCHED", "at": "2026-07-20T09:14:02Z"},
+            {"step": "acceptance", "outcome": "SHIP", "at": "2026-07-20T09:19:47Z"},
+        ],
+    }
+    out = _run_jq(_extract_jq_filter(), payload)
+    assert out == f"audit: PASS (13m) → acceptance: SHIP {RESUMED_TAG}"
 
 
 def test_reconcile_writes_run_boundary_marker_for_pre_existing_work_files() -> None:
