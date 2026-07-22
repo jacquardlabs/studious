@@ -95,11 +95,11 @@ the files get corrected (via `gate-ledger`, never by hand) when they disagree. O
 call resolves all of it:
 
 ```bash
-gate-ledger epic-reconcile --slug "<slug>"
+reconcile_json=$(gate-ledger epic-reconcile --slug "<slug>")
 ```
 
-The payload's `.epic` is the same epic-and-stories state a bare `epic-get` returns.
-Each `.stories.<story>` entry (keyed by the bare story slug) carries that story's
+`$reconcile_json`'s `.epic` field is the same epic-and-stories state a bare `epic-get`
+returns. Each `.stories.<story>` entry (keyed by the bare story slug) carries that story's
 work-file state (`.work` — every epic-dispatched work file is recorded under the
 epic-qualified slug `<slug>--<story>`, never the bare story slug, but this payload
 already keys it back to the bare slug for you; `null` if the story hasn't reached
@@ -122,12 +122,15 @@ jumps straight to landing the story instead of re-running its profile.
 if some invocation already started it — this one runs Reconcile first, before any
 dispatch, so "the file already exists" can only mean an *earlier* invocation created
 it. For each such story (skip a brand-new story with no work file yet — its first
-phase measures against the work file's own `createdAt`, unchanged), reuse the same
-`work-get` JSON already read above (no extra call) and write one marker unless the
-last entry is already one or the derived next phase is the `merge` sentinel (nothing
-ever reads `history` again for a story that's only got its merge left):
+phase measures against the work file's own `createdAt`, unchanged), derive this
+story's work-file JSON from the already-captured `$reconcile_json` — its
+`.stories["<story>"].work` field is the same content a standalone `work-get` would
+return, no extra `gate-ledger` call needed — and write one marker unless the last
+entry is already one or the derived next phase is the `merge` sentinel (nothing ever
+reads `history` again for a story that's only got its merge left):
 
 ```bash
+work_get_json=$(echo "$reconcile_json" | jq -c '.stories["<story>"].work // empty')
 last_step=$(echo "$work_get_json" | jq -r '.history[-1].step // ""')
 if [ -n "$work_get_json" ] && [ "$last_step" != "run-boundary" ] && [ "$next_phase" != "merge" ]; then
   gate-ledger work-log --slug "<slug>--<story>" --step "run-boundary" --outcome "DISPATCHED"
@@ -170,7 +173,7 @@ Call the Workflow tool with `scriptPath` set to that file and `args`:
 
 ```json
 {
-  "epic": "<the epic-reconcile payload's .epic field, verbatim — no second epic-get call>",
+  "epic": "<$reconcile_json's .epic field, verbatim — no second epic-get call>",
   "phases": { "<story>": "<next phase>" },
   "repoRoot": "<absolute path of the main working tree>",
   "defaultBranch": "<resolved default branch>",

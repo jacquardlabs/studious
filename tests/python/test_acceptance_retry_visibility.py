@@ -442,6 +442,26 @@ def test_reconcile_writes_run_boundary_marker_for_pre_existing_work_files() -> N
     assert '"$next_phase" != "merge"' in text
 
 
+def test_reconcile_binds_work_get_json_from_the_captured_reconcile_payload() -> None:
+    """Regression (epic finale audit, perf-audit-followups): the
+    epic-reconcile-verb story (issue #160) collapsed each story's separate
+    `gate-ledger work-get` call into one composite `epic-reconcile` call, but
+    this section's "reuse the same work-get JSON already read above" prose
+    was never updated to match — `$work_get_json` was referenced in the
+    run-boundary snippet without ever being bound to anything, so
+    `[ -n "$work_get_json" ]` was always false and the run-boundary marker
+    silently never wrote. Locks that `epic-reconcile`'s payload is captured
+    into a named variable, and that `$work_get_json` is actually derived from
+    it (this story's `.work` field) before the existing checks run."""
+    text = _command_text()
+    assert 'reconcile_json=$(gate-ledger epic-reconcile --slug "<slug>")' in text
+    reconcile_text = _reconcile_section()
+    assert (
+        'work_get_json=$(echo "$reconcile_json" | jq -c '
+        '\'.stories["<story>"].work // empty\')' in reconcile_text
+    )
+
+
 def test_run_boundary_reserved_step_name_documented_collision_free() -> None:
     text = _reconcile_section()
     assert "reserved" in text.lower()
