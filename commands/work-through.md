@@ -236,13 +236,65 @@ Amendments go through this command, never hand-edited state:
 
 ## Close every invocation the same way
 
+Before rendering, reconstruct each reported story's phase-duration chain from its own
+recorded history — the same by-hand comparison issue #142's reporter did, made
+mechanical. For every `landedThisRun` entry and every `needsYou` entry that names an
+actual story (i.e. has a `<slug>--<story>` work file — the epic finale's own stalled-gate
+pseudo-entry below does not and falls through the degrade rule at the end of this
+section unchanged), read `gate-ledger work-get --slug "<slug>--<story>"` — one more read
+of the same kind Reconcile already made per story, scoped only to the stories this
+report is about to print — and, for each entry in its `history` array, compute elapsed
+time as that entry's `at` minus the previous entry's `at` (or the work file's own
+`createdAt` for the first entry, which has no predecessor):
+
+```bash
+gate-ledger work-get --slug "<slug>--<story>" | jq -r '
+  .createdAt as $created |
+  [(.history // [])[]] as $h |
+  [range(0; ($h | length))] | map(
+    ($h[.]) as $entry |
+    (if . == 0 then $created else $h[. - 1].at end) as $prev |
+    (try (($entry.at | fromdateiso8601) - ($prev | fromdateiso8601)) catch null) as $secs |
+    if $secs == null or $secs < 0 then "\($entry.step): \($entry.outcome)"
+    else "\($entry.step): \($entry.outcome) (\(($secs / 60) | round)m)"
+    end
+  ) | join(" → ")
+'
+```
+
+Render the joined chain in place of (not appended to) the driver's collapsed
+`trail`/one-clause verdict text — the whole trail for a `landedThisRun` story; a
+parenthetical under the existing headline line for a `needsYou` entry. This surfaces
+every recorded round, including a fix-cycle round the driver's own in-memory `trail`
+collapses to its terminal verdict — issue #142's own 117-minute round renders right
+next to the `SHIP` that eventually followed it, not lost to it.
+
+Two things this deliberately does, per
+`docs/superpowers/specs/2026-07-21-acceptance-retry-visibility-design.md`:
+
+- **Never asserts health.** Every phase gets a number, always — nothing here decides
+  or says "slow," "stalled," or "retried." A human reads the numbers and decides
+  whether one is worth investigating, same as the issue #142 reporter did by hand.
+- **Renders full history, not just this run's phases.** A resumed story's `history`
+  carries every prior run's phases too; that's intentional, not a bug to fix — the
+  chain is the story's complete gate-flow record to date, not a diff against the last
+  invocation.
+
+Degrade per-story, never abort the whole report: if a story's `work-get` read fails,
+its `history` is empty, or the computation above errors (a missing `createdAt`, a
+malformed `at`) for one entry or the whole story, render that one story's line with
+the driver's own trail/reason text exactly as it would render without this step —
+never a raw jq error, never "NaN," never a negative number, and never at the cost of
+any other story's line in the same report.
+
 End with exactly this shape and nothing after it:
 
 ```text
 Epic: <slug> — <landed>/<total> landed, <parked> parked, <blocked> blocked on them.
 Needs you:
   - <story>: <gate> returned <verdict> — <one clause: what's needed>
-Landed this run: <story — verdict trail>
+    (<phase>: <outcome> (<Nm>) → <phase>: <outcome> (<Nm>) → ...)
+Landed this run: <story> — <phase>: <outcome> (<Nm>) → <phase>: <outcome> (<Nm>) → ...
 Run /work-through when you're ready, or resolve the queue first.
 ```
 
