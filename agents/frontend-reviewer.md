@@ -77,6 +77,6 @@ This agent's addendum: no build or dev server was run; bundle sizes are estimate
 ## What you do NOT review
 
 - Visual design, layout, spacing, colors — ux-reviewer handles this
-- Accessibility, ARIA, keyboard navigation — the web-design-guidelines accessibility check (auditor 7 in `/gate-audit`) handles this
+- Accessibility, ARIA, keyboard navigation — the web-design-guidelines accessibility check (auditor 8 in `/gate-audit`) handles this
 - Backend code — out of scope
 - Product decisions — product-reviewer handles this
