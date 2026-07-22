@@ -2,12 +2,18 @@
 
 Nothing previously challenged a finding before it drove the compiled verdict: one
 hallucinated or misread Critical from any auditor flipped the report straight to
-`FIX AND RE-AUDIT`, unchallenged. `commands/gate-audit.md` now independently confirms
-every finding mapped to Critical against the changeset diff before the verdict is
-assigned, symmetric with the existing anti-suppression machinery.
+`FIX AND RE-AUDIT`, unchallenged. The audit gate's compile rules now independently
+confirm every finding mapped to Critical against the changeset diff before the verdict
+is assigned, symmetric with the existing anti-suppression machinery.
+
+Since issue #159 (story `audit-doc-split`), these compile rules live in
+`reference/audit-compilation.md`, cited by both `commands/gate-audit.md`'s own session
+and `workflows/epic-driver.js`'s `auditFanIn()` rather than restated in either — this
+file is the one place the challenge step's text actually lives, so it's the target
+these checks read.
 
 These are static/textual checks that the load-bearing elements of that step are
-present in the command prompt — a real behavioral eval would require a live model
+present in the compile-rules doc — a real behavioral eval would require a live model
 (see tests/fixtures/ + scripts/run_gate_audit_fixtures.py), but the elements below
 are exactly what a future edit could silently drop while still looking like a
 "challenge step" is present, so each is checked independently.
@@ -19,11 +25,11 @@ import re
 
 from run_gate_audit_fixtures import REPO_ROOT
 
-GATE_AUDIT = REPO_ROOT / "commands" / "gate-audit.md"
+AUDIT_COMPILATION = REPO_ROOT / "reference" / "audit-compilation.md"
 
 
 def _challenge_section() -> str:
-    text = GATE_AUDIT.read_text()
+    text = AUDIT_COMPILATION.read_text()
     # Everything between the severity-mapping line and the "Then compile..." handoff
     # into the report sections is this step's home.
     match = re.search(
@@ -32,8 +38,9 @@ def _challenge_section() -> str:
         re.DOTALL,
     )
     assert match, (
-        "gate-audit.md has no content between the severity-mapping line and the "
-        "report-compilation handoff — the challenge step is missing entirely"
+        "reference/audit-compilation.md has no content between the severity-mapping "
+        "line and the report-compilation handoff — the challenge step is missing "
+        "entirely"
     )
     return match.group(1)
 

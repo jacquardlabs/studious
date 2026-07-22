@@ -91,23 +91,61 @@ If the epic's status is still `approved`, mark the run started:
 ### 1 · Reconcile — evidence first
 
 Recorded state must match evidence before anything is dispatched; evidence wins, and
-the files get corrected (via `gate-ledger`, never by hand) when they disagree:
+the files get corrected (via `gate-ledger`, never by hand) when they disagree. One
+call resolves all of it:
 
-- Epic and stories: `gate-ledger epic-get --slug "<slug>"`; per-story phase:
-  `gate-ledger work-get --slug "<slug>--<story>"` — every epic-dispatched work file is
-  keyed by this epic-qualified slug, never the bare story slug (see Record keeping).
-- Verdicts: `gate-ledger gate-get --branch "epic/<slug>--<story>"` — a passing verdict
-  counts only at that branch's HEAD sha.
-- Design docs: each recorded `designDoc` path exists in its story worktree.
-- Landed: the story's merge is actually on the epic branch
-  (`git -C .studious/worktrees/<slug>/__epic log --oneline`); a story marked `landed`
-  without its merge isn't landed.
+```bash
+reconcile_json=$(gate-ledger epic-reconcile --slug "<slug>")
+```
+
+`$reconcile_json`'s `.epic` field is the same epic-and-stories state a bare `epic-get`
+returns. Each `.stories.<story>` entry (keyed by the bare story slug) carries that story's
+work-file state (`.work` — every epic-dispatched work file is recorded under the
+epic-qualified slug `<slug>--<story>`, never the bare story slug, but this payload
+already keys it back to the bare slug for you; `null` if the story hasn't reached
+`design` yet — see Record keeping), its gate verdicts at the story branch's HEAD
+(`.gate`, `null` if no gate has ever run; a passing verdict counts only when
+`.storyBranchHeadSha` matches the verdict's own recorded sha), its story-branch HEAD
+sha (`.storyBranchHeadSha`, empty if the branch doesn't exist yet), whether its
+recorded `designDoc` exists on disk (`.designDocExists`), and whether a story recorded
+`landed` is actually merged onto the epic branch (`.landedButUnmerged`) — a `landed`
+story with `landedButUnmerged: true` isn't landed; flag it and correct the recorded
+status via `gate-ledger` rather than trusting it.
 
 From the reconciled state, derive each unfinished story's **next phase** (first phase
-in its gate profile whose evidence is missing). One special value: if every profiled
-gate has already proceeded at the story branch's HEAD and only the merge onto the epic
-branch is missing, the next phase is the sentinel `merge` — the script jumps straight
-to landing the story instead of re-running its profile.
+in its gate profile whose evidence is missing) exactly as before. One special value: if
+every profiled gate has already proceeded at the story branch's HEAD and only the merge
+onto the epic branch is missing, the next phase is the sentinel `merge` — the script
+jumps straight to landing the story instead of re-running its profile.
+
+**Mark the run boundary, before anything dispatches.** A story's work file only exists
+if some invocation already started it — this one runs Reconcile first, before any
+dispatch, so "the file already exists" can only mean an *earlier* invocation created
+it. For each such story (skip a brand-new story with no work file yet — its first
+phase measures against the work file's own `createdAt`, unchanged), derive this
+story's work-file JSON from the already-captured `$reconcile_json` — its
+`.stories["<story>"].work` field is the same content a standalone `work-get` would
+return, no extra `gate-ledger` call needed — and write one marker unless the last
+entry is already one or the derived next phase is the `merge` sentinel (nothing ever
+reads `history` again for a story that's only got its merge left):
+
+```bash
+work_get_json=$(echo "$reconcile_json" | jq -c '.stories["<story>"].work // empty')
+last_step=$(echo "$work_get_json" | jq -r '.history[-1].step // ""')
+if [ -n "$work_get_json" ] && [ "$last_step" != "run-boundary" ] && [ "$next_phase" != "merge" ]; then
+  gate-ledger work-log --slug "<slug>--<story>" --step "run-boundary" --outcome "DISPATCHED"
+fi
+```
+
+`run-boundary` is a reserved `step` name — it collides with nothing in the gate/worker
+phase vocabulary (`design`, `design-review`, `build`, `audit`, `acceptance`, `merge`)
+and `/work-on`'s own `history` reader filters on an exact different step name, so it
+never sees or misreads this entry. This exists solely so the closing report's duration
+render (below) can tell a real same-run predecessor apart from idle/inter-invocation
+time — see
+`docs/superpowers/specs/2026-07-21-acceptance-retry-visibility-design.md` for the full
+rationale, including why this is a convention over the existing free-form `--step`/
+`--outcome` arguments rather than a new `gate-ledger` verb or schema change.
 
 ### 2 · Run the driver script (primary mode)
 
@@ -135,7 +173,7 @@ Call the Workflow tool with `scriptPath` set to that file and `args`:
 
 ```json
 {
-  "epic": "<the epic-get JSON, verbatim>",
+  "epic": "<$reconcile_json's .epic field, verbatim — no second epic-get call>",
   "phases": { "<story>": "<next phase>" },
   "repoRoot": "<absolute path of the main working tree>",
   "defaultBranch": "<resolved default branch>",
@@ -236,27 +274,113 @@ Amendments go through this command, never hand-edited state:
 
 ## Close every invocation the same way
 
+Before rendering, reconstruct each reported story's phase-duration chain from its own
+recorded history — the same by-hand comparison issue #142's reporter did, made
+mechanical. For every `landedThisRun` entry and every `needsYou` entry that names an
+actual story (i.e. has a `<slug>--<story>` work file — the epic finale's own stalled-gate
+pseudo-entry below does not and falls through the degrade rule at the end of this
+section unchanged), read `gate-ledger work-get --slug "<slug>--<story>"` — one more read
+of the same kind Reconcile already made per story, scoped only to the stories this
+report is about to print — and, for each real phase entry in its `history` array,
+compute elapsed time as that entry's `at` minus the previous entry's `at` (or the work
+file's own `createdAt` for the first entry, which has no predecessor) — **except** a
+phase whose immediate predecessor is a `run-boundary` marker (written by Reconcile
+above): its true predecessor is idle/inter-invocation time, not work, so it renders an
+explicit `(resumed)` tag instead of a computed number — one that states plainly, in its
+own literal text, that no same-run duration was measured and that a manual
+`gate-ledger work-get` check may be worth taking, never a bare render, never a bare
+`(resumed)` label standing alone, and never a misleading number:
+
+```bash
+gate-ledger work-get --slug "<slug>--<story>" | jq -r '
+  .createdAt as $created |
+  [(.history // [])[]] as $h |
+  [range(0; ($h | length))] | map(
+    ($h[.]) as $entry |
+    if $entry.step == "run-boundary" then empty
+    else
+      (. > 0 and $h[. - 1].step == "run-boundary") as $resumed |
+      if $resumed then "\($entry.step): \($entry.outcome) (resumed — no same-run duration; worth a gate-ledger work-get check)"
+      else
+        (if . == 0 then $created else $h[. - 1].at end) as $prev |
+        (try (($entry.at | fromdateiso8601) - ($prev | fromdateiso8601)) catch null) as $secs |
+        if $secs == null or $secs < 0 then "\($entry.step): \($entry.outcome)"
+        else "\($entry.step): \($entry.outcome) (\(($secs / 60) | round)m)"
+        end
+      end
+    end
+  ) | join(" → ")
+'
+```
+
+Render the joined chain in place of (not appended to) the driver's collapsed
+`trail`/one-clause verdict text — the whole trail for a `landedThisRun` story; a
+parenthetical under the existing headline line for a `needsYou` entry. This surfaces
+every recorded round, including a fix-cycle round the driver's own in-memory `trail`
+collapses to its terminal verdict — issue #142's own 117-minute round renders right
+next to the `SHIP` that eventually followed it, not lost to it.
+
+Three things this deliberately does, per
+`docs/superpowers/specs/2026-07-21-acceptance-retry-visibility-design.md`:
+
+- **Never asserts health.** Every phase gets a number or the `(resumed)` tag, always —
+  nothing here decides or says "slow," "stalled," or "retried." A human reads the
+  numbers (and the tag, when present) and decides whether one is worth investigating,
+  same as the issue #142 reporter did by hand.
+- **A resumed phase is always flagged, never silently bare, and the flag says why.**
+  A phase immediately following a `run-boundary` marker gets the
+  `(resumed — no same-run duration; worth a gate-ledger work-get check)` tag whether
+  the actual dispatch behind it took 5 minutes or 117 — the tag can't and doesn't claim
+  to tell those apart (doing so would need the marker's own timestamp, rejected in the
+  design doc on queueing-delay grounds), but its own literal words state plainly that no
+  same-run duration was measured and invite the same manual check the issue #142
+  reporter took by hand, rather than reading as a benign lifecycle fact a scanning
+  maintainer could pass over. A fully bare render — or a bare `(resumed)` label that
+  names the lifecycle event without saying to do anything about it — hides a genuinely
+  slow resumed gate as easily as it hides a healthy one; the explicit wording exists
+  precisely so that never happens silently.
+- **Renders full history, not just this run's phases.** A resumed story's `history`
+  carries every prior run's phases too; that's intentional, not a bug to fix — the
+  chain is the story's complete gate-flow record to date, not a diff against the last
+  invocation.
+
+Degrade per-story, never abort the whole report: if a story's `work-get` read fails,
+its `history` is empty, or the computation above errors (a missing `createdAt`, a
+malformed `at`) for one entry or the whole story, render that one story's line with
+the driver's own trail/reason text exactly as it would render without this step —
+never a raw jq error, never "NaN," never a negative number, and never at the cost of
+any other story's line in the same report.
+
 End with exactly this shape and nothing after it:
 
 ```text
 Epic: <slug> — <landed>/<total> landed, <parked> parked, <blocked> blocked on them.
 Needs you:
   - <story>: <gate> returned <verdict> — <one clause: what's needed>
-Landed this run: <story — verdict trail>
+    (<phase>: <outcome> (<Nm>) → <phase>: <outcome> (<Nm>) → ...)
+Landed this run: <story> — <phase>: <outcome> (<Nm>) → <phase>: <outcome> (<Nm>) → ...
 Run /work-through when you're ready, or resolve the queue first.
 ```
 
-Omit `Needs you:` when nothing is parked. When the epic reaches `ready`, the last line
-becomes the `gh pr create` handoff; `stopped` states what ended it. A parked story is
-always also a valid `/work-on` feature — say so when the queue is non-empty; taking a
-story over by hand happens inside its worktree (the story branch is checked out
-there), or after `git worktree remove` on it.
+`(<Nm>)` is a computed duration for a phase whose predecessor was real same-run work;
+a phase resumed across a run boundary (above) renders the
+`(resumed — no same-run duration; worth a gate-ledger work-get check)` tag in that same
+position instead, never omitted, never a bare `(resumed)` alone, and never a
+manufactured number. Omit `Needs you:`
+when nothing is parked. When the epic reaches `ready`, the last line becomes the
+`gh pr create` handoff; `stopped` states what ended it. A parked story is always also
+a valid `/work-on` feature — say so when the queue is non-empty; taking a story over
+by hand happens inside its worktree (the story branch is checked out there), or after
+`git worktree remove` on it.
 
 ## Record keeping
 
 All state goes through `gate-ledger` — `epic-set`, `epic-get`, `epic-list`,
 `epic-story-set` for the epic; `work-set`, `work-log`, `work-get` for stories;
-`gate-get` for verdicts. `work-set`/`work-log`/`work-get` key every epic-dispatched
+`gate-get` for verdicts; `epic-reconcile` composites all three read verbs plus the
+design-doc-existence and landed/merged checks into the one call the Reconcile step
+above makes — it never mutates, so every write above still goes through the same
+verbs it always did. `work-set`/`work-log`/`work-get` key every epic-dispatched
 story's work file to the epic-qualified slug `<slug>--<story>` — mirroring the
 separator `epic/<slug>--<story>` already uses for branch names — never the bare story
 slug alone, so a work file can never collide with an identically-named story in a

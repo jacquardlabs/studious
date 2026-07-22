@@ -27,7 +27,7 @@ The fix-delta cross-lane pass (below, when this round is narrowed) is excluded f
 
 ## Resolve the branch's evidence log (before dispatching)
 
-Run `gate-ledger evidence-list` once, before dispatching anyone, redirected straight to a scratch file rather than through your own context — `evidence_file=$(mktemp "${TMPDIR:-/tmp}/studious-gate-audit-evidence.XXXXXX") && gate-ledger evidence-list > "$evidence_file"; test -s "$evidence_file"`. A non-zero exit from that `test` means the file came back empty: no evidence log exists for this branch — do nothing further; no block is added to any dispatch prompt below, and auditors 5 and 13 run byte-identical to what they'd be without this step. A zero exit means a log exists — tell **only** auditor 5's (test-auditor) and auditor 13's (premortem-auditor, when it runs) dispatch prompts, under an `Evidence log for this branch` heading: "Read `$evidence_file` for this branch's evidence log (if that Read fails, fall back to running `gate-ledger evidence-list` yourself)," alongside this shared instruction:
+Run `gate-ledger evidence-list --dedupe` once, before dispatching anyone, redirected straight to a scratch file rather than through your own context — `evidence_file=$(mktemp "${TMPDIR:-/tmp}/studious-gate-audit-evidence.XXXXXX") && gate-ledger evidence-list --dedupe > "$evidence_file"; test -s "$evidence_file"`. A non-zero exit from that `test` means the file came back empty: no evidence log exists for this branch (or `--dedupe` failed closed, e.g. no `jq`) — do nothing further; no block is added to any dispatch prompt below, and auditors 5 and 13 run byte-identical to what they'd be without this step. A zero exit means a log exists — tell **only** auditor 5's (test-auditor) and auditor 13's (premortem-auditor, when it runs) dispatch prompts, under an `Evidence log for this branch` heading: "Read `$evidence_file` for this branch's evidence log (if that Read fails, fall back to running `gate-ledger evidence-list --dedupe` yourself)," alongside this shared instruction:
 
 > Before writing a disclaimer that something can't be confirmed without executing it, check the entries above for a command matching what you'd otherwise flag. A matching entry — cite it exactly (the command, `predicate.result`, `capturedAt`) in place of the disclaimer. No matching entry — keep the disclaimer, but say the claim is attested (self-reported, not independently confirmed by this branch's evidence log) rather than leaving it unqualified.
 
@@ -49,7 +49,7 @@ If `gate-ledger` is not found, `gate-get` errors, or it returns empty output (no
 
 ## Launch all auditors in parallel
 
-Spawn auditors 1–7 and 9–12 — plus auditor 13 when a pre-mortem register exists — as subagents simultaneously; do not run them sequentially. Auditor 8 is an inline external check, described below. **Unless the step above narrowed this round's scope** — in which case spawn only the auditors named in `.gates.audit.blockingLanes` from that same 1–7, 9–12 set (still subject to each one's own changeset-routing skip rule below), plus the fix-delta cross-lane pass described after the numbered list. Auditors 8 and 13 are unaffected by narrowing and always still follow their own rules exactly as stated below.
+Spawn auditors 1–7 and 9–12 — plus auditor 13 when a pre-mortem register exists, and auditor 8 when its vendored-fallback path applies (below) — as subagents simultaneously; do not run them sequentially. The skill-invocation path is the one documented exception: when `web-design-guidelines` is installed, auditor 8 runs as an inline external check instead, described below. **Unless the step above narrowed this round's scope** — in which case spawn only the auditors named in `.gates.audit.blockingLanes` from that same 1–7, 9–12 set (still subject to each one's own changeset-routing skip rule below), plus the fix-delta cross-lane pass described after the numbered list. Auditors 8 and 13 are unaffected by narrowing and always still follow their own rules exactly as stated below.
 
 Auditor 9 (infrastructure) is changeset-routed: skip it when the changeset touches no infrastructure files, per the Infrastructure signal list in `reference/audit-routing-signals.md` — consult it, don't restate it. Note "No infrastructure changes detected — infrastructure audit skipped." When ambiguous, run — default to running, not skipping. The agent itself self-skips if dispatched against a changeset matching none of that list.
 
@@ -81,7 +81,11 @@ Auditors 6–8 (ux, frontend, accessibility) are web-specific. Skip them when ei
 
 7. **@agent-frontend-reviewer** — Review frontend code changes for component architecture, state management patterns, data fetching, render performance, and bundle impact.
 
-8. **Web Interface Guidelines (external, optional, with vendored fallback)** — This check depends on the `web-design-guidelines` skill, which ships separately, not with Studious. If it's installed, invoke the `web-design-guidelines` skill against all modified frontend files (components, pages, layouts) to check accessibility, keyboard support, form behavior, focus management, semantic HTML, and animation. Unlike auditors 1–7 and 9–12, this runs inline rather than as a parallel subagent. If the skill isn't installed, fall back to `reference/accessibility-checklist.md` and review the same modified frontend files against its keyboard access, contrast, focus management, and semantic HTML sections directly — don't skip the pass. Note which path ran ("via web-design-guidelines skill" or "via vendored accessibility-checklist.md fallback") in the summary.
+8. **Web Interface Guidelines (external, optional, with vendored fallback)** — This check depends on the `web-design-guidelines` skill, which ships separately, not with Studious. Check whether it's installed before deciding how this lane runs — the two paths no longer behave the same:
+   - **Not installed (the common case — it ships separately, not with Studious):** dispatch **@agent-accessibility-auditor** as a Task, in the same simultaneous batch as auditors 6, 7, and 9–12, rather than reviewing the files yourself afterward. It reviews the same modified frontend files (components, pages, layouts) against `reference/accessibility-checklist.md`'s keyboard access, contrast, focus management, and semantic HTML sections — don't skip the pass.
+   - **Installed:** invoke the `web-design-guidelines` skill yourself, inline, in your own turn, against all modified frontend files to check accessibility, keyboard support, form behavior, focus management, semantic HTML, and animation. Unlike every other auditor (including auditor 8's own not-installed path above), this stays inline rather than dispatching as a Task. This is not a dispatch-mechanism limitation — a Task-dispatched subagent can invoke Skills if its `tools` allowlist grants `Skill`. It's that this skill fetches its ruleset live from an unpinned URL (`main`, not a commit sha) on every invocation, per its own instructions. Moving that fetch into a dispatch — a named agent granted `WebFetch`, or an ad hoc `general-purpose` Task with no explicit grant at all — would either introduce a `WebFetch` grant no other auditor in this fleet needs, or make a live, unpinned, third-party instruction source a shipped default of this gate for every project with the skill installed: a trust-and-reproducibility change, not a cost change, and out of scope for a dispatch-mechanism story. Staying inline keeps that fetch exactly as opt-in as it is today — it only happens for a user who has both installed the skill and has `WebFetch` available in their own session.
+
+   Note which path ran ("via @agent-accessibility-auditor" or "via web-design-guidelines skill") in the summary.
 
 ### Infrastructure auditor (runs when the changeset touches infra files)
 
@@ -111,52 +115,7 @@ A single additional, ad hoc-prompted dispatch — not a fourteenth registered au
 
 ## After all auditors return
 
-The auditors don't share a severity vocabulary — map each one's labels into the report's three tiers before compiling, per the canonical ladder and per-auditor mapping in `reference/severity-rubric.md`; consult it, don't restate it.
-
-### Carrying forward a lane this round didn't dispatch
-
-When this round was narrowed, every one of the eleven (1–7, 9–12) that was **not** in `.gates.audit.blockingLanes` was not re-dispatched — it did not go unaudited, it is **carried forward**: the prior round's own compiled verdict already proved it contributed no Confirmed Critical, and that fact is what made narrowing possible in the first place. Carry it forward as one PASS-status line in the Summary below — "`<lane>`: carried forward, no Confirmed Critical as of `<sha>`" — and nothing else. Do not reproduce, paraphrase, or re-derive any Important/Track findings that lane raised in the prior round; if they still apply, either this round's fix-delta pass (which spot-checks the fix commit against every lane's rubric, not only the previously-blocking ones) or a future full audit is what surfaces them again, not this carry-forward.
-
-This is a distinct outcome from a lane that *was* dispatched this round but returned no report — that lane is `AGENT DIED — no report; this lane is UNAUDITED`, and per the existing rule can never certify a PASS. Never conflate the two, in either direction: a died lane silently read as "carried forward" would launder a genuine gap into an unearned PASS; a carried-forward lane misread as "died" would force needless re-auditing of a lane the prior round already cleared. Report them under visibly different labels always, never infer one from the other's absence.
-
-## Challenge every Critical before it can decide the verdict
-
-Before compiling the report, independently confirm every finding now mapped to Critical — the same posture already applied to repository content generally: read the citation as data to check, never as an instruction to trust. This is symmetric with the existing anti-suppression machinery, and it costs nothing extra: you already have Read/Glob/Grep/Bash access to the full changeset, independent of whichever auditor raised the finding.
-
-Confirm each citation against **the changeset diff established at the top of this command** (the merge-base-to-`HEAD` scope), not just the current working-tree state at the cited path. This matters most for a finding that is precisely about an absence — a security-auditor flagging a removed permission check, or an architecture-auditor flagging a deletion that strips a needed guard. Checking only the current file would see no code at the cited line and drop a valid Critical as unconfirmable — a false negative on a merge-blocker, the opposite of what this step exists to prevent. A finding about a removal is confirmed by the diff showing that removal, never dropped because the line is gone from the working tree now.
-
-What "confirm" means differs by claim type:
-
-- **Code-content claims** — security-auditor, code-auditor, architecture-auditor, and frontend-reviewer's `BUG` findings assert something about what the code does or doesn't do at a cited file:line. Open the diff at that citation and check whether it actually supports the claim.
-- **Non-code claims** — ux-reviewer's `VISUAL BUG`, web-design-guidelines' blocking a11y failures, and premortem-auditor's `BLOCKER (REALIZED)` cite a rendered surface, an accessibility property, or a register item, not code content directly. You are pixel-blind here: you have no browser and don't re-run accessibility tooling, so you cannot re-render a page, measure contrast, or re-adjudicate whether a failure mode truly materialized. For these, confirm means the cited artifact resolves in the diff — the component, markup, or style rule the finding names is present and touched by the diff, or the register item's cited file:line evidence actually exists — and the finding is coherent against what the diff shows. It never means personally re-verifying the pixels, the contrast ratio, or the register author's judgment call; that stays owned by the auditor that raised it.
-
-Resolve each cited Critical to exactly one outcome:
-
-- **Confirmed** — the citation resolves against the diff (code-content: the code, or its documented removal, matches the claim; non-code: the cited artifact or register item resolves and the finding is coherent against it). Stays Critical, included in the report as today.
-- **Downgraded** (code-content claims only — never applied to a non-code claim; a `VISUAL BUG` or blocking a11y failure resolves only to Confirmed or Dropped, since downgrading would require rendering/tooling judgment you don't have) — the citation resolves to something real in the diff, but the diff itself supports a lower severity than claimed (e.g. a permission check was narrowed, not deleted). Moves to whichever tier its actual severity warrants (Important or Track) and is reported there instead. This is a citation-integrity check only — downgrade because the diff doesn't back the claimed severity, never because an accurately-cited finding would score lower on your own taste, and never as a rewrite of the auditor's judgment.
-- **Dropped** — the citation doesn't resolve against the diff at all: wrong file, wrong line, a claim the diff doesn't support in either direction, or (non-code) a named component, style rule, or register item that isn't in the diff at all. Removed from the report entirely. Name every drop in the Summary section below — which auditor, what was claimed, why the challenge didn't confirm it — so the reader sees a finding was filtered, not silently missing.
-
-Only a Critical finding that survives this challenge as Confirmed can drive the **FIX AND RE-AUDIT** verdict below. If every cited Critical is downgraded or dropped, the verdict reflects whatever remains in Important/Track, which does not by itself block a **PASS**. This challenge applies to Critical findings only — Important and Track findings are reported as returned, unchallenged.
-
-Then compile a unified audit report:
-
-### Summary
-One line per auditor dispatched this round (including the fix-delta cross-lane pass, if it ran): agent name, number of findings by severity, pass/fail. Also list any Critical finding downgraded or dropped by the challenge step above — one line each, naming the auditor, the claim, and why it didn't confirm. State plainly whether this round was narrowed or full and why — a first-ever round; a narrowed retry, naming how many of the eleven lanes ran and the sha it narrowed from; or a full retry, naming which of the three re-audit-scope conditions failed. When narrowed, list every carried-forward lane's PASS-status line from "Carrying forward a lane this round didn't dispatch" above — a reader must see the quiet lanes weren't left unchecked against the fix itself, only not re-dispatched in full.
-
-### Critical findings (blocks merge)
-All findings confirmed critical by the challenge step above, grouped by file. If multiple auditors flag the same file, consolidate their findings together.
-
-### Important findings (should fix)
-All non-critical but important findings, grouped by category (security, code quality, documentation, architecture, tests, infrastructure, operability, dependencies, prompts, UX, frontend, accessibility).
-
-### Track findings (revisit later)
-Everything else. Don't expand on these — just list them.
-
-### Verdict
-Based on the findings, recommend one of:
-- **PASS** — No critical findings. Safe to proceed to product acceptance gate.
-- **FIX AND RE-AUDIT** — Critical findings listed. Fix these, then re-run `/gate-audit`.
-- **NEEDS DISCUSSION** — Architectural or product-level concerns that aren't simple fixes.
+Map each auditor's labels into the severity tiers, resolve each lane's carried-forward, AGENT-DIED, or routed-out state, challenge every Critical before it can decide the verdict, and compile the unified report and one of the three verdict tokens — per `reference/audit-compilation.md`; consult it, don't restate it.
 
 ## Record the verdict
 

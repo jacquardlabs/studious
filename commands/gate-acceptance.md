@@ -24,7 +24,7 @@ Before invoking @agent-product-reviewer or @agent-premortem-auditor, read `${CLA
 
 ## Resolve the branch's evidence log (before dispatching)
 
-Run `gate-ledger evidence-list` once, before dispatching anyone. Empty output means no evidence log exists for this branch — do nothing further; no block is added to any dispatch prompt below, and Part 2's premortem-auditor dispatch runs byte-identical to what it would be without this step. Non-empty output means a log exists — stamp it, verbatim, under an `Evidence log for this branch` heading, into **only** the Part 2 premortem-auditor dispatch (when it runs), alongside this shared instruction:
+Run `gate-ledger evidence-list --dedupe` once, before dispatching anyone. Empty output means no evidence log exists for this branch (or `--dedupe` failed closed, e.g. no `jq`) — do nothing further; no block is added to any dispatch prompt below, and Part 2's premortem-auditor dispatch runs byte-identical to what it would be without this step. Non-empty output means a log exists — stamp it, verbatim, under an `Evidence log for this branch` heading, into **only** the Part 2 premortem-auditor dispatch (when it runs), alongside this shared instruction:
 
 > Before writing a disclaimer that something can't be confirmed without executing it, check the entries above for a command matching what you'd otherwise flag. A matching entry — cite it exactly (the command, `predicate.result`, `capturedAt`) in place of the disclaimer. No matching entry — keep the disclaimer, but say the claim is attested (self-reported, not independently confirmed by this branch's evidence log) rather than leaving it unqualified.
 

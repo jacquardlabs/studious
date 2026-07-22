@@ -1,6 +1,6 @@
 # Accessibility checklist — lookup data
 
-Vendored fallback for auditor 7 in `commands/gate-audit.md` when the `web-design-guidelines`
+Vendored fallback for auditor 8 in `commands/gate-audit.md` when the `web-design-guidelines`
 skill isn't installed. Not a substitute for that skill — it's narrower, covering only the
 blocking-tier items `reference/severity-rubric.md` already names (no keyboard access, contrast
 failures on core flows) plus the adjacent checks needed to make those judgments: focus

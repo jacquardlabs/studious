@@ -401,6 +401,168 @@ check "reset-retry on a never-bumped gate yields 0" "0" "$(jq '.stories["cart-ap
 out=$(cd "$d15" && "$LEDGER" epic-list)
 contains "epic-list reports slug, status, and landed count" "$(printf 'checkout-revamp\trunning\t1/2')" "$out"
 
+# --- epic-reconcile: basic shape — stories keyed by bare slug, .epic
+# byte-identical to a bare epic-get call, work/gate null when absent,
+# storyBranchHeadSha empty when the branch doesn't exist yet, designDocExists
+# null when no designDoc is recorded, landedButUnmerged false for a
+# non-landed story (#160) ---
+d40=$(sandbox)
+( cd "$d40" && "$LEDGER" epic-set --slug er-epic --title "ER Epic" --status running )
+( cd "$d40" && "$LEDGER" epic-story-set --epic er-epic --slug s1 --title "S1" )
+( cd "$d40" && "$LEDGER" epic-story-set --epic er-epic --slug s2 --title "S2" )
+out=$(cd "$d40" && "$LEDGER" epic-reconcile --slug er-epic)
+check "epic-reconcile keys stories by the bare story slug" "s1,s2" \
+  "$(printf '%s' "$out" | jq -r '.stories | keys | sort | join(",")')"
+epicget=$(cd "$d40" && "$LEDGER" epic-get --slug er-epic | jq -S .)
+epicin=$(printf '%s' "$out" | jq -S '.epic')
+check "epic-reconcile's .epic is byte-identical to a bare epic-get call" "$epicget" "$epicin"
+check "a story with no work file recorded gets a null .work" "null" \
+  "$(printf '%s' "$out" | jq -c '.stories.s1.work')"
+check "a story with no gate ever recorded gets a null .gate" "null" \
+  "$(printf '%s' "$out" | jq -c '.stories.s1.gate')"
+check "a story whose branch doesn't exist yet gets an empty storyBranchHeadSha" "" \
+  "$(printf '%s' "$out" | jq -r '.stories.s1.storyBranchHeadSha')"
+check "a story with no designDoc recorded gets a null designDocExists" "null" \
+  "$(printf '%s' "$out" | jq -c '.stories.s1.designDocExists')"
+check "a pending story gets landedButUnmerged: false" "false" \
+  "$(printf '%s' "$out" | jq -c '.stories.s1.landedButUnmerged')"
+
+# --- epic-reconcile: work and gate are populated verbatim, and
+# storyBranchHeadSha resolves once the story branch exists (#160) ---
+( cd "$d40" && git checkout -q -b epic/er-epic--s1 )
+( cd "$d40" && "$LEDGER" work-set --slug "er-epic--s1" --design-doc "docs/design-s1.md" )
+( cd "$d40" && "$LEDGER" record --gate audit --verdict PASS )
+s1sha=$(git -C "$d40" rev-parse --short epic/er-epic--s1)
+git -C "$d40" checkout -q feat/foo
+out=$(cd "$d40" && "$LEDGER" epic-reconcile --slug er-epic)
+check "epic-reconcile carries the story's work-get payload verbatim" "docs/design-s1.md" \
+  "$(printf '%s' "$out" | jq -r '.stories.s1.work.designDoc')"
+check "epic-reconcile carries the story's gate-get payload verbatim" "PASS" \
+  "$(printf '%s' "$out" | jq -r '.stories.s1.gate.gates.audit.verdict')"
+check "epic-reconcile resolves storyBranchHeadSha once the story branch exists" "$s1sha" \
+  "$(printf '%s' "$out" | jq -r '.stories.s1.storyBranchHeadSha')"
+
+# --- epic-reconcile: designDocExists — true when the recorded path exists in
+# the story's own worktree, false when recorded but absent, and null (not a
+# crash or a false "false") when the worktree directory itself is gone —
+# the graceful-degrade path the design doc's open questions called out (#160) ---
+mkdir -p "$d40/.studious/worktrees/er-epic/s1/docs"
+echo "design doc" > "$d40/.studious/worktrees/er-epic/s1/docs/design-s1.md"
+out=$(cd "$d40" && "$LEDGER" epic-reconcile --slug er-epic)
+check "designDocExists is true when the recorded path exists in the story worktree" "true" \
+  "$(printf '%s' "$out" | jq -c '.stories.s1.designDocExists')"
+rm "$d40/.studious/worktrees/er-epic/s1/docs/design-s1.md"
+out=$(cd "$d40" && "$LEDGER" epic-reconcile --slug er-epic)
+check "designDocExists is false when recorded but the file is absent" "false" \
+  "$(printf '%s' "$out" | jq -c '.stories.s1.designDocExists')"
+rm -rf "$d40/.studious/worktrees/er-epic/s1"
+out=$(cd "$d40" && "$LEDGER" epic-reconcile --slug er-epic)
+check "designDocExists degrades to null (not a crash, not false) when the story worktree itself is gone" "null" \
+  "$(printf '%s' "$out" | jq -c '.stories.s1.designDocExists')"
+
+# --- epic-reconcile: designDocExists checks the __epic worktree, not the
+# story's own, once a story is recorded landed (its own worktree is removed
+# on merge — see the design doc) ---
+( cd "$d40" && "$LEDGER" epic-story-set --epic er-epic --slug s1 --status landed )
+mkdir -p "$d40/.studious/worktrees/er-epic/__epic/docs"
+echo "design doc" > "$d40/.studious/worktrees/er-epic/__epic/docs/design-s1.md"
+out=$(cd "$d40" && "$LEDGER" epic-reconcile --slug er-epic)
+check "designDocExists checks the __epic worktree for a landed story" "true" \
+  "$(printf '%s' "$out" | jq -c '.stories.s1.designDocExists')"
+
+# --- epic-reconcile: landedButUnmerged — a story recorded landed IS flagged
+# false when its branch is a real ancestor of the epic branch, and flagged
+# true when it isn't (mirrors today's `git log --oneline` check; a landed
+# story whose merge isn't actually on the epic branch is still surfaced, not
+# silently trusted — acceptance criterion 3, #160) ---
+d41=$(sandbox)
+git -C "$d41" checkout -q -b epic/lbu
+git -C "$d41" checkout -q -b epic/lbu--merged
+git -C "$d41" commit -q --allow-empty -m "merged story work"
+git -C "$d41" checkout -q epic/lbu
+git -C "$d41" merge -q --no-ff epic/lbu--merged -m "merge merged story"
+git -C "$d41" checkout -q -b epic/lbu--unmerged
+git -C "$d41" commit -q --allow-empty -m "unmerged story work"
+git -C "$d41" checkout -q epic/lbu
+( cd "$d41" && "$LEDGER" epic-set --slug lbu --title "LBU Epic" --status running )
+( cd "$d41" && "$LEDGER" epic-story-set --epic lbu --slug merged --title "Merged" --status landed )
+( cd "$d41" && "$LEDGER" epic-story-set --epic lbu --slug unmerged --title "Unmerged" --status landed )
+out=$(cd "$d41" && "$LEDGER" epic-reconcile --slug lbu)
+check "landedButUnmerged is false when the landed story's merge is a real ancestor of the epic branch" "false" \
+  "$(printf '%s' "$out" | jq -c '.stories.merged.landedButUnmerged')"
+check "landedButUnmerged is true when a landed story's branch was never actually merged" "true" \
+  "$(printf '%s' "$out" | jq -c '.stories.unmerged.landedButUnmerged')"
+
+# --- epic-reconcile: empty stories object round-trips as {} ---
+d42=$(sandbox)
+( cd "$d42" && "$LEDGER" epic-set --slug empty-epic --title "Empty Epic" --status approved )
+out=$(cd "$d42" && "$LEDGER" epic-reconcile --slug empty-epic)
+check "epic-reconcile on an epic with no stories yet returns an empty stories object" "{}" \
+  "$(printf '%s' "$out" | jq -c '.stories')"
+
+# --- epic-reconcile: --slug is required ---
+d43=$(sandbox)
+err=$(cd "$d43" && "$LEDGER" epic-reconcile 2>&1 1>/dev/null; echo "rc=$?")
+contains "epic-reconcile requires --slug" "gate-ledger: --slug required" "$err"
+contains "epic-reconcile --slug missing exits 2" "rc=2" "$err"
+
+# --- epic-reconcile: unknown epic slug prints nothing (mirrors epic-get) ---
+out=$(cd "$d43" && "$LEDGER" epic-reconcile --slug nope)
+check "epic-reconcile on an unknown epic prints nothing" "" "$out"
+
+# --- epic-reconcile signals on stderr (but still returns 0) when jq is
+# unavailable, mirroring every other verb's degrade behavior ---
+( cd "$d43" && "$LEDGER" epic-set --slug jq-epic --title "JQ Epic" --status approved )
+stderr43=$(cd "$d43" && PATH="$fakebin" "$LEDGER" epic-reconcile --slug jq-epic 2>&1 1>/dev/null)
+contains "epic-reconcile signals on stderr when jq is unavailable" \
+  "gate-ledger: epic-reconcile skipped (jq and git required)" "$stderr43"
+
+# --- epic-reconcile fails closed (non-zero exit, stderr naming the story and
+# epic) when a per-story sub-read hits a corrupted stored file, rather than
+# silently guessing whether an absent/false value means "legitimately
+# absent" or "read failed" (build-phase resolution of the design doc's open
+# question, #160) ---
+d44=$(sandbox)
+( cd "$d44" && "$LEDGER" epic-set --slug corrupt-epic --title "Corrupt Epic" --status running )
+( cd "$d44" && "$LEDGER" epic-story-set --epic corrupt-epic --slug s1 --title "S1" )
+mkdir -p "$d44/.studious/work"
+echo "not json" > "$d44/.studious/work/corrupt-epic-s1.json"
+err=$(cd "$d44" && "$LEDGER" epic-reconcile --slug corrupt-epic 2>&1 1>/dev/null; echo "rc=$?")
+contains "epic-reconcile fails closed on a corrupted work file" \
+  "corrupted work file for story 's1' (epic 'corrupt-epic')" "$err"
+contains "epic-reconcile exits non-zero on a corrupted work file" "rc=1" "$err"
+
+d45=$(sandbox)
+( cd "$d45" && "$LEDGER" epic-set --slug corrupt-epic2 --title "Corrupt Epic 2" --status running )
+( cd "$d45" && "$LEDGER" epic-story-set --epic corrupt-epic2 --slug s1 --title "S1" )
+mkdir -p "$d45/.studious/gates"
+echo "not json" > "$d45/.studious/gates/epic-corrupt-epic2--s1.json"
+err=$(cd "$d45" && "$LEDGER" epic-reconcile --slug corrupt-epic2 2>&1 1>/dev/null; echo "rc=$?")
+contains "epic-reconcile fails closed on a corrupted gate ledger file" \
+  "corrupted gate ledger for story 's1' (epic 'corrupt-epic2')" "$err"
+contains "epic-reconcile exits non-zero on a corrupted gate ledger file" "rc=1" "$err"
+
+d46=$(sandbox)
+mkdir -p "$d46/.studious/epics"
+echo "not json" > "$d46/.studious/epics/corrupt-epic3.json"
+err=$(cd "$d46" && "$LEDGER" epic-reconcile --slug corrupt-epic3 2>&1 1>/dev/null; echo "rc=$?")
+contains "epic-reconcile fails closed on a corrupted epic file" \
+  "corrupted epic file for 'corrupt-epic3'" "$err"
+contains "epic-reconcile exits non-zero on a corrupted epic file" "rc=1" "$err"
+
+# --- epic-reconcile anchors to the MAIN working tree across linked
+# worktrees, exactly like every other read verb (#98) ---
+d47=$(sandbox)
+( cd "$d47" && "$LEDGER" epic-set --slug anchor-epic --title "Anchor Epic" --status running )
+( cd "$d47" && "$LEDGER" epic-story-set --epic anchor-epic --slug s1 --title "S1" )
+( cd "$d47" && git worktree add -q "$d47/.studious/worktrees/anchor-epic/s1" -b epic/anchor-epic--s1 )
+out=$(cd "$d47/.studious/worktrees/anchor-epic/s1" && "$LEDGER" epic-reconcile --slug anchor-epic)
+check "epic-reconcile from a linked worktree still reads the MAIN root epic state" "anchor-epic" \
+  "$(printf '%s' "$out" | jq -r '.epic.slug')"
+check "epic-reconcile from a linked worktree still sees the story's own branch head sha" \
+  "$(git -C "$d47" rev-parse --short epic/anchor-epic--s1)" \
+  "$(printf '%s' "$out" | jq -r '.stories.s1.storyBranchHeadSha')"
+
 # --- state anchors to the main working tree across linked worktrees ---
 d17=$(sandbox)
 ( cd "$d17" && git worktree add -q "$d17/.studious/worktrees/e/s" -b epic/e--s )
@@ -633,6 +795,67 @@ d25=$(sandbox)
 out=$(cd "$d25/.studious/worktrees/e/s" && "$LEDGER" evidence-list)
 check "evidence-list from a linked worktree reads the MAIN root evidence file" "pytest tests/" \
   "$(printf '%s' "$out" | jq -r '.command')"
+
+# --- evidence-list --dedupe collapses to one record per distinct command,
+# keeping the most recent (last-appended) one, in the survivors' original
+# order (evidence-list-dedupe, #162) ---
+d27=$(sandbox)
+( cd "$d27" && "$LEDGER" evidence-append --command "pytest tests/" --exit-code 1 \
+    --output-digest "sha256:deadbeef" --origin interactive )
+( cd "$d27" && "$LEDGER" evidence-append --command "npm test" --exit-code 0 \
+    --output-digest "sha256:cafebabe" --origin interactive )
+( cd "$d27" && "$LEDGER" evidence-append --command "pytest tests/" --exit-code 0 \
+    --output-digest "sha256:f00dface" --origin interactive )
+
+raw27=$(cd "$d27" && "$LEDGER" evidence-list)
+check "evidence-list (no flag) line count equals every evidence-append call — unchanged by this story" \
+  "3" "$(printf '%s\n' "$raw27" | wc -l | tr -d ' ')"
+
+dedup27=$(cd "$d27" && "$LEDGER" evidence-list --dedupe)
+dedup27_count=$(printf '%s\n' "$dedup27" | wc -l | tr -d ' ')
+check "evidence-list --dedupe returns fewer records than the raw form (acceptance criterion 3)" \
+  "yes" "$([ "$dedup27_count" -lt 3 ] && echo yes || echo no)"
+check "evidence-list --dedupe record count equals the number of distinct commands" \
+  "2" "$dedup27_count"
+check "evidence-list --dedupe keeps the last-appended record's predicate.result for a repeated command" \
+  "PASSED" "$(printf '%s' "$dedup27" | jq -r 'select(.command == "pytest tests/") | .predicate.result')"
+check "evidence-list --dedupe still includes a once-only command exactly once" \
+  "1" "$(printf '%s' "$dedup27" | jq -r 'select(.command == "npm test") | .command' | wc -l | tr -d ' ')"
+
+# --dedupe on another branch still resolves through the same evidence_dir()/
+# branch_slug() anchoring the plain --branch read already relies on (line ~618).
+( cd "$d27" && git checkout -q -b feat/other )
+out27other=$(cd "$d27" && "$LEDGER" evidence-list --dedupe --branch feat/foo)
+check "evidence-list --dedupe --branch reads the named branch's log through the same anchoring" \
+  "2" "$(printf '%s\n' "$out27other" | wc -l | tr -d ' ')"
+
+# --- evidence-list --dedupe fails closed when jq is unavailable: nothing to
+# stdout, a stderr line naming the requirement, non-zero exit ---
+d28=$(sandbox)
+( cd "$d28" && "$LEDGER" evidence-append --command "pytest tests/" --exit-code 0 \
+    --output-digest "sha256:deadbeef" --origin interactive )
+stdout28=$(cd "$d28" && PATH="$fakebin" "$LEDGER" evidence-list --dedupe 2>/dev/null)
+err28=$(cd "$d28" && PATH="$fakebin" "$LEDGER" evidence-list --dedupe 2>&1 1>/dev/null)
+rc28=$(cd "$d28" && PATH="$fakebin" "$LEDGER" evidence-list --dedupe >/dev/null 2>&1; echo $?)
+check "evidence-list --dedupe prints nothing to stdout when jq is unavailable" "" "$stdout28"
+contains "evidence-list --dedupe signals on stderr when jq is unavailable" \
+  "gate-ledger: evidence-list --dedupe requires jq" "$err28"
+check "evidence-list --dedupe exits non-zero when jq is unavailable" "yes" \
+  "$([ "$rc28" -ne 0 ] && echo yes || echo no)"
+
+# --- evidence-list --dedupe fails closed on a malformed line: nothing to
+# stdout, non-zero exit (fail closed, never a plausible-looking partial result) ---
+d29=$(sandbox)
+mkdir -p "$d29/.studious/evidence"
+printf '{"command":"pytest tests/"\n' > "$d29/.studious/evidence/feat-foo.jsonl"
+stdout29=$(cd "$d29" && "$LEDGER" evidence-list --dedupe 2>/dev/null)
+err29=$(cd "$d29" && "$LEDGER" evidence-list --dedupe 2>&1 1>/dev/null)
+rc29=$(cd "$d29" && "$LEDGER" evidence-list --dedupe >/dev/null 2>&1; echo $?)
+check "evidence-list --dedupe prints nothing to stdout on a malformed line" "" "$stdout29"
+contains "evidence-list --dedupe signals on stderr on a malformed line, naming the file" \
+  "failed to parse" "$err29"
+check "evidence-list --dedupe exits non-zero on a malformed line" "yes" \
+  "$([ "$rc29" -ne 0 ] && echo yes || echo no)"
 
 # --- record appends a gate-verdict event to the epic's events.jsonl
 # (board-events-log, #98; reference/events-format.md) ---

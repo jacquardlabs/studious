@@ -1,0 +1,14 @@
+# Pre-mortem — handback.md reads the evidence log once instead of four times
+
+- Design doc: docs/superpowers/specs/2026-07-21-handback-single-evidence-read-design.md
+- Branch: epic/perf-audit-followups--handback-single-evidence-read
+- SHA: fdc4b91
+- Date: 2026-07-21
+
+| # | Lane | Failure mode | Detection hint |
+|---|------|--------------|----------------|
+| 1 | technical | The `printf '%s\n' "$evidence_log"` round-trip is not byte-identical to the raw stream: if the last JSONL record ends without a trailing newline, `wc -l` on the captured-and-reprinted value counts one more than the four-call original did, so the header's `Records: N` disagrees with the manifest's actual row count. | On a branch with a real evidence log, run the built `/handback` and compare the header `Records:` against `gate-ledger evidence-list --branch <b> \| wc -l`; a difference of exactly 1 is this divergence. |
+| 2 | technical | The build converts only some of the four calls (e.g. the manifest-row `jq` is left calling `gate-ledger evidence-list` directly while the counts move to `$evidence_log`), so step 4 still issues more than one read — the exact failure acceptance criterion 1 tests. | Count `gate-ledger evidence-list --branch` occurrences scoped to step 4 in the diff; must be exactly 1. Step 2's separate call is intended and out of scope — don't count it. |
+| 3 | technical | The captured variable is typo'd or shadowed in one of the four derivations (`$evidence_log` vs a misspelling), so a derivation reads an empty string: `printf '%s\n' ""` yields one blank line, `wc -l` returns 1, and the manifest renders zero data rows against a known-armed branch. | Read the rendered `docs/studious/handback/<slug>.md`: a `Records:` count that disagrees with a visibly non-empty (or empty) table, or zero rows on a branch with captured evidence, signals a bad capture reference. |
+| 4 | product | The build over-reaches the story's fence and also folds step 2's read into the same capture (the deferred alternative), reworking step 3's "not armed" vs. "armed but empty" branch — collapsing the two distinct user-facing messages the design explicitly preserves. | The diff touches step 2 or step 3 text, not only step 4. Acceptance criterion 1 scopes the change to the manifest-assembly step; step 3 must still emit its two separate messages unchanged. |
+| 5 | technical | The design's "before" block no longer matches handback.md's live step-4 text at build time (a sibling `perf-audit-followups` story edited step 4 first), so the mechanical before-to-after swap applies against stale text and corrupts the step or silently misses a call. | Confirm the removed lines in the build diff match the four calls the design quoted verbatim (handback.md lines 127, 142-144 at design time); a mismatch means step 4 drifted and the swap must be re-derived against current text. |

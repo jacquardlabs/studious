@@ -53,6 +53,11 @@ records filed against the shared main-tree store. Never read
 `.studious/evidence/*.jsonl` directly or re-derive the branch-slug/repo-root logic here —
 one place that store's location lives.
 
+Deliberately **do not** pass `--dedupe` here, unlike `/gate-audit`'s and
+`/gate-acceptance`'s evidence dispatches: a handback manifest's job is a complete
+historical record of every verification attempt across every fix cycle, not
+current-state-only — the opposite of what `--dedupe` is for.
+
 ## 3. No log, or an empty one — report and stop
 
 If step 2 printed nothing, this branch has no evidence to hand back. **Before reporting,
@@ -111,6 +116,14 @@ Structure, top to bottom:
 <written prose — see below>
 ```
 
+Capture the evidence log once, then derive everything below — the manifest rows and all
+three header counts — from that single captured value, rather than re-invoking
+`gate-ledger evidence-list` per derivation:
+
+```bash
+evidence_log=$(gate-ledger evidence-list --branch "$branch")
+```
+
 **Manifest rows.** One row per JSONL record from step 2, in the order printed (the log is
 append-only, so that's already chronological). Populate columns from these fields only —
 `capturedAt`, `command`, `predicate.result`, `origin`, `outputDigest` — per
@@ -124,7 +137,7 @@ as `\|` so a piped command doesn't break the table row. This jq pipeline does ex
 (verified against a live evidence log while building this command):
 
 ```bash
-gate-ledger evidence-list --branch "$branch" | jq -r '
+printf '%s\n' "$evidence_log" | jq -r '
   ((.outputDigest // "") as $d |
    [
      .capturedAt,
@@ -136,12 +149,12 @@ gate-ledger evidence-list --branch "$branch" | jq -r '
 '
 ```
 
-Record/pass/fail counts for the header line:
+Record/pass/fail counts for the header line, derived from the same `$evidence_log`:
 
 ```bash
-total=$(gate-ledger evidence-list --branch "$branch" | wc -l | tr -d ' ')
-passed=$(gate-ledger evidence-list --branch "$branch" | jq -r '.predicate.result' | grep -c '^PASSED$' || true)
-failed=$(gate-ledger evidence-list --branch "$branch" | jq -r '.predicate.result' | grep -c '^FAILED$' || true)
+total=$(printf '%s\n' "$evidence_log" | wc -l | tr -d ' ')
+passed=$(printf '%s\n' "$evidence_log" | jq -r '.predicate.result' | grep -c '^PASSED$' || true)
+failed=$(printf '%s\n' "$evidence_log" | jq -r '.predicate.result' | grep -c '^FAILED$' || true)
 ```
 
 **Summary prose.** Written by you, grounded in real artifacts already on the branch — not
