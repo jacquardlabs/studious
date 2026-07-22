@@ -152,6 +152,39 @@ def test_manifest_jq_pipeline_is_present_and_escapes_pipes() -> None:
     assert "no digest captured" in text
 
 
+# --- single-read manifest assembly: one evidence-list call, four derivations reuse it ---
+# (perf-audit-followups epic, issue #161: four re-reads of an append-only, ever-growing
+# evidence log collapsed to one captured value; see commands/handback.md step 4)
+
+
+def _step_four_text() -> str:
+    text = _command_text()
+    return text[text.index("## 4."): text.index("## 5.")]
+
+
+def test_step_four_invokes_evidence_list_exactly_once() -> None:
+    step_four = _step_four_text()
+    assert step_four.count('gate-ledger evidence-list --branch "$branch"') == 1, (
+        "step 4 must capture the evidence log with a single gate-ledger evidence-list "
+        "call, not re-invoke it once per derivation"
+    )
+
+
+def test_step_four_captures_evidence_log_into_a_variable() -> None:
+    step_four = _step_four_text()
+    assert 'evidence_log=$(gate-ledger evidence-list --branch "$branch")' in step_four
+
+
+def test_all_four_derivations_reuse_the_captured_evidence_log() -> None:
+    """Manifest rows, total, passed, and failed counts must all read from
+    $evidence_log rather than re-invoking gate-ledger evidence-list."""
+    step_four = _step_four_text()
+    assert step_four.count('printf \'%s\\n\' "$evidence_log"') == 4, (
+        "expected exactly four derivations (manifest rows, total, passed, failed) "
+        "to read from the single captured $evidence_log"
+    )
+
+
 # --- no-log messaging distinguishes armed-empty from never-armed (item 4) ---
 
 
