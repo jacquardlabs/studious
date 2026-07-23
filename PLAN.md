@@ -2,7 +2,7 @@
 
 Spine: Task 1 -> Task 2 -> Task 3 -> Task 4 (strictly linear — each extends the discovery/guard mechanism the prior task establishes)
 
-### Task 1 — Fail-closed guard for an empty scope-check result, with distinguishable UNREVIEWED causes [REPLAN]
+### Task 1 — Fail-closed guard for an empty scope-check result, with distinguishable UNREVIEWED causes [PASS]
 Why now:    Bug 2's guard and the cause-distinguishability mechanism are the foundation every later task's own UNREVIEWED path reuses.
 Read first: `workflows/epic-driver.js`, `tests/python/test_acceptance_fanout.py`, `tests/python/test_driver_crash_hardening.py`
 Rests on:   n/a -- first task.
