@@ -288,9 +288,18 @@ async function acceptanceRound(story, note, nextPhase) {
   }
   const files = parsedScope && Array.isArray(parsedScope.files) ? parsedScope.files : null
   const designDoc = parsedScope ? parsedScope.designDoc || '' : ''
+  // Bug 2: an empty-but-non-null files array is a scope-check that ran clean
+  // and found zero changed files — there is nothing for product-reviewer to
+  // read, same as the died/unparseable case above, so it gets the same
+  // fail-closed skip. The two causes stay distinguishable below (missing-lane
+  // cause text) rather than collapsing into one "died" story: a real agent
+  // death and a legitimately empty changeset are different signals for
+  // whoever reads the parked reason.
+  const emptyChangeset = Array.isArray(files) && files.length === 0
+  const skipProductReview = files === null || emptyChangeset
 
   const [productReport, walkthroughReport] = await parallel([
-    () => files === null
+    () => skipProductReview
       ? Promise.resolve(null)
       : agent(acceptanceProductReviewPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: dir, files, designDoc, contract: CONTRACT }),
           { agentType: 'studious:product-reviewer', label: `acceptance:product-review:${story}`, phase: `story:${story}`, schema: REPORT }),
@@ -302,15 +311,18 @@ async function acceptanceRound(story, note, nextPhase) {
   let productBlock
   if (productReport) {
     productBlock = `--- product-reviewer ---\n${productReport.findings}`
-  } else {
-    missing.push('product-reviewer')
+  } else if (!emptyChangeset) {
+    missing.push('product-reviewer (agent died)')
     productBlock = '--- product-reviewer --- (AGENT DIED, or the scope-check died/returned unparseable output — no report; this lane is UNREVIEWED)'
+  } else {
+    missing.push('product-reviewer (empty changeset)')
+    productBlock = '--- product-reviewer --- (EMPTY CHANGESET — the scope-check ran and found no changed files; this lane is UNREVIEWED)'
   }
   let walkthroughBlock
   if (walkthroughReport) {
     walkthroughBlock = `--- walkthrough ---\n${walkthroughReport.findings}`
   } else {
-    missing.push('walkthrough')
+    missing.push('walkthrough (agent died)')
     walkthroughBlock = '--- walkthrough --- (AGENT DIED — no report; this lane is UNREVIEWED)'
   }
 
@@ -318,9 +330,11 @@ async function acceptanceRound(story, note, nextPhase) {
     { label: `acceptance:compile:${story}`, phase: `story:${story}`, schema: GATE_RESULT, model: 'opus' })
   // Belt and braces, same posture as auditRound's own missing-lane guard: an
   // UNREVIEWED lane can never compile into an earned SHIP, whatever the compiler
-  // said — never trust prompt compliance alone for a fail-closed guarantee.
+  // said — never trust prompt compliance alone for a fail-closed guarantee. Each
+  // `missing` entry already carries its own cause (agent death vs. empty
+  // changeset, Bug 2), so the summary template no longer hardcodes one.
   if (result && missing.length && result.verdict === 'SHIP') {
-    result = { ...result, verdict: 'HOLD', summary: `unreviewed lane(s) — agent died: ${missing.join(', ')}. ${result.summary}` }
+    result = { ...result, verdict: 'HOLD', summary: `unreviewed lane(s): ${missing.join(', ')}. ${result.summary}` }
   }
   return result
 }

@@ -47,6 +47,7 @@ def _one_story_acceptance_epic() -> dict:
 
 SCOPE_WITH_DOC = {"findings": json.dumps({"files": ["foo.py"], "designDoc": "docs/design-foo.md"})}
 SCOPE_NO_DOC = {"findings": json.dumps({"files": ["foo.py"], "designDoc": ""})}
+SCOPE_EMPTY = {"findings": json.dumps({"files": [], "designDoc": ""})}
 
 
 def test_normal_round_dispatches_all_four_lanes_in_shape() -> None:
@@ -187,6 +188,75 @@ def test_died_scope_check_skips_the_product_review_dispatch_entirely() -> None:
     assert "epx--a" in needs_you
     assert needs_you["epx--a"]["verdict"] == "HOLD"
     assert "product-reviewer" in needs_you["epx--a"]["reason"]
+
+
+def test_empty_changeset_skips_product_review_dispatch_and_caps_hold() -> None:
+    """An empty-but-non-null `files` array (Bug 2) is a scope-check that ran
+    cleanly and found nothing to review — it must degrade the product-review
+    lane to UNREVIEWED exactly like a died scope-check, never a silent
+    go-ahead to dispatch product-reviewer with zero scope. Deliberately mocks
+    the product-review lane with a normal finding: if the empty-changeset
+    guard is missing, this dispatch actually fires and the compiler's SHIP
+    survives, failing loudly, rather than masking a missing guard behind an
+    UNMOCKED-reject crash park."""
+    epic = _one_story_acceptance_epic()
+    rules = [
+        {"match": r"^acceptance:scope:a$", "result": SCOPE_EMPTY},
+        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "looked fine to me"}},
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    labels = [c["label"] for c in out["calls"]]
+    assert "acceptance:product-review:a" not in labels, (
+        "product-reviewer must never be dispatched against an empty changeset"
+    )
+
+    result = out["result"]
+    needs_you = {e["story"]: e for e in result["needsYou"]}
+    assert "epx--a" in needs_you, f"story a should have parked on a forced HOLD: {result}"
+    entry = needs_you["epx--a"]
+    assert entry["gate"] == "acceptance"
+    assert entry["verdict"] == "HOLD"
+    assert "product-reviewer" in entry["reason"]
+    assert result["landed"] == 0
+
+
+def test_empty_changeset_cause_never_reads_the_same_as_agent_death() -> None:
+    """Same missing-lane entry (product-reviewer), two distinguishable causes:
+    the compiled summary must never read identically for "nothing to review"
+    (empty changeset) vs. "the agent died", checked in both directions so
+    neither cause's text leaks into the other's report."""
+    epic = _one_story_acceptance_epic()
+    empty_rules = [
+        {"match": r"^acceptance:scope:a$", "result": SCOPE_EMPTY},
+        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "looked fine to me"}},
+    ]
+    died_rules = [
+        {"match": r"^acceptance:scope:a$", "result": SCOPE_WITH_DOC},
+        {"match": r"^acceptance:product-review:a$", "result": None},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "looked fine to me"}},
+    ]
+
+    empty_out = _run_driver(epic, empty_rules)
+    died_out = _run_driver(epic, died_rules)
+    assert empty_out["ok"], f"driver crashed: {empty_out.get('error')}"
+    assert died_out["ok"], f"driver crashed: {died_out.get('error')}"
+
+    empty_reason = {e["story"]: e for e in empty_out["result"]["needsYou"]}["epx--a"]["reason"]
+    died_reason = {e["story"]: e for e in died_out["result"]["needsYou"]}["epx--a"]["reason"]
+
+    assert "product-reviewer (empty changeset)" in empty_reason
+    assert "product-reviewer (agent died)" not in empty_reason
+
+    assert "product-reviewer (agent died)" in died_reason
+    assert "product-reviewer (empty changeset)" not in died_reason
+
+    assert empty_reason != died_reason
 
 
 def test_died_walkthrough_lane_also_forces_hold() -> None:
