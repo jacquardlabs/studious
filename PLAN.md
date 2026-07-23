@@ -15,7 +15,7 @@ Done means:
 3. [hold] every pre-existing test in `tests/python/test_acceptance_fanout.py` still passes, with only cause-text string assertions updated to the new convention and no behavioral change   (tier: test-backed `uv run --no-project --with pytest pytest tests/python/test_acceptance_fanout.py`)
 Evidence: pytest output; `node --check workflows/epic-driver.js`; `npx eslint@10.6.0 workflows/` clean.
 
-### Task 2 — Discover a single per-story register and verify it via premortem-auditor
+### Task 2 — Discover a single per-story register and verify it via premortem-auditor [PASS]
 Why now:    the core of Bug 1's fix; every later task extends this discovery/dispatch shape rather than duplicating it.
 Read first: `workflows/epic-driver.js`, `commands/gate-acceptance.md`, `agents/premortem-auditor.md`, `docs/superpowers/specs/2026-07-23-acceptance-dispatch-fix-design.md`
 Rests on:   Task 1 (reuses its distinguishable-reason `missing`-lane convention for a died premortem-auditor dispatch).
