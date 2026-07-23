@@ -222,14 +222,22 @@ function premortemDispatchPrompt(fields) {
 // serially inside one agent (case study: issue #142, a single acceptance dispatch
 // that took 117 minutes); this driver dispatches both concurrently instead, using
 // the same registered product-reviewer agentType the interactive command reads
-// from ${CLAUDE_PLUGIN_ROOT}. Part 2 (pre-mortem verification) is deliberately
-// never part of this fan-out: no per-story register exists to verify — the epic's
-// cross-story register is verified once, at the finale (see auditFanIn's own
-// comment above). The finale acceptance dispatch is a separate, deliberately
-// unfanned-out follow-up (still the single self-performing dispatch below): its
-// scope is the epic goal plus every story's acceptance criteria, not one design
-// doc, so it doesn't reuse acceptanceScopeCheckPrompt's design-doc resolution
-// unchanged the way finaleAuditDispatchPrompt reuses auditDispatchPrompt's shape.
+// from ${CLAUDE_PLUGIN_ROOT}. Part 2 (pre-mortem verification) DOES belong in this
+// fan-out whenever the story carries its own per-story register — corrected by the
+// acceptance-dispatch-fix story (2026-07-23, Bug 1) from an earlier version of this
+// comment that asserted the opposite ("no per-story register exists to verify"),
+// which was false whenever gate-design-review Part 4 had persisted one
+// (docs/studious/premortems/<design-doc-slug>.md) and left the compiler with no
+// structural guarantee that register was ever checked before a SHIP. See
+// acceptanceRound's own premortem-scan comment below for the presence-only
+// discovery this fan-out now performs. This is distinct from the epic's
+// cross-story register, still verified once, at the finale (see auditFanIn's own
+// comment above) — that mechanism is untouched. The finale acceptance dispatch is
+// a separate, deliberately unfanned-out follow-up (still the single
+// self-performing dispatch below): its scope is the epic goal plus every story's
+// acceptance criteria, not one design doc, so it doesn't reuse
+// acceptanceScopeCheckPrompt's design-doc resolution unchanged the way
+// finaleAuditDispatchPrompt reuses auditDispatchPrompt's shape.
 
 // product-reviewer has no Bash (agents/product-reviewer.md: tools: Read, Glob,
 // Grep) and cannot compute the diff or find its own design doc —
@@ -260,8 +268,41 @@ function acceptanceWalkthroughPrompt(fields) {
   return `${ctxBlock}\n\n${note} Walk through every user-facing change in the story worktree ${storyWorktreePath} (diff base ${base}) yourself, using @agent-product-reviewer's "When reviewing an IMPLEMENTATION" checklist (agents/product-reviewer.md from the plugin root) as the lens — a separate reviewer already ran that checklist as a subagent in parallel with you; don't re-derive the questions, just apply them directly as you walk the branch. Write concisely: 1-2 sentences per checklist item, bullets when listing multiple issues, no preamble.\n\nClose with two gate-specific questions the checklist doesn't ask:\n\n- One complaint — what's the single thing a real user would complain about if we shipped this as-is? Be specific. There's always something.\n- Operability — does the branch deliver what the design doc's Operational readiness section committed to (the migration and its rollback, the rollout strategy, the working/failing signals)? If the section said "N/A — no operational surface", confirm that still holds. If there's no design doc for this story, or it predates the Operational readiness section, note that and assess operability from the changeset directly.\n\nReturn your findings as structured text.\n\n${requireContract(contract)}`
 }
 
-function acceptanceFanIn(story, productBlock, walkthroughBlock, base, dir, nextPhase) {
-  return `You are compiling Studious's acceptance gate verdict for this story. Read commands/gate-acceptance.md's Part 4 from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply ITS verdict rubric to the two reports below — you judge compilation only, you do not re-review. A lane marked UNREVIEWED (its agent died, or the mechanical scope-check that resolves its file list and design doc died or returned unparseable output) means you cannot certify a SHIP: the verdict is at best HOLD.\n\nChangeset: ${dir}, diff base ${base}.\n\nProduct review:\n${productBlock}\n\nImplementation walkthrough:\n${walkthroughBlock}\n\nRecord the verdict from inside ${dir}: cd "${dir}" && gate-ledger record --gate acceptance --verdict "<TOKEN>" && gate-ledger work-log --slug "${workSlug(story)}" --step acceptance --outcome "<TOKEN>" --phase "${nextPhase}"\n\nReturn: verdict (SHIP | FIX AND RE-CHECK | HOLD), sha, summary (for non-SHIP verdicts, the findings a fixer needs — specific enough to go directly into the engineering chain as fix tasks).`
+// Bug 1 fix (acceptance-dispatch-fix, 2026-07-23): a Part-2-equivalent dispatch
+// for the STORY-level acceptance round. Deliberately a separate builder from
+// the finale's own premortemDispatchPrompt above, not a shared/parameterized
+// one — the finale always knows its register path (epic.premortem, no
+// discovery needed) while the per-story case discovers a path by scanning the
+// resolved changeset `files` list; forcing one abstraction over genuinely
+// different semantics is the premature abstraction CLAUDE.md warns against
+// (see the design doc's "Prompt-builder sharing" alternative). No diffBlock
+// here: unlike auditRound, acceptanceRound never resolves routing match flags
+// (no diffPath exists to hand over), matching acceptanceProductReviewPrompt/
+// acceptanceWalkthroughPrompt above, neither of which take one either.
+function acceptancePremortemDispatchPrompt(fields) {
+  const { ctxBlock, note, storyWorktreePath, premortemPath, contract } =
+    requireFields(fields, ['ctxBlock', 'note', 'storyWorktreePath', 'premortemPath', 'contract'], 'acceptancePremortemDispatchPrompt')
+  return `${ctxBlock}\n\n${note} Verify the pre-mortem register at ${storyWorktreePath}/${premortemPath} against this story's branch, per your role. Lane: product. Report REALIZED / NOT REALIZED / CAN'T VERIFY per item.\n\n${requireContract(contract)}`
+}
+
+function acceptanceFanIn(story, productBlock, walkthroughBlock, premortemBlock, base, dir, nextPhase) {
+  // premortemBlock is null whenever this round found no single per-story
+  // register to verify (acceptanceRound's own presence-only scan) — the
+  // prompt then reads BYTE-IDENTICAL to before this fix: reportCountWord below
+  // preserves the original "the two reports below" wording exactly rather than
+  // silently dropping the count, no third section, no extra rubric sentence.
+  // Non-null (a dispatched-and-resolved OR dispatched-and-died lane) adds all
+  // three: the count word drops (three reports now, not two — naming a new
+  // fixed number would go stale the moment a future story adds a fourth), the
+  // labeled block itself, and one sentence telling the compiler to map its
+  // REALIZED findings through the same BLOCKER/SHOULD FIX vocabulary Part 4
+  // already uses for the other two reports — never a fourth, separate rubric.
+  const reportCountWord = premortemBlock ? '' : ' two'
+  const premortemSection = premortemBlock ? `\n\nPre-mortem register verification:\n${premortemBlock}` : ''
+  const premortemRubricNote = premortemBlock
+    ? ' A pre-mortem register verification report is included below (Part 2\'s equivalent) — map its REALIZED findings to this gate\'s verdict using the same BLOCKER/SHOULD FIX vocabulary Part 4 already applies to the other two reports; it is not a fourth, separate rubric.'
+    : ''
+  return `You are compiling Studious's acceptance gate verdict for this story. Read commands/gate-acceptance.md's Part 4 from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply ITS verdict rubric to the${reportCountWord} reports below — you judge compilation only, you do not re-review.${premortemRubricNote} A lane marked UNREVIEWED (its agent died, or the mechanical scope-check that resolves its file list and design doc died or returned unparseable output) means you cannot certify a SHIP: the verdict is at best HOLD.\n\nChangeset: ${dir}, diff base ${base}.\n\nProduct review:\n${productBlock}\n\nImplementation walkthrough:\n${walkthroughBlock}${premortemSection}\n\nRecord the verdict from inside ${dir}: cd "${dir}" && gate-ledger record --gate acceptance --verdict "<TOKEN>" && gate-ledger work-log --slug "${workSlug(story)}" --step acceptance --outcome "<TOKEN>" --phase "${nextPhase}"\n\nReturn: verdict (SHIP | FIX AND RE-CHECK | HOLD), sha, summary (for non-SHIP verdicts, the findings a fixer needs — specific enough to go directly into the engineering chain as fix tasks).`
 }
 
 // Orchestrates the three-dispatch fan-out above: a mechanical scope-check, then
@@ -298,14 +339,46 @@ async function acceptanceRound(story, note, nextPhase) {
   const emptyChangeset = Array.isArray(files) && files.length === 0
   const skipProductReview = files === null || emptyChangeset
 
-  const [productReport, walkthroughReport] = await parallel([
+  // Bug 1 fix (acceptance-dispatch-fix, 2026-07-23): mirrors gate-acceptance.md
+  // Part 2's changeset-scan discovery — "look for docs/studious/premortems/*.md
+  // in the Part 0 changeset". Presence-only: the decision to dispatch never
+  // inspects the register's own content (which lane's items it holds, how
+  // many), only whether exactly one path in the already-resolved `files` list
+  // matches the pattern — a register file scoped entirely to technical-lane
+  // items still counts as present. Zero matches (no register on this branch,
+  // or a died/empty scope-check that leaves `files` non-array) and more than
+  // one match (an unresolved multi-candidate — Task 4's disambiguation, not
+  // this fix) both fall through to "no dispatch," identical to today's
+  // behavior — the fallback lookup for a register outside the changeset
+  // (Task 3) and multi-candidate UNREVIEWED handling (Task 4) are deliberately
+  // not implemented here.
+  const premortemMatches = Array.isArray(files)
+    ? files.filter(f => /^docs\/studious\/premortems\/[^/]+\.md$/.test(f))
+    : []
+  const hasPremortem = premortemMatches.length === 1
+  const premortemPath = hasPremortem ? premortemMatches[0] : null
+
+  const thunks = [
     () => skipProductReview
       ? Promise.resolve(null)
       : agent(acceptanceProductReviewPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: dir, files, designDoc, contract: CONTRACT }),
           { agentType: 'studious:product-reviewer', label: `acceptance:product-review:${story}`, phase: `story:${story}`, schema: REPORT }),
     () => agent(acceptanceWalkthroughPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: dir, base, contract: CONTRACT }),
         { label: `acceptance:walkthrough:${story}`, phase: `story:${story}`, schema: REPORT }),
-  ])
+  ]
+  // Pushed into the SAME thunks array `parallel()` fans out below — never a
+  // serial dispatch added after that round resolves, which would reintroduce
+  // the per-dispatch latency issue #142 already fixed once for this function
+  // (see the comment above acceptanceRound).
+  if (hasPremortem) {
+    thunks.push(() =>
+      agent(acceptancePremortemDispatchPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: dir, premortemPath, contract: CONTRACT }),
+        { agentType: 'studious:premortem-auditor', label: `acceptance:premortem:${story}`, phase: `story:${story}`, schema: REPORT }))
+  }
+  const dispatched = await parallel(thunks)
+  const productReport = dispatched[0]
+  const walkthroughReport = dispatched[1]
+  const premortemReport = hasPremortem ? dispatched[2] : null
 
   const missing = []
   let productBlock
@@ -325,8 +398,22 @@ async function acceptanceRound(story, note, nextPhase) {
     missing.push('walkthrough (agent died)')
     walkthroughBlock = '--- walkthrough --- (AGENT DIED — no report; this lane is UNREVIEWED)'
   }
+  // Task 1's distinguishable-reason missing-lane convention, reused verbatim
+  // for a died premortem-auditor dispatch: null only, never absent-by-design —
+  // `hasPremortem` false means this lane was never dispatched at all (no
+  // register found), which must stay silent, not a phantom UNREVIEWED entry
+  // for a lane that was correctly never in scope.
+  let premortemBlock = null
+  if (hasPremortem) {
+    if (premortemReport) {
+      premortemBlock = `--- premortem-auditor ---\n${premortemReport.findings}`
+    } else {
+      missing.push('premortem-auditor (agent died)')
+      premortemBlock = '--- premortem-auditor --- (AGENT DIED — no report; this lane is UNREVIEWED)'
+    }
+  }
 
-  let result = await agent(acceptanceFanIn(story, productBlock, walkthroughBlock, base, dir, nextPhase),
+  let result = await agent(acceptanceFanIn(story, productBlock, walkthroughBlock, premortemBlock, base, dir, nextPhase),
     { label: `acceptance:compile:${story}`, phase: `story:${story}`, schema: GATE_RESULT, model: 'opus' })
   // Belt and braces, same posture as auditRound's own missing-lane guard: an
   // UNREVIEWED lane can never compile into an earned SHIP, whatever the compiler
