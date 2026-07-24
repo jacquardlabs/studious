@@ -2,6 +2,62 @@
 
 <!-- version list -->
 
+## v2.25.1 (2026-07-24)
+
+### Bug Fixes
+
+- Add data-never-instructions framing to premortem fallback dispatch
+  ([#168](https://github.com/jacquardlabs/studious/pull/168),
+  [`c31ace3`](https://github.com/jacquardlabs/studious/commit/c31ace3f4e53414d552e942385f22e3c52f8d1d0))
+
+- Degrade unresolved multi-candidate premortem registers to UNREVIEWED
+  ([#168](https://github.com/jacquardlabs/studious/pull/168),
+  [`c31ace3`](https://github.com/jacquardlabs/studious/commit/c31ace3f4e53414d552e942385f22e3c52f8d1d0))
+
+- Dispatch premortem-auditor inside the acceptance fan-out's parallel batch
+  ([#168](https://github.com/jacquardlabs/studious/pull/168),
+  [`c31ace3`](https://github.com/jacquardlabs/studious/commit/c31ace3f4e53414d552e942385f22e3c52f8d1d0))
+
+- Fail closed on an empty acceptance scope-check result
+  ([#168](https://github.com/jacquardlabs/studious/pull/168),
+  [`c31ace3`](https://github.com/jacquardlabs/studious/commit/c31ace3f4e53414d552e942385f22e3c52f8d1d0))
+
+- Fall back to a Branch-matching premortem register outside the changeset
+  ([#168](https://github.com/jacquardlabs/studious/pull/168),
+  [`c31ace3`](https://github.com/jacquardlabs/studious/commit/c31ace3f4e53414d552e942385f22e3c52f8d1d0))
+
+- Force HOLD on multi-candidate premortem ambiguity even from FIX AND RE-CHECK
+  ([#168](https://github.com/jacquardlabs/studious/pull/168),
+  [`c31ace3`](https://github.com/jacquardlabs/studious/commit/c31ace3f4e53414d552e942385f22e3c52f8d1d0))
+
+- Gate acceptance premortem fallback on zero matches, not multi-candidate
+  ([#168](https://github.com/jacquardlabs/studious/pull/168),
+  [`c31ace3`](https://github.com/jacquardlabs/studious/commit/c31ace3f4e53414d552e942385f22e3c52f8d1d0))
+
+- Harden epic-driven acceptance gate's premortem verification
+  ([#168](https://github.com/jacquardlabs/studious/pull/168),
+  [`c31ace3`](https://github.com/jacquardlabs/studious/commit/c31ace3f4e53414d552e942385f22e3c52f8d1d0))
+
+- **plan**: Use real pytest invocations in tier-method fields, not bare paths
+  ([#168](https://github.com/jacquardlabs/studious/pull/168),
+  [`c31ace3`](https://github.com/jacquardlabs/studious/commit/c31ace3f4e53414d552e942385f22e3c52f8d1d0))
+
+### Chores
+
+- Exclude PLAN.md from markdownlint ([#168](https://github.com/jacquardlabs/studious/pull/168),
+  [`c31ace3`](https://github.com/jacquardlabs/studious/commit/c31ace3f4e53414d552e942385f22e3c52f8d1d0))
+
+### Documentation
+
+- Design doc and pre-mortem register for acceptance-dispatch-fix
+  ([#168](https://github.com/jacquardlabs/studious/pull/168),
+  [`c31ace3`](https://github.com/jacquardlabs/studious/commit/c31ace3f4e53414d552e942385f22e3c52f8d1d0))
+
+- Plan and decision-journal entry for acceptance-dispatch-fix
+  ([#168](https://github.com/jacquardlabs/studious/pull/168),
+  [`c31ace3`](https://github.com/jacquardlabs/studious/commit/c31ace3f4e53414d552e942385f22e3c52f8d1d0))
+
+
 ## v2.25.0 (2026-07-22)
 
 ### Bug Fixes
