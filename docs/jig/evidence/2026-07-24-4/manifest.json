@@ -1,0 +1,21 @@
+{
+  "task": "4",
+  "date": "2026-07-24",
+  "commit_sha": "8ec7195ae6040cdaca7bf080cb12597b2d62456b",
+  "commit_timestamp": "2026-07-24T19:15:30+00:00",
+  "captured_at": "2026-07-24T19:16:22.556620+00:00",
+  "artifacts": [
+    {
+      "producer": "verify",
+      "label": "results",
+      "source": "/tmp/jig-build-acceptance-dispatch-fix.BJeysy/task4-results.json",
+      "path": "results.json"
+    },
+    {
+      "producer": "build",
+      "label": "replay-bundle",
+      "source": "/tmp/jig-build-acceptance-dispatch-fix.BJeysy/task4-replay-bundle.json",
+      "path": "replay-bundle.json"
+    }
+  ]
+}

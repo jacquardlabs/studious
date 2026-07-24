@@ -1,0 +1,1 @@
+{"date":"2026-07-23","gate":"should-we-build","idea":"Fix epic-driver.js acceptanceRound: dispatch premortem-auditor for per-story pre-mortem registers, guard against an empty scope-check result","verdict":"BUILD","rationale":"Matches PRODUCT.md's #1 known problem (gate-contract regressions caught only by manual audit) directly and was cleanly scoped to one function."}

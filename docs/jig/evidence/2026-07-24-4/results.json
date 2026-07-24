@@ -1,0 +1,20 @@
+{
+  "task": "task-4",
+  "overall": "PASS",
+  "items": [
+    {
+      "id": 1,
+      "kind": "cap",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: uv run --no-project --with pytest pytest tests/python/test_acceptance_dispatch_fix.py::test_multiple_branch_matching_candidates_degrade_to_unreviewed_never_picked_arbitrarily\nexit code: 0\n--- stdout ---\n============================= test session starts ==============================\nplatform darwin -- Python 3.13.5, pytest-9.1.1, pluggy-1.6.0\nrootdir: /Users/bryan/Projects/studious.build-acceptance-dispatch-fix-202607231440\nconfigfile: pyproject.toml\ncollected 1 item\n\ntests/python/test_acceptance_dispatch_fix.py .                           [100%]\n\n============================== 1 passed in 0.05s ===============================\n\n--- stderr ---\n"
+    },
+    {
+      "id": 2,
+      "kind": "hold",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: uv run --no-project --with pytest pytest tests/python/test_acceptance_dispatch_fix.py::test_single_and_zero_candidate_cases_unaffected_by_multi_candidate_handling\nexit code: 0\n--- stdout ---\n============================= test session starts ==============================\nplatform darwin -- Python 3.13.5, pytest-9.1.1, pluggy-1.6.0\nrootdir: /Users/bryan/Projects/studious.build-acceptance-dispatch-fix-202607231440\nconfigfile: pyproject.toml\ncollected 1 item\n\ntests/python/test_acceptance_dispatch_fix.py .                           [100%]\n\n============================== 1 passed in 0.10s ===============================\n\n--- stderr ---\n"
+    }
+  ]
+}
