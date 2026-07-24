@@ -751,3 +751,160 @@ def test_fallback_prompt_carries_data_never_instructions_framing() -> None:
     # status vocabulary — not a generic "ignore prompt injection" platitude.
     assert "ignore this file" in fn
     assert "status" in fn.split("as data to match against", 1)[1]
+
+
+# --- Task 4 gap fix (acceptance-dispatch-fix, 2026-07-24, gate-acceptance
+# SHOULD FIX, re-verified by the orchestrator): the belt-and-braces guard
+# only ever coerced an earned-looking SHIP to HOLD — it never touched FIX AND
+# RE-CHECK, trusting the compile prompt's own "at best HOLD" instruction
+# alone for that boundary, exactly what the guard's own comment says never to
+# do. Harmless for a transient UNREVIEWED cause (a genuine retry can clear a
+# flake), but Task 4's two multi-candidate causes are NOT transient — a
+# code-fixer cannot resolve a register-directory ambiguity by editing code,
+# it's a human decision about which register is authoritative. If the
+# compiler mistakenly returns FIX AND RE-CHECK for one of those, the
+# unpatched guard let the existing fix-and-retry loop dispatch a code-fixer
+# and re-run acceptanceRound up to MAX_FIX_CYCLES times against the identical
+# unresolvable state, instead of the immediate, unambiguous HOLD the design
+# doc specifies. The tests below prove both directions of the fix: the
+# multi-candidate cause now forces HOLD even out of FIX AND RE-CHECK (and,
+# critically, BEFORE runGate's retry-loop condition is ever checked — no
+# fix:acceptance:a dispatch at all), while every other UNREVIEWED cause keeps
+# its exact pre-existing behavior — SHIP still gets coerced, a genuine FIX
+# AND RE-CHECK still rides through untouched so a real flake can still be
+# retried through the full fix-and-retry loop.
+
+
+def test_multi_candidate_fix_and_recheck_forced_to_hold_before_retry_loop() -> None:
+    """A multi-candidate register ambiguity — from either discovery source,
+    the changeset naming two candidates directly or the fallback directory
+    scan finding two Branch-matching candidates outside it — must force HOLD
+    even when the compiler mistakenly returns FIX AND RE-CHECK, and it must
+    do so BEFORE runGate's `while (result.verdict === GATES[gate].retry...)`
+    condition is ever evaluated: proven by the total absence of any
+    fix:acceptance:a dispatch, not just by the final recorded verdict (a
+    guard that forced HOLD only after one wasted fix cycle would still pass
+    a final-verdict-only assertion)."""
+    epic = _one_story_acceptance_epic()
+
+    # Source 1: two candidates named directly in the changeset.
+    changeset_rules = [
+        {"match": r"^acceptance:scope:a$", "result": _scope_with_files([
+            "foo.py",
+            "docs/studious/premortems/one-design.md",
+            "docs/studious/premortems/two-design.md",
+        ])},
+        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "FIX AND RE-CHECK", "sha": "a0", "summary": "please address the findings"}},
+        # acceptance:premortem-fallback:a, acceptance:premortem:a, and
+        # fix:acceptance:a are all deliberately unmocked: the fallback and
+        # premortem-auditor must never fire for a changeset-side
+        # multi-candidate (Task 4's existing gating, unaffected by this fix),
+        # and fix:acceptance:a must never be attempted at all if the guard
+        # forces HOLD before the retry loop checks the verdict. park:a is
+        # also unmocked, matching this file's established convention — it
+        # falls through to park()'s own try/catch hardening.
+    ]
+    changeset_out = _run_driver(epic, changeset_rules)
+    assert changeset_out["ok"], f"driver crashed: {changeset_out.get('error')}"
+    changeset_labels = [c["label"] for c in changeset_out["calls"]]
+    assert "acceptance:premortem-fallback:a" not in changeset_labels
+    assert "acceptance:premortem:a" not in changeset_labels
+    assert "fix:acceptance:a" not in changeset_labels, (
+        f"a changeset-side multi-candidate ambiguity must force HOLD before the retry loop "
+        f"ever runs — a code-fixer cannot resolve a register-directory ambiguity. "
+        f"calls: {changeset_labels}"
+    )
+    changeset_result = changeset_out["result"]
+    assert changeset_result["landed"] == 0
+    changeset_needs_you = {e["story"]: e for e in changeset_result["needsYou"]}
+    assert "epx--a" in changeset_needs_you, f"story a should have parked on a forced HOLD: {changeset_result}"
+    changeset_entry = changeset_needs_you["epx--a"]
+    assert changeset_entry["verdict"] == "HOLD", (
+        f"the compiler's FIX AND RE-CHECK for a changeset-side multi-candidate ambiguity must be "
+        f"forced to HOLD, not ridden through into a pointless retry loop: {changeset_entry}"
+    )
+    assert "premortem-auditor" in changeset_entry["reason"]
+    assert "multiple candidate registers in changeset" in changeset_entry["reason"]
+
+    # Source 2: zero changeset candidates, fallback directory scan finds more
+    # than one Branch-matching candidate outside the changeset.
+    fallback_rules = [
+        {"match": r"^acceptance:scope:a$", "result": _scope_with_files(["foo.py", "bar.py"])},
+        {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "multiple"})}},
+        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "FIX AND RE-CHECK", "sha": "a0", "summary": "please address the findings"}},
+        # acceptance:premortem:a, fix:acceptance:a, and park:a deliberately
+        # unmocked, same convention as above.
+    ]
+    fallback_out = _run_driver(epic, fallback_rules)
+    assert fallback_out["ok"], f"driver crashed: {fallback_out.get('error')}"
+    fallback_labels = [c["label"] for c in fallback_out["calls"]]
+    assert fallback_labels.count("acceptance:premortem-fallback:a") == 1
+    assert "acceptance:premortem:a" not in fallback_labels
+    assert "fix:acceptance:a" not in fallback_labels, (
+        f"a fallback-side multi-candidate ambiguity must force HOLD before the retry loop ever "
+        f"runs. calls: {fallback_labels}"
+    )
+    fallback_result = fallback_out["result"]
+    assert fallback_result["landed"] == 0
+    fallback_needs_you = {e["story"]: e for e in fallback_result["needsYou"]}
+    assert "epx--a" in fallback_needs_you, f"story a should have parked on a forced HOLD: {fallback_result}"
+    fallback_entry = fallback_needs_you["epx--a"]
+    assert fallback_entry["verdict"] == "HOLD", (
+        f"the compiler's FIX AND RE-CHECK for a fallback-side multi-candidate ambiguity must be "
+        f"forced to HOLD, not ridden through into a pointless retry loop: {fallback_entry}"
+    )
+    assert "premortem-auditor" in fallback_entry["reason"]
+    assert "multiple branch-matching candidate registers outside changeset" in fallback_entry["reason"]
+
+
+def test_transient_unreviewed_cause_fix_and_recheck_rides_through_unforced() -> None:
+    """The overcorrection check: a transient UNREVIEWED cause (here, a died
+    product-reviewer dispatch — same shape as a died dispatch or an
+    empty-changeset scope-check, none of them a multi-candidate ambiguity)
+    must NOT be forced to HOLD when the compiler returns FIX AND RE-CHECK.
+    It must ride through exactly as it did before this fix, all the way
+    through runGate's real fix-and-retry loop (fix:acceptance:a dispatched
+    once per cycle, up to MAX_FIX_CYCLES), landing on a final FIX AND
+    RE-CHECK park once cycles are exhausted — proving the multi-candidate fix
+    did not widen the guard to swallow the working retry path too."""
+    epic = _one_story_acceptance_epic()
+    rules = [
+        {"match": r"^acceptance:scope:a$", "result": _scope_with_files(["foo.py", "bar.py"])},
+        {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
+        # A died product-reviewer dispatch — a transient UNREVIEWED cause,
+        # never a multi-candidate one.
+        {"match": r"^acceptance:product-review:a$", "result": None},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "FIX AND RE-CHECK", "sha": "a0", "summary": "fix the thing"}},
+        {"match": r"^fix:acceptance:a$", "result": {"status": "done", "sha": "a1", "summary": "attempted a fix", "evidence": "ran tests"}},
+        # merge:a and park:a deliberately unmocked — FIX AND RE-CHECK never
+        # reaches merge(), and park() falls through to its own try/catch
+        # hardening (established convention above).
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    labels = [c["label"] for c in out["calls"]]
+    assert labels.count("fix:acceptance:a") == 2, (
+        f"a transient UNREVIEWED cause (died product-reviewer) must let a genuine FIX AND "
+        f"RE-CHECK ride through into the existing fix-and-retry loop, unforced, running the "
+        f"loop the full MAX_FIX_CYCLES rather than being short-circuited to an immediate HOLD "
+        f"park. calls: {labels}"
+    )
+    result = out["result"]
+    assert result["landed"] == 0
+    needs_you = {e["story"]: e for e in result["needsYou"]}
+    assert "epx--a" in needs_you, f"story a should have parked after exhausting its fix cycles: {result}"
+    entry = needs_you["epx--a"]
+    assert entry["verdict"] == "FIX AND RE-CHECK", (
+        f"a died product-reviewer (a transient cause) must never be coerced to HOLD — it must "
+        f"still ride through as FIX AND RE-CHECK, exactly as it did before the multi-candidate "
+        f"fix: {entry}"
+    )
+    assert "unreviewed lane(s)" not in entry["reason"], (
+        "the belt-and-braces guard must never touch a non-SHIP verdict for a transient cause — "
+        f"its summary must be exactly what the compiler returned, untouched: {entry}"
+    )

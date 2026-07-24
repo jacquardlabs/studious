@@ -555,7 +555,25 @@ async function acceptanceRound(story, note, nextPhase) {
   // said — never trust prompt compliance alone for a fail-closed guarantee. Each
   // `missing` entry already carries its own cause (agent death vs. empty
   // changeset, Bug 2), so the summary template no longer hardcodes one.
-  if (result && missing.length && result.verdict === 'SHIP') {
+  //
+  // Task 4 gap fix (acceptance-dispatch-fix, 2026-07-24, gate-acceptance SHOULD
+  // FIX): a multi-candidate register ambiguity (`multiCandidateSource` set) is
+  // not a transient UNREVIEWED cause a retry can clear — no code-fixer can
+  // resolve a register-directory ambiguity by editing code, it's a human
+  // decision about which register is authoritative. The compile prompt's own
+  // "at best HOLD" instruction (above) is exactly the prompt compliance this
+  // guard's own comment says never to trust alone for a fail-closed guarantee,
+  // so this ONE cause forces HOLD regardless of what the compiler returned —
+  // SHIP or FIX AND RE-CHECK — unlike every other UNREVIEWED cause, which
+  // still only coerces an earned-looking SHIP and lets a genuine FIX AND
+  // RE-CHECK ride through so a real flake (died dispatch, empty changeset,
+  // fallback died/unparseable) can still be retried. Checked ahead of
+  // runGate's own `while (result.verdict === GATES[gate].retry...)` condition
+  // (this function returns before that loop ever inspects the verdict), so a
+  // multi-candidate ambiguity never burns a fix cycle dispatching a code-fixer
+  // against a state it cannot change.
+  const mustHold = Boolean(multiCandidateSource) || (result && result.verdict === 'SHIP')
+  if (result && missing.length && mustHold && result.verdict !== 'HOLD') {
     result = { ...result, verdict: 'HOLD', summary: `unreviewed lane(s): ${missing.join(', ')}. ${result.summary}` }
   }
   return result
