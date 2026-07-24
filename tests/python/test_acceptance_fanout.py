@@ -49,6 +49,15 @@ SCOPE_WITH_DOC = {"findings": json.dumps({"files": ["foo.py"], "designDoc": "doc
 SCOPE_NO_DOC = {"findings": json.dumps({"files": ["foo.py"], "designDoc": ""})}
 SCOPE_EMPTY = {"findings": json.dumps({"files": [], "designDoc": ""})}
 
+# foo.py names no premortem register, so acceptanceRound's Task 3 fallback
+# lookup (acceptance-dispatch-fix, 2026-07-24) fires whenever SCOPE_WITH_DOC/
+# SCOPE_NO_DOC is in play below — confirmed empty, same "nothing to verify"
+# outcome every one of these fan-out tests always had. SCOPE_EMPTY never
+# triggers the fallback at all (an empty changeset already caps the round at
+# HOLD via the product-review lane, so the fallback is skipped rather than
+# fired needlessly — see acceptanceRound's own comment).
+PREMORTEM_FALLBACK_EMPTY = {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}}
+
 
 def test_normal_round_dispatches_all_four_lanes_in_shape() -> None:
     """A clean round dispatches the scope-check, both parallel lanes, and the
@@ -60,6 +69,7 @@ def test_normal_round_dispatches_all_four_lanes_in_shape() -> None:
     epic = _one_story_acceptance_epic()
     rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_WITH_DOC},
+        PREMORTEM_FALLBACK_EMPTY,
         {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
@@ -90,6 +100,7 @@ def test_product_review_prompt_names_the_resolved_design_doc() -> None:
     epic = _one_story_acceptance_epic()
     rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_WITH_DOC},
+        PREMORTEM_FALLBACK_EMPTY,
         {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
@@ -115,6 +126,7 @@ def test_product_review_prompt_falls_back_when_no_design_doc_recorded() -> None:
     epic = _one_story_acceptance_epic()
     rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_NO_DOC},
+        PREMORTEM_FALLBACK_EMPTY,
         {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
@@ -138,6 +150,7 @@ def test_died_product_review_lane_forces_a_ship_compile_down_to_hold() -> None:
     epic = _one_story_acceptance_epic()
     rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_WITH_DOC},
+        PREMORTEM_FALLBACK_EMPTY,
         {"match": r"^acceptance:product-review:a$", "result": None},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         # The compiler never sees this dispatch die — the driver overrides its
@@ -237,6 +250,7 @@ def test_empty_changeset_cause_never_reads_the_same_as_agent_death() -> None:
     ]
     died_rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_WITH_DOC},
+        PREMORTEM_FALLBACK_EMPTY,
         {"match": r"^acceptance:product-review:a$", "result": None},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "looked fine to me"}},
@@ -265,6 +279,7 @@ def test_died_walkthrough_lane_also_forces_hold() -> None:
     epic = _one_story_acceptance_epic()
     rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_WITH_DOC},
+        PREMORTEM_FALLBACK_EMPTY,
         {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
         {"match": r"^acceptance:walkthrough:a$", "result": None},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "looked fine to me"}},
@@ -290,6 +305,7 @@ def test_missing_lane_guard_never_touches_an_already_non_ship_verdict() -> None:
     epic = _one_story_acceptance_epic()
     rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_WITH_DOC},
+        PREMORTEM_FALLBACK_EMPTY,
         {"match": r"^acceptance:product-review:a$", "result": None},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "HOLD", "sha": "a0", "summary": "cannot certify with a dead lane"}},
@@ -313,6 +329,7 @@ def test_compile_prompt_names_the_unreviewed_lane_by_name() -> None:
     epic = _one_story_acceptance_epic()
     rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_WITH_DOC},
+        PREMORTEM_FALLBACK_EMPTY,
         {"match": r"^acceptance:product-review:a$", "result": None},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "HOLD", "sha": "a0", "summary": "cannot certify with a dead lane"}},

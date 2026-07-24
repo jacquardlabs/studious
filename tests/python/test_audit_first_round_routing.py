@@ -519,6 +519,10 @@ def test_finale_routing_mirrors_the_story_level_mechanism() -> None:
     always_run = ["security-auditor", "code-auditor", "doc-auditor", "architecture-auditor", "test-auditor", "operability-auditor"]
     rules = [
         {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
+        # a.py names no premortem register, so the Task 3 fallback lookup
+        # fires (acceptance-dispatch-fix, 2026-07-24) — confirmed empty, same
+        # "nothing to verify" outcome this fixture always had.
+        {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
         {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "looks good"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},

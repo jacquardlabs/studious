@@ -285,6 +285,25 @@ function acceptancePremortemDispatchPrompt(fields) {
   return `${ctxBlock}\n\n${note} Verify the pre-mortem register at ${storyWorktreePath}/${premortemPath} against this story's branch, per your role. Lane: product. Report REALIZED / NOT REALIZED / CAN'T VERIFY per item.\n\n${requireContract(contract)}`
 }
 
+// Bug 1 fix, Task 3 (acceptance-dispatch-fix, 2026-07-24): Part 2's own
+// discovery order is changeset-scan first (above), then a fallback to the
+// most-recently-modified file under docs/studious/premortems/ when the
+// changeset names none — counting only if that file's own `Branch:` header
+// matches this story's branch (a mismatch means another feature's register;
+// treated as no register on this branch, same as Part 2). A bare, mechanical
+// fact-check like acceptanceScopeCheckPrompt above, so no ctxBlock/note/
+// contract — matching that prompt's own shape, not acceptancePremortemDispatchPrompt's.
+// Deliberately NOT pinned to haiku/low like the scope-check: pre-mortem item
+// 2 warns that a cheaply dispatched fallback would reintroduce this exact
+// story's own escape (Bug 1's silent-SHIP read) through a second, ungated
+// path — a flaked fallback misread as "confirmed no register" is
+// indistinguishable from a genuinely absent one unless the dispatch itself
+// is reliable enough that a flake is rare. See its call site below
+// (acceptanceRound) for the chosen tier and reasoning.
+function acceptancePremortemFallbackPrompt(dir, storyBranchVal) {
+  return `This is a mechanical fact-check, not a judgment call — report exactly what the files show, never interpret or editorialize. From ${dir}: list the files directly inside docs/studious/premortems/ (not subdirectories, do not recurse). If that directory does not exist, or exists but contains no files, return exactly {"status":"empty"}. Otherwise, identify the single most recently modified file there by mtime, read its "- Branch: <value>" header line near the top of the file, and compare that value byte-for-byte against this story's own branch, ${storyBranchVal}. Return EXACTLY one line of compact JSON, nothing else: {"status":"found","path":"<the file's path relative to ${dir}>","branchMatches":<true|false>}`
+}
+
 function acceptanceFanIn(story, productBlock, walkthroughBlock, premortemBlock, base, dir, nextPhase) {
   // premortemBlock is null whenever this round found no single per-story
   // register to verify (acceptanceRound's own presence-only scan) — the
@@ -345,18 +364,69 @@ async function acceptanceRound(story, note, nextPhase) {
   // inspects the register's own content (which lane's items it holds, how
   // many), only whether exactly one path in the already-resolved `files` list
   // matches the pattern — a register file scoped entirely to technical-lane
-  // items still counts as present. Zero matches (no register on this branch,
-  // or a died/empty scope-check that leaves `files` non-array) and more than
-  // one match (an unresolved multi-candidate — Task 4's disambiguation, not
-  // this fix) both fall through to "no dispatch," identical to today's
-  // behavior — the fallback lookup for a register outside the changeset
-  // (Task 3) and multi-candidate UNREVIEWED handling (Task 4) are deliberately
-  // not implemented here.
+  // items still counts as present. More than one match (an unresolved
+  // multi-candidate) falls through to "no dispatch" here — Task 4's
+  // disambiguation, not this fix. Zero matches no longer means "no register"
+  // on its own: see the Task 3 fallback lookup immediately below, which
+  // covers Part 2's second discovery source.
   const premortemMatches = Array.isArray(files)
     ? files.filter(f => /^docs\/studious\/premortems\/[^/]+\.md$/.test(f))
     : []
-  const hasPremortem = premortemMatches.length === 1
-  const premortemPath = hasPremortem ? premortemMatches[0] : null
+  let hasPremortem = premortemMatches.length === 1
+  let premortemPath = hasPremortem ? premortemMatches[0] : null
+
+  // Bug 1 fix, Task 3 (acceptance-dispatch-fix, 2026-07-24): the changeset
+  // scan above is only Part 2's first discovery source. When it finds zero
+  // matches, Part 2's own contract still requires trying the second source —
+  // the fallback lookup — before concluding "no register." Gated on a
+  // genuinely resolved, non-empty changeset: a died/unparseable scope-check
+  // (files === null) or a confirmed-empty one (Bug 2, above) already caps
+  // the round at HOLD via the product-review lane's own missing-lane entry —
+  // firing the fallback on top would add a second, redundant UNREVIEWED
+  // lane without changing the verdict, so it is skipped rather than fired
+  // needlessly. A confirmed-empty premortems/ directory, or a confirmed
+  // Branch mismatch, both fall through to "no dispatch" below, identical to
+  // today's behavior (Done means #3) — but a died or unparseable fallback
+  // dispatch must NEVER be read as either of those confirmed outcomes
+  // (pre-mortem item 2): it degrades this lane to UNREVIEWED instead, via
+  // Task 1's distinguishable-reason `missing`-lane convention below, same as
+  // a died premortem-auditor dispatch itself.
+  let fallbackFailed = null
+  if (!hasPremortem && Array.isArray(files) && files.length > 0) {
+    let fallback = null
+    try {
+      fallback = await agent(acceptancePremortemFallbackPrompt(dir, storyBranch(story)),
+        // Deliberately a step up from acceptanceScopeCheckPrompt's haiku/low
+        // above — sonnet/medium, short of opus (reserved in this file for
+        // verdict-compiling judgment, not a file-listing fact-check). See
+        // acceptancePremortemFallbackPrompt's own comment for why haiku/low
+        // is the wrong tier to mirror here.
+        { label: `acceptance:premortem-fallback:${story}`, phase: `story:${story}`, schema: REPORT, model: 'sonnet', effort: 'medium' })
+    } catch {
+      fallback = null
+    }
+    if (!fallback || !fallback.findings) {
+      fallbackFailed = 'died'
+    } else {
+      let parsedFallback = null
+      try { parsedFallback = JSON.parse(fallback.findings) } catch { parsedFallback = null }
+      if (!parsedFallback || (parsedFallback.status !== 'empty' && parsedFallback.status !== 'found')) {
+        fallbackFailed = 'unparseable'
+      } else if (parsedFallback.status === 'found') {
+        if (typeof parsedFallback.path !== 'string' || !parsedFallback.path || typeof parsedFallback.branchMatches !== 'boolean') {
+          fallbackFailed = 'unparseable'
+        } else if (parsedFallback.branchMatches) {
+          hasPremortem = true
+          premortemPath = parsedFallback.path
+        }
+        // branchMatches === false: another feature's register — confirmed no
+        // register on this branch, same as a confirmed-empty directory; no
+        // dispatch, no missing-lane entry.
+      }
+      // status === 'empty': confirmed no files under docs/studious/premortems/
+      // at all — no dispatch, exactly as before this fix (Done means #3).
+    }
+  }
 
   const thunks = [
     () => skipProductReview
@@ -402,7 +472,12 @@ async function acceptanceRound(story, note, nextPhase) {
   // for a died premortem-auditor dispatch: null only, never absent-by-design —
   // `hasPremortem` false means this lane was never dispatched at all (no
   // register found), which must stay silent, not a phantom UNREVIEWED entry
-  // for a lane that was correctly never in scope.
+  // for a lane that was correctly never in scope. Task 3 extends this same
+  // convention to the fallback lookup itself: `fallbackFailed` is set only
+  // when the fallback dispatch could not confirm an outcome either way (died
+  // or unparseable output) — a confirmed-empty directory or a confirmed
+  // Branch mismatch leaves it null, same silent "correctly out of scope"
+  // path as a changeset that never named a register at all.
   let premortemBlock = null
   if (hasPremortem) {
     if (premortemReport) {
@@ -411,6 +486,12 @@ async function acceptanceRound(story, note, nextPhase) {
       missing.push('premortem-auditor (agent died)')
       premortemBlock = '--- premortem-auditor --- (AGENT DIED — no report; this lane is UNREVIEWED)'
     }
+  } else if (fallbackFailed === 'died') {
+    missing.push('premortem-auditor (fallback lookup agent died)')
+    premortemBlock = '--- premortem-auditor --- (FALLBACK LOOKUP AGENT DIED — could not confirm whether a register exists on this branch; this lane is UNREVIEWED)'
+  } else if (fallbackFailed === 'unparseable') {
+    missing.push('premortem-auditor (fallback lookup unparseable)')
+    premortemBlock = '--- premortem-auditor --- (FALLBACK LOOKUP RETURNED UNPARSEABLE OUTPUT — could not confirm whether a register exists on this branch; this lane is UNREVIEWED)'
   }
 
   let result = await agent(acceptanceFanIn(story, productBlock, walkthroughBlock, premortemBlock, base, dir, nextPhase),

@@ -298,6 +298,9 @@ SIBLING_LANDS_RULES = [
     # mechanical scope-check, then product-review + walkthrough, then a compile
     # step — four dispatches replacing what was one `acceptance:b` label before.
     {"match": r"^acceptance:scope:b$", "result": {"findings": json.dumps({"files": ["b.py"], "designDoc": ""})}},
+    # b.py names no premortem register, so the Task 3 fallback lookup fires —
+    # confirmed empty, same "nothing to verify" outcome this fixture always had.
+    {"match": r"^acceptance:premortem-fallback:b$", "result": {"findings": json.dumps({"status": "empty"})}},
     {"match": r"^acceptance:product-review:b$", "result": {"findings": "looks good"}},
     {"match": r"^acceptance:walkthrough:b$", "result": {"findings": "looks good"}},
     {"match": r"^acceptance:compile:b$", "result": {"verdict": "SHIP", "sha": "b1", "summary": "ok"}},
@@ -369,6 +372,10 @@ def test_merge_throw_parks_that_story_blocked_and_sibling_lands() -> None:
     epic = _two_story_epic(story_a_gates=["acceptance"])
     rules = [
         {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
+        # a.py names no premortem register, so the Task 3 fallback lookup
+        # fires — confirmed empty, so acceptance still resolves SHIP and
+        # reaches the (deliberately throwing) merge step below.
+        {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
         {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "looks good"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
@@ -406,6 +413,9 @@ def _one_story_epic_ready_for_finale() -> dict:
 
 LAND_STORY_A_RULES = [
     {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
+    # a.py names no premortem register, so the Task 3 fallback lookup fires —
+    # confirmed empty, same "nothing to verify" outcome this fixture always had.
+    {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
     {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
     {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "looks good"}},
     {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
