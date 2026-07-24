@@ -391,8 +391,17 @@ async function acceptanceRound(story, note, nextPhase) {
   // (pre-mortem item 2): it degrades this lane to UNREVIEWED instead, via
   // Task 1's distinguishable-reason `missing`-lane convention below, same as
   // a died premortem-auditor dispatch itself.
+  //
+  // Gated on `premortemMatches.length === 0` specifically, never the broader
+  // `!hasPremortem` — the two are NOT equivalent: `!hasPremortem` is also
+  // true for the >1 (multi-candidate) case above, which must fall through to
+  // "no dispatch" untouched (Task 4's job, not this one's). Firing the
+  // fallback there would run a directory-wide most-recently-modified scan
+  // independent of which files the changeset actually named, and could
+  // resolve to and verify an unrelated third register instead of correctly
+  // leaving the ambiguity alone.
   let fallbackFailed = null
-  if (!hasPremortem && Array.isArray(files) && files.length > 0) {
+  if (premortemMatches.length === 0 && Array.isArray(files) && files.length > 0) {
     let fallback = null
     try {
       fallback = await agent(acceptancePremortemFallbackPrompt(dir, storyBranch(story)),

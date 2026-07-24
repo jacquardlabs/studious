@@ -364,6 +364,77 @@ def test_died_or_ambiguous_fallback_dispatch_degrades_to_unreviewed_not_confirme
     assert "premortem-auditor (agent died)" not in unparseable_entry["reason"]
 
 
+def test_two_premortem_matches_in_changeset_skip_fallback_and_dispatch() -> None:
+    """A changeset naming TWO `docs/studious/premortems/*.md` files is an
+    unresolved multi-candidate — Task 4's disambiguation, not this fix's job
+    (see the comment directly above `premortemMatches` in `acceptanceRound`:
+    "More than one match (an unresolved multi-candidate) falls through to 'no
+    dispatch' here"). It must behave exactly like today's pre-existing
+    confirmed-zero-and-empty case: no fallback lookup call at all (the
+    fallback exists only to cover a changeset that named ZERO candidates —
+    firing it here would let its directory-wide most-recently-modified scan,
+    independent of which files the changeset actually named, resolve to and
+    verify a THIRD, unrelated register instead of correctly leaving the
+    ambiguity untouched), no premortem-auditor dispatch, and a compile prompt
+    with no third block.
+
+    The fallback rule below deliberately returns a *successful* "found"
+    match against a THIRD file neither named in the changeset — if the
+    multi-candidate case were (incorrectly) treated the same as the
+    zero-match case, this dispatch would fire and premortem-auditor would be
+    (incorrectly) dispatched against that unrelated file. Asserting neither
+    label appears proves the gating condition, not just its `hasPremortem`
+    side effect (which a died/unmocked fallback would also leave false and
+    so couldn't distinguish the bug from the fix)."""
+    epic = _one_story_acceptance_epic()
+    rules = [
+        {"match": r"^acceptance:scope:a$", "result": _scope_with_files([
+            "foo.py",
+            "docs/studious/premortems/one-design.md",
+            "docs/studious/premortems/two-design.md",
+        ])},
+        {
+            "match": r"^acceptance:premortem-fallback:a$",
+            "result": {"findings": json.dumps({
+                "status": "found",
+                "path": "docs/studious/premortems/unrelated-third-design.md",
+                "branchMatches": True,
+            })},
+        },
+        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
+        {"match": r"^acceptance:premortem:a$", "result": {"findings": "SHOULD NEVER BE DISPATCHED"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
+        {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
+        *FINALE_LAND_RULES,
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    labels = [c["label"] for c in out["calls"]]
+    assert "acceptance:premortem-fallback:a" not in labels, (
+        f"a two-candidate changeset must never trigger the fallback lookup — that path exists only for a "
+        f"confirmed zero-match changeset. calls: {labels}"
+    )
+    assert "acceptance:premortem:a" not in labels, (
+        f"an unresolved multi-candidate changeset must never dispatch premortem-auditor, even when the "
+        f"fallback would have resolved to an unrelated third file. calls: {labels}"
+    )
+
+    compile_calls = [c for c in out["calls"] if c["label"] == "acceptance:compile:a"]
+    assert len(compile_calls) == 1
+    prompt = compile_calls[0]["prompt"]
+    assert "Pre-mortem register verification:" not in prompt, (
+        "an unresolved multi-candidate changeset must produce a compile prompt with no third block"
+    )
+    assert "REALIZED" not in prompt
+    assert "unrelated-third-design.md" not in prompt, (
+        "the unrelated third file the fallback would have resolved to must never reach the compile prompt"
+    )
+
+    result = out["result"]
+    assert result["landed"] == 1, f"story should land exactly as it did before this fix: {result}"
+
+
 def test_confirmed_empty_premortems_directory_skips_verification() -> None:
     """A changeset naming no premortem file, whose fallback lookup runs and
     genuinely CONFIRMS the docs/studious/premortems/ directory has nothing
