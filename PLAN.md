@@ -29,7 +29,7 @@ Done means:
 4. [hold] a story whose changeset contains no premortem file dispatches no premortem-auditor call and behaves identically to today's fan-out   (tier: test-backed `uv run --no-project --with pytest pytest tests/python/test_acceptance_dispatch_fix.py::test_no_register_in_changeset_dispatches_no_premortem_auditor_call`)
 Evidence: pytest output; `node --check workflows/epic-driver.js`; `npx eslint@10.6.0 workflows/` clean.
 
-### Task 3 — Fallback discovery when the changeset names no register
+### Task 3 — Fallback discovery when the changeset names no register [PASS]
 Why now:    closes pre-mortem item 2 (a flaked fallback silently reintroducing the exact escape this story exists to close) before any disambiguation logic depends on the fallback existing.
 Read first: `workflows/epic-driver.js`, `commands/gate-acceptance.md`, `docs/studious/premortems/2026-07-23-acceptance-dispatch-fix-design.md`
 Rests on:   Task 2 (extends its discovery step to a second candidate source).
