@@ -43,7 +43,7 @@ Done means:
 3. [hold] a changeset with zero premortem files and a genuinely confirmed empty `docs/studious/premortems/` directory still skips verification exactly as before this story   (tier: test-backed `uv run --no-project --with pytest pytest tests/python/test_acceptance_dispatch_fix.py::test_confirmed_empty_premortems_directory_skips_verification`)
 Evidence: pytest output; `node --check workflows/epic-driver.js`; `npx eslint@10.6.0 workflows/` clean; note in the PR description which model/effort tier the fallback dispatch uses and why.
 
-### Task 4 — Multi-candidate disambiguation across both discovery sources
+### Task 4 — Multi-candidate disambiguation across both discovery sources [PASS]
 Why now:    the last named fail-closed gap; needs both discovery sources (changeset-scan, fallback) in place to disambiguate across them.
 Read first: `workflows/epic-driver.js`, `docs/superpowers/specs/2026-07-23-acceptance-dispatch-fix-design.md`
 Rests on:   Task 3 (needs the fallback candidate source to exist before disambiguating across both sources).
