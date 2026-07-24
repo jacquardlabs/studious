@@ -18,9 +18,10 @@ distinguishable-reason `missing`-lane convention
 (`premortem-auditor (agent died)`), capping the verdict at HOLD exactly like a
 died product-reviewer or walkthrough lane already does.
 
-Out of scope for this story (and these tests): fallback discovery when the
-changeset names zero registers, multi-candidate disambiguation, and
-evidence-log wiring — see the design doc's own Out of scope section.
+Out of scope for this story (and these tests): evidence-log wiring — see the
+design doc's own Out of scope section. (Fallback discovery and multi-candidate
+disambiguation were out of scope when this docstring was first written for
+Task 2; Task 3 added the former, Task 4 the latter — both are covered below.)
 
 Follows this repo's established precedent (test_contract_injection.py,
 test_driver_crash_hardening.py, test_acceptance_fanout.py): the real,
@@ -366,17 +367,16 @@ def test_died_or_ambiguous_fallback_dispatch_degrades_to_unreviewed_not_confirme
 
 def test_two_premortem_matches_in_changeset_skip_fallback_and_dispatch() -> None:
     """A changeset naming TWO `docs/studious/premortems/*.md` files is an
-    unresolved multi-candidate — Task 4's disambiguation, not this fix's job
-    (see the comment directly above `premortemMatches` in `acceptanceRound`:
-    "More than one match (an unresolved multi-candidate) falls through to 'no
-    dispatch' here"). It must behave exactly like today's pre-existing
-    confirmed-zero-and-empty case: no fallback lookup call at all (the
-    fallback exists only to cover a changeset that named ZERO candidates —
-    firing it here would let its directory-wide most-recently-modified scan,
+    unresolved multi-candidate. Task 4 closes the gap this test's own name
+    predates: it must still never fire the fallback lookup (the fallback
+    exists only to cover a changeset that named ZERO candidates — firing it
+    here would let its directory-wide most-recently-modified scan,
     independent of which files the changeset actually named, resolve to and
     verify a THIRD, unrelated register instead of correctly leaving the
-    ambiguity untouched), no premortem-auditor dispatch, and a compile prompt
-    with no third block.
+    ambiguity untouched) and never dispatch premortem-auditor — but unlike
+    the pre-Task-4 behavior, it must no longer silently fall through to a
+    clean SHIP: the lane degrades to UNREVIEWED with its own distinguishable
+    reason, capping the verdict at HOLD and parking the story.
 
     The fallback rule below deliberately returns a *successful* "found"
     match against a THIRD file neither named in the changeset — if the
@@ -405,8 +405,12 @@ def test_two_premortem_matches_in_changeset_skip_fallback_and_dispatch() -> None
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:premortem:a$", "result": {"findings": "SHOULD NEVER BE DISPATCHED"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
-        {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
-        *FINALE_LAND_RULES,
+        # merge:a and park:a deliberately unmocked: FIX AND RE-CHECK/HOLD never
+        # reaches merge(), and park() falls through to its own try/catch
+        # hardening, so the recorded reason is exactly the belt-and-braces
+        # override's summary (test_acceptance_fanout.py's established
+        # convention, reused by test_died_or_ambiguous_fallback_dispatch_...
+        # above).
     ]
     out = _run_driver(epic, rules)
     assert out["ok"], f"driver crashed: {out.get('error')}"
@@ -423,16 +427,26 @@ def test_two_premortem_matches_in_changeset_skip_fallback_and_dispatch() -> None
     compile_calls = [c for c in out["calls"] if c["label"] == "acceptance:compile:a"]
     assert len(compile_calls) == 1
     prompt = compile_calls[0]["prompt"]
-    assert "Pre-mortem register verification:" not in prompt, (
-        "an unresolved multi-candidate changeset must produce a compile prompt with no third block"
-    )
-    assert "REALIZED" not in prompt
+    # Task 4: unlike the pre-Task-4 silent fallthrough, the compiler IS now
+    # told this lane is UNREVIEWED — the same informational third block the
+    # died/unparseable-fallback cases already carry (belt-and-braces still
+    # forces HOLD regardless of what the compiler does with it).
+    assert "Pre-mortem register verification:" in prompt
+    assert "MULTIPLE CANDIDATE REGISTERS NAMED DIRECTLY IN THE CHANGESET" in prompt
     assert "unrelated-third-design.md" not in prompt, (
-        "the unrelated third file the fallback would have resolved to must never reach the compile prompt"
+        "the unrelated third file the fallback would have resolved to must never reach the compile prompt "
+        "(the fallback must never even be dispatched for this source)"
     )
 
+    # Task 4: no longer a silent SHIP — an unresolved multi-candidate caps
+    # the verdict at HOLD and parks the story, same fail-closed posture as
+    # every other UNREVIEWED cause.
     result = out["result"]
-    assert result["landed"] == 1, f"story should land exactly as it did before this fix: {result}"
+    assert result["landed"] == 0, f"an unresolved multi-candidate changeset must never silently land: {result}"
+    needs_you = {e["story"]: e for e in result["needsYou"]}
+    assert "epx--a" in needs_you, f"story a should have parked on a forced HOLD: {result}"
+    assert needs_you["epx--a"]["verdict"] == "HOLD"
+    assert "premortem-auditor" in needs_you["epx--a"]["reason"]
 
 
 def test_confirmed_empty_premortems_directory_skips_verification() -> None:
@@ -478,3 +492,207 @@ def test_confirmed_empty_premortems_directory_skips_verification() -> None:
         f"a confirmed-empty fallback result must never park the story — it is a clean outcome, not an unknown: {result}"
     )
     assert result["landed"] == 1, f"story should land exactly as it did before this story: {result}"
+
+
+def test_multiple_branch_matching_candidates_degrade_to_unreviewed_never_picked_arbitrarily() -> None:
+    """Task 4: Part 2's own disambiguation step ("if there are several
+    candidates, ask the user which one") has no automated equivalent inside
+    this non-interactive fan-out. Two independent discovery sources can each
+    leave more than one candidate register standing after the `Branch:`-
+    header filter — the changeset scan itself (more than one
+    docs/studious/premortems/*.md path named directly in the diff) and the
+    directory-scan fallback (more than one file under that directory whose
+    own `Branch:` header matches this story's branch). Both must degrade the
+    lane to UNREVIEWED with their own distinguishable reason, never resolved
+    by arbitrarily picking one of the candidates — and the two reasons must
+    stay distinguishable from each other and from every other UNREVIEWED
+    cause already established (agent died, empty changeset, fallback lookup
+    agent died, fallback lookup unparseable)."""
+    epic = _one_story_acceptance_epic()
+
+    # Source 1: the changeset itself names two candidate registers. The
+    # fallback must never fire here (Task 3's gating, unaffected) — a
+    # confirmed multi-candidate changeset degrades on its own, without
+    # consulting the directory at all.
+    changeset_rules = [
+        {"match": r"^acceptance:scope:a$", "result": _scope_with_files([
+            "foo.py",
+            "docs/studious/premortems/one-design.md",
+            "docs/studious/premortems/two-design.md",
+        ])},
+        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
+        {"match": r"^acceptance:premortem:a$", "result": {"findings": "SHOULD NEVER BE DISPATCHED"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "looked fine to me"}},
+        # acceptance:premortem-fallback:a and park:a deliberately unmocked —
+        # the fallback must never be dispatched for this source, and park()
+        # falls through to its own try/catch hardening (established
+        # convention above).
+    ]
+    changeset_out = _run_driver(epic, changeset_rules)
+    assert changeset_out["ok"], f"driver crashed: {changeset_out.get('error')}"
+    changeset_labels = [c["label"] for c in changeset_out["calls"]]
+    assert "acceptance:premortem-fallback:a" not in changeset_labels, (
+        f"a multi-candidate changeset must never trigger the fallback lookup. calls: {changeset_labels}"
+    )
+    assert "acceptance:premortem:a" not in changeset_labels, (
+        f"an unresolved multi-candidate changeset must never dispatch premortem-auditor, arbitrarily or "
+        f"otherwise. calls: {changeset_labels}"
+    )
+    changeset_needs_you = {e["story"]: e for e in changeset_out["result"]["needsYou"]}
+    assert "epx--a" in changeset_needs_you, f"story a should have parked on a forced HOLD: {changeset_out['result']}"
+    changeset_entry = changeset_needs_you["epx--a"]
+    assert changeset_entry["verdict"] == "HOLD"
+    assert "premortem-auditor" in changeset_entry["reason"]
+    assert changeset_out["result"]["landed"] == 0
+
+    # Source 2: the changeset names zero candidates (so the fallback fires),
+    # and the fallback's own directory scan finds more than one Branch-
+    # matching file. It must resolve to neither of them.
+    fallback_rules = [
+        {"match": r"^acceptance:scope:a$", "result": _scope_with_files(["foo.py", "bar.py"])},
+        {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "multiple"})}},
+        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
+        {"match": r"^acceptance:premortem:a$", "result": {"findings": "SHOULD NEVER BE DISPATCHED"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "looked fine to me"}},
+        # park:a deliberately unmocked, same convention as above.
+    ]
+    fallback_out = _run_driver(epic, fallback_rules)
+    assert fallback_out["ok"], f"driver crashed: {fallback_out.get('error')}"
+    fallback_labels = [c["label"] for c in fallback_out["calls"]]
+    assert fallback_labels.count("acceptance:premortem-fallback:a") == 1, (
+        f"the fallback lookup must still run once. calls: {fallback_labels}"
+    )
+    assert "acceptance:premortem:a" not in fallback_labels, (
+        f"a fallback lookup reporting multiple branch-matching candidates must never dispatch "
+        f"premortem-auditor, arbitrarily or otherwise. calls: {fallback_labels}"
+    )
+    fallback_needs_you = {e["story"]: e for e in fallback_out["result"]["needsYou"]}
+    assert "epx--a" in fallback_needs_you, f"story a should have parked on a forced HOLD: {fallback_out['result']}"
+    fallback_entry = fallback_needs_you["epx--a"]
+    assert fallback_entry["verdict"] == "HOLD"
+    assert "premortem-auditor" in fallback_entry["reason"]
+    assert fallback_out["result"]["landed"] == 0
+
+    compile_calls = [c for c in fallback_out["calls"] if c["label"] == "acceptance:compile:a"]
+    assert len(compile_calls) == 1
+    # Task 4: same informational third block as the died/unparseable-fallback
+    # cases — the compiler is told this lane is UNREVIEWED even though there
+    # is no single resolved path to verify (belt-and-braces still forces
+    # HOLD regardless of what the compiler does with it).
+    assert "Pre-mortem register verification:" in compile_calls[0]["prompt"]
+    assert "MULTIPLE BRANCH-MATCHING CANDIDATE REGISTERS FOUND OUTSIDE THE CHANGESET" in compile_calls[0]["prompt"]
+
+    # Every UNREVIEWED cause carries its own distinguishable reason — the two
+    # multi-candidate reasons above must differ from each other, and from
+    # every other cause this file already establishes.
+    assert changeset_entry["reason"] != fallback_entry["reason"], (
+        "a changeset-side multi-candidate and a fallback-side multi-candidate are different situations "
+        "with different remedies; they must not collapse into one shared reason string"
+    )
+    for other_fragment in (
+        "premortem-auditor (agent died)",
+        "premortem-auditor (fallback lookup agent died)",
+        "premortem-auditor (fallback lookup unparseable)",
+    ):
+        assert other_fragment not in changeset_entry["reason"]
+        assert other_fragment not in fallback_entry["reason"]
+
+
+def test_single_and_zero_candidate_cases_unaffected_by_multi_candidate_handling() -> None:
+    """Task 4's multi-candidate handling must not disturb any outcome Task 2
+    (the changeset-scan single-candidate dispatch) or Task 3 (the fallback's
+    single-candidate dispatch, and its two confirmed-absence outcomes —
+    an empty directory and a confirmed `Branch:` mismatch) already
+    established. All four cases below must still resolve exactly as they did
+    before this task: correct dispatch/no-dispatch decision, no phantom
+    UNREVIEWED entry, and a clean SHIP landing."""
+    epic = _one_story_acceptance_epic()
+
+    def run(rules: list[dict]) -> dict:
+        out = _run_driver(epic, rules)
+        assert out["ok"], f"driver crashed: {out.get('error')}"
+        return out
+
+    # (a) Task 2: exactly one candidate named directly in the changeset.
+    changeset_single = run([
+        {"match": r"^acceptance:scope:a$", "result": _scope_with_files(["foo.py", "docs/studious/premortems/foo-design.md"])},
+        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
+        {"match": r"^acceptance:premortem:a$", "result": {"findings": "| # | Failure mode | Verdict | Evidence |\n|---|---|---|---|\n| 1 | migration skips a step | NOT REALIZED | rollback tested |"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
+        {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
+        *FINALE_LAND_RULES,
+    ])
+    changeset_labels = [c["label"] for c in changeset_single["calls"]]
+    assert "acceptance:premortem-fallback:a" not in changeset_labels, (
+        "a single changeset-named candidate must never trigger the fallback lookup"
+    )
+    assert changeset_labels.count("acceptance:premortem:a") == 1
+    assert changeset_single["result"]["needsYou"] == []
+    assert changeset_single["result"]["landed"] == 1
+
+    # (b) Task 3: zero changeset candidates, fallback resolves exactly one
+    # Branch-matching candidate outside the changeset.
+    fallback_single = run([
+        {"match": r"^acceptance:scope:a$", "result": _scope_with_files(["foo.py", "bar.py"])},
+        {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({
+            "status": "found",
+            "path": "docs/studious/premortems/other-feature-design.md",
+            "branchMatches": True,
+        })}},
+        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
+        {"match": r"^acceptance:premortem:a$", "result": {"findings": "| # | Failure mode | Verdict | Evidence |\n|---|---|---|---|\n| 1 | migration skips a step | NOT REALIZED | rollback tested |"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
+        {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
+        *FINALE_LAND_RULES,
+    ])
+    fallback_single_labels = [c["label"] for c in fallback_single["calls"]]
+    assert fallback_single_labels.count("acceptance:premortem-fallback:a") == 1
+    assert fallback_single_labels.count("acceptance:premortem:a") == 1
+    assert fallback_single["result"]["needsYou"] == []
+    assert fallback_single["result"]["landed"] == 1
+
+    # (c) Task 3: zero changeset candidates, fallback confirms the directory
+    # itself is empty.
+    confirmed_empty = run([
+        {"match": r"^acceptance:scope:a$", "result": _scope_with_files(["foo.py", "bar.py"])},
+        {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
+        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
+        {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
+        *FINALE_LAND_RULES,
+    ])
+    confirmed_empty_labels = [c["label"] for c in confirmed_empty["calls"]]
+    assert "acceptance:premortem:a" not in confirmed_empty_labels
+    assert confirmed_empty["result"]["needsYou"] == []
+    assert confirmed_empty["result"]["landed"] == 1
+
+    # (d) Task 3: zero changeset candidates, fallback resolves the single
+    # most-recently-modified file but its `Branch:` header does not match
+    # this story's branch — another feature's register, confirmed no
+    # register on this branch.
+    confirmed_mismatch = run([
+        {"match": r"^acceptance:scope:a$", "result": _scope_with_files(["foo.py", "bar.py"])},
+        {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({
+            "status": "found",
+            "path": "docs/studious/premortems/some-other-branch-design.md",
+            "branchMatches": False,
+        })}},
+        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
+        {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
+        *FINALE_LAND_RULES,
+    ])
+    confirmed_mismatch_labels = [c["label"] for c in confirmed_mismatch["calls"]]
+    assert "acceptance:premortem:a" not in confirmed_mismatch_labels, (
+        "a confirmed Branch: mismatch must never dispatch premortem-auditor — another feature's register"
+    )
+    assert confirmed_mismatch["result"]["needsYou"] == [], (
+        f"a confirmed Branch: mismatch is a confirmed absence, not an unknown — must not park: {confirmed_mismatch['result']}"
+    )
+    assert confirmed_mismatch["result"]["landed"] == 1

@@ -300,8 +300,19 @@ function acceptancePremortemDispatchPrompt(fields) {
 // indistinguishable from a genuinely absent one unless the dispatch itself
 // is reliable enough that a flake is rare. See its call site below
 // (acceptanceRound) for the chosen tier and reasoning.
+//
+// Task 4 (2026-07-24) extends this same dispatch to report a THIRD status,
+// "multiple": more than one file under the directory whose own `Branch:`
+// header matches this story's branch is a second, independent way an
+// unresolved multi-candidate can arise (the first is the changeset scan
+// itself naming more than one — see the `premortemMatches` comment below).
+// Reported only when a genuine tie exists on the Branch:-header filter
+// itself — never on "several files exist" alone, which is the ordinary,
+// unambiguous case the single most-recently-modified file already resolves
+// via "found"/branchMatches below. Additive: the "empty"/"found" branches
+// and their existing field shapes are untouched.
 function acceptancePremortemFallbackPrompt(dir, storyBranchVal) {
-  return `This is a mechanical fact-check, not a judgment call — report exactly what the files show, never interpret or editorialize. From ${dir}: list the files directly inside docs/studious/premortems/ (not subdirectories, do not recurse). If that directory does not exist, or exists but contains no files, return exactly {"status":"empty"}. Otherwise, identify the single most recently modified file there by mtime, read its "- Branch: <value>" header line near the top of the file, and compare that value byte-for-byte against this story's own branch, ${storyBranchVal}. Return EXACTLY one line of compact JSON, nothing else: {"status":"found","path":"<the file's path relative to ${dir}>","branchMatches":<true|false>}`
+  return `This is a mechanical fact-check, not a judgment call — report exactly what the files show, never interpret or editorialize. Whichever of the outcomes below applies, return EXACTLY one line of compact JSON, nothing else. From ${dir}: list the files directly inside docs/studious/premortems/ (not subdirectories, do not recurse). If that directory does not exist, or exists but contains no files, return exactly {"status":"empty"}. Otherwise, read every file's "- Branch: <value>" header line near the top and compare it byte-for-byte against this story's own branch, ${storyBranchVal}, to determine how many files match. If more than one file's Branch header matches, return exactly {"status":"multiple"} — an unresolved multi-candidate; never choose between them yourself. If exactly one file's Branch header matches, return {"status":"found","path":"<its path relative to ${dir}>","branchMatches":true}, naming that file. If no file's Branch header matches, identify the single most recently modified file among them by mtime and return {"status":"found","path":"<its path relative to ${dir}>","branchMatches":false}.`
 }
 
 function acceptanceFanIn(story, productBlock, walkthroughBlock, premortemBlock, base, dir, nextPhase) {
@@ -364,16 +375,29 @@ async function acceptanceRound(story, note, nextPhase) {
   // inspects the register's own content (which lane's items it holds, how
   // many), only whether exactly one path in the already-resolved `files` list
   // matches the pattern — a register file scoped entirely to technical-lane
-  // items still counts as present. More than one match (an unresolved
-  // multi-candidate) falls through to "no dispatch" here — Task 4's
-  // disambiguation, not this fix. Zero matches no longer means "no register"
-  // on its own: see the Task 3 fallback lookup immediately below, which
-  // covers Part 2's second discovery source.
+  // items still counts as present. More than one match is an unresolved
+  // multi-candidate — Task 4 (below) degrades it to UNREVIEWED rather than
+  // dispatching against any one of them or falling through silently. Zero
+  // matches no longer means "no register" on its own: see the Task 3
+  // fallback lookup immediately below, which covers Part 2's second
+  // discovery source.
   const premortemMatches = Array.isArray(files)
     ? files.filter(f => /^docs\/studious\/premortems\/[^/]+\.md$/.test(f))
     : []
   let hasPremortem = premortemMatches.length === 1
   let premortemPath = hasPremortem ? premortemMatches[0] : null
+  // Task 4 (acceptance-dispatch-fix, 2026-07-24): tracks WHICH discovery
+  // source left an unresolved multi-candidate standing, so the missing-lane
+  // reason below can name it specifically — a changeset naming several
+  // registers directly and a directory scan finding several Branch-matching
+  // registers outside the changeset are different situations with different
+  // remedies (fix the changeset vs. clean up the directory), never one
+  // shared "ambiguous" string. Set here for the changeset source; the
+  // fallback source (below) sets it to 'fallback' instead, never both —
+  // the fallback is gated on `premortemMatches.length === 0`, so a
+  // changeset-side multi-candidate never reaches the fallback dispatch at
+  // all (see the gating comment below).
+  let multiCandidateSource = premortemMatches.length > 1 ? 'changeset' : null
 
   // Bug 1 fix, Task 3 (acceptance-dispatch-fix, 2026-07-24): the changeset
   // scan above is only Part 2's first discovery source. When it finds zero
@@ -394,12 +418,13 @@ async function acceptanceRound(story, note, nextPhase) {
   //
   // Gated on `premortemMatches.length === 0` specifically, never the broader
   // `!hasPremortem` — the two are NOT equivalent: `!hasPremortem` is also
-  // true for the >1 (multi-candidate) case above, which must fall through to
-  // "no dispatch" untouched (Task 4's job, not this one's). Firing the
-  // fallback there would run a directory-wide most-recently-modified scan
-  // independent of which files the changeset actually named, and could
-  // resolve to and verify an unrelated third register instead of correctly
-  // leaving the ambiguity alone.
+  // true for the >1 (multi-candidate) case above, which must never reach
+  // this dispatch. Firing the fallback there would run a directory-wide
+  // most-recently-modified scan independent of which files the changeset
+  // actually named, and could resolve to and verify an unrelated third
+  // register instead of correctly leaving the changeset's own ambiguity
+  // alone — that case is already degraded to UNREVIEWED above
+  // (`multiCandidateSource`), with no dispatch of any kind.
   let fallbackFailed = null
   if (premortemMatches.length === 0 && Array.isArray(files) && files.length > 0) {
     let fallback = null
@@ -419,8 +444,16 @@ async function acceptanceRound(story, note, nextPhase) {
     } else {
       let parsedFallback = null
       try { parsedFallback = JSON.parse(fallback.findings) } catch { parsedFallback = null }
-      if (!parsedFallback || (parsedFallback.status !== 'empty' && parsedFallback.status !== 'found')) {
+      if (!parsedFallback || (parsedFallback.status !== 'empty' && parsedFallback.status !== 'found' && parsedFallback.status !== 'multiple')) {
         fallbackFailed = 'unparseable'
+      } else if (parsedFallback.status === 'multiple') {
+        // Task 4: the directory scan itself found more than one file whose
+        // Branch: header matches this story's branch — the second discovery
+        // source's own unresolved multi-candidate, distinct from the
+        // changeset-side one above and from a died/unparseable dispatch
+        // (this IS a confirmed, successful resolution — just not to a
+        // single candidate). Never picked between; no dispatch.
+        multiCandidateSource = 'fallback'
       } else if (parsedFallback.status === 'found') {
         if (typeof parsedFallback.path !== 'string' || !parsedFallback.path || typeof parsedFallback.branchMatches !== 'boolean') {
           fallbackFailed = 'unparseable'
@@ -486,9 +519,21 @@ async function acceptanceRound(story, note, nextPhase) {
   // when the fallback dispatch could not confirm an outcome either way (died
   // or unparseable output) — a confirmed-empty directory or a confirmed
   // Branch mismatch leaves it null, same silent "correctly out of scope"
-  // path as a changeset that never named a register at all.
+  // path as a changeset that never named a register at all. Task 4 extends
+  // it once more for `multiCandidateSource`: Part 2's own disambiguation
+  // step ("ask the user which one") has no automated equivalent here, so an
+  // unresolved multi-candidate — from either discovery source — degrades to
+  // UNREVIEWED instead of guessing, checked first so it takes priority over
+  // the (impossible in that case, by construction) `hasPremortem`/
+  // `fallbackFailed` branches below.
   let premortemBlock = null
-  if (hasPremortem) {
+  if (multiCandidateSource === 'changeset') {
+    missing.push('premortem-auditor (multiple candidate registers in changeset)')
+    premortemBlock = '--- premortem-auditor --- (MULTIPLE CANDIDATE REGISTERS NAMED DIRECTLY IN THE CHANGESET — an unresolved multi-candidate match with no automated way to pick one; this lane is UNREVIEWED)'
+  } else if (multiCandidateSource === 'fallback') {
+    missing.push('premortem-auditor (multiple branch-matching candidate registers outside changeset)')
+    premortemBlock = '--- premortem-auditor --- (MULTIPLE BRANCH-MATCHING CANDIDATE REGISTERS FOUND OUTSIDE THE CHANGESET — an unresolved multi-candidate match with no automated way to pick one; this lane is UNREVIEWED)'
+  } else if (hasPremortem) {
     if (premortemReport) {
       premortemBlock = `--- premortem-auditor ---\n${premortemReport.findings}`
     } else {
