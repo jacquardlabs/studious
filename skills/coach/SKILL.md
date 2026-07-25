@@ -139,6 +139,17 @@ shows no result from it, the honest recommendation is the same step again,
 named as a resume rather than a fresh start. When a row and the work file
 disagree, say both out loud and follow the row.
 
+**When no row matches at all, the work file is what keeps you honest.** The
+commonest cause is a design doc that is branch-local by rule and simply not
+on this checkout — so `docs/design/*.md` is empty while the work file records
+phase `design-review` or later. Do not fall through to the first row and
+recommend `/gate-should-we-build`: a recorded decide verdict already rules
+that out, and re-recommending a gate the flow passed is the exact
+two-navigators-two-answers failure this store-sharing exists to end. Instead
+say which signals are missing, name the phase the work file records, and
+recommend the step that phase implies — flagged as derived from the work file
+rather than from repo evidence, so the human can see which it rests on.
+
 **Rough cost** comes from this fixed vocabulary — order-of-magnitude,
 honest about human attention vs. wall clock, never a fabricated number:
 

@@ -86,6 +86,19 @@ def test_work_on_explains_why_there_is_no_plan_piece() -> None:
     assert re.search(r"no separate plan piece", work_on)
 
 
+def test_coach_handles_the_no_row_matches_case() -> None:
+    """The routing table keys on repo signals, and every row assumes at least one is
+    present. A design doc is branch-local by rule, so on a checkout without it the
+    work file can say `design-review` while no row matches — and falling through to
+    the first row would re-recommend `/gate-should-we-build` for a feature that
+    already passed it. That is precisely the two-navigators-two-answers failure this
+    change exists to end, so the fallthrough is named and forbidden."""
+    text = COACH.read_text(encoding="utf-8")
+    assert "When no row matches at all" in text
+    assert "Do not fall through to the first row" in text
+    assert "a recorded decide verdict already rules" in text
+
+
 def test_the_posture_boundary_is_stated_in_all_three_places() -> None:
     """A user meeting two commands that answer the same question needs the difference
     written down where they'll meet it — in each prompt, and in the README."""
