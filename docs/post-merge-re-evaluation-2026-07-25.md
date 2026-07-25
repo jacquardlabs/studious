@@ -617,6 +617,17 @@ duplicated across 7 test files (was 4), and `skills/build/SKILL.md` is 616 lines
 | Milestones | 13 | 13 (untouched — Phase 3 pending) |
 
 The backlog got larger, deliberately. Five bags holding ~40 unactionable checkboxes became 7
-issues that each name a fix; 11 real defects that were invisible are now filed. The 33
-unmilestoned issues are the Phase 3 input, not a regression — 18 of them were created by this
-pass and are waiting on the milestone decision.
+issues that each name a fix; 11 real defects that were invisible are now filed.
+
+Unmilestoned reconciles as 20 − 2 + 15 = 33: two of the seven closed issues (#163, #207) were
+themselves unmilestoned, and 15 of the 18 new ones are.
+
+**The three exceptions are deliberate.** #217, #218, and #225 went to M9 because all three are
+prose-and-contract *guards* — the milestone's stated purpose — and M9 survives Phase 3's
+proposal unchanged in scope (renamed "Contract & drift guards"). The other 15 are unmilestoned
+because their proposed homes (M10, M11, M12) don't exist yet. #219, #220, and #221 carry the
+`documentation` label but are structural hygiene rather than guards, so they wait with the rest.
+
+That leaves 33 unmilestoned issues — now the largest bucket in the tracker, up from 20. Phase 3
+is what resolves it, and it is still a proposal: no milestone was created, renamed, closed, or
+reassigned by this pass.
