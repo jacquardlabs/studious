@@ -31,10 +31,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 HANDOFF_SKILLS = ("design", "plan", "build", "finish")
 
 # Any phrasing that makes studious's presence a question the skill must answer.
+# The bare `studious installed` alternative matters: the first version of this
+# guard required an intervening "is" and so walked straight past a live
+# parenthetical — "(studious installed, `gate-ledger` on `PATH`)" — in the same
+# file whose hand-off it was checking.
 CONDITIONAL = re.compile(
-    r"(if|when|unless|whether)\s+studious\s+is\s+(installed|present|available)"
-    r"|studious\s+(is\s+not|isn't|not)\s+installed"
-    r"|studious\s+(absent|missing)",
+    r"studious\s+(is\s+)?(not\s+)?(installed|present|available|absent|missing)"
+    r"|studious\s+isn't\s+installed",
     re.IGNORECASE,
 )
 
@@ -68,6 +71,8 @@ class TestGatePresenceIsNotConditional(unittest.TestCase):
             "studious not installed; skipping the hand-off",
             "no design doc; studious absent",
             "hands off when studious is installed, degrading otherwise",
+            "if a prior verdict exists (studious installed, gate-ledger on PATH)",
+            "studious isn't installed",
         ):
             with self.subTest(phrasing=phrasing):
                 self.assertTrue(CONDITIONAL.search(phrasing))

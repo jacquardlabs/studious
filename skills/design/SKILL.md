@@ -32,8 +32,8 @@ Read, in this order, always:
 4. Whatever code the feature ask actually touches -- `Grep`/`Glob` scoped to
    the named area, never a full-repo read.
 
-If a prior `/gate-should-we-build` verdict exists (studious installed,
-`gate-ledger` on `PATH`), read it too -- framing context for the interview,
+If a prior `/gate-should-we-build` verdict was recorded for this feature
+(`gate-ledger` on `PATH`), read it too -- framing context for the interview,
 not a hard input this design requires standalone-capable operation to
 depend on.
 
