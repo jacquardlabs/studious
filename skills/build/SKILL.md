@@ -552,7 +552,7 @@ an unrelated `verify` `FAIL`, or from a later task's own first `DEFECT`.
 
 | Verdict | When |
 |---|---|
-| `BUILT` | Every task in the plan reaches `PASS`. If studious is installed, tell the developer to run `/gate-audit` next; otherwise report the branch/worktree as ready for review directly (graceful degradation — no separate flag, no silent skip). |
+| `BUILT` | Every task in the plan reaches `PASS`. Report the branch/worktree, then tell the developer to run `/gate-audit` next — unconditionally, since that gate ships in this same plugin. |
 | `PAUSED` | A dirty or missing baseline stopped Setup, or a task's Failure routine resolved to `REPLAN`, or a risk-tagged task is waiting for a pre-dispatch acknowledgment, or a `verify`/`status-flip` usage error persisted after one retry. Resumable once the human acts. |
 | `ESCALATED` | A task's Failure routine resolved to `ESCALATE`. Terminal for this session — hand off to `/design` in revision mode. |
 

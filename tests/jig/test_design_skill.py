@@ -285,12 +285,15 @@ class TestDesignSkillBody(unittest.TestCase):
 
     # -- Step 7: hand-off ------------------------------------------------------
 
-    def test_handoff_checks_gate_ledger_on_path(self) -> None:
-        self.assertIn("command -v gate-ledger", self.body)
-
-    def test_handoff_degrades_explicitly_both_directions(self) -> None:
-        self.assertPhraseIn("tell the developer to run `/gate-design-review` next")
-        self.assertPhraseIn("studious not installed; skipping the `/gate-design-review` hand-off")
+    def test_handoff_is_unconditional(self) -> None:
+        # Was a `command -v gate-ledger` probe that skipped the hand-off when
+        # the binary was missing, labelled "studious not installed" (studious
+        # #150). Both halves are wrong now: /gate-design-review ships in the
+        # same plugin as /design, and gate-ledger's absence says nothing about
+        # whether the gate exists -- only whether it can record.
+        self.assertPhraseIn("tell the developer to run `/gate-design-review`")
+        self.assertPhraseIn("Unconditionally")
+        self.assertNotIn("command -v gate-ledger", self.body)
 
     # -- Verdicts --------------------------------------------------------------
 

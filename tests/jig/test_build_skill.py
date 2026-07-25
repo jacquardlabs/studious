@@ -611,9 +611,15 @@ class TestBuildSkillBody(unittest.TestCase):
         self.assertPhraseIn("overwrites a prior `REPLAN` suffix")
         self.assertPhraseIn("one status that isn't terminal")
 
-    def test_standalone_capable_degradation_is_named(self) -> None:
-        self.assertPhraseIn("If studious is installed")
-        self.assertPhraseIn("ready for review directly")
+    def test_built_hands_off_to_gate_audit_unconditionally(self) -> None:
+        # Was "If studious is installed, tell the developer to run /gate-audit
+        # next; otherwise report the branch as ready for review directly"
+        # (studious #150). /gate-audit ships in this plugin now, so the
+        # otherwise-branch is unreachable-but-live: a session that probes for a
+        # separate studious plugin, fails to find it, and takes the fallback
+        # terminates without ever naming the audit gate.
+        self.assertPhraseIn("tell the developer to run `/gate-audit` next")
+        self.assertPhraseIn("unconditionally")
 
     def test_trust_boundary_is_stated_explicitly(self) -> None:
         # Issue #48: the command-execution trust boundary must be named

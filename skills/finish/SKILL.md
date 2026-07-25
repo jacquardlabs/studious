@@ -1,6 +1,6 @@
 ---
 name: finish
-description: Closes out a BUILT branch — an assembled PR evidence table (Done-means item -> verification method -> evidence link -> pass), a cctx session-cost footer with a preview-only harvest offer, per-item-confirmed follow-up filing, proposed (never auto-applied) PRODUCT.md/DESIGN.md/CLAUDE.md decision patches, a dated build report, and MERGE | PR | KEEP | DISCARD verdict + cleanup. Use when the user says /finish, or a /build session has already reported BUILT (and, if studious is installed, /gate-audit and /gate-acceptance have already passed) and the branch is ready to close out. Never invents evidence, never files an issue or applies a harvest without explicit per-item confirmation in the same turn, and never writes a decision patch to a context doc itself.
+description: Closes out a BUILT branch — an assembled PR evidence table (Done-means item -> verification method -> evidence link -> pass), a cctx session-cost footer with a preview-only harvest offer, per-item-confirmed follow-up filing, proposed (never auto-applied) PRODUCT.md/DESIGN.md/CLAUDE.md decision patches, a dated build report, and MERGE | PR | KEEP | DISCARD verdict + cleanup. Use when the user says /finish, or a /build session has already reported BUILT (with /gate-audit and /gate-acceptance already passed) and the branch is ready to close out. Never invents evidence, never files an issue or applies a harvest without explicit per-item confirmation in the same turn, and never writes a decision patch to a context doc itself.
 ---
 
 # /finish
@@ -12,13 +12,14 @@ PR (or a merge, a kept branch, or a discard) and leaves nothing about that
 branch that a human had to hand-assemble.
 
 **Precondition.** `/finish` runs after a `/build` session reports `BUILT`
-— and, if studious is installed, after `/gate-audit`/`/gate-acceptance`
-have already passed on this branch. `/finish` never checks for a recorded
-gate verdict itself — that would require reading studious's own gate-ledger
-state, a sibling-plugin coupling this project doesn't ask for. It assumes
-the human invoked it because the branch is ready, the same trust boundary
-`/build`'s own `BUILT` → "run `/gate-audit` next" hand-off already relies
-on.
+and after `/gate-audit`/`/gate-acceptance` have passed on this branch.
+`/finish` never checks for a recorded gate verdict itself: the gate ledger
+is per-branch flow state that a human can legitimately have bypassed —
+gates are skippable by design, and a `/finish` that refused on an unrecorded
+verdict would turn "use judgment about which gates the risk warrants" into
+a hard requirement. It assumes the human invoked it because the branch is
+ready, the same trust boundary `/build`'s own `BUILT` → "run `/gate-audit`
+next" hand-off already relies on.
 
 Six steps, in order. Steps 1 and 5 are mechanical (scripts decide); Steps
 2–4 always end on an explicit human decision in the same turn; Step 6
