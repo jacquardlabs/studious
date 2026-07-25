@@ -2,6 +2,251 @@
 
 <!-- version list -->
 
+## v2.26.0 (2026-07-25)
+
+### Bug Fixes
+
+- Address m2-design-skill finale follow-ups
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Name the built-in build loop instead of probing for a plugin that no longer exists
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Plan-lint compute_load_bearing gains title-based matching
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Pre-dogfood hardening (evidence-capture, timeout, load-bearing, task-split binding)
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Refuse to restart a plugin's version line, and record the map the transfer left behind
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Retarget the front-loading work at the merged tree
+  ([#172](https://github.com/jacquardlabs/studious/pull/172),
+  [`00ba9a9`](https://github.com/jacquardlabs/studious/commit/00ba9a96eb647d646d3dadf644c633871fc3e6dd))
+
+- Route /coach toward the gate when the ledger is unreadable, and pin the flaky freshness floor
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Stop the build skills from treating studious's gates as optional
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Verify semantic-release triggers on a Conventional Commits PR title
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Widen the gate-handoff guard past the phrasing that slipped by it
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- **evidence-capture**: Reject bare '.' and '..' traversal tokens
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+### Build System
+
+- Foreman assembles replay bundle via evidence-capture (Task 2, replay bundle)
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Foreman names the Executor's dispatch model (Task 1, replay bundle)
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Foreman states unavailable when dispatch model can't be determined (Task 3)
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Step 1.5 names a defined path for a plan growing mid-session (Task 4)
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+### Chores
+
+- Settle jig into plugins/jig — manifest, deps, and repo-root-relative tests
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+### Continuous Integration
+
+- Drop release-plugin.sh from the shellcheck list
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Lint and test both plugins, split the release into two version lines
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+### Documentation
+
+- /finish build report for epic/m3-plan-skill
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Add 2026-07-17 deep-review reports and metrics baseline
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Add epic pre-mortem register for pre-dogfood-hardening
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Coach-skill demonstration evidence across 5 pipeline states
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Correct the model-attestation mechanism claim, justify bundle consolidation
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Dated build report for coach-skill (/finish step 5)
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Design doc for the coach (user-invoked orchestrator)
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Journal the should-we-build verdict on absorbing jig
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Pin `decisions` in the epic-plan contract
+  ([#172](https://github.com/jacquardlabs/studious/pull/172),
+  [`00ba9a9`](https://github.com/jacquardlabs/studious/commit/00ba9a96eb647d646d3dadf644c633871fc3e6dd))
+
+- Re-run context-doc extraction now that M1-M6 have shipped
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Redraw the boundary rule and the non-goal the merge actually moved
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Restyle README with dustjacket ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Revise replay-bundle.md per gate-design-review REVISE findings
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Say what the epic path costs the user in review, and drop the bad argument for it
+  ([#172](https://github.com/jacquardlabs/studious/pull/172),
+  [`00ba9a9`](https://github.com/jacquardlabs/studious/commit/00ba9a96eb647d646d3dadf644c633871fc3e6dd))
+
+- Sign off on PLAN.md for issue #34 (replay bundle)
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Sign off on replay-bundle.md ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Sign off revision round 2 (viva) ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Sign off revision round 3 (viva) ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- State the model-field's unverified-inherit limit honestly, scope corroboration to cctx/#33
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Stop shipped prompts calling this plugin's build loop "jig"
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Trim changelog and issue-archaeology prose from design/plan/finish skills
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Update README to reflect shipped M1-M6 state
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- **design-review**: Persist coach-skill pre-mortem register
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+### Features
+
+- Absorb jig into this plugin ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Add review-consumption style rules to generated artifacts and session prose
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Derive verify items straight from PLAN.md task blocks
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Front-load the epic interview so the driver can run unattended
+  ([#172](https://github.com/jacquardlabs/studious/pull/172),
+  [`00ba9a9`](https://github.com/jacquardlabs/studious/commit/00ba9a96eb647d646d3dadf644c633871fc3e6dd))
+
+- Guard the promise that Studious's gates never require jig
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Implement /coach, the user-invoked orchestrator (M6)
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Implement /design skill (M2) ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Implement /plan skill (M3) ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Implement the coach — /coach, the user-invoked orchestrator (issue #21)
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Persist a replay bundle per build task ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Report /build's session verdict back to studious's gate-ledger
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+### Performance Improvements
+
+- Let pillar 3 cite an already-fresh pillar-1 run instead of re-running
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Mechanize build step 2.5's items derivation via verify --plan
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Mechanize verify's item derivation, parallelize command items, trim skill rationale
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+- Opt-in parallel execution of verify command items
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+### Refactoring
+
+- Absorb jig as skills of this plugin, not a second installable
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+### Testing
+
+- Bind plan-lint and the load-bearing reference module together
+  ([#171](https://github.com/jacquardlabs/studious/pull/171),
+  [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
+
+
 ## v2.25.1 (2026-07-24)
 
 ### Bug Fixes
