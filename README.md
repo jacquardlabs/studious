@@ -40,7 +40,7 @@ Run `/studious-doctor` any time after: right after install, after a marketplace 
 **From here, the fastest way in is to stop reading and run one command:**
 
 - Building one thing? `/work-on [idea or issue]`. It runs one step of the flow, tells you what's next, and hands back to you at the two steps Studious doesn't own (writing the design, writing the code). Run it again, or just say "next," when you're ready to keep going.
-- Driving a batch? `/work-through [milestone, epic issue, or label]`. It proposes a story plan for your approval, then dispatched agents design, build, and gate each story in parallel, gated exactly like anything else.
+- Driving a batch? `/work-through [milestone, epic issue, or label]`. It proposes a story plan and interviews you once for the whole epic, then dispatched agents design, build, and gate each story in parallel. Same gates as anywhere else — but you won't see the design docs, so read the trade below before you reach for it.
 
 Everything past this point is what those two commands are driving underneath — read on for the detail, or to run a piece by hand.
 
@@ -54,7 +54,9 @@ Studious wraps feature development in quality gates. Between them you build, and
 
 ### Let `/work-through` drive a whole milestone
 
-`/work-through [milestone, epic issue, or label]` scales the flow up a level. The first run reads the milestone's issues (read-only) and proposes a story plan: dependency order, acceptance criteria per story, which gates each story needs, an epic-level pre-mortem. Then it stops for your approval; nothing runs before it.
+`/work-through [milestone, epic issue, or label]` scales the flow up a level. The first run reads the milestone's issues (read-only) and proposes a story plan: dependency order, acceptance criteria per story, which gates each story needs, an epic-level pre-mortem. It also interviews you once for the whole epic — 10–12 questions, capped, covering only the product forks a worker can't decide alone — because every phase after this runs in a subagent with no human in its loop. Then it stops for your approval; nothing runs before it.
+
+**Know what you're trading.** At this scale you approve the story plan and answer the interview, and the next thing you see is the epic PR. You don't approve the design docs: `/gate-design-review` reviews every one of them, but that's an agent reviewing, not you signing off. A subagent can't open a browser, and the driver is barred from routing to `/design` by the same rule that keeps gates executor-agnostic. If you want the design in front of you story by story, that's what `/work-on` is for.
 
 Every run after that drives execution: agents design, build, and gate stories in parallel worktrees (3 at once by default). Stories that pass their gates merge into an `epic/<name>` integration branch, and fix-it verdicts get at most 2 repair cycles with a fresh auditor each time. Judgment verdicts (RETHINK, NEEDS DISCUSSION, HOLD) never retry: that story parks for you while independent stories keep moving.
 

@@ -131,14 +131,32 @@ supervised, evidence-first flow instead.
 6. Close with the report block below. Driving starts on the next invocation — approval
    and execution never share one.
 
-**Sign-off at epic scale is the `design-review` gate, not a per-story viva round.**
+**No human approves a design doc on this path. State that plainly to the user at
+approval time — don't let them discover it at the epic PR.**
+
 The driver's default profile is `design → design-review → build → audit → acceptance`:
 a dispatched worker drafts the design doc and `/gate-design-review` reviews it against
-`reference/design-doc-contract.md` on every story. A per-story browser sign-off would
-be a second reviewer of the same artifact, and a subagent cannot open one anyway. What
-front-loading moves is the **interview**, which has no substitute; the **sign-off**
-already has one. Story-scale work through `/work-on` keeps its full per-story rounds —
-that flow has the human present throughout.
+`reference/design-doc-contract.md` on every story. Two constraints force this, and
+neither is a preference:
+
+- **A subagent cannot open a browser.** viva's sign-off is a human at a keyboard, and
+  there isn't one inside a dispatched phase running three-at-a-time in parallel
+  worktrees.
+- **The driver may not name a build skill.** `workflows/epic-driver.js` is on the gate
+  surface `scripts/check_gate_independence.py` guards, so it dispatches a worker
+  against `reference/worker-contract.md` rather than routing to `/design`. That rule is
+  what keeps a gate from caring who built the branch; it also means the epic path can't
+  inherit `/design`'s sign-off loop even if a human were available.
+
+So the human turns at epic scale are: the story-plan approval, this interview, and the
+PR. `/gate-design-review` reviews every design doc, but an agent reviewing is not a
+human approving — do not describe it to the user as an equivalent substitute. What
+front-loading moves is the **interview**, which has no substitute at all; the sign-off
+is genuinely reduced, not relocated.
+
+Story-scale work through `/work-on` keeps the human in every round — a design doc there
+gets both a viva sign-off and the gate. The inconsistency between the two scales is
+known and tracked (issue #210); it is not a licence to improvise a third behaviour here.
 
 ## Driver — every later invocation
 
