@@ -54,10 +54,11 @@ Synthesize the product-reviewer findings and the persona walkthrough into a clea
 
 If and only if the verdict is PROCEED TO PLAN, write the pre-mortem to `docs/studious/premortems/<slug>.md`, where `<slug>` is the design doc's filename without its extension. Create the directory if needed. Format:
 
+The register outlives the doc it was written against, by design: design docs are branch-local and removed at closeout, while the register is committed and read later by `/gate-acceptance`. So it records no path to one — `<slug>` already names the story, and `Branch:` plus `SHA:` are what let a reader retrieve the doc from history if they need it. Do not add a `Design doc:` line back; 29 registers carried one and five were already pointing at deleted files (#216).
+
 ```markdown
 # Pre-mortem — <feature name>
 
-- Design doc: <path to the design doc>
 - Branch: <output of `git branch --show-current`>
 - SHA: <output of `git rev-parse --short HEAD`>
 - Date: <ISO-8601 date>

@@ -1,6 +1,5 @@
 # Pre-mortem — Make the PR-time hook aware of recorded pre-mortem verdicts
 
-- Design doc: docs/superpowers/specs/2026-07-09-premortem-hook-awareness-design.md
 - Branch: epic/gate-ledger-robustness--premortem-hook-awareness
 - SHA: 509d248
 - Date: 2026-07-09

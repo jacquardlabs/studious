@@ -1,6 +1,5 @@
 # Pre-mortem — /design (batch interview, forks, sectioned doc, viva loop)
 
-- Design doc: docs/design/design-skill.md
 - Branch: epic/m2-design-skill--design-skill
 - SHA: 9561083
 - Date: 2026-07-16

@@ -1,6 +1,5 @@
 # Pre-mortem — Epic-driven audit path first-round changeset routing
 
-- Design doc: docs/superpowers/specs/2026-07-15-audit-first-round-routing-design.md
 - Branch: worktree-cut-down-on-token-usage
 - SHA: 0bef3b6
 - Date: 2026-07-15

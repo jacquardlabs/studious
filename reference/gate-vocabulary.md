@@ -39,7 +39,7 @@ verdict (`REALIZED` / `NOT REALIZED` / `CAN'T VERIFY`, one per register line): `
 means "no item in the register realized," chosen so it never collides with an
 individual item's `NOT REALIZED` in conversation about the same register. Update this
 section, not the per-gate table above, if the roll-up vocabulary or its scope changes.
-See `docs/superpowers/specs/2026-07-09-premortem-hook-awareness-design.md` for the
+See `docs/studious/premortems/2026-07-09-premortem-hook-awareness-design.md` for the
 rationale behind this shape.
 
 ## Consumers that must stay in sync

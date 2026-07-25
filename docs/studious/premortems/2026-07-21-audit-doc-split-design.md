@@ -1,6 +1,5 @@
 # Pre-mortem — Split gate-audit.md's compile-time rules into reference/audit-compilation.md
 
-- Design doc: docs/superpowers/specs/2026-07-21-audit-doc-split-design.md
 - Branch: epic/perf-audit-followups--audit-doc-split
 - SHA: 41a3cb0
 - Date: 2026-07-21

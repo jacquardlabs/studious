@@ -1,6 +1,5 @@
 # Pre-mortem — The rough-in inspector (/build step 2.6, load-bearing tasks only)
 
-- Design doc: docs/design/rough-in-inspector.md
 - Branch: epic/m4-closeout--rough-in-inspector
 - SHA: 5be4f20
 - Date: 2026-07-15

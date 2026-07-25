@@ -1,6 +1,5 @@
 # Pre-mortem — Prompt auditor (gate-audit lane and deep-review prompts area for LLM-native repos)
 
-- Design doc: docs/superpowers/specs/2026-07-17-prompt-auditor-design.md
 - Branch: epic/expand-gate-coverage--prompt-auditor
 - SHA: 809beb2
 - Date: 2026-07-17

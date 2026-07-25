@@ -1,6 +1,5 @@
 # Pre-mortem — `gate-ledger epic-reconcile` (one composite read for work-through's reconcile step)
 
-- Design doc: docs/superpowers/specs/2026-07-21-epic-reconcile-verb-design.md
 - Branch: epic/perf-audit-followups--epic-reconcile-verb
 - SHA: 5d4a857
 - Date: 2026-07-21

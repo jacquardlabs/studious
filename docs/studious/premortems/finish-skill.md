@@ -1,6 +1,5 @@
 # Pre-mortem — /finish (PR evidence table, cctx footer, follow-ups, decision patches, report)
 
-- Design doc: docs/design/finish-skill.md
 - Branch: epic/m5-finish-skill--finish-skill
 - SHA: ec14cee
 - Date: 2026-07-12

@@ -1,6 +1,5 @@
 # Pre-mortem — reconcile design-lint's section-name schema to design-doc-contract.md's seven
 
-- Design doc: docs/design/design-lint-reconcile.md
 - Branch: epic/m2-design-skill--design-lint-reconcile
 - SHA: c18639c
 - Date: 2026-07-16
