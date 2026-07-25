@@ -1,7 +1,7 @@
 """Tests for front-loading the epic interview (studious #150 follow-on).
 
-A dispatched phase runs in a subagent with no human in its loop, so jig's
-`/design` cannot hold its viva-qa interview there. `/work-through`'s Plan piece
+A dispatched phase runs in a subagent with no human in its loop, so `/design`
+cannot hold its viva-qa interview there. `/work-through`'s Plan piece
 runs one interview for the whole epic instead, records each story's answers via
 `gate-ledger epic-story-set --decisions`, and the driver threads them into every
 dispatch prompt through its shared `ctx()` block.
@@ -13,7 +13,7 @@ The ledger half is covered by `tests/test_gate_ledger.sh`. Here:
   `test_contract_injection.py`'s precedent — and asserts the decisions line
   appears when the field is set and is absent when it is not;
 - structural checks that the two prompts documenting the split (studious's
-  Plan piece, jig's `/design` Step 2) actually say what the driver relies on.
+  Plan piece, `/design` Step 2) actually say what the driver relies on.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
-JIG_DESIGN = REPO_ROOT / "plugins" / "jig" / "skills" / "design" / "SKILL.md"
+DESIGN_SKILL = REPO_ROOT / "skills" / "design" / "SKILL.md"
 
 
 def _extract_function(source: str, name: str) -> str:
@@ -111,23 +111,23 @@ def test_plan_piece_records_why_sign_off_is_not_front_loaded() -> None:
     assert "front-loading moves is the **interview**" in text
 
 
-def test_jig_design_skips_its_own_interview_when_forks_arrive_answered() -> None:
-    text = JIG_DESIGN.read_text()
+def test_design_skips_its_own_interview_when_forks_arrive_answered() -> None:
+    text = DESIGN_SKILL.read_text()
     step2 = text.split("## Step 2")[1].split("## Step 3")[0]
     assert "Skip this step" in step2
     assert "Decisions already made by the human" in step2, (
-        "jig must key off the exact phrase the driver's ctx() emits"
+        "/design must key off the exact phrase the driver's ctx() emits"
     )
 
 
-def test_jig_design_escalates_an_unanswered_fork_instead_of_guessing() -> None:
-    text = JIG_DESIGN.read_text()
+def test_design_escalates_an_unanswered_fork_instead_of_guessing() -> None:
+    text = DESIGN_SKILL.read_text()
     step2 = text.split("## Step 2")[1].split("## Step 3")[0]
     assert "NEEDS\nRESEARCH" in step2 or "NEEDS RESEARCH" in step2
 
 
-def test_the_driver_phrase_and_the_jig_trigger_phrase_are_the_same_string() -> None:
+def test_the_driver_phrase_and_the_design_trigger_phrase_are_the_same_string() -> None:
     """The contract between the two halves is one literal; drift breaks it silently."""
     phrase = "Decisions already made by the human"
     assert phrase in DRIVER.read_text()
-    assert phrase in JIG_DESIGN.read_text()
+    assert phrase in DESIGN_SKILL.read_text()
