@@ -768,6 +768,12 @@ function ctx(story) {
   return [
     `Repo (MAIN working tree): ${repoRoot}. Epic: "${epic.title}" (slug ${slug}); epic goal: ${epic.goal}.`,
     `Story: "${s.title}" (slug ${story}). Source: ${s.source || 'epic plan'}. Acceptance criteria: ${s.criteria || 'see epic plan'}.`,
+    // Answers the human gave at the Plan piece's one interview, before any story ran.
+    // A dispatched agent cannot hold its own interview — there is no human in its
+    // loop — so a fork that isn't answered here is parked, never guessed.
+    ...(s.decisions
+      ? [`Decisions already made by the human at epic planning — treat as settled, do not re-litigate: ${s.decisions}`]
+      : []),
     `Story branch: ${storyBranch(story)}. Story worktree: ${storyWorktree(story)} (the ONLY checkout you may touch).`,
     `Conventions: read PRODUCT.md and CLAUDE.md at the project root. The gate-ledger tool is on PATH; the Studious plugin root is dirname "$(command -v gate-ledger)")/.. — read referenced command/reference files from there.`,
     `If the worktree does not exist yet, create it first, from inside ${repoRoot}: git branch "${storyBranch(story)}" "epic/${slug}" 2>/dev/null; git worktree add "${storyWorktree(story)}" "${storyBranch(story)}" — then record it: gate-ledger work-set --slug "${workSlug(story)}" --title "${shellSafe(s.title)}" --source "epic:${slug}" --branch "${storyBranch(story)}"`,

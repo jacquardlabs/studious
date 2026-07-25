@@ -376,6 +376,23 @@ check "story gates split to an array" "5" "$(jq '.stories["cart-api"].gates | le
     --deps "cart-api, payment-svc" )
 check "deps split to a trimmed array" '["cart-api","payment-svc"]' "$(jq -c '.stories["checkout-ui"].deps' "$ef15")"
 
+# --- decisions: the Plan piece's front-loaded fork answers ride alongside criteria ---
+( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug cart-api \
+    --decisions "surface: REST not GraphQL; guest carts: out of scope" )
+check "story stores decisions" "surface: REST not GraphQL; guest carts: out of scope" \
+  "$(jq -r '.stories["cart-api"].decisions' "$ef15")"
+check "decisions do not disturb criteria" "POST /cart returns 201 with a cart id" \
+  "$(jq -r '.stories["cart-api"].criteria' "$ef15")"
+
+# --- a later criteria-only write must not clobber decisions (they are separate fields) ---
+( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug cart-api \
+    --criteria "POST /cart returns 201 and a Location header" )
+check "criteria update leaves decisions intact" "surface: REST not GraphQL; guest carts: out of scope" \
+  "$(jq -r '.stories["cart-api"].decisions' "$ef15")"
+
+# --- a story with no answered forks carries no decisions key at all ---
+check "decisions absent when never set" "null" "$(jq -r '.stories["checkout-ui"].decisions // "null"' "$ef15")"
+
 # --- story upsert: status/reason land, earlier fields survive ---
 ( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug cart-api \
     --status parked --reason "audit: NEEDS DISCUSSION - auth model unclear" )
