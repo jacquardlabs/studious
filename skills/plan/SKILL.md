@@ -16,14 +16,13 @@ scripts" is the whole shape.
 ## Input
 
 One optional argument: a path to a design-doc-shaped markdown file. Read it
-**semantically**, not by parsing a fixed heading grammar -- a hand-authored
-doc, a Studious worker's `docs/design/<slug>.md` (Problem & persona /
-Proposed design / User journey / Out of scope / Alternatives considered /
-Operational readiness / Open questions), and a future `/design`-produced doc
-(Intent / Experience / Contracts / Approach / Assumptions / Not doing /
-Risks) are three inputs to one reading step, not three parsers. Extract by
+**semantically**, not by parsing a fixed heading grammar. A hand-authored
+doc, a dispatched worker's `docs/design/<slug>.md`, and a `/design`-produced
+doc are three inputs to one reading step, not three parsers. Extract by
 *content* -- problem, proposed approach, user-facing journey, explicit
-exclusions, risks -- under whatever labels the doc actually uses.
+exclusions, risks -- under whatever labels the doc actually uses. Section
+names are deliberately not listed here: `reference/design-doc-contract.md`
+owns that set, and this step does not depend on it (#203).
 
 **Name what you extracted.** Before drafting anything, state in your own
 output which doc section supplied the problem, the approach, and any
