@@ -45,6 +45,27 @@ else to resolve here.
 
 ## Step 2 -- Batch interview (viva-qa)
 
+**Skip this step when the forks arrive already answered.** A dispatched run —
+studious's `/work-through` driver, or any orchestrator that settled its forks
+up front — passes them in its brief as a `Decisions already made by the human`
+line. You have no human in your loop to interview, so a fresh round here would
+either stall or, worse, invent answers.
+
+When that line is present:
+
+- Treat each decision as settled. Carry it into the draft exactly as given, and
+  do not re-open it — not as an "Open question", not as an alternative weighed
+  in the prose.
+- Skip straight to Step 3. Steps 5 and 6 are unaffected: `design-lint` still
+  runs, and the sign-off still belongs to whoever the caller says it belongs to.
+- A fork the brief does **not** answer is not yours to decide. Return `NEEDS
+  RESEARCH` naming it, so the orchestrator parks the story and it reaches a
+  human through the escalation path — never guess to keep the run moving.
+
+This is the same distinction studious's `/work-through` documents: the interview
+front-loads, the sign-off does not. Interactive `/design` — a human at the
+keyboard, no decisions in the brief — runs the full round below unchanged.
+
 Write `.viva/qa-input.json`:
 
 ```json

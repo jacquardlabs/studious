@@ -57,16 +57,64 @@ supervised, evidence-first flow instead.
    plan — the user can only approve what they can see.
 3. Stop and iterate. The user trims, reorders, re-scopes, drops. Nothing is recorded
    and nothing runs until they explicitly approve.
-4. On approval, record exactly what was approved. Derive `<slug>` from the epic title:
+
+4. **Settle the open forks in one interview — the epic's only scheduled human turn.**
+
+   Every dispatched phase runs in a subagent with no human in its loop. A worker that
+   meets an unanswered product fork can only guess or park, and a guess is worse. So
+   the forks get answered here, once, for the whole epic.
+
+   Collect the questions across all stories, then admit only those that are **both**:
+
+   - **product or scope level** — which surface, which persona, what's in and out,
+     which of two behaviours is correct; *not* which abstraction or library, which
+     gets discovered mid-build and depends on what the earlier stories produced; and
+   - **answerable now** — nothing in an unbuilt story's output changes the answer.
+
+   **Cap the session at 10–12 questions for the entire epic**, prioritised by how much
+   rework a wrong assumption causes. That is roughly two per story on a five-story
+   epic — deliberately far below what a per-story interview would ask, because this
+   session buys unattended execution, not exhaustive specification. Everything cut
+   stays available: a worker that hits it parks, and the story surfaces in "Needs you".
+
+   Skip the session outright when nothing qualifies; say so rather than manufacturing
+   questions to fill a quota.
+
+   If viva is installed, run it as one batch. `QAInput` is a flat question list with a
+   single `context` string and no grouping field, so **the story slug goes in each
+   question's `id`** (`<story-slug>-<n>`) and opens its `text` — no viva change is
+   needed. Give every fork 2–3 `choices` and, where you have a defensible view, one
+   `recommended_choice` (it must match a choice exactly; it renders as advice and is
+   never preselected).
+
+   ```bash
+   # .viva/qa-input.json — see viva's docs/headless-contract.md §3 for the shape
+   jq -n --arg ctx "Epic <slug> — settling <n> forks before the driver runs" \
+     '{mode: "qa", context: $ctx, questions: $qs}' --argjson qs "$QUESTIONS" \
+     > .viva/qa-input.json
+   ```
+
+   Then invoke `/viva-qa` and read `.viva/answers.json`. If viva is **not** installed,
+   ask the same questions in the conversation — the point is that a human answers them
+   before dispatch, not that viva mediates it.
+
+5. On approval, record exactly what was approved. Derive `<slug>` from the epic title:
 
    ```bash
    gate-ledger epic-set --slug "<slug>" --title "<title>" --source "<milestone M | issue #N | label L>" \
      --goal "<goal statement>" --branch "epic/<slug>" --concurrency <cap> --status approved
    gate-ledger epic-story-set --epic "<slug>" --slug "<story>" --title "<story title>" \
-     --source "issue #N" --criteria "<criteria>" --deps "<dep-a,dep-b>" --gates "<profile>"
+     --source "issue #N" --criteria "<criteria>" --decisions "<answered forks>" \
+     --deps "<dep-a,dep-b>" --gates "<profile>"
    ```
 
-   (one `epic-story-set` per story), then:
+   `--decisions` carries that story's answers as one line — `fork: answer; fork: answer`
+   — distilled from `.viva/answers.json` (`choice`, plus `note` when the human added
+   one). It reaches every dispatch prompt through the driver's shared context block,
+   marked settled and not to be re-litigated. Omit the flag for a story with no
+   answered forks; keep acceptance criteria in `--criteria`, where they belong.
+
+   One `epic-story-set` per story, then:
 
    - Write the epic pre-mortem register to `docs/studious/premortems/<slug>-epic.md`
      and record it: `gate-ledger epic-set --slug "<slug>" --premortem "<path>"`.
@@ -80,8 +128,17 @@ supervised, evidence-first flow instead.
      git worktree add ".studious/worktrees/<slug>/__epic" "epic/<slug>"
      ```
 
-5. Close with the report block below. Driving starts on the next invocation — approval
+6. Close with the report block below. Driving starts on the next invocation — approval
    and execution never share one.
+
+**Sign-off at epic scale is the `design-review` gate, not a per-story viva round.**
+The driver's default profile is `design → design-review → build → audit → acceptance`:
+a dispatched worker drafts the design doc and `/gate-design-review` reviews it against
+`reference/design-doc-contract.md` on every story. A per-story browser sign-off would
+be a second reviewer of the same artifact, and a subagent cannot open one anyway. What
+front-loading moves is the **interview**, which has no substitute; the **sign-off**
+already has one. Story-scale work through `/work-on` keeps its full per-story rounds —
+that flow has the human present throughout.
 
 ## Driver — every later invocation
 
