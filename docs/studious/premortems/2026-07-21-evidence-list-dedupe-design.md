@@ -1,6 +1,5 @@
 # Pre-mortem — `gate-ledger evidence-list --dedupe`
 
-- Design doc: docs/superpowers/specs/2026-07-21-evidence-list-dedupe-design.md
 - Branch: epic/perf-audit-followups--evidence-list-dedupe
 - SHA: e3aab04
 - Date: 2026-07-21

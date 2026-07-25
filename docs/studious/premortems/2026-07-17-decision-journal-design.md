@@ -1,6 +1,5 @@
 # Pre-mortem — Decision journal (give /gate-should-we-build a memory of rejected ideas)
 
-- Design doc: docs/superpowers/specs/2026-07-17-decision-journal-design.md
 - Branch: epic/expand-gate-coverage--decision-journal
 - SHA: ce97aa8
 - Date: 2026-07-17

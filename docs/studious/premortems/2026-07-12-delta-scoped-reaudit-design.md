@@ -1,6 +1,5 @@
 # Pre-mortem — Delta-scoped re-audit: narrow FIX AND RE-AUDIT to the fix delta (mechanism 1)
 
-- Design doc: docs/superpowers/specs/2026-07-12-delta-scoped-reaudit-design.md
 - Branch: epic/driver-cost-hardening--delta-scoped-reaudit
 - SHA: 0feac9c
 - Date: 2026-07-12

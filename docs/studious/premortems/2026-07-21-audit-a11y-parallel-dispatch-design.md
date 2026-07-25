@@ -1,6 +1,5 @@
 # Pre-mortem — Auditor 8 (accessibility) — dispatch the vendored-fallback path as a parallel Task
 
-- Design doc: docs/superpowers/specs/2026-07-21-audit-a11y-parallel-dispatch-design.md
 - Branch: epic/perf-audit-followups--audit-a11y-parallel-dispatch
 - SHA: 105b6c1
 - Date: 2026-07-21

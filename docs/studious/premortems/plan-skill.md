@@ -1,6 +1,5 @@
 # Pre-mortem — /plan skill (inventory → spine → checkpoint blocks → lint → viva)
 
-- Design doc: docs/design/plan-skill.md
 - Branch: epic/m3-plan-skill--plan-skill
 - SHA: 8223851
 - Date: 2026-07-16

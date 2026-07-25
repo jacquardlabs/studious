@@ -217,8 +217,7 @@ phase vocabulary (`design`, `design-review`, `build`, `audit`, `acceptance`, `me
 and `/work-on`'s own `history` reader filters on an exact different step name, so it
 never sees or misreads this entry. This exists solely so the closing report's duration
 render (below) can tell a real same-run predecessor apart from idle/inter-invocation
-time — see
-`docs/superpowers/specs/2026-07-21-acceptance-retry-visibility-design.md` for the full
+time — see [#142](https://github.com/jacquardlabs/studious/issues/142) for the full
 rationale, including why this is a convention over the existing free-form `--step`/
 `--outcome` arguments rather than a new `gate-ledger` verb or schema change.
 
@@ -396,7 +395,7 @@ collapses to its terminal verdict — issue #142's own 117-minute round renders 
 next to the `SHIP` that eventually followed it, not lost to it.
 
 Three things this deliberately does, per
-`docs/superpowers/specs/2026-07-21-acceptance-retry-visibility-design.md`:
+[#142](https://github.com/jacquardlabs/studious/issues/142):
 
 - **Never asserts health.** Every phase gets a number or the `(resumed)` tag, always —
   nothing here decides or says "slow," "stalled," or "retried." A human reads the

@@ -11,7 +11,7 @@
 // module system there) and under Node's default CommonJS loader (no
 // package.json exists in this repo to opt into ES modules) — the same
 // "no build step, no bundler" posture the design doc holds throughout
-// (docs/superpowers/specs/2026-07-11-board-ui-design.md).
+// (docs/studious/premortems/2026-07-11-board-ui-design.md).
 //
 // Everything above the "DOM wiring" section is pure: given the board schema
 // (reference/board-schema.md) plus small bits of local render state, it

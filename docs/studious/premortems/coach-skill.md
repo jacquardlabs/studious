@@ -1,6 +1,5 @@
 # Pre-mortem — /coach (user-invoked orchestrator)
 
-- Design doc: docs/design/coach-skill.md
 - Branch: epic/m6-coach--coach-skill
 - SHA: b175e94
 - Date: 2026-07-17

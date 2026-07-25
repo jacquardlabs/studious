@@ -1,7 +1,6 @@
 """Regression tests for the acceptance-retry-visibility story (issue #142, Finding 2).
 
-The design doc (`docs/superpowers/specs/2026-07-21-acceptance-retry-visibility-design.md`)
-determined that no layer this repo controls (`workflows/epic-driver.js`, `bin/gate-ledger`,
+That story's design determined that no layer this repo controls (`workflows/epic-driver.js`, `bin/gate-ledger`,
 the dispatched-agent prompts) has an accessible signal that a prior `agent()` dispatch was
 abandoned/superseded before a retry began — so acceptance criterion 2 (a `work-log RETRY`
 entry) does not ship. Instead, per criterion 3, `commands/work-through.md`'s report gained

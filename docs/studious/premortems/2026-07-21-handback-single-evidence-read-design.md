@@ -1,6 +1,5 @@
 # Pre-mortem — handback.md reads the evidence log once instead of four times
 
-- Design doc: docs/superpowers/specs/2026-07-21-handback-single-evidence-read-design.md
 - Branch: epic/perf-audit-followups--handback-single-evidence-read
 - SHA: fdc4b91
 - Date: 2026-07-21

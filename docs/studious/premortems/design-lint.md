@@ -1,6 +1,5 @@
 # Pre-mortem — design-lint (mechanical validator for design docs)
 
-- Design doc: docs/design/design-lint.md
 - Branch: epic/m2-design-skill--design-lint
 - SHA: 5b0866b
 - Date: 2026-07-16

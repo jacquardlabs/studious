@@ -1,6 +1,5 @@
 # Pre-mortem — plan-lint (zero-model PLAN.md structural linter)
 
-- Design doc: docs/design/plan-lint.md
 - Branch: epic/m3-plan-skill--plan-lint
 - SHA: 1014ab1
 - Date: 2026-07-16

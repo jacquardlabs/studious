@@ -1,6 +1,5 @@
 # Pre-mortem — Unify contract-block injection to one verbatim resolver; harden the runtime fixture
 
-- Design doc: docs/superpowers/specs/2026-07-09-contract-injection-unify-design.md
 - Branch: epic/gate-ledger-robustness--contract-injection-unify
 - SHA: ebf420c
 - Date: 2026-07-09

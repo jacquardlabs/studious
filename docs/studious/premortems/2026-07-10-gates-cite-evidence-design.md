@@ -1,6 +1,5 @@
 # Pre-mortem — Gates cite the branch's evidence log
 
-- Design doc: docs/superpowers/specs/2026-07-10-gates-cite-evidence-design.md
 - Branch: epic/worker-evidence-and-board--gates-cite-evidence
 - SHA: 07f3151
 - Date: 2026-07-10

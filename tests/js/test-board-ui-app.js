@@ -5,7 +5,7 @@
 // EventSource plumbing) is exercised live against a running bin/board-
 // server instead (see this story's Operational readiness section) — a DOM
 // shim here would be a new test-tooling dependency this repo's "no deps"
-// posture rules out (docs/superpowers/specs/2026-07-11-board-ui-design.md).
+// posture rules out (docs/studious/premortems/2026-07-11-board-ui-design.md).
 //
 // Run: node --test tests/js/
 'use strict';
