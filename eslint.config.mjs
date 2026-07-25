@@ -1,9 +1,7 @@
 // Flat config, scoped to workflows/**/*.js. No shareable config, no plugin
 // package — every rule here is either an ESLint core rule or a hand-written
 // local rule, so `npx eslint@<pin>` (see .github/workflows/ci.yml) is the
-// only dependency this repo takes on for JS linting. See
-// docs/superpowers/specs/2026-07-09-workflows-js-lint-design.md for the full
-// rationale.
+// only dependency this repo takes on for JS linting.
 //
 // workflows/epic-driver.js is executed by the Workflow harness, not by Node
 // directly: the harness reads `export const meta` for metadata, strips the

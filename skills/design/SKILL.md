@@ -138,14 +138,11 @@ option, not why.
 Written to `docs/design/<slug>.md` -- the same path and one-file-per-story
 naming every prior design doc in this project already uses.
 
-**Exactly 7 sections, each with a named consumer.** Use `design-doc-contract.md`'s
-seven section names -- the contract-canonical convention, matching
-`DESIGN.md`'s own "Design doc structure" line (reconciled to these same
-seven names, no longer the stale handoff-literal set, nor its old "5-8"
-range now that design-lint enforces exactly 7 with no optional tier) --
-because every design doc this project has actually shipped and
-gate-reviewed uses these seven, and only these seven give
-`Operational readiness` an unambiguous home:
+**Eight required sections, each with a named consumer.**
+`reference/design-doc-contract.md` is the sole authority for the set;
+`templates/design-doc.md` ships the same eight as a scaffold, and
+`scripts/design-lint` checks they are all present before `/plan` will read
+the doc:
 
 1. **Problem & persona** -- Consumer: the human deciding to fund the work;
    product-reviewer Q1.
@@ -156,15 +153,20 @@ gate-reviewed uses these seven, and only these seven give
 4. **Out of scope** -- Consumer: product-reviewer Q4.
 5. **Alternatives considered** -- Consumer: product-reviewer Q5; future
    readers reconsidering a rejected path.
-6. **Operational readiness** -- Consumer: `/gate-audit`'s operability lane;
+6. **Success metrics** -- Consumer: product-reviewer Q7; the post-ship
+   outcome read. Answer it from the interview rather than defaulting to
+   `N/A` -- the contract permits `N/A -- no measurable surface` with a
+   one-line reason, so the failure mode is a lazy `N/A`, not a blocked doc.
+7. **Operational readiness** -- Consumer: `/gate-audit`'s operability lane;
    `/build`'s rollout-tier verification.
-7. **Open questions** -- Consumer: the human sponsor; the next `/design`
+8. **Open questions** -- Consumer: the human sponsor; the next `/design`
    revision round.
 
 Give each section heading its own `Consumer:` line naming who reads it --
-this is what satisfies `DESIGN.md`'s "named downstream consumer" requirement
-without adopting headings this project has never used for a real, shipped
-doc. Every fork raised in Steps 2-3 is recorded in the doc with its 2-3
+this is what satisfies `DESIGN.md`'s "named downstream consumer"
+requirement. A story that needs a section beyond these eight may add one;
+design-lint checks that all eight are present, never that nothing else is.
+Every fork raised in Steps 2-3 is recorded in the doc with its 2-3
 options, tradeoffs, and the recommended option marked
 `**(recommended): <letter>.**` with the reasoning stated -- never left
 implicit in the interview transcript alone.
@@ -279,9 +281,10 @@ of every `/design` session.
   Worth a real upstream viva feature request once the workaround's cost is
   felt over more than one invocation -- not filed by this skill itself.
 
-(Two previously-listed items -- `DESIGN.md`'s stale handoff-literal section
-names, and `design-lint`'s matching stale constants -- are resolved; see
-`docs/design/design-lint-reconcile.md` and git history.)
+(Two previously-listed items -- `DESIGN.md`'s stale section names and
+`design-lint`'s matching stale constants -- are resolved. Both are now
+derived from `reference/design-doc-contract.md` and pinned by
+`tests/python/test_design_doc_sections.py`; see #211.)
 
 ## Why this shape
 

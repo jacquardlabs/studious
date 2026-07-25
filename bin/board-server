@@ -14,8 +14,8 @@ Serves two read-only endpoints for exactly one epic slug, scoped to the two file
                "something changed, here is the fresh state" (see the design doc).
   GET /        the Flight Deck: one self-contained HTML document (assets/board-ui/)
                that fetches /state once, then renders live off /events. No external
-               stylesheet, font, script, or image — see docs/superpowers/specs/
-               2026-07-11-board-ui-design.md.
+               stylesheet, font, script, or image — see
+               docs/studious/premortems/2026-07-11-board-ui-design.md.
 
 No write endpoint exists — every other path or HTTP method is rejected (404, or the
 http.server default 501 for a method this handler never implements). Binds to

@@ -103,6 +103,11 @@ this section is your voice, not the extractor's.
   why `scripts/check_gate_independence.py` enforces it in CI rather than trusting it.
 - **Anti-cleverness tripwire** — a sequential for-loop is the default. No sprint
   ceremony, no resident coordinating roles, no agent persona that outlives its dispatch.
+  The test is residency, not vocabulary: the Foreman, Executor, and Inspector that one
+  `/build` loop dispatches one at a time are stage labels on a for-loop — ephemeral,
+  stateless across tasks, each one a fresh subagent that ends when its task does. What
+  this rules out is the BMAD-style standing cast: an agent that persists between
+  dispatches, accrues state, or has to be consulted.
 - **Propose, don't apply** — reviews surface findings and propose updates to context
   docs, but never write them. "They never apply them. You review and approve." The
   human stays the decision-maker.
@@ -126,14 +131,17 @@ Issue tracker: [GitHub Issues](https://github.com/jacquardlabs/studious/issues)
 
 The tracker owns individual features. PRODUCT.md owns strategic context only.
 
-The open issues encode a tiered roadmap with a pre-recorded gate verdict on each:
-- **A-tier (Horizon 1)** — foundational: A1 self-verification harness (#24, the
-  "keystone"), A2 non-web product support (#25, resolved this cycle), A3 idiom
-  feedback loop (#26).
-- **M-tier (Horizon 2)** — gate ledger/statefulness (#27), metrics persistence (#28),
-  design-doc contract (#29), CI-mode audit (#30).
-- **X-tier (moonshot)** — spec traceability (#31), post-ship outcome gate (#32),
-  self-tuning corpus (#33), org portfolio health (#34, parked).
+**The roadmap lives in [milestones](https://github.com/jacquardlabs/studious/milestones), not here.** Restating it in this file is how it went stale
+before: the original A/M/X tiers were listed as the live roadmap long after every
+A-tier and M-tier issue had closed, and every gate reads this file as ground truth.
+Milestones are ordered by their own descriptions; the run order as of 2026-07-25 is
+M10 → M11 → M9 → M6 → M12 → M8 → M5.
+
+The one durable point: **X-tier is the strategic bet.** Spec traceability (#31), the
+post-ship outcome gate (#32), and the self-tuning corpus (#33) are what turn a set of
+gates into a loop that learns, and they stay last because each one needs shipped
+outcome data the earlier milestones produce. Cross-repo portfolio health (#34) is
+parked pending evidence anyone wants it.
 
 ## Critical user journeys
 
@@ -199,23 +207,30 @@ lanes still skip cleanly on non-web projects, by design.
 
 ## Current known problems
 
-The GitHub tracker is the authoritative source. Ordered here by likely user impact:
+The GitHub tracker is the authoritative source. Ordered here by likely user impact.
+Refreshed 2026-07-25 (#147) — the previous list named four problems that had all
+shipped: the self-verification harness (#24, CI now runs seven jobs), stateless gates
+(#27, the `.studious/` ledger and PR-time hook), metrics persistence (#28), and the
+undefined design-doc contract (#29). Every gate and review reads this file, so a stale
+entry here is not a documentation nit — it is the discipline running on bad fuel.
 
-1. **The quality tool has no quality gate on itself** (#24) — the entire system is
-   markdown prompts, but CI only cuts releases: no markdown lint, no plugin-schema
-   validation, no link-check that referenced agents/skills exist, no golden-fixture
-   behavioral tests. Gate-contract regressions are caught only by manual audit. The
-   maintainer calls this the "highest-leverage gap" and "keystone."
-2. **Gates are stateless** (#27) — nothing records that a gate ran or what it
-   returned, so the PR-time hook can only ask blindly instead of "acceptance never ran
-   on this branch."
-3. **No real trend tracking** (#28) — deep-review emits a metrics table but nothing
-   persists snapshots across runs, so trends are manual.
-4. **The design-doc contract is undefined** (#29) — `/gate-design-review` consumes a
-   design doc whose required shape isn't specified.
-5. **PRODUCT.md was empty until now** — the project did not fully dogfood its own
-   init; this file is the first evidence-based pass and still needs the human review
-   the workflow prescribes.
+1. **Cost is unbudgeted and grows with the auditor roster, not the diff** (#130, #144,
+   #142) — a gate's price scales O(auditors), so a one-line change pays for a full
+   fan-out. No per-gate latency or cost budget is stated anywhere, which means nothing
+   can be over budget. Cost is the UX for a tool a developer runs per feature.
+2. **The merge unified the repo, not the flow** (M10) — `/work-on` and `/coach` answer
+   "what's next" from two state stores neither reads (#214), and the design-review
+   model differs between the story and epic pipelines for reasons that accumulated
+   rather than being decided (#210).
+3. **Contracts are pinned by prose, not by tests** (M9) — vocabulary and roster facts
+   are restated across surfaces and re-derived by regex over that prose (#176, #116,
+   #115). #211 and #213 were both this failure class reaching production behavior.
+4. **Two evidence stores, and CI blesses the thinner one** (#148) — the committed,
+   freshness-verified per-task evidence is the store no gate may read; the ephemeral
+   JSONL is the sanctioned contract. Defensible, but written down nowhere as a
+   decision.
+5. **Nothing closes the loop after ship** (M5) — the gates judge intent and execution,
+   then stop. Whether a shipped feature worked is not read back into anything.
 
 ## Business model
 

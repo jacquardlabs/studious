@@ -1,6 +1,5 @@
 # Pre-mortem — Flight Deck board renderer
 
-- Design doc: docs/superpowers/specs/2026-07-11-board-ui-design.md
 - Branch: epic/worker-evidence-and-board--board-ui
 - SHA: d9ed359
 - Date: 2026-07-11

@@ -22,8 +22,13 @@ Read PRODUCT.md at the project root first.
 | 4 | build | handoff — Studious steps back | implementation commits exist on the feature branch |
 | 5 | audit | `/gate-audit` | **PASS** at HEAD |
 | 6 | acceptance | `/gate-acceptance` | **SHIP** at HEAD |
+| 7 | finish | handoff — Studious steps back | the branch is closed out: scaffolding removed, evidence assembled, PR opened or the work merged/parked |
 
-After piece 6 the flow is `done`: recap the verdict trail and remind the user the PR is theirs to open (`gh pr create` — the PR-time hook reads the same ledger). Never create the PR yourself.
+Piece 4 covers planning as well as building — the route it hands to (`/plan` then `/build`) is two skills but one handoff, so there is no separate plan piece to stop at.
+
+After piece 7 the flow is `done`. Never open the PR yourself: piece 7 hands over, and whether the user runs `/finish` or does it by hand, the PR is theirs (`gh pr create` — the PR-time hook reads the same ledger).
+
+**This flow and `/coach`'s are the same flow.** `/coach` names the build skills at a finer grain (`/design`, `/plan`, `/build`, `/finish` as separate dispatches) because dispatching them one at a time is its job; this command groups them into handoff pieces because running the gates is its job. They read and write the same work file, so a feature tracked here is visible there and vice versa. The difference is posture, not position: **`/work-on` runs the gate and records the verdict; `/coach` only reads and recommends, and dispatches a build skill on explicit confirmation.** Use `/work-on` to advance a feature; use `/coach` when you're re-entering cold and want to be told where you are.
 
 For the gate pieces, run that slash command's workflow now, with the flow's context as its input — each gate owns its own logic and records its own verdict; don't restate or reimplement it here.
 
@@ -51,7 +56,7 @@ The work file's `phase` names the next piece, but verify it against evidence bef
 - **Design doc** — the `designDoc` path in the work file, else discover a candidate the way `/gate-design-review` does. When found, record it: `work-set --design-doc "<path>"`.
 - **Pre-mortem register** — `docs/studious/premortems/<doc-slug>.md`, where `<doc-slug>` is the recorded `designDoc`'s filename without its extension — `/gate-design-review` names the register after the design doc, not the feature slug, so don't reuse this flow's `<slug>` here. A register found at that path with a `Branch:` header matching the current branch is evidence design-review already returned **PROCEED TO PLAN**.
 - **Build progress** — implementation commits since the design-review sha. If the phase says `build` and there are none, the build piece isn't done: say so rather than advancing (re-offering the handoff is fine).
-- **Executor-reported build status** — an executor satisfying `reference/worker-contract.md` may log its own terminal status for the build piece without setting `--phase` itself (phase judgment stays this command's call). Read it with `gate-ledger work-get --slug "<slug>"`'s `.history`, most recent `step: "build"` entry. Trust it only when its `sha` is still HEAD — commits since mean the report is stale and the commit-evidence check above wins instead. If current: `BUILT` corroborates the commit check; `PAUSED` — stay at phase `build`, and say so using the reported status rather than a generic "no commits yet"; `ESCALATED` — regress phase to `design` and surface the reported reason, the same shape as design-review's `RETHINK` → `design` below.
+- **Executor-reported build status** — an executor satisfying `reference/worker-contract.md` may log its own terminal status for the build piece without setting `--phase` itself (phase judgment stays this command's call). Read it with `gate-ledger work-get --slug "<slug>"`'s `.history`, most recent `step: "build"` entry. Trust it only when its `sha` is still HEAD — commits since mean the report is stale and the commit-evidence check above wins instead. If current: `BUILT` corroborates the commit check; `PAUSED` — stay at phase `build`, and say so using the reported status rather than a generic "no commits yet"; `ESCALATED` — regress phase to `design` and surface the reported reason, the same shape as design-review's `RETHINK` → `design` below. `HANDED-OFF` and `SKIPPED` are this command's own markers rather than an executor's report — they make no claim about the build, so the commit-evidence check above governs on its own. **Any other token: name it and fall through to commit evidence, never silently.** Say "the work file reports build outcome `<token>`, which isn't one this flow recognizes — going by commits instead". `bin/gate-ledger` rejects unknown build outcomes on write, so seeing one means a record predating that check (`DONE`, from an older `/work-through` driver) or a hand-edited file — either way the diff is the ground truth, not the label.
 
 ## Run exactly one piece
 
@@ -117,11 +122,23 @@ Log with `work-log --step audit --outcome "<verdict>" --phase "<phase>"`.
 
 Run `/gate-acceptance`, then:
 
-- **SHIP** → phase `done` — recap the trail and hand the PR to the user
+- **SHIP** → phase `finish`
 - **FIX AND RE-CHECK** → phase stays `acceptance`
 - **HOLD** → phase stays `acceptance`; surface the product concerns
 
 Log with `work-log --step acceptance --outcome "<verdict>" --phase "<phase>"`.
+
+### 7 · finish
+
+Both gates have passed. Closing out is a handoff, not a gate — there is no verdict to record here.
+
+Hand over and stop:
+
+- The verdict trail (every gate, its token, and the sha it was recorded at), and the pre-mortem register path.
+- Name `/finish` as the route that ships with this plugin: it assembles the evidence table, removes the branch-local scaffolding (`docs/design/<slug>.md`, `PLAN.md`), and ends in one of `MERGE` / `PR` / `KEEP` / `DISCARD`. Doing it by hand is equally fine — no gate cares which, and nothing downstream reads a `/finish` artifact.
+- The PR is the user's to open either way.
+
+Log `work-log --step finish --outcome HANDED-OFF --phase done`.
 
 ## Skips
 
@@ -132,7 +149,7 @@ Gates are optional by judgment — but that judgment is the user's. Skip a piece
 After the piece finishes, end with exactly this shape and nothing after it:
 
 ```text
-Flow: <slug> — piece <k>/6 (<name>): <outcome>.
+Flow: <slug> — piece <k>/7 (<name>): <outcome>.
 Next piece: <name> — <one clause on what it involves>.
 Run /work-on when you're ready, or just say "next".
 ```

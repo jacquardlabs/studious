@@ -1,6 +1,5 @@
 # Pre-mortem — acceptance-dispatch-fix
 
-- Design doc: docs/superpowers/specs/2026-07-23-acceptance-dispatch-fix-design.md
 - Branch: worktree-groupB
 - SHA: 23babba
 - Date: 2026-07-23

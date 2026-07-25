@@ -206,7 +206,21 @@ class TestCoachSkillBody(unittest.TestCase):
     def test_assessment_reads_the_repo_first(self) -> None:
         self.assertPhraseIn("Read the repo before you believe anything.")
         self.assertIn("`docs/design/*.md` (Glob)", self.body)
-        self.assertPhraseIn("`## Revision History` heading means at least one completed viva sign-off")
+
+    def test_revision_history_is_not_read_as_sign_off(self) -> None:
+        # #198: viva appends the same heading on a REVISED round, so the heading
+        # cannot distinguish signed-off from revised. This used to assert the
+        # opposite ("means at least one completed viva sign-off"), which is the
+        # false-positive the issue names. The heading is now a weak signal, and
+        # what makes that safe is the routing, which is asserted below.
+        self.assertPhraseIn("means at least one viva round *finished* — not that it was approved")
+        self.assertPhraseIn('Treat it as "a round happened," never as sign-off')
+
+    def test_the_weak_sign_off_signal_is_contained_by_routing(self) -> None:
+        # The guard is that a heading-present/verdict-absent doc routes to a
+        # human-run gate, never a blind /plan dispatch — so the worst case of
+        # misreading it is a gate that was going to be recommended anyway.
+        self.assertPhraseIn("never add a row that treats the heading as sufficient to skip the gate")
 
     def test_plan_read_is_filesystem_never_git_ls_files(self) -> None:
         # jig's own .gitignore excludes /PLAN.md, so an index read misses
@@ -358,10 +372,15 @@ class TestCoachSkillBody(unittest.TestCase):
         )
 
     def test_coach_does_no_work_itself(self) -> None:
+        # The tool list grew the work-file read verbs when the two navigators were
+        # put on one store (#214). It must stay read-only in the same breath: the
+        # four reads named, the three writes explicitly refused.
         self.assertPhraseIn(
-            "read-only, always: Read/Glob/Grep, `git log`, `git status`, "
-            "`gate-ledger gate-get`/`status`, `command -v`"
+            "read-only, always: Read/Glob/Grep, `git log`, `git status`, `command -v`, "
+            "and `gate-ledger`'s four *read* verbs — `gate-get`, `status`, `work-list`, "
+            "`work-get`"
         )
+        self.assertPhraseIn("Never `work-set`, never `work-log`, never `record`")
         self.assertPhraseIn("never writes or edits a file")
         self.assertPhraseIn(
             "never flips a status, never records a verdict, never runs a gate, "

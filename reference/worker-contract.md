@@ -49,9 +49,24 @@ work-log --slug "<that-slug>" --step <phase> --outcome "<status>"`, omitting `--
 (the phase judgment stays `/work-on`'s call). No match, or `gate-ledger` not on `PATH`
 at all → skip silently; this is best-effort corroboration, not a required part of the
 contract. This is a first-person status report, not a gate verdict or a self-assessment
-against a rubric, and does not conflict with "workers never... record a verdict" below
-— the built-in `/build` reports `BUILT | PAUSED | ESCALATED` this way when `gate-ledger` is
-present.
+against a rubric, and does not conflict with "workers never... record a verdict" below.
+
+**The build phase's status vocabulary is closed, and this table is where it lives.**
+Every executor reports one of these three for `--step build` — the built-in `/build`,
+`/work-through`'s dispatched workers, and any third-party workflow alike:
+
+| Status | Means |
+|--------|-------|
+| `BUILT` | The story is implemented and committed on its branch. |
+| `PAUSED` | Work stopped part-way and can resume from where it stopped — no design change needed. |
+| `ESCALATED` | Something in the design itself is wrong or contradictory; the story needs a design revision before more building. |
+
+`bin/gate-ledger` rejects anything else for that step, so a dialect fails at the write
+rather than being read back as an unhandled case (#213). Two further tokens are
+reserved for `/work-on`'s own bookkeeping and are not a worker's to write:
+`HANDED-OFF` (the flow handed the build to a human or another tool) and `SKIPPED` (the
+user explicitly skipped the piece). Other steps' outcomes are free-form here — a gate
+step's token is owned by `reference/gate-vocabulary.md`.
 
 ## Boundaries
 

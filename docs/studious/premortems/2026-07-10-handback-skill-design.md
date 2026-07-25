@@ -1,6 +1,5 @@
 # Pre-mortem — handback skill: evidence manifest + context capsule
 
-- Design doc: docs/superpowers/specs/2026-07-10-handback-skill-design.md
 - Branch: epic/worker-evidence-and-board--handback-skill
 - SHA: d030c09
 - Date: 2026-07-10

@@ -14,8 +14,10 @@ Run each check and classify the result:
 - **Git repo** — run `git rev-parse --is-inside-work-tree`. If it fails: **Critical** — "not a git repo: gate ledger, merge-base diffing, and every gate that scopes to 'this branch' cannot function."
 - **`jq` present** — run `command -v jq`. If it fails: **Critical** — "jq missing: `gate-ledger record` silently no-ops (see `bin/gate-ledger`'s own comment: 'Degrades silently when git or jq is unavailable') — no gate verdict, and no `/work-on` flow position, will ever be recorded."
 - **`gh` authenticated** — run `gh auth status`. If `gh` itself is missing, or the command exits non-zero: **Important** — "gh missing or unauthenticated: `/backlog-priorities`, `/backlog-hygiene`, and the PR-time gate reminder's context all depend on it."
+- **`python3` present** — run `command -v python3`. If it fails: **Critical** — "python3 missing: every build script (`plan-lint`, `design-lint`, `verify`, `status-flip`, `evidence-capture`, `evidence-freshness`, `build-report`, `worktree-setup`) is a Python CLI, so `/plan` cannot lint a plan and `/build` cannot verify a single task — it would report success off nothing but the executor's own claim."
+- **`viva` available** — the plugin manifest's only declared dependency. Check the way `skills/design/SKILL.md` already reasons about it: look for the `viva` skill in this session's registered skill listing. If absent: **Critical** — "viva missing: `/design` and `/plan` both end in a human sign-off round they cannot run, so neither completes."
 
-If all three succeed, report each as **OK**.
+Report each check as **OK** when it succeeds. These five are the tools; the first three are gate-side, the last two are build-side — a Studious install missing either half degrades silently in exactly the way this command exists to catch.
 
 ## 2. Plugin health
 

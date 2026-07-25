@@ -115,6 +115,33 @@ a methodology" non-goal true now that a methodology ships in the same plugin.
 `tests/jig/` is stdlib `unittest` (the build scripts'). They run as separate CI jobs and
 do not share a runner or a conftest. Don't unify them opportunistically.
 
+## Where a design record lives
+
+Ratified 2026-07-25 (#219, #216, #181). One rule, two classes:
+
+- **Disposable** — a `/design` doc (`docs/design/<slug>.md`), `PLAN.md`, and demonstration
+  scratch. Gitignored, branch-local, removed by `/finish` at closeout. Never committed;
+  `tests/python/test_no_ignored_paths_tracked.py` fails if one is. Because they are not in
+  the diff, `/gate-design-review` reads the **working tree first** — a diff-first search
+  misses every doc the in-box producer writes.
+- **Durable** — the pre-mortem register (`docs/studious/premortems/<slug>.md`, committed by
+  `/gate-design-review`), the review reports under `docs/studious/<area>-reviews/`, and
+  decision records at `docs/` root (`initiative-altitude.md` and siblings). These outlive
+  the branch, and a durable file must not cite a disposable one: the register records
+  `Branch:` and `SHA:`, which retrieve the doc from history without a path that expires.
+
+There is no third home. `docs/superpowers/{plans,specs}/` held 42 of this repo's own
+design records under a third-party product's name and was deleted rather than renamed —
+committed design records are the fourth document class the disposability rule exists to
+prevent, and 35 stale specs are 35 surfaces of the drift #147 tracks in PRODUCT.md.
+
+**A gate-acceptance fix patches the design doc too.** When a `FIX AND RE-CHECK` cycle
+changes what a `SKILL.md` actually does, update the design doc that behavior was ratified
+against in the same commit as the prose and its regression tests. The doc is alive on the
+branch during exactly that cycle, so this costs nothing then and is unrecoverable after
+closeout. This happened twice in one epic (#173), and the second time the doc was already
+gone when the finding was written.
+
 ## Python conventions
 
 Applies to `scripts/` and both test trees. These override Studious's built-in idiom

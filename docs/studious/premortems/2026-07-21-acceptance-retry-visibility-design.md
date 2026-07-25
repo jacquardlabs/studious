@@ -1,6 +1,5 @@
 # Pre-mortem — Surface silent gate-acceptance dispatch retries via per-phase durations (Revision 2)
 
-- Design doc: docs/superpowers/specs/2026-07-21-acceptance-retry-visibility-design.md
 - Branch: epic/perf-audit-followups--acceptance-retry-visibility
 - SHA: bf1ecde
 - Date: 2026-07-21

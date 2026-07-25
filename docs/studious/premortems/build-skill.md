@@ -1,6 +1,5 @@
 # Pre-mortem — The /build SKILL.md (dispatch loop, failure routine, cadence, verdicts)
 
-- Design doc: docs/design/build-skill.md
 - Branch: epic/m4-build-core--build-skill
 - SHA: 22dff4a
 - Date: 2026-07-12

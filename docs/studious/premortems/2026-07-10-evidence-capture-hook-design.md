@@ -1,6 +1,5 @@
 # Pre-mortem — Story-scoped evidence-capture hook
 
-- Design doc: docs/superpowers/specs/2026-07-10-evidence-capture-hook-design.md
 - Branch: epic/worker-evidence-and-board--evidence-capture-hook
 - SHA: 8355ff2
 - Date: 2026-07-10

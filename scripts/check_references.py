@@ -6,11 +6,13 @@ command's @agent-* reference). Standard library only.
 """
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+MANIFEST = REPO / ".claude-plugin" / "plugin.json"
 SCAN_DIRS = ("commands", "agents", "skills", "reference")
 AGENT_RE = re.compile(r"@agent-([a-z0-9-]+)")
 # Recognized phrasings for a skill reference, e.g. "the `<name>` skill" (also
@@ -26,8 +28,22 @@ SKILL_RES = (
 # Curated rubric paths agents cite, e.g. `reference/security-checklist.md` or the
 # template `reference/idioms/<language>.md`. Angle-bracket placeholders are allowed.
 REFERENCE_RE = re.compile(r"reference/[A-Za-z0-9_./<>-]+\.md")
+def _declared_dependencies() -> set[str]:
+    """Plugins this one declares a dependency on. Their skills are legitimately
+    referenced by name and legitimately absent from `skills/` — derived from the
+    manifest rather than restated here, so declaring a dependency is the single
+    action that makes its skill citable."""
+    try:
+        return set(json.loads(MANIFEST.read_text(encoding="utf-8")).get("dependencies", []))
+    except (OSError, json.JSONDecodeError):
+        return set()  # validate_plugin.py owns manifest validity; don't double-report
+
+
 # Skills referenced by name but legitimately shipped elsewhere, not in this repo.
-EXTERNAL_SKILLS = {"web-design-guidelines"}
+# `web-design-guidelines` ships with Claude Code itself; the rest come from the
+# manifest's declared dependencies (`viva`, which /design, /plan, and the doctor's
+# tooling check all name).
+EXTERNAL_SKILLS = {"web-design-guidelines"} | _declared_dependencies()
 
 
 def find_broken(root: Path) -> list[str]:

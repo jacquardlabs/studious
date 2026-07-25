@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Regression tests for eslint.config.mjs (workflows/**/*.js). Proves the
-# config catches the three historically-real defect classes named in
-# docs/superpowers/specs/2026-07-09-workflows-js-lint-design.md — index-
-# misalignment on dead agents, unshift-ordering, fail-open null handling —
+# config catches the three historically-real defect classes that motivated it —
+# index-misalignment on dead agents, unshift-ordering, fail-open null handling —
 # on reconstructed bad patterns, stays quiet on their fixed equivalents, and
 # lints the real workflows/epic-driver.js clean (documented suppressions and
 # all). Requires network (npx fetches the pinned eslint release; see

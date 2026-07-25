@@ -1,6 +1,5 @@
 # Pre-mortem — Build scripts (worktree setup, baseline check, verification re-run, evidence capture)
 
-- Design doc: docs/design/build-scripts.md
 - Branch: epic/m4-build-core--build-scripts
 - SHA: 21af60b
 - Date: 2026-07-12

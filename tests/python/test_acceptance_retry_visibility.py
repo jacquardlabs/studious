@@ -1,7 +1,6 @@
 """Regression tests for the acceptance-retry-visibility story (issue #142, Finding 2).
 
-The design doc (`docs/superpowers/specs/2026-07-21-acceptance-retry-visibility-design.md`)
-determined that no layer this repo controls (`workflows/epic-driver.js`, `bin/gate-ledger`,
+That story's design determined that no layer this repo controls (`workflows/epic-driver.js`, `bin/gate-ledger`,
 the dispatched-agent prompts) has an accessible signal that a prior `agent()` dispatch was
 abandoned/superseded before a retry began — so acceptance criterion 2 (a `work-log RETRY`
 entry) does not ship. Instead, per criterion 3, `commands/work-through.md`'s report gained
@@ -66,9 +65,6 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
-DESIGN_DOC = (
-    REPO_ROOT / "docs" / "superpowers" / "specs" / "2026-07-21-acceptance-retry-visibility-design.md"
-)
 
 # `gate-acceptance` FIX AND RE-CHECK, Finding 1: a bare `(resumed)` tag reads as a
 # benign lifecycle fact to a scanning maintainer, not an invitation to investigate a
@@ -494,11 +490,24 @@ def test_report_template_documents_resumed_placeholder() -> None:
     assert "<Nm>" in text
 
 
-# --- the cited design doc actually exists (consumers-must-stay-in-sync style) ---
+# --- the rationale citation resolves (consumers-must-stay-in-sync style) ---
 
 
-def test_cited_design_doc_exists() -> None:
-    assert DESIGN_DOC.is_file(), (
-        f"commands/work-through.md cites {DESIGN_DOC.relative_to(REPO_ROOT)}, "
-        "which does not exist"
-    )
+def test_rationale_citation_resolves() -> None:
+    """This guard originally asserted a `docs/superpowers/specs/` design doc existed.
+    Under the ratified rule a design doc is branch-local and dies at closeout (#219),
+    so a permanent command file must not cite one — that is the dangling-pointer
+    class this guard exists to catch, not an exception to it. `work-through.md` now
+    cites the issue that owns the decision, which does not expire.
+
+    Generalized rather than deleted: every path this file names in a doc tree *this*
+    repo owns must resolve. Scoped to those three trees deliberately — `work-through.md`
+    also names `docs/headless-contract.md`, which lives in viva's repo behind the
+    published contract that keeps it a separate repo (CLAUDE.md boundary criterion (e)),
+    and a checkout-local existence check is the wrong question to ask of it."""
+    text = WORK_THROUGH.read_text(encoding="utf-8")
+    assert "issues/142" in text, "the retry-visibility rationale citation is gone"
+
+    owned = re.findall(r"(?<![\w/-])(docs/(?:design|superpowers|studious)/[\w./-]+\.md)", text)
+    missing = sorted({p for p in owned if not (REPO_ROOT / p).is_file()})
+    assert not missing, f"commands/work-through.md cites paths that do not exist: {missing}"

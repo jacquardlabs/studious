@@ -1,6 +1,5 @@
 # Pre-mortem — Task-execution-discipline skill
 
-- Design doc: docs/design/discipline-skill.md
 - Branch: epic/m1-scaffold--discipline-skill
 - SHA: 052d81a
 - Date: 2026-07-11

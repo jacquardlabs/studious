@@ -1,6 +1,5 @@
 # Pre-mortem — local stdlib SSE board server
 
-- Design doc: docs/superpowers/specs/2026-07-11-board-server-design.md
 - Branch: epic/worker-evidence-and-board--board-server
 - SHA: f9972a8
 - Date: 2026-07-11
