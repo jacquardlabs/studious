@@ -37,7 +37,7 @@ import sys
 import tempfile
 import time
 import unittest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from _tempgit import commit_all, init_repo, run
@@ -72,8 +72,8 @@ def write_evidence_folder(
         "task": task,
         "date": name.split("-", 3)[0] + "-" + name.split("-", 3)[1] + "-" + name.split("-", 3)[2],
         "commit_sha": commit_sha,
-        "commit_timestamp": datetime.fromtimestamp(commit_epoch, tz=timezone.utc).isoformat(),
-        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "commit_timestamp": datetime.fromtimestamp(commit_epoch, tz=UTC).isoformat(),
+        "captured_at": datetime.now(UTC).isoformat(),
         "artifacts": [{"producer": "verify", "label": "results", "source": str(artifact), "path": "results.txt"}],
     }
     (folder / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")

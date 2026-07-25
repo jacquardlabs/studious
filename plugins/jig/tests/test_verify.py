@@ -67,7 +67,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from _orphancheck import orphan_spawning_command, process_is_gone, wait_for_marker
@@ -197,7 +197,7 @@ class TestVerifyCommandTiers(unittest.TestCase):
 class TestVerifyProbeTier(unittest.TestCase):
     def test_probe_item_passes_when_artifact_fresh_and_matches_pattern(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            since = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+            since = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
             artifact = Path(tmp) / "ps-check.txt"
             artifact.write_text("no orphaned process found\n", encoding="utf-8")
             items_path = write_items(
@@ -209,7 +209,7 @@ class TestVerifyProbeTier(unittest.TestCase):
 
     def test_probe_item_fails_when_artifact_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            since = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+            since = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
             missing = Path(tmp) / "does-not-exist.txt"
             items_path = write_items(Path(tmp), [{"id": 1, "kind": "cap", "tier": "probe", "artifact": str(missing)}])
             result = run_script(["--items", str(items_path), "--since", since])
@@ -220,7 +220,7 @@ class TestVerifyProbeTier(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             artifact = Path(tmp) / "stale.txt"
             artifact.write_text("stale evidence\n", encoding="utf-8")
-            since = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+            since = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
             items_path = write_items(Path(tmp), [{"id": 1, "kind": "cap", "tier": "probe", "artifact": str(artifact)}])
             result = run_script(["--items", str(items_path), "--since", since])
             self.assertEqual(result.returncode, 1)
@@ -262,7 +262,7 @@ class TestVerifyProbeFreshnessFloor(unittest.TestCase):
 
             artifact = repo / "probe-evidence.txt"
             artifact.write_text("no orphaned process found\n", encoding="utf-8")
-            artifact_mtime = datetime.now(timezone.utc).timestamp()
+            artifact_mtime = datetime.now(UTC).timestamp()
             os.utime(artifact, (artifact_mtime, artifact_mtime))
 
             # The commit always lands after the write in the real /build
@@ -309,7 +309,7 @@ class TestVerifyProbeFreshnessFloor(unittest.TestCase):
             repo.mkdir()
             init_repo(repo)
 
-            dispatch_time = datetime.now(timezone.utc)
+            dispatch_time = datetime.now(UTC)
 
             artifact = repo / "probe-evidence.txt"
             artifact.write_text("no orphaned process found\n", encoding="utf-8")
@@ -603,7 +603,7 @@ class TestVerifyPlanModeDerivation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
             write_method_script(repo, "scripts/ok", exit_code=0)
-            since = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+            since = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
             artifact = repo / "evidence.txt"
             artifact.write_text("no orphaned process found\n", encoding="utf-8")
             plan = write_plan(
@@ -635,7 +635,7 @@ class TestVerifyPlanModeDerivation(unittest.TestCase):
     def test_probe_pattern_from_spec_is_actually_enforced(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            since = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+            since = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
             artifact = repo / "evidence.txt"
             artifact.write_text("something else entirely\n", encoding="utf-8")
             plan = write_plan(
@@ -947,7 +947,7 @@ class TestVerifyParallel(unittest.TestCase):
 
     def test_parallel_with_probe_items_still_checks_them(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            since = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+            since = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
             artifact = Path(tmp) / "evidence.txt"
             artifact.write_text("no orphaned process found\n", encoding="utf-8")
             items_path = write_items(

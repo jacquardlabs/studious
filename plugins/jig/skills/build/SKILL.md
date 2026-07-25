@@ -397,6 +397,7 @@ For each task block, in order:
    | Test self-dealing | `test-auditor` | Its own rubric already asks whether new/changed behavior carries tests that assert real outcomes — the identical question. |
    | Contract match | `architecture-auditor` | Its own rubric already asks whether it fits existing patterns and any coupling concerns — a downstream-consumed contract mismatch is exactly a coupling concern. |
    | Technicality gaming | `code-auditor` | Its own rubric covers code that technically passes but doesn't do the real work — the general-purpose "is this actually the thing" lane. |
+
 7. **On overall PASS:**
    - `verify`'s own output (`results.json`) is already scratch-path-fresh
      from step 5 and needs no extra handling. Any *other* artifact a

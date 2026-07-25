@@ -1,3 +1,7 @@
+# studious's release line. jig ships from this same repo on its own line — see
+# plugins/jig/pyproject.toml (tag prefix `jig--v`) — and .github/workflows/release.yml
+# decides which of the two a given push moves. studious keeps the bare `v{version}`
+# tag format its whole history already uses.
 [tool.semantic_release]
 version_variables = [".claude-plugin/plugin.json:version"]
 tag_format = "v{version}"

@@ -33,6 +33,7 @@ tier names, not a red/green cycle. Don't invent tests for items the plan
 itself scoped elsewhere.)
 
 **The Iron Law:**
+
 ```
 NO PRODUCTION CODE FOR A TEST-BACKED CAP ITEM WITHOUT A FAILING TEST FIRST
 ```
@@ -62,6 +63,7 @@ pillar because the checkpoint block carries an explicit scope artifact
 Superpowers doesn't: the **Not here** field.
 
 **The rule:**
+
 ```
 CODE THAT REACHES PAST THIS TASK'S `Do` INTO ITS `Not here` IS THE VIOLATION
 ```
@@ -81,6 +83,7 @@ front of you rather than a feeling.
 ## Pillar 3 — Verification-before-completion
 
 **The Iron Law:**
+
 ```
 NO DONE-MEANS CLAIM WITHOUT FRESH EVIDENCE IN THIS TASK'S EVIDENCE FIELD
 ```

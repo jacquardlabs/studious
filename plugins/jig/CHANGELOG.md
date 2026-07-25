@@ -23,7 +23,6 @@
   ([#97](https://github.com/jacquardlabs/jig/pull/97),
   [`64c4803`](https://github.com/jacquardlabs/jig/commit/64c4803be0c2ce6e529e49630d5324ba122e0029))
 
-
 ## v1.6.0 (2026-07-18)
 
 ### Documentation
@@ -56,7 +55,6 @@
   ([#84](https://github.com/jacquardlabs/jig/pull/84),
   [`92bcde0`](https://github.com/jacquardlabs/jig/commit/92bcde07c219432ca83bb4e0dda2854c512dceb6))
 
-
 ## v1.5.0 (2026-07-18)
 
 ### Documentation
@@ -86,7 +84,6 @@
 - Implement the coach — /coach, the user-invoked orchestrator (issue #21)
   ([#82](https://github.com/jacquardlabs/jig/pull/82),
   [`ae1143f`](https://github.com/jacquardlabs/jig/commit/ae1143f514ab9bc8e1c407e1a6febe4dfdf3888b))
-
 
 ## v1.4.0 (2026-07-17)
 
@@ -140,7 +137,6 @@
 - Persist a replay bundle per build task ([#78](https://github.com/jacquardlabs/jig/pull/78),
   [`1a72f99`](https://github.com/jacquardlabs/jig/commit/1a72f997f98c8cbcaaa22be761d4f5ca2af37579))
 
-
 ## v1.3.0 (2026-07-17)
 
 ### Features
@@ -148,7 +144,6 @@
 - Add review-consumption style rules to generated artifacts and session prose
   ([#77](https://github.com/jacquardlabs/jig/pull/77),
   [`1b25830`](https://github.com/jacquardlabs/jig/commit/1b25830511c9b467aeea46877310c770c0a54405))
-
 
 ## v1.2.1 (2026-07-16)
 
@@ -178,7 +173,6 @@
   ([#76](https://github.com/jacquardlabs/jig/pull/76),
   [`95cc4c2`](https://github.com/jacquardlabs/jig/commit/95cc4c24e8ece65ee0939f1d37fe1eb6a4cbd352))
 
-
 ## v1.2.0 (2026-07-16)
 
 ### Bug Fixes
@@ -190,7 +184,6 @@
 
 - Implement /design skill (M2) ([#73](https://github.com/jacquardlabs/jig/pull/73),
   [`1c7f217`](https://github.com/jacquardlabs/jig/commit/1c7f2174042837c02e1072bb20fd1b4a217811b7))
-
 
 ## v1.1.0 (2026-07-16)
 
@@ -204,7 +197,6 @@
 - Implement /plan skill (M3) ([#72](https://github.com/jacquardlabs/jig/pull/72),
   [`f629188`](https://github.com/jacquardlabs/jig/commit/f629188e736f5c45f3702b1da4f7311ef9b95331))
 
-
 ## v1.0.1 (2026-07-16)
 
 ### Bug Fixes
@@ -212,7 +204,6 @@
 - Verify semantic-release triggers on a Conventional Commits PR title
   ([#65](https://github.com/jacquardlabs/jig/pull/65),
   [`c416999`](https://github.com/jacquardlabs/jig/commit/c416999f53cfde400daeb208c9fb345695628deb))
-
 
 ## v1.0.0 (2026-07-12)
 

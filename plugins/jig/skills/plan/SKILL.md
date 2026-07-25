@@ -313,8 +313,8 @@ and 6's rewrite-on-`changes`/`info` loop are you reading, inferring, and
 deciding; Step 5's pass/fail is `plan-lint`'s alone, never self-reported,
 and Step 6's `approved`/`changes`/`pending` per section is the human's
 alone, mediated by viva's own server, never inferred from "looks fine."
-"Nothing signs off on itself" is Step 1b's whole reason to exist -- issue
-#13's "script the probes, don't self-attest" resolution *is* this
+"Nothing signs off on itself" is Step 1b's whole reason to exist --
+issue #13's "script the probes, don't self-attest" resolution *is* this
 principle applied to one specific verification tier, and Step 5 gating
 Step 6 is the same principle applied to draft quality: a plan never reaches
 a human review round with a mechanically-known defect already sitting in

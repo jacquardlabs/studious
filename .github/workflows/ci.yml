@@ -30,6 +30,24 @@ jobs:
       - name: Unit tests
         run: uv run --no-project --with pytest pytest tests/python -v
 
+  jig:
+    name: jig lint + tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+      # jig shipped from its own repo with no CI job of any kind — neither of these
+      # ran on a pull request until it moved here (jig#55, jig#87). ruff is pinned for
+      # the same reason markdownlint, eslint, and shellcheck are: its default rule set
+      # grows between releases, so an unpinned run turns an upstream release into a
+      # surprise red build.
+      - name: Ruff
+        working-directory: plugins/jig
+        run: uv run --no-project --with ruff==0.16.0 ruff check .
+      - name: Unit tests
+        working-directory: plugins/jig
+        run: uv run --no-project python3 -m unittest discover -s tests
+
   ledger:
     name: gate-ledger tests
     strategy:
@@ -64,7 +82,7 @@ jobs:
             https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz
           tar -xJf /tmp/shellcheck.tar.xz -C /tmp
           sudo install /tmp/shellcheck-v0.11.0/shellcheck /usr/local/bin/shellcheck
-      - run: shellcheck bin/gate-ledger hooks/gate-reminder.sh hooks/evidence-capture.sh tests/test_gate_ledger.sh tests/test_evidence_capture.sh tests/test_workflows_lint.sh scripts/install-dev.sh
+      - run: shellcheck bin/gate-ledger hooks/gate-reminder.sh hooks/evidence-capture.sh tests/test_gate_ledger.sh tests/test_evidence_capture.sh tests/test_workflows_lint.sh scripts/install-dev.sh scripts/release-plugin.sh
 
   workflows-js:
     name: workflows/ JS checks

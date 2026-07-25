@@ -26,31 +26,26 @@ jobs:
       - name: Install python-semantic-release
         run: pip install python-semantic-release
 
-      - name: Compute version and push tag
-        id: version
-        run: |
-          BEFORE=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
-          semantic-release version
-          AFTER=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
-          if [ "$BEFORE" != "$AFTER" ]; then
-            echo "released=true" >> "$GITHUB_OUTPUT"
-            echo "Released $AFTER (was $BEFORE)"
-          else
-            echo "released=false" >> "$GITHUB_OUTPUT"
-            echo "No release (still $AFTER)"
-          fi
+      # Two plugins, two version lines, one tree. Each step releases only when that
+      # plugin's own files moved since that plugin's own last tag — the gate lives in
+      # scripts/release-plugin.sh. studious runs first so jig's run starts from an
+      # already-settled main.
+      - name: Release studious
+        id: studious
+        run: scripts/release-plugin.sh studious pyproject.toml 'v' . ':(exclude)plugins/'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
 
-      - name: Publish GitHub release
-        run: semantic-release publish
+      - name: Release jig
+        id: jig
+        run: scripts/release-plugin.sh jig plugins/jig/pyproject.toml 'jig--v' plugins/jig
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
 
-      # Push-notify the marketplace to re-pin this plugin's SHA immediately.
+      # Push-notify the marketplace to re-pin the changed plugin's SHA immediately.
       # The marketplace's nightly poll remains the self-healing backstop.
       - name: Notify marketplace to update pins
-        if: steps.version.outputs.released == 'true'
+        if: steps.studious.outputs.released == 'true' || steps.jig.outputs.released == 'true'
         run: gh workflow run update-pins.yml --repo jacquardlabs/marketplace
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}

@@ -17,11 +17,16 @@
     "MD026": false, // trailing punctuation in heading
     "MD029": false  // ordered list prefix
   },
-  "globs": ["commands/**/*.md", "agents/**/*.md", "skills/**/*.md", "reference/**/*.md", "*.md"],
+  // jig ships from plugins/jig/ and its prompt surface is linted too, under the
+  // rule exemptions in plugins/jig/.markdownlint-cli2.jsonc.
+  "globs": [
+    "commands/**/*.md", "agents/**/*.md", "skills/**/*.md", "reference/**/*.md", "*.md",
+    "plugins/*/skills/**/*.md", "plugins/*/*.md"
+  ],
   // PLAN.md (when present) is jig's build-plan artifact, not authored prose — its
   // `### Task N` headings are load-bearing for jig's own toolchain (plan-lint, viva's
   // `--split-on`, /build's parser) and deliberately skip an H2 level per jig's own
   // documented PLAN.md shape. Same rationale as the docs/** exclusion below: a
   // process/report artifact, not content subject to this repo's prose-quality bar.
-  "ignores": ["node_modules", "CHANGELOG.md", "docs/**", "PLAN.md"]
+  "ignores": ["node_modules", "**/CHANGELOG.md", "**/docs/**", "**/PLAN.md"]
 }

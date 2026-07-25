@@ -22,7 +22,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -62,7 +62,7 @@ class TestBuildReportHappyPath(unittest.TestCase):
             result = run_script(["--repo", str(repo), "--slug", "finish-skill", "--content", str(content)])
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            today = datetime.now(UTC).strftime("%Y-%m-%d")
             expected = repo / "docs" / "jig" / "reports" / f"{today}-finish-skill-build-report.md"
             self.assertTrue(expected.is_file())
 
