@@ -7,10 +7,10 @@ allowed-tools: Read, Glob, Grep, Bash, Task, Write
 
 Read PRODUCT.md at the project root first.
 
-Then find the design doc or spec under review:
-- Check the branch's added/changed docs: `git diff --name-only $(git merge-base HEAD origin/main)...HEAD` and look for design/spec Markdown (e.g. under `docs/`, `specs/`, `design/`).
-- If nothing turns up there, take the most recently modified Markdown under those locations.
-- If still ambiguous or there are several candidates, ask the user which doc to review rather than guessing.
+Then find the design doc or spec under review. **Read the working tree first, not the diff.** A design doc is branch-local scaffolding that dies at closeout, and a project following that convention gitignores it — so it never appears in `git diff --name-only`, and a diff-first search silently misses every doc the in-box producer writes (#216):
+- Look on disk for design/spec Markdown under the project's convention — `docs/design/`, `docs/`, `specs/`, `design/`. Do not filter by whether git tracks it.
+- Then check the branch's added/changed docs too: `git diff --name-only $(git merge-base HEAD origin/main)...HEAD`. This catches a committed, hand-authored spec that a working-tree scan by itself would rank only by modification time.
+- One candidate from either source: review it. Several: ask the user which, rather than guessing — including when only mtime separates them, since "most recently modified" is not evidence of which doc this branch is about.
 - If no candidate doc exists at all, say so and point at `templates/design-doc.md` as a starting scaffold rather than guessing at content that isn't there.
 
 Pass the resolved doc path explicitly into the product review below. The doc is expected to satisfy the contract in `reference/design-doc-contract.md` — a section the contract requires but the doc omits is itself a finding, not something to infer.
