@@ -21,9 +21,17 @@ sitting unacted-on. You assess pipeline state from evidence, recommend
 exactly one next action, and dispatch one of the four build skills only on the
 human's explicit confirmation. You never do the work yourself.
 
+**`/work-on` is the other entrypoint to this same flow, and you share its
+store.** It navigates the gate pieces and records verdicts; you read,
+recommend, and dispatch a build skill on confirmation. Same feature, same
+`.studious/work/<slug>.json`, different posture — so read that file (Step 1's
+first ledger signal) rather than re-deriving position from scratch, and never
+contradict it silently. A user who ran `/work-on` and then opens a fresh
+session with `/coach` must be told the same thing about where they are; the
+two giving different answers was the defect this closes (#214).
+
 Invocation is `/coach` — the same "single verb, slash-prefixed" convention
-as `/design`, `/plan`, `/build`, and `/finish` (closing `DESIGN.md`'s
-former risk #4). The trigger is an explicit ask only: the user says
+as `/design`, `/plan`, `/build`, and `/finish`. The trigger is an explicit ask only: the user says
 `/coach`, asks where they are in the pipeline or what to do next, or asks
 for help recovering a stuck loop. Never self-trigger on the mere presence
 of a verdict token earlier in the conversation — auto-triggering is the
@@ -44,20 +52,28 @@ paraphrase:
 
 | Signal | Read from | Establishes |
 |---|---|---|
-| Design docs | `docs/design/*.md` (Glob) | Which stories have designs. A `## Revision History` heading means at least one completed viva sign-off — viva appends it the moment a review round finishes (per `skills/plan/SKILL.md` Step 6). A doc without one exists but is unconfirmed from the repo alone. |
+| Design docs | `docs/design/*.md` (Glob) | Which stories have designs. A `## Revision History` heading means at least one viva round *finished* — not that it was approved. viva appends the same heading on a `REVISED` round, so this signal cannot tell a signed-off doc from a revised one (#198). Treat it as "a round happened," never as sign-off, and see the note below. |
 | Plan | `PLAN.md` at the repo root — a filesystem read, never `git ls-files` (a project that treats `/PLAN.md` as disposable scaffolding gitignores it, so an index read misses a real plan) | A plan exists; its `### Task N — <title>` blocks. |
 | Task statuses | Heading suffixes ` [PASS]` / ` [REPLAN]` / ` [ESCALATE]` — `scripts/status-flip`'s own `SUFFIX_RE` grammar, written only by that script, never the model | Which tasks closed, which paused or escalated. No suffix means not yet terminal (`todo` / `in-progress`). |
 | Failure reasons | `git log` for the `status-flip: task <N> -> REPLAN\|ESCALATE` commit — the Foreman's `--reason` lives in that commit's body, not in `PLAN.md` | The finding `/design` revision mode (or the human's block revision) needs, quoted verbatim. |
 | Evidence & reports | `docs/jig/evidence/<date>-<task>/`, `docs/jig/reports/` | Which tasks captured evidence; whether a story already closed out via `/finish` (a dated build report). |
+| Flow position | `command -v gate-ledger`; if found, `gate-ledger work-list` and match the row whose branch equals the current branch, then `gate-ledger work-get --slug "<that-slug>"` | Whether `/work-on` is already tracking this feature, and where it thinks the flow is: `.phase`, and `.history`'s per-step outcomes. **Read this first among the ledger signals.** It is the same store `/work-on` writes — one flow, two entrypoints — so a feature in flight there is visible here, and skipping it is how the two navigators used to give different answers to the same question (#214). No matching row means this branch isn't under `/work-on`; that is ordinary, not an error. |
 | Gate verdicts | `command -v gate-ledger`; if found, `gate-ledger gate-get --branch <branch>` (recorded verdict history) and `gate-ledger status` | Which gates actually recorded verdicts. Not found: the *ledger* is unreadable, which says nothing about whether the gates exist — they ship in this same plugin. State "`gate-ledger` not on `PATH` — can't read recorded verdicts; run `/studious-doctor`" and treat gates per the degradation rules below. Never assume one passed, and never conclude a gate is unavailable. |
 | Conversation | Session verdicts stated earlier in this conversation (`BUILT`/`PAUSED`/`ESCALATED`, `DESIGNED`/`NEEDS RESEARCH`/`REVISED`, `PLAN READY`/`DESIGN GAP`/`TOO BIG`) | Fills only the gaps the repo cannot show — e.g. a `NEEDS RESEARCH` verdict that deliberately wrote nothing to disk. |
 
-Three hard rules govern the read:
+Four hard rules govern the read:
 
 - **Repo evidence outranks conversation claims.** A conflict — the
   conversation says `BUILT`, `PLAN.md` shows an unsuffixed task — is
   reported by name, never silently resolved in either direction, and the
   recommendation follows the repo. The claim is never papered over.
+- **Repo evidence outranks the work file too, and the same way.** The work
+  file records what a step *reported*; the repo shows what is *there*. When
+  they disagree — phase `build` with no implementation commits, phase `done`
+  with an unsuffixed task — say so by name and follow the repo, exactly as
+  `commands/work-on.md`'s own "evidence first" check does. Never silently
+  correct the file: `/work-on` owns writing it, and this skill writes
+  nothing.
 - **Vocabulary discipline.** Task-status `[PASS]` (a `PLAN.md` heading
   suffix, per task, script-written) and studious's gate verdict `PASS` (a
   gate-ledger record, per gate) are different concepts sharing a word.
@@ -68,6 +84,22 @@ Three hard rules govern the read:
   one plan-shaped file, an unclear story slug — **ask the human once, by
   name**, the same escalation shape `skills/plan/SKILL.md`'s Input step
   already uses. Never pick one silently.
+
+**`## Revision History` is a weak signal, and the routing is what makes that
+safe (#198).** viva appends the heading when a round *finishes*, whether the
+verdict was approve or revise, so a revised-but-not-signed-off doc looks
+identical to a signed-off one from the repo alone. There is no first-party
+sign-off signal to read; adding one is a viva contract change, not something
+this skill can do.
+
+What contains the ambiguity is the routing table below: a doc with the
+heading but no recorded design-review verdict routes to **recommending the
+human run `/gate-design-review`** — never to a blind `/plan` dispatch. So the
+worst case of misreading this signal is one human-run gate that was going to
+be recommended anyway. That is the deliberate guard, not an accident of
+ordering: never add a row that treats the heading as sufficient to skip the
+gate, and if viva ever publishes a real sign-off signal, read that instead
+and this note goes away.
 
 **The assessment prints before the recommendation**: the state, then the
 evidence line behind each claim — so a misread fails visibly, in front of
@@ -95,6 +127,17 @@ Routing, observed state → the one action:
 | Every task ` [PASS]`; audit/acceptance not yet recorded (or the ledger is unreadable) | Recommend the human run `/gate-audit` (then `/gate-acceptance`) | The branch name |
 | Every task ` [PASS]`; both gates recorded as passed | Dispatch `/finish` | Nothing beyond the invocation — `/finish` reads `PLAN.md` and the evidence folders itself |
 | Dated build report exists for this story / branch closed out | Nothing to dispatch — state it and stop | — |
+
+**What the work file adds to this table.** It never overrides a row — the
+rows key on repo evidence and that stays the authority. It supplies three
+things the repo can't: the feature's slug and title (use them, rather than
+inventing a name for the story); corroboration, so a row reached with the
+work file agreeing is worth stating as such; and the fact that a handoff
+already happened — a `HANDED-OFF` outcome on the `design`, `build`, or
+`finish` step means `/work-on` already handed that piece over, so if the repo
+shows no result from it, the honest recommendation is the same step again,
+named as a resume rather than a fresh start. When a row and the work file
+disagree, say both out loud and follow the row.
 
 **Rough cost** comes from this fixed vocabulary — order-of-magnitude,
 honest about human attention vs. wall clock, never a fabricated number:
@@ -154,10 +197,13 @@ after `BUILT`."
 ## Does no work itself
 
 The coach's tool use is read-only, always: Read/Glob/Grep, `git log`,
-`git status`, `gate-ledger gate-get`/`status`, `command -v`. It never
-writes or edits a file (no code, no docs, no state file of its own), never
-flips a status, never records a verdict, never runs a gate, a lint, a
-test, or a build script, and never commits. Anything that looks like work
+`git status`, `command -v`, and `gate-ledger`'s four *read* verbs —
+`gate-get`, `status`, `work-list`, `work-get`. Never `work-set`, never
+`work-log`, never `record`: sharing `/work-on`'s store means reading it, not
+writing it, and a coach that corrected the work file would be doing the work
+it exists not to do. It never writes or edits a file (no code, no docs, no
+state file of its own), never flips a status, never records a verdict, never
+runs a gate, a lint, a test, or a build script, and never commits. Anything that looks like work
 is the dispatched skill's job or the human's.
 
 The coach also has **no verdict enum of its own** — it is not a pipeline

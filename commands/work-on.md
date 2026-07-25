@@ -22,8 +22,13 @@ Read PRODUCT.md at the project root first.
 | 4 | build | handoff — Studious steps back | implementation commits exist on the feature branch |
 | 5 | audit | `/gate-audit` | **PASS** at HEAD |
 | 6 | acceptance | `/gate-acceptance` | **SHIP** at HEAD |
+| 7 | finish | handoff — Studious steps back | the branch is closed out: scaffolding removed, evidence assembled, PR opened or the work merged/parked |
 
-After piece 6 the flow is `done`: recap the verdict trail and remind the user the PR is theirs to open (`gh pr create` — the PR-time hook reads the same ledger). Never create the PR yourself.
+Piece 4 covers planning as well as building — the route it hands to (`/plan` then `/build`) is two skills but one handoff, so there is no separate plan piece to stop at.
+
+After piece 7 the flow is `done`. Never open the PR yourself: piece 7 hands over, and whether the user runs `/finish` or does it by hand, the PR is theirs (`gh pr create` — the PR-time hook reads the same ledger).
+
+**This flow and `/coach`'s are the same flow.** `/coach` names the build skills at a finer grain (`/design`, `/plan`, `/build`, `/finish` as separate dispatches) because dispatching them one at a time is its job; this command groups them into handoff pieces because running the gates is its job. They read and write the same work file, so a feature tracked here is visible there and vice versa. The difference is posture, not position: **`/work-on` runs the gate and records the verdict; `/coach` only reads and recommends, and dispatches a build skill on explicit confirmation.** Use `/work-on` to advance a feature; use `/coach` when you're re-entering cold and want to be told where you are.
 
 For the gate pieces, run that slash command's workflow now, with the flow's context as its input — each gate owns its own logic and records its own verdict; don't restate or reimplement it here.
 
@@ -117,11 +122,23 @@ Log with `work-log --step audit --outcome "<verdict>" --phase "<phase>"`.
 
 Run `/gate-acceptance`, then:
 
-- **SHIP** → phase `done` — recap the trail and hand the PR to the user
+- **SHIP** → phase `finish`
 - **FIX AND RE-CHECK** → phase stays `acceptance`
 - **HOLD** → phase stays `acceptance`; surface the product concerns
 
 Log with `work-log --step acceptance --outcome "<verdict>" --phase "<phase>"`.
+
+### 7 · finish
+
+Both gates have passed. Closing out is a handoff, not a gate — there is no verdict to record here.
+
+Hand over and stop:
+
+- The verdict trail (every gate, its token, and the sha it was recorded at), and the pre-mortem register path.
+- Name `/finish` as the route that ships with this plugin: it assembles the evidence table, removes the branch-local scaffolding (`docs/design/<slug>.md`, `PLAN.md`), and ends in one of `MERGE` / `PR` / `KEEP` / `DISCARD`. Doing it by hand is equally fine — no gate cares which, and nothing downstream reads a `/finish` artifact.
+- The PR is the user's to open either way.
+
+Log `work-log --step finish --outcome HANDED-OFF --phase done`.
 
 ## Skips
 
@@ -132,7 +149,7 @@ Gates are optional by judgment — but that judgment is the user's. Skip a piece
 After the piece finishes, end with exactly this shape and nothing after it:
 
 ```text
-Flow: <slug> — piece <k>/6 (<name>): <outcome>.
+Flow: <slug> — piece <k>/7 (<name>): <outcome>.
 Next piece: <name> — <one clause on what it involves>.
 Run /work-on when you're ready, or just say "next".
 ```
