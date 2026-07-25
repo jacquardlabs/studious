@@ -33,6 +33,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 #: `PLAN.md` removed in this same change, which were residue. Whether a required
 #: demonstration is genuinely disposable is a product call, not a cleanup: either
 #: `.gitignore:18` is wrong about them or they belong somewhere durable.
+#:
+#: Read the tree before draining it. It contains fixture repos that deliberately hold
+#: a `PLAN.md` and two `docs/design/*.md` files — the exact paths the rule below bans —
+#: because demonstrating `/plan`'s behavior requires a project shaped like one. Those
+#: are inputs to a demonstration, not scaffolding that escaped cleanup, and deleting
+#: them on sight would break the demonstration rather than tidy it.
 ALLOWED_PREFIXES = ("docs/jig/demonstrations/",)
 
 
