@@ -110,6 +110,15 @@ Two steps in the gate flow above — the `design doc` and `implement` boxes — 
 
 `/design` and `/plan` require [viva](https://github.com/jacquardlabs/viva) for their sign-off rounds — a declared dependency, so it installs with Studious.
 
+**`/work-on` or `/coach`?** They navigate the same flow and share the same state file, so a feature tracked by one is visible to the other — you can switch mid-feature and neither loses the thread. Pick by what you want done, not by where you are:
+
+| | `/work-on` | `/coach` |
+|---|---|---|
+| Does | Runs the next gate and records its verdict | Reads, then recommends one action |
+| Hands off by | Stopping and telling you what's next | Dispatching a build skill, only on your explicit yes |
+| Writes | The work file | Nothing at all |
+| Reach for it when | You want to advance the feature | You're re-entering cold, or a `PAUSED`/`ESCALATED` build left you unsure what to do |
+
 **No gate requires any of this.** `scripts/check_gate_independence.py` fails CI if a gate command, agent, driver, hook, or the ledger so much as invokes a build skill or reads a build artifact. What a gate may rely on is `reference/evidence-format.md`, which any executor can satisfy.
 
 ## CI mode (optional)
