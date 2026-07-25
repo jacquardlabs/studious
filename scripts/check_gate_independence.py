@@ -14,10 +14,12 @@ Two rules:
    epic driver, the hooks, and the ledger are the machinery that judges work. A jig
    reference in any of them is a hard dependency in the making, even a benign-looking
    one.
-2. **Everywhere else, a jig mention must be optional on its face.** The navigator, the
-   worker contract, and the README may name jig as an available executor, but only
-   inside a conditional — "if jig is installed", "when installed", "or", "otherwise".
-   A bare imperative ("run /build") would read as a requirement.
+2. **In prose an agent reads as instructions, a jig mention must be optional on its
+   face.** The navigator, the worker contract, and the README may name jig as an
+   available executor, but only inside a conditional — "if jig is installed", "when
+   installed", "otherwise". A bare imperative ("run /build") would read as a
+   requirement. This repo's own context docs are exempt: they describe where jig
+   lives, which cannot be written conditionally.
 
 Standard library only, to match the repo's other CI helpers.
 """
@@ -38,7 +40,8 @@ GATE_SURFACE = (
     "bin/gate-ledger",
 )
 
-#: Rule 2. Files permitted to name jig, each mention guarded.
+#: Rule 2. Files an agent reads as instructions, permitted to name jig only inside a
+#: conditional — the flow has to still read correctly for a worker that isn't jig.
 OPTIONAL_SURFACE = (
     "commands/work-on.md",
     "commands/work-through.md",
@@ -46,13 +49,30 @@ OPTIONAL_SURFACE = (
     "README.md",
 )
 
+#: This repo's own documentation, which describes the two-plugin arrangement rather
+#: than instructing anyone to use it. Exempt from rule 2's guard requirement — you
+#: cannot write "jig lives at plugins/jig/" conditionally — but still bound by rule 1,
+#: since none of these is a gate. Note these are *this* repo's context docs; the
+#: PRODUCT.md/DESIGN.md/CLAUDE.md that agents read at runtime live in the consuming
+#: project and are never these files.
+TOPOLOGY_DOCS = (
+    "CLAUDE.md",
+    "PRODUCT.md",
+    "DESIGN.md",
+    "CONTRIBUTING.md",
+    "CHANGELOG.md",  # generated from commit subjects by semantic-release
+)
+
 #: Word-boundary match so "jigsaw" and the like don't trip the check.
 JIG = re.compile(r"\bjig\b", re.IGNORECASE)
 
-#: Any of these near a mention marks it optional rather than required.
+#: Any of these near a mention marks it optional rather than required. Deliberately
+#: excludes a bare "or", which appears in enough ordinary prose to wave through an
+#: unguarded mention on any wrapped line — the point is to catch a requirement
+#: written as an imperative, so the markers have to actually mean "not mandatory".
 GUARDS = re.compile(
-    r"\b(if|when|where|whether|may|might|can|optional(?:ly)?|either|"
-    r"or|otherwise|without|absent|installed|available|alongside)\b",
+    r"\b(if|when|whether|may|might|optional(?:ly)?|either|"
+    r"otherwise|without|absent|installed|available|alongside)\b",
     re.IGNORECASE,
 )
 
@@ -98,9 +118,7 @@ def optional_surface_violations() -> list[str]:
 
 def unlisted_mentions() -> list[str]:
     """Catch a jig mention that appears somewhere neither rule covers."""
-    # CHANGELOG.md is generated from commit subjects by semantic-release; it records
-    # what happened and is not a place a dependency can be introduced.
-    covered = {REPO / n for n in OPTIONAL_SURFACE} | {REPO / "CHANGELOG.md"}
+    covered = {REPO / n for n in OPTIONAL_SURFACE + TOPOLOGY_DOCS}
     for pattern in GATE_SURFACE:
         covered.update(REPO.glob(pattern))
 

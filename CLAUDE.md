@@ -10,7 +10,7 @@ The product itself is two rhythms (see `README.md`): per-feature **gates** (`/ga
 
 ## Commands
 
-Tooling is `uv` for Python and `npx` for markdown. The six CI jobs (`.github/workflows/ci.yml`) are the full local check suite:
+Tooling is `uv` for Python and `npx` for markdown. The seven CI jobs (`.github/workflows/ci.yml`) are the full local check suite:
 
 ```bash
 # Markdown lint (ratchets current state; config in .markdownlint-cli2.jsonc)
@@ -19,8 +19,11 @@ npx -y markdownlint-cli2
 # Link-check every internal reference in agents/commands/skills
 uv run --no-project python scripts/check_references.py
 
-# Validate .claude-plugin/plugin.json against the schema
+# Validate every plugin.json in the tree (root + plugins/*/) against the schema
 uv run --no-project python scripts/validate_plugin.py
+
+# Assert no Studious gate requires jig — the promise-keeper for the two-plugin tree
+uv run --no-project python scripts/check_gate_independence.py
 
 # Python unit tests (run a single test by node id)
 uv run --no-project --with pytest pytest tests/python -v
@@ -42,9 +45,13 @@ bash tests/test_workflows_lint.sh
 # DOM wiring is exercised live against a running bin/board-server instead)
 node --check assets/board-ui/app.js
 node --test tests/js/*.js
+
+# jig's own lint and tests (ruff pinned; unittest, not pytest) — run from plugins/jig
+cd plugins/jig && uv run --no-project --with ruff==0.16.0 ruff check .
+cd plugins/jig && uv run --no-project python3 -m unittest discover -s tests -v
 ```
 
-Releases are automated via semantic-release (`pyproject.toml`); the version lives in `.claude-plugin/plugin.json` and is bumped by CI on merge to `main` — never edit it by hand.
+Releases are automated via semantic-release, one version line per plugin — `pyproject.toml` for studious, `plugins/jig/pyproject.toml` for jig. Each version lives in that plugin's `.claude-plugin/plugin.json` and is bumped by CI on merge to `main` — never edit either by hand.
 
 ## Architecture
 
@@ -57,6 +64,7 @@ The directory layout encodes a role split (full version in `CONTRIBUTING.md`):
 - `hooks/` — shipped hook scripts + `hooks.json`. Two live hooks: a non-blocking PreToolUse reminder before `gh pr create` (`gate-reminder.sh`), and a silent PostToolUse/PostToolUseFailure evidence-capture hook on `Bash` that appends verification-command records while a story is armed (`evidence-capture.sh`; format pinned in `reference/evidence-format.md`).
 - `bin/gate-ledger` — reads/writes the per-branch gate ledger and the per-feature `/work-on` work files.
 - `templates/` — PRODUCT.md / DESIGN.md scaffolds created by `/studious-init` in the consuming project.
+- `plugins/<name>/` — a second plugin shipped from this tree, self-contained with its own manifest, context docs, scripts, and tests. Today: `plugins/jig/`. See "Two plugins, one tree" below.
 
 Key invariants when adding or changing prompts:
 
@@ -69,7 +77,30 @@ Key invariants when adding or changing prompts:
 
 ## Repo boundaries
 
-Layers of the delivery discipline — story, epic, initiative, worker — are directories and entrypoints of **this** repo, never separate repos. Their contracts co-evolve, and the gates can only audit changes they can see whole: one diff domain. Stand up a separate repo only if at least one holds: (a) a different license/commercial regime; (b) an independent audience whose users never install the rest; (c) a lifecycle/runtime that makes shared CI harmful; (d) a security/visibility boundary. Decision record: `docs/initiative-altitude.md` (2026-07-07) — the brigade repo was absorbed under this rule; winnow (a, b) and gauntlet (b) remain separate under it.
+Layers of the delivery discipline — story, epic, initiative, worker — are directories and entrypoints of **this** repo, never separate repos. Their contracts co-evolve, and the gates can only audit changes they can see whole: one diff domain. Stand up a separate repo only if at least one holds:
+
+- **(a)** a different license/commercial regime;
+- **(b)** an independent audience whose users never install the rest;
+- **(c)** a lifecycle/runtime that makes shared CI harmful;
+- **(d)** a security/visibility boundary;
+- **(e)** the interface across the boundary is **versioned, documented, and tested** — a published contract, not a format convention.
+
+Criterion (e) was added on 2026-07-24 when absorbing jig (#150) showed audience alone was the wrong test. jig had no independent audience, but neither did viva; what separated them was the *interface*. studious and jig coupled through undocumented format agreements — an evidence layout, a `PASS` token, a routing table, telemetry keys — each of which had to be renegotiated in two repos at once, and one of which (#148) blocked its own seam story from being real end-to-end while that story sat closed. viva publishes `docs/headless-contract.md`: a versioned contract with schema validators called at the boundary and tests around them. A boundary is affordable when crossing it means calling a contract, and expensive when it means agreeing on a convention.
+
+Decision records: `docs/initiative-altitude.md` (2026-07-07) — the brigade repo was absorbed under this rule; issue #150 (2026-07-24) — jig was absorbed under it, viva stays out under (e). winnow (a, b) and gauntlet (b) remain separate.
+
+## Two plugins, one tree
+
+This repo ships **two** separately-installable plugins from one diff domain:
+
+- **`studious`** at the root — the gates and reviews. Version line `v{version}`.
+- **`jig`** at `plugins/jig/` — the build-execution plugin (`/design`, `/plan`, `/build`, `/finish`, `/coach`). Version line `jig--v{version}`; it declares `dependencies: ["viva"]`, a hard dependency `/plan` and `/design` cannot run without.
+
+`.github/workflows/release.yml` moves only the line whose files changed (`scripts/release-plugin.sh`); the marketplace resolves jig through a `git-subdir` source pointing at `plugins/jig`. Never edit either `version` by hand.
+
+The load-bearing rule between them: **Studious's gates never require jig.** `scripts/check_gate_independence.py` enforces it in CI — no file under `commands/gate-*.md`, `agents/`, `workflows/`, `hooks/`, or `bin/` may name jig, and every mention elsewhere must be conditional. `reference/worker-contract.md` stays normative; jig is one executor that satisfies it, alongside Superpowers, a human, or anything else. This is what keeps PRODUCT.md's "not a methodology" non-goal true now that the methodology ships in the same tree.
+
+`plugins/jig/CLAUDE.md` carries only jig-specific conventions and defers here for everything shared.
 
 ## Naming and model conventions
 

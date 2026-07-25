@@ -17,12 +17,20 @@ product: it enters through `reference/worker-contract.md` (story brief in;
 implementation + evidence out), which any executor can satisfy — a dispatched agent,
 a human, or Superpowers where installed.
 
-Topology decision (2026-07-07): the delivery stack deliberately lives in this one
-repo, entered at different scopes, rather than as separate layered products. Repo
-boundaries follow license, audience, and lifecycle — never conceptual layering (the
-rule is recorded in CLAUDE.md). The initiative altitude — formerly the separate
-`brigade` design repo, now archived — is recorded at `docs/initiative-altitude.md`
-and becomes an entrypoint here if its entry gate fires.
+Topology decision (2026-07-07, extended 2026-07-24): the delivery stack deliberately
+lives in this one repo, entered at different scopes, rather than as separate layered
+products. Repo boundaries follow license, audience, lifecycle, and — since #150 — the
+quality of the interface across the boundary (the rule is recorded in CLAUDE.md).
+The initiative altitude — formerly the separate `brigade` design repo, now archived —
+is recorded at `docs/initiative-altitude.md` and becomes an entrypoint here if its
+entry gate fires.
+
+The repo therefore ships **two plugins**: `studious` (the gates and reviews) at the
+root, and `jig` (the build-execution entrypoint) at `plugins/jig/`, absorbed on
+2026-07-24 under #150. They install separately and version separately; what they
+share is one diff domain, so a contract touching both is one reviewable change the
+gates can audit whole. `viva`, which jig depends on for its human sign-off rounds,
+stays a separate repo — it publishes a versioned contract rather than a convention.
 
 Origin: the project was previously named Jaqal and renamed to Studious at v2.0.0
 (commit `2e1809c`, PR #35). Authored by Jacquard Labs; MIT-licensed; distributed as a
@@ -137,17 +145,29 @@ Traced from the commands and the README's two-rhythm description.
 ## What we're NOT building
 
 **Explicitly out of scope (documented):**
-- **Being a methodology** — Studious defines *what a worker must receive and
-  return* (`reference/worker-contract.md`), not *how to think while building*.
-  Brainstorming, TDD, and debugging methodology stay with the executor — Superpowers
-  or any other — and the contract, not any executor, is normative. A worker-layer
-  skill set (evidence capture and handback first) is parked and enters through the
-  normal gates on its own evidence, not by default.
+- **The gates being a methodology** — Studious defines *what a worker must receive
+  and return* (`reference/worker-contract.md`), not *how to think while building*.
+  Brainstorming, TDD, and debugging methodology stay with the executor, and the
+  contract — not any executor — is normative.
+
+  Redrawn 2026-07-24 (#150), when jig moved into this repo at `plugins/jig/`. The
+  repo now ships a methodology; the *gates* still don't have one. The line is no
+  longer "this repo contains no executor" but "no gate requires one," and it is a
+  CI check rather than a stated intention: `scripts/check_gate_independence.py`
+  fails the build if any gate command, agent, driver, hook, or the ledger names
+  jig. `studious` installs and runs standalone; Superpowers, a human, or any other
+  executor satisfies the same contract.
 - **A separate orchestration product** — the initiative altitude was chartered as a
   separate product (brigade) and deliberately absorbed as a future entrypoint
   (`docs/initiative-altitude.md`, 2026-07-07). Its build waits on its entry gate: a
   real ≥2-epic initiative demonstrating cross-epic failure that per-epic
   `/work-through` leaves unmanaged.
+- **Absorbing every adjacent tool** — jig came in because it coupled to the gates
+  through undocumented format conventions that had to be renegotiated across two
+  repos. viva stays a separate repo despite having no independent audience either,
+  because it publishes a versioned, tested headless contract that its callers drive
+  (criterion (e) in CLAUDE.md's repo-boundary rule). Absent an interface argument,
+  the answer is no.
 - **Auto-applying changes** — reviews and gates propose; they never modify context
   docs or fix code. The human approves every change.
 - **Replacing the issue tracker** — Studious works *with* GitHub Issues via `gh`; it

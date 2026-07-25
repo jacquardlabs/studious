@@ -33,10 +33,17 @@ def test_gate_surface_is_not_empty() -> None:
     assert len(matched) > 20, f"gate surface matched only {len(matched)} files"
 
 
-def test_every_optional_surface_file_exists() -> None:
+def test_every_listed_file_exists() -> None:
     """A renamed file would silently drop out of rule 2's coverage."""
-    for name in gi.OPTIONAL_SURFACE:
+    for name in gi.OPTIONAL_SURFACE + gi.TOPOLOGY_DOCS:
         assert (REPO / name).is_file(), f"{name} is listed but missing"
+
+
+def test_topology_docs_are_still_bound_by_rule_one() -> None:
+    """Exempt from the guard requirement, never from the gate-surface ban."""
+    gate_files = {p for pattern in gi.GATE_SURFACE for p in REPO.glob(pattern)}
+    exempt = {REPO / n for n in gi.TOPOLOGY_DOCS}
+    assert not (gate_files & exempt), "a topology doc is also on the gate surface"
 
 
 def test_catches_jig_in_the_gate_surface(tmp_path: Path, monkeypatch) -> None:
