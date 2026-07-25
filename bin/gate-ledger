@@ -447,6 +447,24 @@ cmd_work_log() {
     echo "gate-ledger: --slug, --step, and --outcome required" >&2
     return 2
   fi
+  # Per-step outcome vocabulary. Only a step whose *reader* branches on the token is
+  # constrained here; gate steps carry verdicts owned by reference/gate-vocabulary.md
+  # and stay free-form, as do markers like run-boundary. `build` is constrained because
+  # work-on.md's "Executor-reported build status" check branches on exactly these, and
+  # three writers had drifted into two dialects with nothing to catch it (#213).
+  #   BUILT | PAUSED | ESCALATED  executor-reported terminal status (worker-contract.md)
+  #   HANDED-OFF | SKIPPED        /work-on's own non-terminal flow markers
+  if [ "$step" = "build" ]; then
+    case "$outcome" in
+      BUILT|PAUSED|ESCALATED|HANDED-OFF|SKIPPED) ;;
+      *)
+        echo "gate-ledger: --step build --outcome '$outcome' is not a recognized status;" \
+             "use BUILT, PAUSED, ESCALATED, HANDED-OFF, or SKIPPED" \
+             "(reference/worker-contract.md, Status reporting)" >&2
+        return 2
+        ;;
+    esac
+  fi
   if ! have jq || ! have git; then
     echo "gate-ledger: work-log skipped (jq and git required)" >&2
     return 0

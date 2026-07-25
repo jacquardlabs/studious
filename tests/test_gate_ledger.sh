@@ -606,7 +606,7 @@ drc=$(sandbox)
 check "record exits 0 on a successful write" "0" "$rc"
 ( cd "$drc" && "$LEDGER" work-set --slug rc-work --phase decide ); rc=$?
 check "work-set exits 0 on a successful write" "0" "$rc"
-( cd "$drc" && "$LEDGER" work-log --slug rc-work --step build --outcome DONE ); rc=$?
+( cd "$drc" && "$LEDGER" work-log --slug rc-work --step build --outcome BUILT ); rc=$?
 check "work-log exits 0 on a successful write" "0" "$rc"
 ( cd "$drc" && "$LEDGER" epic-set --slug rc-epic --title "RC Epic" ); rc=$?
 check "epic-set exits 0 on a successful write" "0" "$rc"
@@ -646,7 +646,7 @@ check "work-set exits nonzero when the write fails" "no" "$([ "$rc" -eq 0 ] && e
 check "work-set leaves a corrupted work file untouched on failure" "not json" "$(cat "$fws")"
 
 printf 'not json' > "$fws"
-( cd "$dfail" && "$LEDGER" work-log --slug fail-work --step build --outcome DONE ) >/dev/null 2>&1; rc=$?
+( cd "$dfail" && "$LEDGER" work-log --slug fail-work --step build --outcome BUILT ) >/dev/null 2>&1; rc=$?
 check "work-log exits nonzero when the write fails" "no" "$([ "$rc" -eq 0 ] && echo yes || echo no)"
 check "work-log leaves a corrupted work file untouched on failure" "not json" "$(cat "$fws")"
 
@@ -997,13 +997,13 @@ check "work-set --phase on a non-epic-qualified slug appends no event (only ws-e
 # but only when the slug is epic-qualified; --phase is optional and omitted
 # (not null/empty) from the event when not given this call ---
 d32=$(sandbox)
-( cd "$d32" && "$LEDGER" work-log --slug "wl-epic--wl-story" --step build --outcome DONE )
+( cd "$d32" && "$LEDGER" work-log --slug "wl-epic--wl-story" --step build --outcome BUILT )
 evf32="$d32/.studious/epics/wl-epic.events.jsonl"
 check "work-log on an epic-qualified slug appends a step event" "1" "$(wc -l < "$evf32" | tr -d ' ')"
 stline1=$(sed -n '1p' "$evf32")
 check "step event kind" "step" "$(printf '%s' "$stline1" | jq -r '.kind')"
 check "step event stores step" "build" "$(printf '%s' "$stline1" | jq -r '.step')"
-check "step event stores outcome" "DONE" "$(printf '%s' "$stline1" | jq -r '.outcome')"
+check "step event stores outcome" "BUILT" "$(printf '%s' "$stline1" | jq -r '.outcome')"
 check "step event stores HEAD sha" "$(git -C "$d32" rev-parse --short HEAD)" "$(printf '%s' "$stline1" | jq -r '.sha')"
 check "step event omits phase (not null) when --phase wasn't given" "yes" \
   "$(printf '%s' "$stline1" | jq -e 'has("phase") | not' >/dev/null 2>&1 && echo yes || echo no)"
@@ -1017,7 +1017,7 @@ check "step event includes phase when given" "merge" "$(printf '%s' "$stline2" |
 check "phase-bearing step event key order matches reference/events-format.md" \
   '["at","epic","story","kind","step","outcome","phase","sha"]' "$(printf '%s' "$stline2" | jq -c 'keys_unsorted')"
 
-( cd "$d32" && "$LEDGER" work-log --slug "plain-feature-y" --step build --outcome DONE )
+( cd "$d32" && "$LEDGER" work-log --slug "plain-feature-y" --step build --outcome BUILT )
 check "work-log on a non-epic-qualified slug appends no event (only wl-epic's file exists)" \
   "wl-epic.events.jsonl" "$(cd "$d32/.studious/epics" && printf '%s\n' *.events.jsonl)"
 
@@ -1025,7 +1025,7 @@ check "work-log on a non-epic-qualified slug appends no event (only wl-epic's fi
 # exactly like the other four stores (#98) ---
 d33=$(sandbox)
 git -C "$d33" worktree add -q "$d33/.studious/worktrees/e/s" -b epic/e--s
-( cd "$d33/.studious/worktrees/e/s" && "$LEDGER" work-log --slug "e--s" --step build --outcome DONE )
+( cd "$d33/.studious/worktrees/e/s" && "$LEDGER" work-log --slug "e--s" --step build --outcome BUILT )
 check "events append from a linked worktree writes the MAIN root events file" "yes" \
   "$([ -f "$d33/.studious/epics/e.events.jsonl" ] && echo yes || echo no)"
 check "events append from a linked worktree does not write under the worktree" "no" \
@@ -1076,6 +1076,44 @@ check "every distinct step value survives exactly once (no lost or merged writes
   "$(jq -r '.step' "$evf36" | sort -u | wc -l | tr -d ' ')"
 check "every concurrently-written line has a stamped at timestamp" "12" \
   "$(jq -r 'select(.at != null and .at != "") | .at' "$evf36" | wc -l | tr -d ' ')"
+
+# --- work-log validates the build step's outcome vocabulary (#213) ---
+# Three writers had drifted into two dialects: the epic driver wrote DONE, /build and
+# the worker contract wrote BUILT|PAUSED|ESCALATED, and work-on.md branched on exactly
+# the latter three — so an epic story branch read back a token with no case. The slot
+# was a free string with nothing to catch it. It is now checked at the write.
+d37=$(sandbox)
+
+for ok_outcome in BUILT PAUSED ESCALATED HANDED-OFF SKIPPED; do
+  ( cd "$d37" && "$LEDGER" work-log --slug enum-work --step build --outcome "$ok_outcome" ) >/dev/null 2>&1
+  check "work-log accepts build outcome $ok_outcome" "0" "$?"
+done
+
+( cd "$d37" && "$LEDGER" work-log --slug enum-work --step build --outcome DONE ) >/dev/null 2>&1; rc=$?
+check "work-log rejects the superseded DONE dialect for --step build" "2" "$rc"
+
+( cd "$d37" && "$LEDGER" work-log --slug enum-work --step build --outcome built ) >/dev/null 2>&1; rc=$?
+check "the build outcome check is case-sensitive" "2" "$rc"
+
+# The rejection names the accepted set and where it is specified — a caller that hits
+# this is a mis-authored prompt, and the message is what points at the fix.
+msg37=$( ( cd "$d37" && "$LEDGER" work-log --slug enum-work --step build --outcome DONE ) 2>&1 )
+check "the rejection names the accepted set" "yes" \
+  "$(case "$msg37" in *BUILT*PAUSED*ESCALATED*) echo yes ;; *) echo no ;; esac)"
+check "the rejection names the contract that owns the vocabulary" "yes" \
+  "$(case "$msg37" in *worker-contract.md*) echo yes ;; *) echo no ;; esac)"
+
+# A rejected write leaves no trace: history must not carry the bad token.
+check "a rejected outcome appends no history entry" "0" \
+  "$(jq -r '[.history[] | select(.outcome == "DONE")] | length' "$d37/.studious/work/enum-work.json")"
+
+# Only the build step is constrained. Gate verdicts belong to
+# reference/gate-vocabulary.md and markers like run-boundary to their own writers —
+# validating those here would duplicate a vocabulary this tool doesn't own.
+( cd "$d37" && "$LEDGER" work-log --slug enum-work --step audit --outcome "FIX AND RE-AUDIT" ) >/dev/null 2>&1
+check "a gate step's outcome stays free-form" "0" "$?"
+( cd "$d37" && "$LEDGER" work-log --slug enum-work --step run-boundary --outcome DISPATCHED ) >/dev/null 2>&1
+check "a non-build marker step's outcome stays free-form" "0" "$?"
 
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi
