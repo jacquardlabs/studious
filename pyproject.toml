@@ -1,7 +1,3 @@
-# studious's release line. jig ships from this same repo on its own line — see
-# plugins/jig/pyproject.toml (tag prefix `jig--v`) — and .github/workflows/release.yml
-# decides which of the two a given push moves. studious keeps the bare `v{version}`
-# tag format its whole history already uses.
 [tool.semantic_release]
 version_variables = [".claude-plugin/plugin.json:version"]
 tag_format = "v{version}"
@@ -12,3 +8,23 @@ upload_to_vcs_release = true
 
 [tool.semantic_release.branches.main]
 match = "main"
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+# Mirrors the rule set CLAUDE.md documents and this repo's own idiom rubric
+# (reference/idioms/python.md) names as "the linter": bugbear, comprehensions,
+# simplify, perflint, pyflakes-refactor, and flake8-pie. `code-auditor`'s judgment
+# layer picks up structural recognitions a linter misses; CLAUDE.md conventions
+# override this list.
+#
+# extend-select, not select: `select` *replaces* ruff's default rule set rather than
+# adding to it, which would silently disable Pyflakes and the default pycodestyle
+# error checks CLAUDE.md's own checklist calls out.
+#
+# That default set is not fixed — it has grown past the E4/E7/E9/F this comment
+# originally named, so `extend-select` inherits whatever the pinned ruff ships.
+# .github/workflows/ci.yml pins the version for exactly that reason; bump the pin
+# deliberately and fix what the new defaults surface, rather than floating.
+extend-select = ["B", "C4", "PERF", "PIE", "RUF", "SIM"]

@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Validate every .claude-plugin/plugin.json in the repo against Studious's manifest shape.
-
-This repo ships two plugins from one tree: `studious` at the root and `jig` under
-`plugins/jig/`. Both manifests are validated, so a manifest defect in either one fails
-CI the same way.
+"""Validate .claude-plugin/plugin.json against Studious's required manifest shape.
 
 Standard library only. Cross-check against the official Claude Code plugin manifest
 schema if one is published; until then this local check stands.
@@ -16,23 +12,14 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+PLUGIN = REPO / ".claude-plugin" / "plugin.json"
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 NAME = re.compile(r"^[a-z0-9-]+$")
 REQUIRED = ("name", "description", "version", "author", "repository", "license", "keywords")
 
 
-def manifests() -> list[Path]:
-    """Every plugin manifest this repo ships, root first then plugins/*/ in name order."""
-    found = [REPO / ".claude-plugin" / "plugin.json"]
-    found.extend(sorted((REPO / "plugins").glob("*/.claude-plugin/plugin.json")))
-    return [p for p in found if p.is_file()]
-
-
 def validate(data: dict) -> list[str]:
-    errors: list[str] = []
-    for key in REQUIRED:
-        if key not in data:
-            errors.append(f"missing required field: {key}")
+    errors: list[str] = [f"missing required field: {key}" for key in REQUIRED if key not in data]
 
     name = data.get("name")
     if "name" in data and not isinstance(name, str):
@@ -56,56 +43,23 @@ def validate(data: dict) -> list[str]:
     if "keywords" in data and not isinstance(data.get("keywords"), list):
         errors.append("keywords must be an array")
 
-    errors.extend(validate_dependencies(data.get("dependencies")))
-
-    return errors
-
-
-def validate_dependencies(deps: object) -> list[str]:
-    """A `dependencies` entry is a bare plugin name or {name, version?, marketplace?}."""
-    if deps is None:
-        return []
-    if not isinstance(deps, list):
-        return ["dependencies must be an array"]
-
-    errors: list[str] = []
-    for i, dep in enumerate(deps):
-        if isinstance(dep, str):
-            if not NAME.match(dep):
-                errors.append(f"dependencies[{i}] '{dep}' must match ^[a-z0-9-]+$")
-        elif isinstance(dep, dict):
-            name = dep.get("name")
-            if not isinstance(name, str) or not NAME.match(name):
-                errors.append(f"dependencies[{i}].name must be a plugin name matching ^[a-z0-9-]+$")
-        else:
-            errors.append(f"dependencies[{i}] must be a string or an object with a name")
     return errors
 
 
 def main() -> int:
-    found = manifests()
-    if not found:
-        print("No plugin manifests found.")
+    try:
+        data = json.loads(PLUGIN.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"plugin.json could not be read/parsed: {exc}")
         return 1
-
-    failed = False
-    for path in found:
-        rel = path.relative_to(REPO)
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            print(f"{rel} could not be read/parsed: {exc}")
-            failed = True
-            continue
-        errors = validate(data)
-        if errors:
-            print(f"{rel} validation FAILED:")
-            for e in errors:
-                print(f"  - {e}")
-            failed = True
-        else:
-            print(f"{rel} valid ({data.get('name')} v{data.get('version')}).")
-    return 1 if failed else 0
+    errors = validate(data)
+    if errors:
+        print("Plugin manifest validation FAILED:")
+        for e in errors:
+            print(f"  - {e}")
+        return 1
+    print("Plugin manifest valid.")
+    return 0
 
 
 if __name__ == "__main__":

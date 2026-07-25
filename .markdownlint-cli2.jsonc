@@ -9,6 +9,12 @@
     "MD013": false, // line length
     "MD033": false, // inline HTML (system-reminder tags, etc.)
     "MD041": false, // first line must be a heading (frontmatter precedes it)
+    // Correctness, not style: the build skills document whitespace-significant tokens
+    // inside code spans. The PLAN.md heading suffixes ` [PASS]` / ` [REPLAN]` /
+    // ` [ESCALATE]` carry a leading space that is part of `scripts/status-flip`'s own
+    // SUFFIX_RE grammar, and `### ` describes an ATX prefix including its space.
+    // Running `markdownlint --fix` against this rule silently rewrites the grammar.
+    "MD038": false, // spaces inside code spans
     // Current violators — tighten incrementally via a follow-up `--fix` pass:
     "MD022": false, // blanks around headings
     "MD032": false, // blanks around lists
@@ -17,15 +23,10 @@
     "MD026": false, // trailing punctuation in heading
     "MD029": false  // ordered list prefix
   },
-  // jig ships from plugins/jig/ and its prompt surface is linted too, under the
-  // rule exemptions in plugins/jig/.markdownlint-cli2.jsonc.
-  "globs": [
-    "commands/**/*.md", "agents/**/*.md", "skills/**/*.md", "reference/**/*.md", "*.md",
-    "plugins/*/skills/**/*.md", "plugins/*/*.md"
-  ],
-  // PLAN.md (when present) is jig's build-plan artifact, not authored prose — its
-  // `### Task N` headings are load-bearing for jig's own toolchain (plan-lint, viva's
-  // `--split-on`, /build's parser) and deliberately skip an H2 level per jig's own
+  "globs": ["commands/**/*.md", "agents/**/*.md", "skills/**/*.md", "reference/**/*.md", "*.md"],
+  // PLAN.md (when present) is `/plan`'s build-plan artifact, not authored prose — its
+  // `### Task N` headings are load-bearing for the build toolchain (plan-lint, viva's
+  // `--split-on`, `/build`'s parser) and deliberately skip an H2 level per the
   // documented PLAN.md shape. Same rationale as the docs/** exclusion below: a
   // process/report artifact, not content subject to this repo's prose-quality bar.
   "ignores": ["node_modules", "**/CHANGELOG.md", "**/docs/**", "**/PLAN.md"]

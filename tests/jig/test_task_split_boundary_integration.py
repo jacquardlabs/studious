@@ -39,8 +39,8 @@ from _task_split_boundary import (
     task_starts,
 )
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-FIXTURES = REPO_ROOT / "tests" / "fixtures" / "plan-lint"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+FIXTURES = REPO_ROOT / "tests" / "jig" / "fixtures" / "plan-lint"
 BUILD_SKILL_MD = REPO_ROOT / "skills" / "build" / "SKILL.md"
 PLAN_SKILL_MD = REPO_ROOT / "skills" / "plan" / "SKILL.md"
 

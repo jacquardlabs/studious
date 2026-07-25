@@ -1,6 +1,6 @@
 {
   "name": "studious",
-  "description": "Studious — a product-judgment workflow for Claude Code. It examines each piece of work: whether to build it, whether the design serves users, and whether the result holds up. Quality gates, periodic health reviews, and pre-merge audits.",
+  "description": "Studious — a delivery discipline for Claude Code. It examines each piece of work: whether to build it, whether the design serves users, and whether the result holds up — then builds it under those same gates. Quality gates, periodic health reviews, pre-merge audits, and a script-verified build loop.",
   "version": "2.25.1",
   "author": {
     "name": "Jacquard Labs"
@@ -13,6 +13,11 @@
     "product",
     "design-system",
     "health-check",
-    "quality-gates"
+    "quality-gates",
+    "build",
+    "tdd"
+  ],
+  "dependencies": [
+    "viva"
   ]
 }

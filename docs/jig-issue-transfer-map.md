@@ -59,12 +59,12 @@ A jig number absent from this table was never transferred; it still resolves as
 
 ## Known stale references
 
-Two kinds of bare `#N` survive in transferred bodies and in `plugins/jig/`'s own prose,
+Two kinds of bare `#N` survive in transferred bodies and in the build skills' own prose,
 and neither was rewritten — mechanical rewriting would have changed meaning:
 
 - **Ranges** like `#87–#94` span issues that transferred and issues that did not.
 - **Genuine studious references.** `#190`'s "Studious's measured data (#130)" already
   meant this repo's #130; rewriting it as a jig reference would have inverted it.
 
-Cleaning up the remaining references inside `plugins/jig/`'s prompt files is tracked
+Cleaning up the remaining references inside the build skills' prompt files is tracked
 separately — it is prose churn, deliberately kept out of the migration diff.

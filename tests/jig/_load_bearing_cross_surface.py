@@ -36,7 +36,7 @@ from pathlib import Path
 from _load_bearing import derive_load_bearing_set
 from _task_split_boundary import load_plan_lint_module
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 _STEP_1_5_HEADING_NUMBER_RE = re.compile(r"its heading number")
 _STEP_1_5_TITLE_MATCH_RE = re.compile(r"unambiguous title match")

@@ -42,7 +42,7 @@ from pathlib import Path
 
 from _frontmatter import FRONTMATTER
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 PLUGIN_MANIFEST = REPO_ROOT / ".claude-plugin" / "plugin.json"
 REQUIRED_MANIFEST_KEYS = (
     "name",
@@ -73,65 +73,31 @@ EXPECTED_MODEL_INVOKED_SKILLS = ("task-execution-discipline",)
 ALL_KNOWN_SKILL_DIRS = set(EXPECTED_SKILLS) | set(EXPECTED_MODEL_INVOKED_SKILLS)
 
 
+# The manifest's own shape is checked once, by scripts/validate_plugin.py and
+# tests/python/test_validate_plugin.py. There is one manifest now (studious #150),
+# so re-asserting name/version/author/license/keywords here would be a second copy
+# of the same contract — the exact duplication absorbing jig was meant to remove.
+# What survives is the one claim those checks do not make:
+
+
 class TestPluginManifest(unittest.TestCase):
-    def setUp(self) -> None:
-        self.assertTrue(
-            PLUGIN_MANIFEST.is_file(),
-            f"{PLUGIN_MANIFEST} does not exist",
-        )
-        self.manifest: dict[str, object] = json.loads(
-            PLUGIN_MANIFEST.read_text(encoding="utf-8")
-        )
-
-    def test_has_all_required_keys(self) -> None:
-        missing = [k for k in REQUIRED_MANIFEST_KEYS if k not in self.manifest]
-        self.assertEqual(missing, [], f"plugin.json missing keys: {missing}")
-
-    def test_name_matches_studious_shape(self) -> None:
-        name = self.manifest["name"]
-        self.assertIsInstance(name, str)
-        self.assertRegex(name, PLUGIN_NAME)
-        self.assertEqual(name, "jig")
-
-    def test_version_is_semver(self) -> None:
-        version = self.manifest["version"]
-        self.assertIsInstance(version, str)
-        self.assertRegex(version, SEMVER)
-
-    def test_author_is_object_with_name(self) -> None:
-        author = self.manifest["author"]
-        self.assertIsInstance(author, dict)
-        self.assertIn("name", author)
-
-    def test_keywords_is_a_list(self) -> None:
-        self.assertIsInstance(self.manifest["keywords"], list)
-        self.assertGreater(len(self.manifest["keywords"]), 0)
-
-    def test_license_is_mit(self) -> None:
-        self.assertEqual(self.manifest["license"], "MIT")
-
-    def test_repository_points_at_the_shipping_repo(self) -> None:
-        # jig ships from plugins/jig/ inside the studious repo (studious #150);
-        # the manifest names the repo a user actually clones, not the archived one.
-        self.assertEqual(
-            self.manifest["repository"], "https://github.com/jacquardlabs/studious"
-        )
-
-    def test_declares_viva_dependency(self) -> None:
-        # /plan and /design stop dead without viva — a hard dependency that was
-        # undeclared while jig shipped from its own repo.
-        self.assertIn("viva", self.manifest["dependencies"])
+    def test_declares_the_viva_dependency(self) -> None:
+        # /plan and /design stop dead without viva. It went undeclared the whole
+        # time they shipped from jig's own repo; now that they are studious skills,
+        # the dependency belongs on studious's manifest.
+        manifest = json.loads(PLUGIN_MANIFEST.read_text(encoding="utf-8"))
+        self.assertIn("viva", manifest.get("dependencies", []))
 
 
 class TestSkillsDirectory(unittest.TestCase):
-    def test_no_extra_top_level_skill_dirs(self) -> None:
-        # Guards against an unaccounted-for directory under skills/ — not
-        # against the presence of a *known* model-invoked skill alongside
-        # the five user-invoked stubs (see ALL_KNOWN_SKILL_DIRS above).
+    def test_every_build_execution_skill_is_present(self) -> None:
+        # skills/ now holds studious's own skills alongside these, so enumerating
+        # the whole directory would just be a list to update on every addition.
+        # What matters is that none of the build-execution set went missing.
         skills_dir = REPO_ROOT / "skills"
         self.assertTrue(skills_dir.is_dir())
         actual = {p.name for p in skills_dir.iterdir() if p.is_dir()}
-        self.assertEqual(actual, ALL_KNOWN_SKILL_DIRS)
+        self.assertEqual(ALL_KNOWN_SKILL_DIRS - actual, set())
 
     def test_each_skill_has_a_stub_skill_md_with_valid_frontmatter(self) -> None:
         for skill in EXPECTED_SKILLS:

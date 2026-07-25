@@ -37,7 +37,7 @@ from pathlib import Path
 from _frontmatter import FRONTMATTER
 from _vocabulary import derive_jig_vocabulary
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL_DIR = REPO_ROOT / "skills" / "task-execution-discipline"
 SKILL_MD = SKILL_DIR / "SKILL.md"
 DESIGN_MD = REPO_ROOT / "DESIGN.md"

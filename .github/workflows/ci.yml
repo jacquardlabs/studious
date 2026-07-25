@@ -32,23 +32,21 @@ jobs:
       - name: Unit tests
         run: uv run --no-project --with pytest pytest tests/python -v
 
-  jig:
-    name: jig lint + tests
+  build-scripts:
+    name: build-script lint + tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
-      # jig shipped from its own repo with no CI job of any kind — neither of these
-      # ran on a pull request until it moved here (jig#55, jig#87). ruff is pinned for
-      # the same reason markdownlint, eslint, and shellcheck are: its default rule set
-      # grows between releases, so an unpinned run turns an upstream release into a
-      # surprise red build.
+      # The build-execution scripts and their unittest suite arrived from jig's own
+      # repo, where no CI job of any kind ran them (jig#55, jig#87). ruff is pinned
+      # for the same reason markdownlint, eslint, and shellcheck are: its default rule
+      # set grows between releases, so an unpinned run turns an upstream release into
+      # a surprise red build.
       - name: Ruff
-        working-directory: plugins/jig
-        run: uv run --no-project --with ruff==0.16.0 ruff check .
+        run: uv run --no-project --with ruff==0.16.0 ruff check scripts tests/jig
       - name: Unit tests
-        working-directory: plugins/jig
-        run: uv run --no-project python3 -m unittest discover -s tests
+        run: uv run --no-project python3 -m unittest discover -s tests/jig
 
   ledger:
     name: gate-ledger tests

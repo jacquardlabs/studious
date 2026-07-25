@@ -31,8 +31,8 @@ from _load_bearing_cross_surface import (
     surface_2_reference,
 )
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-FIXTURES = REPO_ROOT / "tests" / "fixtures" / "plan-lint"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+FIXTURES = REPO_ROOT / "tests" / "jig" / "fixtures" / "plan-lint"
 BUILD_SKILL_MD = REPO_ROOT / "skills" / "build" / "SKILL.md"
 
 FIXTURE_NAMES = ("clean-plan.md", "broken-plan.md", "load-bearing-title-match.md")

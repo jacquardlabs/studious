@@ -168,8 +168,8 @@ Every command Studious ships, for quick reference:
 
 ## Works well with
 
-- [Superpowers](https://github.com/obra/superpowers): an optional executor for the build step — brainstorming, planning, TDD, debugging. Studious owns the gates and the worker contract; any executor that satisfies the contract works, Superpowers included.
-- **jig** ([`plugins/jig/`](plugins/jig/)): a purpose-built executor for the build step — `/design`, `/plan`, `/build`, `/finish` satisfy the worker contract directly and report back into the same flow state. It ships from this repo as a second, separately-installable plugin with its own version line, and pulls in [viva](https://github.com/jacquardlabs/viva) for its human sign-off rounds. Installing Studious never installs jig, and no gate requires it — CI enforces that.
+- [viva](https://github.com/jacquardlabs/viva): a declared dependency, installed automatically. `/design` and `/plan` drive it for their human sign-off rounds — section-by-section review in the browser, through viva's published headless contract.
+- [Superpowers](https://github.com/obra/superpowers): an optional alternative executor for the build step. Studious owns the gates and the worker contract; any executor that satisfies the contract works, and no gate requires the built-in one — CI enforces that.
 - GitHub Issues: `/backlog-priorities` and `/backlog-hygiene` work with your tracker via the `gh` CLI.
 
 ## Contributing

@@ -46,6 +46,29 @@ one "stop/rethink." The canonical listing and per-gate breakdown now live in
 `reference/gate-vocabulary.md`, cited by `commands/work-on.md` rather than restated there —
 this table should mirror that file, not diverge from it.
 
+### Build-execution vocabularies
+
+The gate vocabularies above judge work; these describe producing it. Absorbed with jig
+(#150) — every row's source of truth is the skill's own `SKILL.md`.
+
+| Concept | Canonical display | Source of truth | Consumers |
+|---------|-------------------|-----------------|-----------|
+| `/design` verdict | `DESIGNED` \| `NEEDS RESEARCH` \| `REVISED` | `skills/design/SKILL.md` (verdict table) | `/design` output; read by `/plan` and `/gate-design-review` |
+| `/plan` verdict | `PLAN READY` \| `DESIGN GAP` \| `TOO BIG` | `skills/plan/SKILL.md` (verdict table) | `/plan` output; `DESIGN GAP` routes back to `/design` |
+| `/build` task status | `todo` → `in-progress` → `PASS`/`REPLAN`/`ESCALATE` | `skills/build/SKILL.md` | flipped by scripts only, never the model |
+| `/build` failure-routine action | `FIX` \| `RESAMPLE` | `skills/build/SKILL.md` | the Foreman's own per-attempt judgment call after an item FAIL; transient, never written as a task status suffix |
+| `/build` session verdict | `BUILT` \| `PAUSED` \| `ESCALATED` | `skills/build/SKILL.md` (verdict table) | reported to the coach, the human, and `gate-ledger` |
+| inspector verdict | `CLEAR` \| `DEFECT` \| `CONCERN` | `skills/build/SKILL.md` (step 2.6) | `/build`'s failure routine; `CONCERN` forwards to `/gate-audit` |
+| `/finish` verdict | `MERGE` \| `PR` \| `KEEP` \| `DISCARD` | `skills/finish/SKILL.md` (verdict table) | closes out a build branch |
+| checkpoint item type | `cap` \| `hold` | `skills/plan/SKILL.md` (checkpoint block template) | every checkpoint block in `PLAN.md` |
+| verification tier | `script` \| `test-backed` \| `probe` | `skills/plan/SKILL.md` (checkpoint block template) | every checkpoint item; no `judgment` tier permitted |
+| risk tag | `LOW` \| `REPLAN-RISK` \| `ESCALATE-RISK` | `skills/plan/SKILL.md` (Risk tagging) | assigned by `/plan`, consumed by `/build`'s cadence/pause logic |
+
+**`PASS` means two different things and the collision is deliberate-adjacent, not
+resolved.** A `/build` task status `PASS` is a `PLAN.md` heading suffix written by
+`scripts/status-flip`; a `gate-audit` `PASS` is a gate verdict in the ledger. Name which
+one you mean whenever both could be read — tracked as #174.
+
 ### Severity tiers
 
 Findings across audits and reviews sort into three tiers, named consistently everywhere:
@@ -66,6 +89,34 @@ cited by the auditor/reviewer agents rather than restated per-agent.
   verdict tokens. Used by `gate-audit`, `gate-acceptance`, and the review agents.
 - **Summary line** — "one line per auditor/review: name, findings by severity, pass/fail."
 - **Report file paths** — periodic reviews write to `docs/studious/<area>-reviews/YYYY-MM-DD-<area>-review.md`.
+- **The checkpoint block** is the build side's closest analog to a type scale — a fixed
+  template every task in `PLAN.md` follows: `Why now` / `Read first` / `Rests on` / `Do` /
+  `Not here` / `Done means` (numbered cap/hold items with a verification tier) /
+  `Evidence`. Every block: ≥1 cap, ≥1 hold, ≤5 items total.
+- **The tier parenthetical's own internal shape** (`scripts/plan-lint`): the tier word
+  itself, and, for `script` / `test-backed` items only, a backtick-quoted repo-relative
+  method path immediately after it — a `probe` item carries no path, since there's no
+  pre-existing repo file to name for a live-observed artifact:
+
+  ```
+  Done means:
+  1. [cap|hold]  <behavior text>          (tier: script `scripts/plan-lint`)
+  2. [cap|hold]  <behavior text>          (tier: test-backed `tests/jig/test_plan_lint.py`)
+  3. [cap|hold]  <behavior text>          (tier: probe)
+  ```
+
+  A backtick span anywhere in a checkpoint block (a `Read first:` pointer, a tier's
+  method path, a `[cap]` item's own behavior text on a LOAD-BEARING task) is the plan
+  author's explicit signal that a token is concrete and checkable, not narrative —
+  `scripts/plan-lint` treats prose outside backticks as unchecked by design.
+- **Design doc structure** (`reference/design-doc-contract.md`): exactly 7 sections, each
+  tied to a named downstream consumer (Problem & persona, Proposed design, User journey,
+  Out of scope, Alternatives considered, Operational readiness, Open questions — see
+  `skills/design/SKILL.md` Step 4 for the section→consumer table).
+- **Task calibration**: `/plan` produces 3–8 tasks per plan; <3 is too big to verify, >8
+  is fragmenting or the feature itself is `TOO BIG`.
+- **PR evidence table**: `/finish` promotes each task's Done-means into the PR body as
+  item → verification method → evidence link → pass.
 
 ## Per-surface conventions
 

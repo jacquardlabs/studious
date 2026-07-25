@@ -52,7 +52,7 @@ def _normalize_ws(text: str) -> str:
     happens to be hand-wrapped."""
     return re.sub(r"\s+", " ", text)
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "worktree-setup"
 
 PASS_CMD = "python3 -c 'pass'"

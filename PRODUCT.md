@@ -25,12 +25,14 @@ The initiative altitude — formerly the separate `brigade` design repo, now arc
 is recorded at `docs/initiative-altitude.md` and becomes an entrypoint here if its
 entry gate fires.
 
-The repo therefore ships **two plugins**: `studious` (the gates and reviews) at the
-root, and `jig` (the build-execution entrypoint) at `plugins/jig/`, absorbed on
-2026-07-24 under #150. They install separately and version separately; what they
-share is one diff domain, so a contract touching both is one reviewable change the
-gates can audit whole. `viva`, which jig depends on for its human sign-off rounds,
-stays a separate repo — it publishes a versioned contract rather than a convention.
+jig — the build-execution workflow (`/design`, `/plan`, `/build`, `/finish`, `/coach`)
+— was absorbed into this plugin on 2026-07-25 under #150. Not as a second installable:
+a two-plugin split would have bought separate installability for an audience of zero
+while costing two version lines, two release paths, a `git-subdir` marketplace source,
+and a seed-tag step between merges. One plugin, one version, one install. `viva`, which
+`/plan` and `/design` require for their human sign-off rounds, stays a separate repo and
+is now a declared `dependencies` entry — it publishes a versioned contract rather than a
+convention (CLAUDE.md's boundary criterion (e)).
 
 Origin: the project was previously named Jaqal and renamed to Studious at v2.0.0
 (commit `2e1809c`, PR #35). Authored by Jacquard Labs; MIT-licensed; distributed as a
@@ -81,7 +83,9 @@ this section is your voice, not the extractor's.
 
 - **Judgment is the spine; labor is contracted** — gates and reviews decide (should
   we build it, did we build it right); building enters through the worker contract
-  and is always gated, never trusted. Studious never builds in its own lane: gate
+  and is always gated, never trusted. Shipping an executor in the same plugin did not
+  change this: `reference/worker-contract.md` stays normative, `/build` is one
+  implementation of it, and a human or Superpowers satisfies the same contract. Gate
   agents never build, worker agents never gate, and they never share context.
 - **One repo, entrypoints per scope** — build session, story (`/work-on`), epic
   (`/work-through`), and someday initiative (`docs/initiative-altitude.md`) are
@@ -89,7 +93,16 @@ this section is your voice, not the extractor's.
   live in one diff domain, where the gates can audit whole changes.
 - **Code owns bookkeeping; prompts own judgment** — schedulers, DAG order, retry
   caps, and ledgers are code (`bin/gate-ledger`, `workflows/epic-driver.js`);
-  decomposition, verdicts, and briefs are dispatched prompts.
+  decomposition, verdicts, and briefs are dispatched prompts. The build side states
+  the sharp version: anything decidable without judgment — status flips, verification
+  runs, lints, evidence capture — is a script, and **the model never self-reports what
+  a script can check**.
+- **Nothing signs off on itself** — executor attestation is structurally worthless.
+  Scripts re-verify; independent fresh-context review happens at boundaries. This is
+  why the gates stay executor-agnostic even now that an executor ships beside them, and
+  why `scripts/check_gate_independence.py` enforces it in CI rather than trusting it.
+- **Anti-cleverness tripwire** — a sequential for-loop is the default. No sprint
+  ceremony, no resident coordinating roles, no agent persona that outlives its dispatch.
 - **Propose, don't apply** — reviews surface findings and propose updates to context
   docs, but never write them. "They never apply them. You review and approve." The
   human stays the decision-maker.
@@ -150,13 +163,13 @@ Traced from the commands and the README's two-rhythm description.
   Brainstorming, TDD, and debugging methodology stay with the executor, and the
   contract — not any executor — is normative.
 
-  Redrawn 2026-07-24 (#150), when jig moved into this repo at `plugins/jig/`. The
-  repo now ships a methodology; the *gates* still don't have one. The line is no
-  longer "this repo contains no executor" but "no gate requires one," and it is a
-  CI check rather than a stated intention: `scripts/check_gate_independence.py`
-  fails the build if any gate command, agent, driver, hook, or the ledger names
-  jig. `studious` installs and runs standalone; Superpowers, a human, or any other
-  executor satisfies the same contract.
+  Redrawn 2026-07-25 (#150), when the build skills were absorbed into this plugin.
+  Studious now ships a methodology; the *gates* still don't have one. The line is no
+  longer "this product contains no executor" but "no gate requires one," and it is a
+  CI check rather than a stated intention: `scripts/check_gate_independence.py` fails
+  the build if any gate command, agent, driver, hook, or the ledger invokes a build
+  skill or requires a build artifact. Superpowers, a human, or any other executor
+  satisfies the same contract.
 - **A separate orchestration product** — the initiative altitude was chartered as a
   separate product (brigade) and deliberately absorbed as a future entrypoint
   (`docs/initiative-altitude.md`, 2026-07-07). Its build waits on its entry gate: a

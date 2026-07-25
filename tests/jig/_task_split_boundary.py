@@ -33,7 +33,7 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 PLAN_LINT_SCRIPT = REPO_ROOT / "scripts" / "plan-lint"
 
 # ---------------------------------------------------------------------------

@@ -19,10 +19,10 @@ npx -y markdownlint-cli2
 # Link-check every internal reference in agents/commands/skills
 uv run --no-project python scripts/check_references.py
 
-# Validate every plugin.json in the tree (root + plugins/*/) against the schema
+# Validate .claude-plugin/plugin.json against the schema
 uv run --no-project python scripts/validate_plugin.py
 
-# Assert no Studious gate requires jig — the promise-keeper for the two-plugin tree
+# Assert no gate invokes a build skill or requires a build artifact
 uv run --no-project python scripts/check_gate_independence.py
 
 # Python unit tests (run a single test by node id)
@@ -46,12 +46,12 @@ bash tests/test_workflows_lint.sh
 node --check assets/board-ui/app.js
 node --test tests/js/*.js
 
-# jig's own lint and tests (ruff pinned; unittest, not pytest) — run from plugins/jig
-cd plugins/jig && uv run --no-project --with ruff==0.16.0 ruff check .
-cd plugins/jig && uv run --no-project python3 -m unittest discover -s tests -v
+# Build-script lint and tests (ruff pinned; stdlib unittest, not pytest)
+uv run --no-project --with ruff==0.16.0 ruff check scripts tests/jig
+uv run --no-project python3 -m unittest discover -s tests/jig -v
 ```
 
-Releases are automated via semantic-release, one version line per plugin — `pyproject.toml` for studious, `plugins/jig/pyproject.toml` for jig. Each version lives in that plugin's `.claude-plugin/plugin.json` and is bumped by CI on merge to `main` — never edit either by hand.
+Releases are automated via semantic-release (`pyproject.toml`); the version lives in `.claude-plugin/plugin.json` and is bumped by CI on merge to `main` — never edit it by hand.
 
 ## Architecture
 
@@ -64,7 +64,7 @@ The directory layout encodes a role split (full version in `CONTRIBUTING.md`):
 - `hooks/` — shipped hook scripts + `hooks.json`. Two live hooks: a non-blocking PreToolUse reminder before `gh pr create` (`gate-reminder.sh`), and a silent PostToolUse/PostToolUseFailure evidence-capture hook on `Bash` that appends verification-command records while a story is armed (`evidence-capture.sh`; format pinned in `reference/evidence-format.md`).
 - `bin/gate-ledger` — reads/writes the per-branch gate ledger and the per-feature `/work-on` work files.
 - `templates/` — PRODUCT.md / DESIGN.md scaffolds created by `/studious-init` in the consuming project.
-- `plugins/<name>/` — a second plugin shipped from this tree, self-contained with its own manifest, context docs, scripts, and tests. Today: `plugins/jig/`. See "Two plugins, one tree" below.
+- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence) plus the build skills' own executables (`plan-lint`, `design-lint`, `verify`, `status-flip`, `build-report`, `evidence-capture`, `worktree-setup`). The latter are run by `/plan` and `/build`, not by CI.
 
 Key invariants when adding or changing prompts:
 
@@ -89,18 +89,49 @@ Criterion (e) was added on 2026-07-24 when absorbing jig (#150) showed audience 
 
 Decision records: `docs/initiative-altitude.md` (2026-07-07) — the brigade repo was absorbed under this rule; issue #150 (2026-07-24) — jig was absorbed under it, viva stays out under (e). winnow (a, b) and gauntlet (b) remain separate.
 
-## Two plugins, one tree
+## The build skills, and the one rule that governs them
 
-This repo ships **two** separately-installable plugins from one diff domain:
+jig was absorbed into this plugin (#150), not added beside it. `/design`, `/plan`,
+`/build`, `/finish`, and `/coach` are `skills/` here like any other; their Python lives
+in `scripts/`, their unittest suite in `tests/jig/`. One manifest, one version line, one
+install. The manifest declares `dependencies: ["viva"]` — `/plan` and `/design` stop dead
+without it.
 
-- **`studious`** at the root — the gates and reviews. Version line `v{version}`.
-- **`jig`** at `plugins/jig/` — the build-execution plugin (`/design`, `/plan`, `/build`, `/finish`, `/coach`). Version line `jig--v{version}`; it declares `dependencies: ["viva"]`, a hard dependency `/plan` and `/design` cannot run without.
+Two plugins was considered and rejected: separate installability served an audience of
+zero while costing two version lines, two release paths, a `git-subdir` marketplace
+source, and a manual seed-tag step wedged between merges.
 
-`.github/workflows/release.yml` moves only the line whose files changed (`scripts/release-plugin.sh`); the marketplace resolves jig through a `git-subdir` source pointing at `plugins/jig`. Never edit either `version` by hand.
+**The load-bearing rule: a gate judges the work, never who produced it.**
+`scripts/check_gate_independence.py` enforces it in CI. Nothing under
+`commands/gate-*.md`, `agents/`, `workflows/`, `hooks/`, or `bin/` may invoke a build
+skill or require a build artifact (`PLAN.md`, `docs/jig/evidence/`) — the evidence
+contract a gate may rely on is `reference/evidence-format.md`, which any executor can
+satisfy. Outside that surface, `/work-on` and `/work-through` route to the build skills
+freely; that is the product working. `reference/worker-contract.md` stays normative and
+`/build` is one implementation of it, which is what keeps PRODUCT.md's "the gates being
+a methodology" non-goal true now that a methodology ships in the same plugin.
 
-The load-bearing rule between them: **Studious's gates never require jig.** `scripts/check_gate_independence.py` enforces it in CI — no file under `commands/gate-*.md`, `agents/`, `workflows/`, `hooks/`, or `bin/` may name jig, and every mention elsewhere must be conditional. `reference/worker-contract.md` stays normative; jig is one executor that satisfies it, alongside Superpowers, a human, or anything else. This is what keeps PRODUCT.md's "not a methodology" non-goal true now that the methodology ships in the same tree.
+**Two test runners, deliberately.** `tests/python/` is pytest (studious's own suite);
+`tests/jig/` is stdlib `unittest` (the build scripts'). They run as separate CI jobs and
+do not share a runner or a conftest. Don't unify them opportunistically.
 
-`plugins/jig/CLAUDE.md` carries only jig-specific conventions and defers here for everything shared.
+## Python conventions
+
+Applies to `scripts/` and both test trees. These override Studious's built-in idiom
+rubric for this repo.
+
+- **Target 3.11+.** `uv` for all tooling. Type hints required. Prefer comprehensions,
+  generator expressions, and stdlib (`functools`, `itertools`, `collections`) over
+  explicit loops.
+- **Ruff, pinned** in `.github/workflows/ci.yml`. `pyproject.toml`'s `[tool.ruff.lint]`
+  extends the pinned version's defaults with `B`, `C4`, `PERF`, `PIE`, `RUF`, `SIM`.
+  The default set grows between releases — bump the pin deliberately and fix what the
+  new defaults surface, rather than floating.
+- **Paths resolve against the repo root.** The build scripts locate the project with
+  `git rev-parse --show-toplevel`, which is correct for the real case (they run against
+  a *consuming* project) but means their own tests can't assume the ambient checkout.
+  `tests/jig/test_plan_lint.py` shows the pattern: stage the fixture into a throwaway
+  repo via `tests/jig/_tempgit.py`.
 
 ## Naming and model conventions
 

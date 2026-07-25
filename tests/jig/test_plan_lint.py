@@ -38,9 +38,9 @@ from pathlib import Path
 
 from _tempgit import commit_all, init_repo
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "plan-lint"
-FIXTURES = REPO_ROOT / "tests" / "fixtures" / "plan-lint"
+FIXTURES = REPO_ROOT / "tests" / "jig" / "fixtures" / "plan-lint"
 
 ALL_CATEGORIES = frozenset(
     {
@@ -73,11 +73,10 @@ class TestPlanLintCommittedFixtures(unittest.TestCase):
     single run.
 
     The fixtures name `scripts/`-relative paths that plan-lint resolves
-    against `git rev-parse --show-toplevel`. Since jig ships from
-    `plugins/jig/` inside the studious repo, that toplevel is no longer
-    jig's own directory — so each fixture is staged into a throwaway repo
-    carrying the two scripts it references, matching this module's stated
-    "never the real jig repo" convention.
+    against `git rev-parse --show-toplevel`, which is the consuming project's
+    root in the real case. These fixtures name paths relative to that root, so
+    each is staged into a throwaway repo carrying the two scripts it references —
+    matching this module's stated "never the real repo" convention.
     """
 
     #: Fixture-referenced paths that must exist for a clean run. Everything
