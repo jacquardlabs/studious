@@ -131,3 +131,27 @@ def test_reference_dir_siblings_resolve(tmp_path: Path) -> None:
         "analogue of `reference/design-doc-contract.md`; @agent-product-reviewer judges",
     )
     assert find_broken(tmp_path) == []
+
+
+def test_a_declared_dependencys_skill_is_not_a_broken_reference() -> None:
+    """`viva` ships in its own plugin, so `skills/viva/` will never exist here — but
+    `/design`, `/plan`, and `/studious-doctor`'s tooling check all name it, and the
+    manifest declares the dependency. Deriving the exemption from `dependencies`
+    rather than hardcoding it means declaring a dependency is the one action that
+    makes its skill citable, and dropping one immediately makes citations broken
+    again."""
+    import check_gate_independence  # noqa: F401  (proves scripts/ is importable)
+    from check_references import EXTERNAL_SKILLS, _declared_dependencies
+
+    declared = _declared_dependencies()
+    assert declared, ".claude-plugin/plugin.json declares no dependencies to derive from"
+    assert declared <= EXTERNAL_SKILLS
+    assert "web-design-guidelines" in EXTERNAL_SKILLS
+
+
+def test_an_undeclared_external_skill_is_still_broken(tmp_path: Path) -> None:
+    """The exemption is scoped to declared dependencies — a typo or an undeclared
+    plugin's skill must still fail."""
+    _write(tmp_path / "commands" / "x.md", "the `not-a-dependency` skill handles it")
+    errors = find_broken(tmp_path)
+    assert any("skills/not-a-dependency/ missing" in e for e in errors)

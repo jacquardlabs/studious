@@ -91,8 +91,11 @@ front of you rather than a feeling.
 NO DONE-MEANS CLAIM WITHOUT FRESH EVIDENCE IN THIS TASK'S EVIDENCE FIELD
 ```
 
-A task's status moves `todo` → `in-progress` → `PASS`/`FIX`/`REPLAN`/
-`ESCALATE`. That flip belongs to a script, never the executor's
+A task's status moves `todo` → `in-progress` → `PASS`/`REPLAN`/`ESCALATE`.
+`FIX` is not in that set: it is the failure routine's own transient action
+between attempts, and `scripts/status-flip` never writes it as a heading
+suffix (`skills/build/SKILL.md`, DESIGN.md's Vocabulary table). That flip
+belongs to a script, never the executor's
 self-report — "Judgment in the model, mechanics in scripts," and "Nothing
 signs off on itself" (`PRODUCT.md`, Product principles). `scripts/verify`
 independently re-runs every item after you're done regardless — that
