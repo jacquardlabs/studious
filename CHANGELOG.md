@@ -2,6 +2,63 @@
 
 <!-- version list -->
 
+## v2.27.0 (2026-07-25)
+
+### Bug Fixes
+
+- Cover the build half in /studious-doctor, and refresh the stale ground truth
+  ([#236](https://github.com/jacquardlabs/studious/pull/236),
+  [`704381d`](https://github.com/jacquardlabs/studious/commit/704381db9f6835bfffa20a4c55ed1cd6eb056b26))
+
+- Name the no-row-matches case in /coach's routing
+  ([#236](https://github.com/jacquardlabs/studious/pull/236),
+  [`704381d`](https://github.com/jacquardlabs/studious/commit/704381db9f6835bfffa20a4c55ed1cd6eb056b26))
+
+- Reconcile the design-doc section set across its four copies
+  ([#236](https://github.com/jacquardlabs/studious/pull/236),
+  [`704381d`](https://github.com/jacquardlabs/studious/commit/704381db9f6835bfffa20a4c55ed1cd6eb056b26))
+
+- Scope the gate-independence rule to roles, and close the build-outcome dialect
+  ([#236](https://github.com/jacquardlabs/studious/pull/236),
+  [`704381d`](https://github.com/jacquardlabs/studious/commit/704381db9f6835bfffa20a4c55ed1cd6eb056b26))
+
+### Chores
+
+- Delete the build scaffolding that was force-added past its own rule
+  ([#236](https://github.com/jacquardlabs/studious/pull/236),
+  [`704381d`](https://github.com/jacquardlabs/studious/commit/704381db9f6835bfffa20a4c55ed1cd6eb056b26))
+
+### Documentation
+
+- Drop design-doc pointers that outlive the docs they name
+  ([#236](https://github.com/jacquardlabs/studious/pull/236),
+  [`704381d`](https://github.com/jacquardlabs/studious/commit/704381db9f6835bfffa20a4c55ed1cd6eb056b26))
+
+- Warn that the allowlisted tree holds the paths the rule bans
+  ([#236](https://github.com/jacquardlabs/studious/pull/236),
+  [`704381d`](https://github.com/jacquardlabs/studious/commit/704381db9f6835bfffa20a4c55ed1cd6eb056b26))
+
+### Features
+
+- Make the disposable-doc rule enforceable, and read the working tree first
+  ([#236](https://github.com/jacquardlabs/studious/pull/236),
+  [`704381d`](https://github.com/jacquardlabs/studious/commit/704381db9f6835bfffa20a4c55ed1cd6eb056b26))
+
+- Put both navigators on one store, and state the boundary between them
+  ([#236](https://github.com/jacquardlabs/studious/pull/236),
+  [`704381d`](https://github.com/jacquardlabs/studious/commit/704381db9f6835bfffa20a4c55ed1cd6eb056b26))
+
+- Reconcile the flow the jig merge left unreconciled (M10)
+  ([#236](https://github.com/jacquardlabs/studious/pull/236),
+  [`704381d`](https://github.com/jacquardlabs/studious/commit/704381db9f6835bfffa20a4c55ed1cd6eb056b26))
+
+### Testing
+
+- Use grep, not a case statement inside $(), for the enum-rejection checks
+  ([#236](https://github.com/jacquardlabs/studious/pull/236),
+  [`704381d`](https://github.com/jacquardlabs/studious/commit/704381db9f6835bfffa20a4c55ed1cd6eb056b26))
+
+
 ## v2.26.0 (2026-07-25)
 
 ### Bug Fixes
