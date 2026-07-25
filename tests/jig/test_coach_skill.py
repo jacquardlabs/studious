@@ -334,8 +334,8 @@ class TestCoachSkillBody(unittest.TestCase):
         self.assertPhraseIn("passing the routing table's context column as the argument")
         self.assertPhraseIn('never "see conversation above."')
 
-    def test_only_the_four_jig_skills_are_dispatch_targets(self) -> None:
-        self.assertPhraseIn("The four jig skills are the only dispatch targets.")
+    def test_only_the_four_build_skills_are_dispatch_targets(self) -> None:
+        self.assertPhraseIn("The four build skills are the only dispatch targets.")
         self.assertPhraseIn("recommended for the human to run, never dispatched")
         self.assertPhraseIn("viva is never invoked by the coach")
 

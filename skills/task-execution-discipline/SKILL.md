@@ -58,8 +58,8 @@ from it — delete means delete, then repeat the cycle.
 
 ## Pillar 2 — YAGNI
 
-Superpowers folds this into a GREEN-step reminder; jig names it its own
-pillar because the checkpoint block carries an explicit scope artifact
+Superpowers folds this into a GREEN-step reminder; this loop names it its
+own pillar because the checkpoint block carries an explicit scope artifact
 Superpowers doesn't: the **Not here** field.
 
 **The rule:**
@@ -72,9 +72,12 @@ Before adding a parameter, option, config flag, or abstraction the cap
 item's test didn't ask for, check the checkpoint block's `Not here` list.
 If the addition is on it — or would need to be, had the block's author
 thought to list it — it doesn't belong in this task. Flag it as a
-follow-up instead of building it now: a plan the loop amends under its own
-pressure is explicitly out of scope for jig (`PRODUCT.md`, "What we're NOT
-building").
+follow-up instead of building it now. The loop has no way to amend a plan
+under its own pressure, by construction: a block that turns out to be
+wrong gets a `REPLAN` suffix from `scripts/status-flip` and pauses the
+session for a human to revise by hand (`skills/build/SKILL.md`'s Failure
+routine; `skills/coach/SKILL.md` routes the same state to a manual step).
+Widening the task in place is that pause, skipped.
 
 This isn't "don't over-engineer" as a vague instinct — it's "match the
 `Do`, stop at the `Not here`," checkable against the concrete block in

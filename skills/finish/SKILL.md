@@ -109,7 +109,7 @@ environment (cctx is not installed here) is this step's most-exercised
 path.
 
 **Installed:** run `cctx autopsy --latest` (unmodified — cctx's own
-documented contract, no jig-specific flags invented) and append its
+documented contract, no flags of our own invented) and append its
 findings summary (verdict, findings, session cost) to the PR body as a
 distinct footer section, separate from the evidence table. Then offer
 `cctx harvest` **interactively**: run it in **preview mode only** — never

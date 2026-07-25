@@ -1,6 +1,6 @@
 ---
 name: design
-description: Runs jig's /design workflow -- inventories PRODUCT.md, DESIGN.md, CLAUDE.md, and the touched code, a batch interview (viva-qa) of 5-9 tagged questions with forks presented as 2-3 options carrying one recommended_choice, a drafted design-<slug>.md (Problem & persona through Open questions, each section carrying a named consumer), a design-lint pass fixed before viva ever starts, and a viva sign-off loop that distinguishes a fresh round from a REVISED resume via --prior-input/--prior-verdicts. Use when the user says /design, hands over a feature idea to turn into a design doc, or a /build ESCALATED verdict routes back here for revision. Emits exactly one verdict -- DESIGNED, NEEDS RESEARCH, or REVISED -- and hands off to /gate-design-review.
+description: Runs the /design workflow -- inventories PRODUCT.md, DESIGN.md, CLAUDE.md, and the touched code, a batch interview (viva-qa) of 5-9 tagged questions with forks presented as 2-3 options carrying one recommended_choice, a drafted design-<slug>.md (Problem & persona through Open questions, each section carrying a named consumer), a design-lint pass fixed before viva ever starts, and a viva sign-off loop that distinguishes a fresh round from a REVISED resume via --prior-input/--prior-verdicts. Use when the user says /design, hands over a feature idea to turn into a design doc, or a /build ESCALATED verdict routes back here for revision. Emits exactly one verdict -- DESIGNED, NEEDS RESEARCH, or REVISED -- and hands off to /gate-design-review.
 ---
 
 # /design

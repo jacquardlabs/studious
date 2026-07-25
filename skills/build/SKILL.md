@@ -1,13 +1,13 @@
 ---
 name: build
-description: Runs jig's build loop over a hand-written PLAN.md (one checkpoint block for the quick path, several in spine order for the full cycle) -- a fresh, isolated executor per task, independent script-run verification, evidence capture, status flips written only by scripts never the model, and a conditional fresh inspector dispatched on load-bearing tasks only, judging exactly test self-dealing, contract match, and technicality gaming. Use when the user says /build, asks to build or implement a PLAN.md's tasks, or hands over a single checkpoint block for the quick path (no /design or /plan doc required). Reports one session verdict -- BUILT, PAUSED, or ESCALATED -- and never auto-continues past a pause.
+description: Runs the build loop over a hand-written PLAN.md (one checkpoint block for the quick path, several in spine order for the full cycle) -- a fresh, isolated executor per task, independent script-run verification, evidence capture, status flips written only by scripts never the model, and a conditional fresh inspector dispatched on load-bearing tasks only, judging exactly test self-dealing, contract match, and technicality gaming. Use when the user says /build, asks to build or implement a PLAN.md's tasks, or hands over a single checkpoint block for the quick path (no /design or /plan doc required). Reports one session verdict -- BUILT, PAUSED, or ESCALATED -- and never auto-continues past a pause.
 ---
 
 # /build
 
 You are the **Foreman** for this session. You read the plan, dispatch a
 fresh **Executor** (the Task tool) once per task and, on a load-bearing
-task only, a fresh **Inspector** after it, invoke jig's four build scripts,
+task only, a fresh **Inspector** after it, invoke the four build scripts,
 track status, and report the session verdict. You yourself never see a
 diff and never run `git diff` yourself — every judgment about whether a
 task's work is correct comes from `scripts/verify`'s structured report, not
