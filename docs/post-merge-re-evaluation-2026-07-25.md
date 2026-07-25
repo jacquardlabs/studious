@@ -508,7 +508,14 @@ ghj api -X PATCH repos/$R/milestones/<N> -f state=closed
 I have not written the `--milestone` moves as a script — the reassignments should be reviewed
 per-issue, and `/backlog-hygiene` is the tool that already exists for that pass.
 
-### Two decisions this proposal needs from you
+### Two decisions this proposal needed — both ratified 2026-07-25
+
+**Resolved.** The full decision of record for each is a comment on its issue; the summary:
+
+- **C1 → (a) + (c).** The contract keeps all 8 sections and stays the single authority; `design-lint`, `skills/design/SKILL.md`, and `DESIGN.md` move to 8. Separately, the exact-count check is replaced by "all required sections present, exactly once each" — no upper bound, no rejection of an extra heading — which is what `reference/design-doc-contract.md:20` already specifies and what `product-reviewer` already does. Pinned by a cross-surface test. Recorded on #211.
+- **C2 → sub-file granularity.** `workflows/*.js` stays on `GATE_SURFACE`; `check_gate_independence.py` gains an explicitly marked, greppable worker-dispatch region exempt from the `INVOCATION` rule but never from `ARTIFACTS`, with marker-integrity assertions beside the existing matched-file floor. `auditFanIn` and `acceptanceFanIn` stay covered. Recorded on #212.
+
+### The original decision text
 
 Both are judgment calls where either answer is defensible, and both gate M10's first issue:
 
@@ -631,3 +638,76 @@ because their proposed homes (M10, M11, M12) don't exist yet. #219, #220, and #2
 That leaves 33 unmilestoned issues — now the largest bucket in the tracker, up from 20. Phase 3
 is what resolves it, and it is still a proposal: no milestone was created, renamed, closed, or
 reassigned by this pass.
+
+
+---
+
+## Execution record — Phase 3 (2026-07-25)
+
+The re-roadmap was executed the same day, after the two judgment calls above were ratified.
+
+### Milestones
+
+**Created (4):** M10 — Post-merge flow coherence · M11 — Correctness & bug tail ·
+M12 — Telemetry & outcome labels · Parked — evidence-gated.
+
+**Renamed (3):** M5 "Close the loop (post-ship / X-series)" → "Post-ship outcome loop
+(X-series)" (narrowed to Horizon-3 once telemetry moved to M12) · M6 "Gate cost & driver
+reliability" → "Gate & build cost" · M9 "Contract & prose guards" → "Contract & drift guards"
+(the guards are no longer only about prose). Descriptions rewritten to state each milestone's
+sequencing rationale.
+
+**Closed (8), all verified empty first:** M3, M4, M7, and all five `jig:` milestones. No
+milestone was closed with an open issue in it — the script asserted `totalCount == 0` per
+target and would have refused otherwise.
+
+### Issues
+
+All 80 open issues reassigned. Before writing anything, the script asserted that the plan
+covered every open issue exactly once — no duplicates, no orphans, no assignments to closed
+issues. It passed on the first run; 80 edits, zero failures.
+
+| Milestone | Open |
+|---|---|
+| M10 — Post-merge flow coherence | 16 |
+| M11 — Correctness & bug tail | 18 |
+| M9 — Contract & drift guards | 13 |
+| Parked — evidence-gated | 12 |
+| M6 — Gate & build cost | 6 |
+| M12 — Telemetry & outcome labels | 6 |
+| M5 — Post-ship outcome loop (X-series) | 6 |
+| M8 — Receipts & front door | 3 |
+
+### Deviations from the proposed table
+
+The Phase 3 table was written before the 18 new issues existed, so it named classes rather than
+numbers in places. What actually landed, where it differs:
+
+- **The 18 new issues slotted as:** #211–#216 and #219 → M10 · #220, #222, #223, #224, #226,
+  #227 → M11 · #217, #218, #221, #225 → M9 · #228 → Parked (it is a watch item with stated
+  entry conditions, which is exactly what Parked is for).
+- **#147 moved M9 → M10.** The proposal listed it under M10 and it was in M9; PRODUCT.md's
+  stale ground truth is a flow-coherence problem now that the file has to describe a build loop.
+- **#190 stayed its own issue in M6** rather than being merged into #130. Whether to fold it is
+  a scope call for whoever picks up the cost work; the correction comment on #190 recommends it
+  but doesn't force it.
+
+### Net effect
+
+| | Start of cycle | After Phase 2 | After Phase 3 |
+|---|---|---|---|
+| Open issues | 69 | 80 | 80 |
+| Open milestones | 13 | 13 | **8** |
+| Named by origin | 6 | 6 | **0** |
+| Unmilestoned | 20 | 33 | **0** |
+
+Every milestone is now named for the work it serves. The five `jig:` buckets and M7 "The jig
+seam" — the last places in the planning layer where the old repo boundary still existed — are
+closed.
+
+### What runs first
+
+M10, then M11 in parallel with it, then M9, then M6, then M12, then M8, then M5. The rationale
+is in the proposal above and restated in each milestone's description, so it survives without
+this document. M10's first two issues (#211, #212) both carry ratified decisions and are ready
+to build.
