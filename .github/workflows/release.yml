@@ -45,7 +45,7 @@ jobs:
       # Push-notify the marketplace to re-pin the changed plugin's SHA immediately.
       # The marketplace's nightly poll remains the self-healing backstop.
       - name: Notify marketplace to update pins
-        if: steps.studious.outputs.released == 'true' || steps.jig.outputs.released == 'true'
+        if: steps.studious.outputs.plugin_released == 'true' || steps.jig.outputs.plugin_released == 'true'
         run: gh workflow run update-pins.yml --repo jacquardlabs/marketplace
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
