@@ -73,11 +73,11 @@ gate-ledger work-log --slug "<slug>" --step decide --outcome "<verdict>" --phase
 
 ### 2 · design — handoff
 
-Studious doesn't author design docs (`reference/design-doc-contract.md` — authoring stays with the user's how-layer). Set the user up, then stop:
+This command doesn't author the design doc — the contract is normative (`reference/design-doc-contract.md`), the route to satisfying it is the user's pick. Set them up, then stop:
 
 - Hand over the decide verdict, the (possibly scoped-down) title, and the contract's required sections; point at `templates/design-doc.md` as the scaffold.
-- If Superpowers is installed, note that its brainstorming and planning workflow produces a doc satisfying the contract; otherwise any hand-written spec does.
-- If jig is installed, note that its `/design` workflow (batch interview → drafted doc → viva sign-off) produces a doc satisfying the contract; otherwise any hand-written spec does.
+- Name `/design` as the route that ships with this plugin — batch interview → drafted doc → viva sign-off — and produces a doc satisfying the contract.
+- If Superpowers is installed, its brainstorming and planning workflow produces a satisfying doc too. So does any hand-written spec.
 - Do not draft the doc yourself. It may well get written right here in the session — that work belongs to the user and their workflow, not to this command.
 
 Log the handoff: `work-log --step design --outcome HANDED-OFF` (phase stays `design`; the evidence check advances the flow once the doc exists).
@@ -94,12 +94,12 @@ Log with `work-log --step design-review --outcome "<verdict>" --phase "<phase>"`
 
 ### 4 · build — handoff
 
-Studious steps back here (README: build with your own workflow). Hand over the working context, then stop:
+The flow hands off rather than builds. Hand over the working context, then stop:
 
 - The design doc path, the pre-mortem register path (its items are what `/gate-audit` and `/gate-acceptance` verify at the end), the scoped title, and the source issue if any.
 - Once a feature branch exists, record it — the gate ledger is per-branch, so later pieces need it: `work-set --branch "<branch>"`.
-- If Superpowers is installed, its plan/execute workflow picks up from the design doc; otherwise the user builds however they like.
-- If jig is installed, its `/plan` + `/build` workflow picks up from the design doc and reports `BUILT | PAUSED | ESCALATED` back into this work file (see "Find the next piece — evidence first" below) — the next `/work-on` invocation resumes from that without asking.
+- Name `/plan` + `/build` as the route that ships with this plugin: it picks up from the design doc and reports `BUILT | PAUSED | ESCALATED` back into this work file (see "Find the next piece — evidence first" below), so the next `/work-on` invocation resumes from that without asking.
+- If Superpowers is installed, its plan/execute workflow picks up from the design doc instead. Either way the user builds however they like — no gate cares which.
 
 Log `work-log --step build --outcome HANDED-OFF`. Phase stays `build`; the evidence check advances it when implementation commits exist.
 
