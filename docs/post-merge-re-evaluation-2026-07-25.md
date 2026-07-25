@@ -11,8 +11,10 @@ issues and 13 milestones via `gh`. No subagents, no `/deep-review`, no workflows
 session constraint. Every finding below carries a `file:line` or a reproducible command. Two
 findings are proven by executing the repo's own tooling.
 
-**Boundary.** Phase 3 is a proposal. No `gh` writes were made — nothing closed, relabeled,
-re-milestoned, or created. The commands are listed for you to run.
+**Status.** All three phases have since been executed on the tracker — see the two execution
+records at the end of this document. Phases 1 and 3 were written as proposals and are preserved
+as written; where execution diverged from the proposal, the Phase 3 record says so. The `gh`
+commands listed in Phase 3 are what was actually run, in a script with integrity assertions.
 
 ---
 
@@ -43,6 +45,13 @@ no milestone at all — the largest single bucket.
 
 Phase 3 proposes 8 milestones split by *what the work serves*, with the flow-coherence work
 first because the other six ride on it.
+
+**Executed 2026-07-25.** Phase 2 and Phase 3 were both carried out on the tracker the same day:
+7 issues closed, 5 rewritten, 18 filed, all 80 open issues re-milestoned, 13 milestones reduced
+to 8 with none named by origin and none left unassigned. The Phase 1 findings above describe the
+codebase at `a2be1b2` and still stand; the *tracker* state they describe is pre-restructure, so
+a future cycle trending against this baseline should read the execution records at the end for
+the post-restructure numbers.
 
 ---
 
@@ -515,9 +524,10 @@ per-issue, and `/backlog-hygiene` is the tool that already exists for that pass.
 - **C1 → (a) + (c).** The contract keeps all 8 sections and stays the single authority; `design-lint`, `skills/design/SKILL.md`, and `DESIGN.md` move to 8. Separately, the exact-count check is replaced by "all required sections present, exactly once each" — no upper bound, no rejection of an extra heading — which is what `reference/design-doc-contract.md:20` already specifies and what `product-reviewer` already does. Pinned by a cross-surface test. Recorded on #211.
 - **C2 → sub-file granularity.** `workflows/*.js` stays on `GATE_SURFACE`; `check_gate_independence.py` gains an explicitly marked, greppable worker-dispatch region exempt from the `INVOCATION` rule but never from `ARTIFACTS`, with marker-integrity assertions beside the existing matched-file floor. `auditFanIn` and `acceptanceFanIn` stay covered. Recorded on #212.
 
-### The original decision text
+#### The options as originally posed — superseded by the block above
 
-Both are judgment calls where either answer is defensible, and both gate M10's first issue:
+Kept for the reasoning behind each option, not as an open question. Both were judgment calls where
+either answer was defensible, and both gated M10's first issue:
 
 1. **C1's direction.** Three options, not two. (a) `/design` grows a `Success metrics`
    section and `design-lint` moves to 8 — contract wins. (b) The contract drops it, #120 gets
