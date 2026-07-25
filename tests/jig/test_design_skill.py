@@ -22,10 +22,10 @@ sibling skills):
    nothing.
 5. Step 3's fork convention uses `recommended_choice`, never an improvised
    `"(recommended)"` string in `text`/`hint`.
-6. Step 4 drafts `docs/design/<slug>.md` with the contract-canonical seven
-   section names (not the handoff-literal ones) and a named `Consumer:`
-   line per section -- the section-heading fork this story's own design
-   doc rules on.
+6. Step 4 drafts `docs/design/<slug>.md` with the section names
+   `reference/design-doc-contract.md` requires -- derived from that file at
+   test time, never restated here (#211) -- and a named `Consumer:` line per
+   section.
 7. Step 5 calls the real `scripts/design-lint`, commits to the 0/1/2
    exit-code contract, and never starts viva against a lint-failing doc.
 8. Step 6 names the three fresh-vs-resume cases explicitly, including the
@@ -52,8 +52,27 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL_DIR = REPO_ROOT / "skills" / "design"
 SKILL_MD = SKILL_DIR / "SKILL.md"
 DESIGN_MD = REPO_ROOT / "DESIGN.md"
+CONTRACT_MD = REPO_ROOT / "reference" / "design-doc-contract.md"
 
 DESIGN_VOCABULARY = derive_design_vocabulary(DESIGN_MD.read_text(encoding="utf-8"))
+
+
+def _contract_sections() -> list[str]:
+    """The required section names, read from the contract that owns them.
+
+    Same derive-don't-restate discipline as `derive_design_vocabulary` above:
+    `reference/design-doc-contract.md` is the sole authority, so this suite
+    reads it rather than keeping a copy that can drift out from under it (#211).
+    """
+    text = CONTRACT_MD.read_text(encoding="utf-8")
+    table = re.search(
+        r"^## Required sections\n(.*?)(?=\n^## |\Z)", text, re.MULTILINE | re.DOTALL
+    )
+    assert table, "design-doc-contract.md has no '## Required sections' section"
+    rows = [ln for ln in table.group(1).splitlines() if ln.lstrip().startswith("|")]
+    names = [re.sub(r"\s+", " ", row.split("|")[1]).strip() for row in rows[2:]]
+    assert names, "Required sections table parsed to zero section names"
+    return names
 
 
 class TestDesignSkillFile(unittest.TestCase):
@@ -205,19 +224,16 @@ class TestDesignSkillBody(unittest.TestCase):
     def test_draft_path_is_docs_design_slug(self) -> None:
         self.assertIn("docs/design/<slug>.md", self.body)
 
-    def test_draft_names_exactly_7_sections_with_named_consumer(self) -> None:
-        self.assertPhraseIn("Exactly 7 sections, each with a named consumer")
+    def test_draft_names_the_required_sections_with_named_consumers(self) -> None:
+        self.assertPhraseIn("Eight required sections, each with a named consumer")
 
     def test_draft_uses_contract_canonical_section_headings(self) -> None:
-        for section in (
-            "Problem & persona",
-            "Proposed design",
-            "User journey",
-            "Out of scope",
-            "Alternatives considered",
-            "Operational readiness",
-            "Open questions",
-        ):
+        # Derived from reference/design-doc-contract.md rather than restated, so
+        # this suite can't become the copy that drifts next (#211). The
+        # authority-to-copies pin lives in the other runner,
+        # tests/python/test_design_doc_sections.py; the two suites stay separate
+        # per CLAUDE.md, so this reads the contract itself instead of importing.
+        for section in _contract_sections():
             with self.subTest(section=section):
                 self.assertIn(section, self.body)
         # The handoff-literal headings this design doc's own fork rejected

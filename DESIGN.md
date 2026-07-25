@@ -109,10 +109,12 @@ cited by the auditor/reviewer agents rather than restated per-agent.
   method path, a `[cap]` item's own behavior text on a LOAD-BEARING task) is the plan
   author's explicit signal that a token is concrete and checkable, not narrative —
   `scripts/plan-lint` treats prose outside backticks as unchecked by design.
-- **Design doc structure** (`reference/design-doc-contract.md`): exactly 7 sections, each
-  tied to a named downstream consumer (Problem & persona, Proposed design, User journey,
-  Out of scope, Alternatives considered, Operational readiness, Open questions — see
-  `skills/design/SKILL.md` Step 4 for the section→consumer table).
+- **Design doc structure** (`reference/design-doc-contract.md` — the sole authority): 8
+  required sections, each tied to a named downstream consumer (Problem & persona, Proposed
+  design, User journey, Out of scope, Alternatives considered, Success metrics, Operational
+  readiness, Open questions — see `skills/design/SKILL.md` Step 4 for the section→consumer
+  table). A doc may carry sections beyond these; `scripts/design-lint` enforces the floor,
+  not an exact count.
 - **Task calibration**: `/plan` produces 3–8 tasks per plan; <3 is too big to verify, >8
   is fragmenting or the feature itself is `TOO BIG`.
 - **PR evidence table**: `/finish` promotes each task's Done-means into the PR body as

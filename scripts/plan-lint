@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""jig's plan-lint script (story plan-lint, issue #12).
+"""plan-lint -- the structural linter for a `PLAN.md`-shaped file (issue #12).
 
-A zero-model, deterministic-exit-code structural linter for a `PLAN.md`-
-shaped file, per `docs/design/plan-lint.md`. Every check below is a regex,
-a filesystem `exists()`, or a string match over the plan's own text --
-never a model call, never a Task-tool dispatch. This is the mechanical gate
-between "a plan drafted" and "a plan a human vivas and a fresh `/build`
-executor can trust" (the ratified handoff, §5.2 step 5; issue #11).
+Zero-model and deterministic-exit-code: every check below is a regex, a
+filesystem `exists()`, or a string match over the plan's own text -- never a
+model call, never a Task-tool dispatch. This is the mechanical gate between
+"a plan drafted" and "a plan a human vivas and a fresh `/build` executor can
+trust". The checkpoint-block grammar it validates is owned by
+`skills/build/SKILL.md`; this script is the checker, not the authority.
 
 **Grammar validated** -- exactly `skills/build/SKILL.md`'s own checkpoint-
 block shape, plus the one addition this story makes explicit: what goes
