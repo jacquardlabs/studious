@@ -110,10 +110,17 @@ class TestPluginManifest(unittest.TestCase):
     def test_license_is_mit(self) -> None:
         self.assertEqual(self.manifest["license"], "MIT")
 
-    def test_repository_points_at_jig(self) -> None:
+    def test_repository_points_at_the_shipping_repo(self) -> None:
+        # jig ships from plugins/jig/ inside the studious repo (studious #150);
+        # the manifest names the repo a user actually clones, not the archived one.
         self.assertEqual(
-            self.manifest["repository"], "https://github.com/jacquardlabs/jig"
+            self.manifest["repository"], "https://github.com/jacquardlabs/studious"
         )
+
+    def test_declares_viva_dependency(self) -> None:
+        # /plan and /design stop dead without viva — a hard dependency that was
+        # undeclared while jig shipped from its own repo.
+        self.assertIn("viva", self.manifest["dependencies"])
 
 
 class TestSkillsDirectory(unittest.TestCase):

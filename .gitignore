@@ -5,3 +5,6 @@ __pycache__/
 
 # Studious local gate ledger (do not commit)
 .studious/
+
+# viva local session state — round files, answers, server.url (do not commit)
+.viva/

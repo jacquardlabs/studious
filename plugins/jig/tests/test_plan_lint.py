@@ -29,13 +29,14 @@ Run with:
 """
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from _tempgit import init_repo
+from _tempgit import commit_all, init_repo
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = REPO_ROOT / "scripts" / "plan-lint"
@@ -69,15 +70,42 @@ class TestPlanLintCommittedFixtures(unittest.TestCase):
     """This story's own required demonstration (docs/design/plan-lint.md,
     'Operational readiness'): a clean fixture exits 0, and a deliberately
     broken one exits 1 naming one distinct violation per category, in a
-    single run."""
+    single run.
+
+    The fixtures name `scripts/`-relative paths that plan-lint resolves
+    against `git rev-parse --show-toplevel`. Since jig ships from
+    `plugins/jig/` inside the studious repo, that toplevel is no longer
+    jig's own directory — so each fixture is staged into a throwaway repo
+    carrying the two scripts it references, matching this module's stated
+    "never the real jig repo" convention.
+    """
+
+    #: Fixture-referenced paths that must exist for a clean run. Everything
+    #: else the fixtures name is deliberately absent.
+    STAGED_SCRIPTS = ("_gitutil.py", "plan-lint")
+
+    def stage(self, tmp: str, fixture: str) -> Path:
+        """Copy `fixture` and the scripts it references into a temp git repo."""
+        root = Path(tmp)
+        init_repo(root)
+        scripts = root / "scripts"
+        scripts.mkdir()
+        for name in self.STAGED_SCRIPTS:
+            shutil.copy2(REPO_ROOT / "scripts" / name, scripts / name)
+        staged = root / fixture
+        staged.write_text((FIXTURES / fixture).read_text(encoding="utf-8"), encoding="utf-8")
+        commit_all(root, "stage plan-lint fixture")
+        return staged
 
     def test_clean_fixture_exits_zero(self) -> None:
-        result = run_script([str(FIXTURES / "clean-plan.md")])
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_script([str(self.stage(tmp, "clean-plan.md"))])
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("0 violations", result.stdout)
 
     def test_broken_fixture_exits_one_with_all_eight_categories_distinct(self) -> None:
-        result = run_script([str(FIXTURES / "broken-plan.md")])
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_script([str(self.stage(tmp, "broken-plan.md"))])
         self.assertEqual(result.returncode, 1)
 
         lines = [line for line in result.stdout.splitlines() if line.startswith("[")]
