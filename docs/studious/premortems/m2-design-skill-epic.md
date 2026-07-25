@@ -1,0 +1,14 @@
+# Pre-mortem — M2: /design skill
+
+- Epic: m2-design-skill
+- Stories: design-lint (#9), design-skill (#8, folds in #10)
+- Branch: epic/m2-design-skill
+- SHA: 73b2c81
+- Date: 2026-07-16
+
+| # | Lane | Failure mode | Detection hint |
+|---|------|--------------|-----------------|
+| 1 | technical | `design-lint` and `design-skill` both encode assumptions about the design-doc schema independently, with no dependency edge between them. If either invents schema details beyond DESIGN.md's Formatting section + studious's `design-doc-contract.md`, `design-skill`'s real output could fail `design-lint`'s real checks (or worse, pass checks that don't actually enforce anything). | At each story's design-review, confirm the design doc cites DESIGN.md + `design-doc-contract.md` as the schema source, not an invented shape. Before `design-skill`'s audit, run its own real design-doc output through the also-landed real `design-lint` script and confirm a clean pass — not just that both existed independently. |
+| 2 | product | `design-skill`'s viva step depends on viva-qa/viva-diff being invokable (viva#101), process-clean (viva#112), and resumable correctly (viva#113) — all three fixes landed 2026-07-12. If any regressed, or the installed viva version in a build/audit worktree predates the fixes, `design-skill`'s build could silently fall back to the manual multi-step workaround the friction report describes, rather than the clean one-line invocation the spec assumes. | At `design-skill`'s build, confirm which viva version is actually invoked (skill registers directly, no manual `server.py` shell-out) and that no orphaned qa-mode process is left running after the story's own demonstration run. |
+| 3 | technical | The friction report's finding 3 (a round-2 review on an already-signed-off doc destroys carry-forward state if the generic "clear stale state" steps are followed literally) is exactly the trap a fresh-context `/build` executor for `design-skill` would fall into, per the report's own recommendation. There's no test-and-retry once `.viva/review-input-r*.json` is deleted. | Check `design-skill`'s build diff explicitly distinguishes a fresh round-1 launch from a resume-on-signed-off-doc path before touching any `.viva/review-*.json` file, and that its test coverage includes a resume scenario, not just fresh-launch. |
+| 4 | product | Issue #10's resolution is folded into `design-skill`'s own design doc as a fork rather than a separate story. If the design-review for `design-skill` is under time pressure, this fork could get rubber-stamped with no real ruling recorded, silently re-deferring #10 without saying so. | Confirm `design-skill`'s design doc names #10 explicitly and records an actual ruling (build now / defer with a stated reason) — "not addressed" or silence on this fork is a finding, not a pass. |

@@ -1,0 +1,493 @@
+#!/usr/bin/env python3
+"""jig's verify script (story build-scripts, issue #14).
+
+Independently re-runs a task's Done-means items — one PASS/FAIL per item,
+never a single suite-level boolean — instead of trusting the executor's
+claim that they're satisfied (docs/design/build-scripts.md, "Proposed
+design"; PRODUCT.md's "Nothing signs off on itself" principle). Takes its
+item list from exactly one of two sources:
+
+- `--items <json>`: an already-extracted item list (a small JSON document
+  — see the module-level `ITEMS_SCHEMA` note below), hand-transcribed by
+  the orchestrating model from a `PLAN.md` task block.
+- `--plan <path> --task <label>`: derives the items mechanically from the
+  named task's checkpoint block — the same grammar `scripts/plan-lint`
+  validates and `skills/build/SKILL.md` documents, parsed by the shared
+  `scripts/_planparse.py` module so the two scripts can't drift apart.
+  `--task` names the task by its heading number (`3` or `Task 3`).
+  A `script`/`test-backed` item's backtick-quoted repo-relative method
+  path becomes its `command` verbatim; that derivation is fully
+  mechanical. A `probe` item's artifact/pattern isn't in the plan grammar
+  at all, so it comes from the optional `--probe-spec <json>` supplement
+  (see `PROBE_SPEC_SCHEMA` below) — a task whose block has probe items
+  but no supplement entry for them is a usage error (exit 2) naming
+  exactly which item ids need one; a task with no probe items needs no
+  supplement. Everything downstream (checks, output, --out, --since,
+  exit codes) behaves identically in both modes.
+
+Each item names a verification tier (`script` | `test-backed` | `probe` —
+DESIGN.md's closed enum; no `judgment` tier permitted):
+
+- `script` / `test-backed`: runs the item's own named `command` via the
+  shell and checks its exit code.
+- `probe`: confirms a caller-supplied `artifact` file exists, is non-empty,
+  and (if given) matches an expected `pattern` — verify never takes the
+  screenshot or runs `ps` on the executor's behalf, since choosing what
+  observation proves a capability is the checkpoint-block author's call,
+  not a generic script's to invent.
+
+Every item — `cap` and `hold` alike — must PASS for the overall result to
+be PASS; per-item results are always reported, even on an overall PASS, so
+a caller can tell whether a repeat failure lands on the *same* item as
+before.
+
+Fails closed rather than passing vacuously: an empty or malformed item list
+is a usage error (exit 2), never a PASS (docs/studious/premortems/
+build-scripts.md, risk #4). A `probe` item also needs `--since` — an
+ISO-8601 timestamp or a git revision — so a stale artifact copied forward
+from a prior attempt can't pass just because no `pattern` was supplied
+(same premortem doc, risk #5); this recency floor is verify's own, not
+merely delegated to the downstream `evidence-capture` freshness check.
+
+Trust boundary (issue #48): each `script`/`test-backed` item's `command` is
+plan-supplied (transcribed by `/build`'s Foreman from `PLAN.md`'s Done-means
+prose) and is executed verbatim via the shell -- `shell=True`, no
+allowlist, sandbox, or confirmation gate. Commands in a plan are executed
+verbatim via the shell; only run /build on plans you would run by hand.
+
+Timeout (issue #49): each command-tier item runs under `--timeout` seconds
+(a generous default -- suites legitimately run minutes). A hung command
+(waiting on stdin, deadlocked, a network-bound test with no timeout of its
+own) is killed and reported as a distinct FAIL detail (`TIMEOUT: ...`),
+never conflated with the item's own non-zero-exit FAIL detail (`exit
+code: ...`) -- a hang produces no exit code at all, so the two cases must
+read differently. A timed-out item still counts as FAIL toward the overall
+result, same as any other failing item. The kill takes down the command's
+whole process group, not just the shell (issue #61) -- via
+`_gitutil.run_shell_with_timeout`, launched with `start_new_session=True`
+and killed on timeout with `os.killpg(process.pid, signal.SIGKILL)` -- so a
+backgrounded or piped child can't outlive the shell that was reported
+killed.
+
+Parallelism (opt-in): `--parallel` runs command-tier items concurrently in
+a thread pool (each thread just waits on its own subprocess, so the GIL is
+no constraint); the default stays exactly sequential. `probe` items are
+cheap stat/regex checks and stay in-line on the main thread either way.
+Results are printed in item order regardless of completion order -- the
+report reads identically with or without the flag -- and per-item timeout
+semantics are unchanged (each command still gets the full `--timeout`, and
+a hang is still the same distinct `TIMEOUT: ...` FAIL detail).
+
+ITEMS_SCHEMA (JSON):
+    {
+      "task": "task-1",
+      "items": [
+        {"id": 1, "kind": "cap", "tier": "script", "command": "ruff check x.py"},
+        {"id": 2, "kind": "hold", "tier": "test-backed", "command": "python -m unittest tests.test_x.Case.test_y"},
+        {"id": 3, "kind": "cap", "tier": "probe", "artifact": "path/to/evidence.txt", "pattern": "no orphaned process"}
+      ]
+    }
+
+PROBE_SPEC_SCHEMA (JSON, `--probe-spec`, plan mode only): item id (the
+block's own list number, as a string) -> the probe fields the plan grammar
+doesn't carry. Only probe-tier items ever appear here; an entry naming a
+non-probe or absent item id is a usage error (a transcription bug, not a
+check to silently drop).
+    {
+      "3": {"artifact": "path/to/evidence.txt", "pattern": "no orphaned process"}
+    }
+
+Exit codes: 0 every item PASS. 1 at least one item FAIL. 2 usage error
+(malformed/empty items, missing --since for a probe item, an unparseable
+plan task or missing probe supplement in --plan mode).
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from pathlib import Path
+from textwrap import indent
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import DEFAULT_TIMEOUT_SECONDS, resolve_revision_epoch, run_shell_with_timeout  # noqa: E402
+from _planparse import COMMAND_TIERS, TIER_BODY_RE, VALID_TIERS, Item, parse_items, split_tasks  # noqa: E402
+
+VALID_KINDS = frozenset({"cap", "hold"})
+
+# --task names a task by its heading number: a bare "3" or the "Task 3"
+# label form, matching TASK_HEADING_RE's own capture. Never by title --
+# titles need the ambiguity rules plan-lint's load-bearing derivation
+# carries, and a mechanical transcription already knows the number.
+TASK_LABEL_RE = re.compile(r"(?:task\s+)?(\d+)", re.IGNORECASE)
+
+
+@dataclass
+class ItemResult:
+    id: object
+    kind: str
+    tier: str
+    status: str  # PASS | FAIL
+    detail: str
+
+
+def load_items(path: Path) -> dict:
+    """Load and validate the items document; raises ValueError on any problem."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ValueError(f"could not read items file '{path}': {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"items file '{path}' is not valid JSON: {exc}") from exc
+
+    if not isinstance(data, dict) or "items" not in data:
+        raise ValueError(f"items file '{path}' must be a JSON object with an 'items' list")
+
+    items = data["items"]
+    if not isinstance(items, list) or not items:
+        raise ValueError("no items to verify: 'items' must be a non-empty list")
+
+    for i, item in enumerate(items):
+        label = f"item #{i}"
+        if not isinstance(item, dict):
+            raise ValueError(f"{label} is not a JSON object")
+        if "id" not in item:
+            raise ValueError(f"{label} is missing required field 'id'")
+        label = f"item {item['id']!r}"
+
+        kind = item.get("kind")
+        if kind not in VALID_KINDS:
+            raise ValueError(f"{label}: 'kind' must be one of {sorted(VALID_KINDS)}, got {kind!r}")
+
+        tier = item.get("tier")
+        if tier not in VALID_TIERS:
+            raise ValueError(
+                f"{label}: 'tier' must be one of {sorted(VALID_TIERS)}, got {tier!r} "
+                "(no 'judgment' tier permitted)"
+            )
+
+        if tier in COMMAND_TIERS and not item.get("command"):
+            raise ValueError(f"{label}: tier '{tier}' requires a non-empty 'command'")
+        if tier == "probe" and not item.get("artifact"):
+            raise ValueError(f"{label}: tier 'probe' requires a non-empty 'artifact' path")
+
+    return data
+
+
+def load_probe_spec(path: Path) -> dict[str, dict]:
+    """Load and validate the --probe-spec supplement; raises ValueError on any problem."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ValueError(f"could not read probe-spec file '{path}': {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"probe-spec file '{path}' is not valid JSON: {exc}") from exc
+
+    if not isinstance(data, dict):
+        raise ValueError(f"probe-spec file '{path}' must be a JSON object mapping item id -> {{artifact, pattern}}")
+    for key, entry in data.items():
+        if not isinstance(entry, dict) or not entry.get("artifact"):
+            raise ValueError(f"probe-spec entry {key!r} must be an object with a non-empty 'artifact' path")
+    return data
+
+
+def resolve_task_number(label: str) -> str:
+    """Resolve --task to a task heading number: '3' or 'Task 3'."""
+    m = TASK_LABEL_RE.fullmatch(label.strip())
+    if m is None:
+        raise ValueError(f"--task '{label}' names no task heading number (expected e.g. '3' or 'Task 3')")
+    return m.group(1)
+
+
+def parse_item_tier(item: Item) -> tuple[str, str | None]:
+    """An item's (tier_word, method_path) per the checkpoint-block grammar;
+    raises ValueError on anything the closed enum or shape rejects."""
+    if item.tier_body is None:
+        raise ValueError(f"item {item.num} has no '(tier: ...)' parenthetical")
+    m = TIER_BODY_RE.match(item.tier_body.strip())
+    if not m:
+        raise ValueError(f"item {item.num} tier annotation is malformed: {item.tier_body!r}")
+    tier_word, method_path = m.group(1), m.group(2)
+    if tier_word not in VALID_TIERS:
+        raise ValueError(
+            f"item {item.num} tier '{tier_word}' is not one of {sorted(VALID_TIERS)} (no 'judgment' tier permitted)"
+        )
+    return tier_word, method_path
+
+
+def derive_items_from_plan(plan_path: Path, task_label: str, probe_spec_path: Path | None) -> dict:
+    """Build an ITEMS_SCHEMA document mechanically from `plan_path`'s named
+    task block; raises ValueError (a usage error, exit 2) on any problem —
+    fail closed, never a silently partial item list."""
+    try:
+        text = plan_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ValueError(f"could not read plan file '{plan_path}': {exc}") from exc
+
+    tasks = split_tasks(text)
+    if not tasks:
+        raise ValueError(f"plan '{plan_path}' contains no '### Task' headings -- nothing to derive items from")
+
+    task_num = resolve_task_number(task_label)
+    blocks = [block for num, block in tasks if num == task_num]
+    if not blocks:
+        available = ", ".join(num for num, _ in tasks)
+        raise ValueError(f"task {task_num} not found in '{plan_path}' (tasks present: {available})")
+    if len(blocks) > 1:
+        raise ValueError(f"task {task_num} appears {len(blocks)} times in '{plan_path}' -- ambiguous")
+
+    parsed = parse_items(blocks[0])
+    if not parsed:
+        raise ValueError(f"task {task_num} in '{plan_path}' has no 'Done means' items -- nothing to verify")
+
+    tiered = [(item, *parse_item_tier(item)) for item in parsed]
+    for item, tier, method_path in tiered:
+        if tier in COMMAND_TIERS and not method_path:
+            raise ValueError(
+                f"item {item.num} (tier: {tier}) names no backtick-quoted method path -- "
+                "its command can't be derived mechanically"
+            )
+
+    probe_spec = load_probe_spec(probe_spec_path) if probe_spec_path else {}
+
+    probe_nums = {item.num for item, tier, _ in tiered if tier == "probe"}
+    unknown = sorted(set(probe_spec) - probe_nums)
+    if unknown:
+        raise ValueError(
+            f"--probe-spec entr{'ies' if len(unknown) > 1 else 'y'} {', '.join(unknown)} "
+            f"match no probe-tier item of task {task_num}"
+        )
+    missing = [item.num for item, tier, _ in tiered if tier == "probe" and item.num not in probe_spec]
+    if missing:
+        raise ValueError(
+            f"probe-tier item(s) {', '.join(missing)} of task {task_num} need an artifact (and optional "
+            "pattern) the plan grammar doesn't carry -- supply --probe-spec JSON mapping each listed "
+            'item id to {"artifact": ..., "pattern": ...}'
+        )
+
+    def derive(item: Item, tier: str, method_path: str | None) -> dict:
+        if tier in COMMAND_TIERS:
+            return {"id": int(item.num), "kind": item.kind, "tier": tier, "command": method_path}
+        entry = probe_spec[item.num]
+        derived = {"id": int(item.num), "kind": item.kind, "tier": tier, "artifact": entry["artifact"]}
+        if "pattern" in entry:
+            derived["pattern"] = entry["pattern"]
+        return derived
+
+    return {"task": f"task-{task_num}", "items": [derive(*t) for t in tiered]}
+
+
+def resolve_since(since: str, repo: Path) -> float:
+    """Resolve --since to a POSIX epoch: an ISO-8601 timestamp or a git revision."""
+    try:
+        return datetime.fromisoformat(since.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        pass
+    epoch = resolve_revision_epoch(repo, since)
+    if epoch is None:
+        raise ValueError(
+            f"--since value '{since}' is neither an ISO-8601 timestamp nor a "
+            "resolvable git revision"
+        )
+    return epoch
+
+
+def check_command_item(item: dict, repo: Path, timeout: float) -> ItemResult:
+    try:
+        result = run_shell_with_timeout(item["command"], repo, timeout)
+    except subprocess.TimeoutExpired as exc:
+        detail = (
+            f"command: {item['command']}\n"
+            f"TIMEOUT: did not finish within --timeout {timeout:g}s and was killed -- "
+            "distinct from an ordinary non-zero-exit failure detail below, since a hung "
+            "command produces no exit status of its own (issue #49)\n"
+            f"--- stdout captured before timeout ---\n{exc.stdout or ''}\n"
+            f"--- stderr captured before timeout ---\n{exc.stderr or ''}"
+        )
+        return ItemResult(item["id"], item["kind"], item["tier"], "FAIL", detail)
+    status = "PASS" if result.returncode == 0 else "FAIL"
+    detail = (
+        f"command: {item['command']}\n"
+        f"exit code: {result.returncode}\n"
+        f"--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}"
+    )
+    return ItemResult(item["id"], item["kind"], item["tier"], status, detail)
+
+
+def check_probe_item(item: dict, since_ts: float) -> ItemResult:
+    artifact = Path(item["artifact"])
+    if not artifact.is_file():
+        return ItemResult(item["id"], item["kind"], item["tier"], "FAIL", f"artifact not found: {artifact}")
+    if artifact.stat().st_size == 0:
+        return ItemResult(item["id"], item["kind"], item["tier"], "FAIL", f"artifact is empty: {artifact}")
+    if artifact.stat().st_mtime < since_ts:
+        return ItemResult(
+            item["id"], item["kind"], item["tier"], "FAIL",
+            f"artifact is stale — its mtime predates --since: {artifact}",
+        )
+    pattern = item.get("pattern")
+    if pattern and not re.search(pattern, artifact.read_text(encoding="utf-8", errors="replace")):
+        return ItemResult(
+            item["id"], item["kind"], item["tier"], "FAIL",
+            f"artifact does not match expected pattern {pattern!r}: {artifact}",
+        )
+    return ItemResult(item["id"], item["kind"], item["tier"], "PASS", f"artifact ok: {artifact}")
+
+
+def run_items(
+    items: list[dict], repo: Path, timeout: float, since_ts: float | None, parallel: bool
+) -> list[ItemResult]:
+    """Check every item, returning results in item order.
+
+    Sequential by default. With `parallel`, command-tier items run
+    concurrently in a thread pool (one worker per command item -- each
+    thread only waits on its own subprocess) while probe items, cheap stat
+    checks, stay in-line on the main thread; collecting each future by its
+    item's own position keeps the output order deterministic regardless of
+    completion order.
+    """
+    if not parallel:
+        return [
+            check_probe_item(item, since_ts) if item["tier"] == "probe" else check_command_item(item, repo, timeout)
+            for item in items
+        ]
+
+    command_indexes = [i for i, item in enumerate(items) if item["tier"] in COMMAND_TIERS]
+    with ThreadPoolExecutor(max_workers=max(1, len(command_indexes))) as pool:
+        futures = {i: pool.submit(check_command_item, items[i], repo, timeout) for i in command_indexes}
+        return [
+            futures[i].result() if i in futures else check_probe_item(item, since_ts)
+            for i, item in enumerate(items)
+        ]
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="verify",
+        description="Independently re-run a task's Done-means items, one PASS/FAIL per item.",
+    )
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--items", help="path to the task's items JSON document")
+    source.add_argument(
+        "--plan",
+        help="path to a PLAN.md-shaped file to derive the items from mechanically (requires --task)",
+    )
+    parser.add_argument(
+        "--task",
+        default=None,
+        help="which of --plan's tasks to derive: its heading number, e.g. '3' or 'Task 3'",
+    )
+    parser.add_argument(
+        "--probe-spec",
+        default=None,
+        help=(
+            "path to a JSON object mapping a probe-tier item id to its "
+            '{"artifact": ..., "pattern": ...} — the one hand-authored supplement '
+            "--plan mode can need, since the plan grammar carries no artifact/pattern "
+            "for a probe item (only with --plan)"
+        ),
+    )
+    parser.add_argument(
+        "--repo", default=".", help="working directory for 'command' tiers and for resolving --since as a git revision"
+    )
+    parser.add_argument(
+        "--since",
+        default=None,
+        help="ISO-8601 timestamp or git revision a 'probe' artifact must not predate",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help=(
+            "seconds to allow each 'script'/'test-backed' item's command to run "
+            f"before treating it as hung and killing it (default: {DEFAULT_TIMEOUT_SECONDS:g}s "
+            "-- suites legitimately run minutes; issue #49)"
+        ),
+    )
+    parser.add_argument(
+        "--parallel",
+        action="store_true",
+        help=(
+            "run 'script'/'test-backed' items concurrently (default: sequential); "
+            "results still print in item order, and each item keeps its own full --timeout"
+        ),
+    )
+    parser.add_argument("--out", default=None, help="path to write a JSON results document")
+    args = parser.parse_args(argv)
+
+    # argparse's own mutual-exclusion check covers --items vs --plan; these
+    # cross-flag rules ride the same usage-error convention (exit 2).
+    if args.plan and not args.task:
+        parser.error("--plan requires --task (which task block to derive items from)")
+    if args.task and not args.plan:
+        parser.error("--task only makes sense with --plan")
+    if args.probe_spec and not args.plan:
+        parser.error("--probe-spec only makes sense with --plan")
+    return args
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+
+    try:
+        data = (
+            derive_items_from_plan(Path(args.plan), args.task, Path(args.probe_spec) if args.probe_spec else None)
+            if args.plan
+            else load_items(Path(args.items))
+        )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    items = data["items"]
+    repo = Path(args.repo).resolve()
+    has_probe = any(item["tier"] == "probe" for item in items)
+
+    since_ts: float | None = None
+    if args.since is not None:
+        try:
+            since_ts = resolve_since(args.since, repo)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+    elif has_probe:
+        print(
+            "error: items include a 'probe'-tier check but no --since was given. "
+            "A probe artifact needs a freshness floor (e.g. the task's start time "
+            "or the worktree's baseline commit) or a stale artifact copied forward "
+            "from a prior attempt would pass silently.",
+            file=sys.stderr,
+        )
+        return 2
+
+    results = run_items(items, repo, args.timeout, since_ts, args.parallel)
+
+    for r in results:
+        print(f"[{r.status}] item {r.id} ({r.kind}/{r.tier})")
+        if r.status == "FAIL":
+            print(indent(r.detail, "    "))
+
+    passed = sum(r.status == "PASS" for r in results)
+    overall = "PASS" if passed == len(results) else "FAIL"
+    print(f"verify: task={data.get('task', '?')} overall={overall} ({passed}/{len(results)} items pass)")
+
+    if args.out:
+        Path(args.out).write_text(
+            json.dumps(
+                {"task": data.get("task"), "overall": overall, "items": [asdict(r) for r in results]},
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+    return 0 if overall == "PASS" else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

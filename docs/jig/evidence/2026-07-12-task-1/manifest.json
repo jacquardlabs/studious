@@ -1,0 +1,15 @@
+{
+  "task": "task-1",
+  "date": "2026-07-12",
+  "commit_sha": "4cc30a495329dbdcc0ab46807ee982c27eaa2a67",
+  "commit_timestamp": "2026-07-12T22:12:32+00:00",
+  "captured_at": "2026-07-12T22:13:15.752872+00:00",
+  "artifacts": [
+    {
+      "producer": "verify",
+      "label": "results",
+      "source": "/private/tmp/claude-501/-Users-bryan-Projects-jig/f260e0cf-a2ee-4e79-9c90-9e4dfccdc606/scratchpad/demo-ruff-fix/task-1-results.json",
+      "path": "results.json"
+    }
+  ]
+}

@@ -19,10 +19,7 @@ REQUIRED = ("name", "description", "version", "author", "repository", "license",
 
 
 def validate(data: dict) -> list[str]:
-    errors: list[str] = []
-    for key in REQUIRED:
-        if key not in data:
-            errors.append(f"missing required field: {key}")
+    errors: list[str] = [f"missing required field: {key}" for key in REQUIRED if key not in data]
 
     name = data.get("name")
     if "name" in data and not isinstance(name, str):

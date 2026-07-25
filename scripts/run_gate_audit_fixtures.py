@@ -50,7 +50,7 @@ class Expectation:
     required_categories: tuple[str, ...] = ()
 
     @staticmethod
-    def from_dict(data: dict) -> "Expectation":
+    def from_dict(data: dict) -> Expectation:
         return Expectation(
             verdict_any_of=tuple(data["verdict_any_of"]),
             min_critical_findings=data.get("min_critical_findings", 0),
@@ -160,9 +160,11 @@ def evaluate(parsed: ParsedReport, expected: Expectation) -> list[str]:
             f"expected <= {expected.max_important_findings} important finding(s), "
             f"parsed {parsed.important_count}"
         )
-    for category in expected.required_categories:
-        if category not in parsed.categories_mentioned:
-            failures.append(f"expected category {category!r} not mentioned in findings")
+    failures.extend(
+        f"expected category {category!r} not mentioned in findings"
+        for category in expected.required_categories
+        if category not in parsed.categories_mentioned
+    )
 
     return failures
 
@@ -261,6 +263,7 @@ def run_claude_headless(cwd: Path, timeout_seconds: int = 900) -> str:
     try:
         result = subprocess.run(
             command,
+            check=False,
             cwd=cwd,
             env=env,
             capture_output=True,

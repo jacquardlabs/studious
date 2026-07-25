@@ -5,3 +5,14 @@ __pycache__/
 
 # Studious local gate ledger (do not commit)
 .studious/
+
+# viva local session state — round files, answers, server.url (do not commit)
+.viva/
+
+# jig's build artifacts: design docs, PLAN.md, and demonstration evidence are
+# disposable — they live on the branch and die at merge. What survives is the
+# Done-means table + evidence in the PR body, and decision patches proposed to
+# PRODUCT.md/DESIGN.md/CLAUDE.md. (Already-tracked copies predate this rule; #181.)
+/PLAN.md
+docs/design/
+docs/jig/demonstrations/

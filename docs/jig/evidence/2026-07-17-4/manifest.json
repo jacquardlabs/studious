@@ -1,0 +1,15 @@
+{
+  "task": "4",
+  "date": "2026-07-17",
+  "commit_sha": "952efd9c69e690f586e56ed5290d2a951266ef41",
+  "commit_timestamp": "2026-07-17T22:40:56+00:00",
+  "captured_at": "2026-07-17T22:41:36.001374+00:00",
+  "artifacts": [
+    {
+      "producer": "verify",
+      "label": "results",
+      "source": "/private/tmp/claude-501/-Users-bryan-Projects-jig/a30f8525-d4f1-41d8-9ef8-d9560fd0fdb1/scratchpad/build-task-4/results.json",
+      "path": "results.json"
+    }
+  ]
+}

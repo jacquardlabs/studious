@@ -39,11 +39,11 @@ def find_broken(root: Path) -> list[str]:
         for md in sorted(base.rglob("*.md")):
             text = md.read_text(encoding="utf-8")
             rel = md.relative_to(root)
-            for name in sorted(set(AGENT_RE.findall(text))):
-                if not (root / "agents" / f"{name}.md").is_file():
-                    errors.append(
-                        f"@agent-{name} referenced in {rel} but agents/{name}.md missing"
-                    )
+            errors.extend(
+                f"@agent-{name} referenced in {rel} but agents/{name}.md missing"
+                for name in sorted(set(AGENT_RE.findall(text)))
+                if not (root / "agents" / f"{name}.md").is_file()
+            )
             skill_names = {name for regex in SKILL_RES for name in regex.findall(text)}
             for name in sorted(skill_names):
                 if name in EXTERNAL_SKILLS:

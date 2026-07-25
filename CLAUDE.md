@@ -10,7 +10,7 @@ The product itself is two rhythms (see `README.md`): per-feature **gates** (`/ga
 
 ## Commands
 
-Tooling is `uv` for Python and `npx` for markdown. The six CI jobs (`.github/workflows/ci.yml`) are the full local check suite:
+Tooling is `uv` for Python and `npx` for markdown. The seven CI jobs (`.github/workflows/ci.yml`) are the full local check suite:
 
 ```bash
 # Markdown lint (ratchets current state; config in .markdownlint-cli2.jsonc)
@@ -21,6 +21,9 @@ uv run --no-project python scripts/check_references.py
 
 # Validate .claude-plugin/plugin.json against the schema
 uv run --no-project python scripts/validate_plugin.py
+
+# Assert no gate invokes a build skill or requires a build artifact
+uv run --no-project python scripts/check_gate_independence.py
 
 # Python unit tests (run a single test by node id)
 uv run --no-project --with pytest pytest tests/python -v
@@ -42,6 +45,10 @@ bash tests/test_workflows_lint.sh
 # DOM wiring is exercised live against a running bin/board-server instead)
 node --check assets/board-ui/app.js
 node --test tests/js/*.js
+
+# Build-script lint and tests (ruff pinned; stdlib unittest, not pytest)
+uv run --no-project --with ruff==0.16.0 ruff check scripts tests/jig
+uv run --no-project python3 -m unittest discover -s tests/jig -v
 ```
 
 Releases are automated via semantic-release (`pyproject.toml`); the version lives in `.claude-plugin/plugin.json` and is bumped by CI on merge to `main` — never edit it by hand.
@@ -57,6 +64,7 @@ The directory layout encodes a role split (full version in `CONTRIBUTING.md`):
 - `hooks/` — shipped hook scripts + `hooks.json`. Two live hooks: a non-blocking PreToolUse reminder before `gh pr create` (`gate-reminder.sh`), and a silent PostToolUse/PostToolUseFailure evidence-capture hook on `Bash` that appends verification-command records while a story is armed (`evidence-capture.sh`; format pinned in `reference/evidence-format.md`).
 - `bin/gate-ledger` — reads/writes the per-branch gate ledger and the per-feature `/work-on` work files.
 - `templates/` — PRODUCT.md / DESIGN.md scaffolds created by `/studious-init` in the consuming project.
+- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence) plus the build skills' own executables (`plan-lint`, `design-lint`, `verify`, `status-flip`, `build-report`, `evidence-capture`, `worktree-setup`). The latter are run by `/plan` and `/build`, not by CI.
 
 Key invariants when adding or changing prompts:
 
@@ -69,7 +77,61 @@ Key invariants when adding or changing prompts:
 
 ## Repo boundaries
 
-Layers of the delivery discipline — story, epic, initiative, worker — are directories and entrypoints of **this** repo, never separate repos. Their contracts co-evolve, and the gates can only audit changes they can see whole: one diff domain. Stand up a separate repo only if at least one holds: (a) a different license/commercial regime; (b) an independent audience whose users never install the rest; (c) a lifecycle/runtime that makes shared CI harmful; (d) a security/visibility boundary. Decision record: `docs/initiative-altitude.md` (2026-07-07) — the brigade repo was absorbed under this rule; winnow (a, b) and gauntlet (b) remain separate under it.
+Layers of the delivery discipline — story, epic, initiative, worker — are directories and entrypoints of **this** repo, never separate repos. Their contracts co-evolve, and the gates can only audit changes they can see whole: one diff domain. Stand up a separate repo only if at least one holds:
+
+- **(a)** a different license/commercial regime;
+- **(b)** an independent audience whose users never install the rest;
+- **(c)** a lifecycle/runtime that makes shared CI harmful;
+- **(d)** a security/visibility boundary;
+- **(e)** the interface across the boundary is **versioned, documented, and tested** — a published contract, not a format convention.
+
+Criterion (e) was added on 2026-07-24 when absorbing jig (#150) showed audience alone was the wrong test. jig had no independent audience, but neither did viva; what separated them was the *interface*. studious and jig coupled through undocumented format agreements — an evidence layout, a `PASS` token, a routing table, telemetry keys — each of which had to be renegotiated in two repos at once, and one of which (#148) blocked its own seam story from being real end-to-end while that story sat closed. viva publishes `docs/headless-contract.md`: a versioned contract with schema validators called at the boundary and tests around them. A boundary is affordable when crossing it means calling a contract, and expensive when it means agreeing on a convention.
+
+Decision records: `docs/initiative-altitude.md` (2026-07-07) — the brigade repo was absorbed under this rule; issue #150 (2026-07-24) — jig was absorbed under it, viva stays out under (e). winnow (a, b) and gauntlet (b) remain separate.
+
+## The build skills, and the one rule that governs them
+
+jig was absorbed into this plugin (#150), not added beside it. `/design`, `/plan`,
+`/build`, `/finish`, and `/coach` are `skills/` here like any other; their Python lives
+in `scripts/`, their unittest suite in `tests/jig/`. One manifest, one version line, one
+install. The manifest declares `dependencies: ["viva"]` — `/plan` and `/design` stop dead
+without it.
+
+Two plugins was considered and rejected: separate installability served an audience of
+zero while costing two version lines, two release paths, a `git-subdir` marketplace
+source, and a manual seed-tag step wedged between merges.
+
+**The load-bearing rule: a gate judges the work, never who produced it.**
+`scripts/check_gate_independence.py` enforces it in CI. Nothing under
+`commands/gate-*.md`, `agents/`, `workflows/`, `hooks/`, or `bin/` may invoke a build
+skill or require a build artifact (`PLAN.md`, `docs/jig/evidence/`) — the evidence
+contract a gate may rely on is `reference/evidence-format.md`, which any executor can
+satisfy. Outside that surface, `/work-on` and `/work-through` route to the build skills
+freely; that is the product working. `reference/worker-contract.md` stays normative and
+`/build` is one implementation of it, which is what keeps PRODUCT.md's "the gates being
+a methodology" non-goal true now that a methodology ships in the same plugin.
+
+**Two test runners, deliberately.** `tests/python/` is pytest (studious's own suite);
+`tests/jig/` is stdlib `unittest` (the build scripts'). They run as separate CI jobs and
+do not share a runner or a conftest. Don't unify them opportunistically.
+
+## Python conventions
+
+Applies to `scripts/` and both test trees. These override Studious's built-in idiom
+rubric for this repo.
+
+- **Target 3.11+.** `uv` for all tooling. Type hints required. Prefer comprehensions,
+  generator expressions, and stdlib (`functools`, `itertools`, `collections`) over
+  explicit loops.
+- **Ruff, pinned** in `.github/workflows/ci.yml`. `pyproject.toml`'s `[tool.ruff.lint]`
+  extends the pinned version's defaults with `B`, `C4`, `PERF`, `PIE`, `RUF`, `SIM`.
+  The default set grows between releases — bump the pin deliberately and fix what the
+  new defaults surface, rather than floating.
+- **Paths resolve against the repo root.** The build scripts locate the project with
+  `git rev-parse --show-toplevel`, which is correct for the real case (they run against
+  a *consuming* project) but means their own tests can't assume the ambient checkout.
+  `tests/jig/test_plan_lint.py` shows the pattern: stage the fixture into a throwaway
+  repo via `tests/jig/_tempgit.py`.
 
 ## Naming and model conventions
 

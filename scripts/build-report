@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""jig's build-report script (story finish-skill, issue #20).
+
+`/finish`'s Step 5: writes a dated, durable build report --
+`docs/jig/reports/YYYY-MM-DD-<story-slug>-build-report.md` -- same class
+and naming shape as studious's own dated review reports
+(`docs/studious/<kind>-reviews/YYYY-MM-DD-<kind>-review.md`), reusing an
+established convention rather than inventing a new report shape (see
+docs/design/finish-skill.md, Step 5).
+
+This script only performs the mechanical write of already-assembled
+content -- it does not draft, summarize, or judge the report body itself;
+`/finish`'s own session assembles the evidence table, the cctx footer (or
+its "not installed" note), the filed/skipped follow-ups, and the proposed
+decision patches, and hands the finished markdown to this script as a
+single file (`--content`). Never commits on its own -- matching
+`evidence-capture`'s precedent (writes files, the caller commits), since a
+report write and the Step 6 cleanup commit that follows it are meant to
+stay distinguishable in the branch's history.
+
+Exit codes: 0 report written. 2 usage error (a `--slug` containing '/' or
+'..', a malformed `--date`, a missing/unreadable `--content` file, or an
+existing report already at the target path without `--force`).
+"""
+from __future__ import annotations
+
+import argparse
+import re
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="build-report",
+        description="Write /finish's dated build report to docs/jig/reports/.",
+    )
+    parser.add_argument("--repo", default=".", help="path to the repo docs/jig/reports/ is written under")
+    parser.add_argument("--slug", required=True, help="the story's slug (used in the report's filename)")
+    parser.add_argument("--content", required=True, help="path to the already-assembled markdown report body")
+    parser.add_argument("--date", default=None, help="report date, YYYY-MM-DD (default: today, UTC)")
+    parser.add_argument("--force", action="store_true", help="overwrite an existing report at the same date+slug")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+
+    if "/" in args.slug or ".." in args.slug or not args.slug.strip():
+        print(f"error: --slug '{args.slug}' must be a plain identifier (no '/' or '..')", file=sys.stderr)
+        return 2
+    if args.date is not None and not DATE_RE.match(args.date):
+        print(f"error: --date '{args.date}' must be YYYY-MM-DD", file=sys.stderr)
+        return 2
+
+    content_path = Path(args.content)
+    if not content_path.is_file():
+        print(f"error: --content '{content_path}' does not exist", file=sys.stderr)
+        return 2
+
+    repo = Path(args.repo).resolve()
+    date = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    reports_root = repo / "docs" / "jig" / "reports"
+    report_path = reports_root / f"{date}-{args.slug}-build-report.md"
+
+    if report_path.exists() and not args.force:
+        print(
+            f"error: build report already exists: {report_path}\n"
+            "Pass --force to overwrite, or remove it first if this is a stale write.",
+            file=sys.stderr,
+        )
+        return 2
+
+    reports_root.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(content_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+    print(f"build-report: wrote {report_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+"""jig's evidence-freshness script (story finish-skill, issue #20).
+
+`/finish`'s Step 1 freshness hold: re-validates each already-captured
+evidence folder (`docs/jig/evidence/<date>-<task>/`, written by
+`evidence-capture` during `/build`) against its own recorded
+`manifest.json` -- never against the branch's current `HEAD`, which would
+reproduce issue #44's bug shape one layer up (a producing step that commits
+*after* writing the artifact it's timestamping against makes a "must be >=
+current HEAD" check structurally unpassable for every folder but the most
+recent). See docs/design/finish-skill.md, Step 1.
+
+Two checks per folder, both floored on the manifest's own `commit_sha` /
+`commit_timestamp`, never a moving target:
+
+1. `commit_sha` is still an ancestor of `--repo`'s current `HEAD` (`git
+   merge-base --is-ancestor`) -- catches an evidence folder produced on a
+   since-rewritten or orphaned commit (a real risk after a REPLAN's
+   hand-revision and rebuild).
+2. Every captured artifact file's own mtime is still >= `commit_timestamp`
+   -- catches an artifact silently touched or replaced after capture (a
+   stale copy-forward from a later, unrelated attempt).
+
+A folder that fails either check FAILs by name and reason; `/finish` is
+expected to stop before assembling a PR body rather than promote stale
+evidence -- this script only reports, it never decides what `/finish` does
+next.
+
+Exit codes: 0 every folder passes the hold. 1 at least one folder failed
+(named in the report). 2 usage error (no --evidence given, a folder
+missing or with a malformed manifest.json, --repo not a git repository).
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import git_repo_root, is_ancestor  # noqa: E402
+
+
+@dataclass
+class FolderResult:
+    path: str
+    task: str | None
+    commit_sha: str | None
+    status: str  # PASS | FAIL
+    detail: str
+
+
+def load_manifest(folder: Path) -> dict:
+    """Load and minimally validate `folder`'s manifest.json; raises
+    ValueError on any problem (missing folder, missing/malformed manifest,
+    or a manifest missing the fields this check depends on)."""
+    manifest_path = folder / "manifest.json"
+    if not manifest_path.is_file():
+        raise ValueError(f"no manifest.json found in '{folder}'")
+    try:
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"manifest.json in '{folder}' is not valid JSON: {exc}") from exc
+
+    if not isinstance(data, dict):
+        raise ValueError(f"manifest.json in '{folder}' must be a JSON object")
+    for field in ("commit_sha", "commit_timestamp", "artifacts"):
+        if field not in data:
+            raise ValueError(f"manifest.json in '{folder}' is missing required field '{field}'")
+    if not isinstance(data["artifacts"], list):
+        raise ValueError(f"manifest.json in '{folder}' has a non-list 'artifacts' field")
+    return data
+
+
+def check_folder(folder: Path, repo: Path) -> FolderResult:
+    manifest = load_manifest(folder)
+    task = manifest.get("task")
+    commit_sha = manifest["commit_sha"]
+
+    if not is_ancestor(repo, commit_sha):
+        return FolderResult(
+            str(folder), task, commit_sha, "FAIL",
+            f"commit '{commit_sha}' is not an ancestor of '{repo}' HEAD -- evidence was "
+            "captured against a commit that is no longer reachable (since-rewritten or "
+            "orphaned, e.g. after a rebase)",
+        )
+
+    commit_epoch = datetime.fromisoformat(manifest["commit_timestamp"]).timestamp()
+    stale = [
+        artifact["path"]
+        for artifact in manifest["artifacts"]
+        if (folder / artifact["path"]).is_file() and (folder / artifact["path"]).stat().st_mtime < commit_epoch
+    ]
+    missing = [artifact["path"] for artifact in manifest["artifacts"] if not (folder / artifact["path"]).is_file()]
+    if missing:
+        return FolderResult(
+            str(folder), task, commit_sha, "FAIL",
+            f"artifact(s) missing from evidence folder: {', '.join(missing)}",
+        )
+    if stale:
+        return FolderResult(
+            str(folder), task, commit_sha, "FAIL",
+            "artifact(s) are stale -- their mtime now predates the manifest's own recorded "
+            f"commit_timestamp ({manifest['commit_timestamp']}), i.e. touched or replaced "
+            f"after capture: {', '.join(stale)}",
+        )
+
+    return FolderResult(str(folder), task, commit_sha, "PASS", f"fresh as of commit {commit_sha[:8]}")
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="evidence-freshness",
+        description=(
+            "Re-validate already-captured docs/jig/evidence/ folders against each folder's "
+            "own recorded manifest.json commit -- never the branch's current HEAD."
+        ),
+    )
+    parser.add_argument("--repo", default=".", help="git repo the evidence folders' commits are checked against")
+    parser.add_argument(
+        "--evidence",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="path to an evidence folder (containing manifest.json), repeatable",
+    )
+    parser.add_argument("--out", default=None, help="path to write a JSON results document")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+
+    if not args.evidence:
+        print("error: at least one --evidence <path> is required", file=sys.stderr)
+        return 2
+
+    repo = git_repo_root(Path(args.repo))
+    if repo is None:
+        print(f"error: '{args.repo}' is not inside a git repository", file=sys.stderr)
+        return 2
+
+    results: list[FolderResult] = []
+    for evidence_path in args.evidence:
+        try:
+            results.append(check_folder(Path(evidence_path), repo))
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+
+    for r in results:
+        label = f"{r.path} (task={r.task})" if r.task else r.path
+        print(f"[{r.status}] {label}")
+        if r.status == "FAIL":
+            print(f"    {r.detail}")
+
+    passed = sum(r.status == "PASS" for r in results)
+    overall = "PASS" if passed == len(results) else "FAIL"
+    print(f"evidence-freshness: overall={overall} ({passed}/{len(results)} folders pass)")
+
+    if args.out:
+        Path(args.out).write_text(
+            json.dumps({"overall": overall, "folders": [asdict(r) for r in results]}, indent=2),
+            encoding="utf-8",
+        )
+
+    return 0 if overall == "PASS" else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+"""jig's evidence-capture script (story build-scripts, issue #14).
+
+Writes a task's verification artifacts (from `verify` and/or
+`worktree-setup`) to `docs/jig/evidence/<date>-<task>/`, alongside a
+manifest recording a timestamp, the commit SHA the evidence was checked
+against, and which script produced each artifact — the paper trail
+`/gate-audit` and a human read afterward (docs/design/build-scripts.md,
+"Proposed design").
+
+Freshness rule (this story's acceptance criteria: "timestamp >= last code
+commit"): an evidence folder can only exist if it was provably produced
+after the commit it's evidencing. A naive `now >= last-commit-timestamp`
+check is vacuous whenever the task's own work is still uncommitted at
+capture time — "last commit" then means the pre-task baseline commit, and
+any wall-clock stamp trivially satisfies it
+(docs/studious/premortems/build-scripts.md, risk #1). Two independent
+defenses close that gap:
+
+1. The repo's working tree must be clean — evidence is captured against a
+   real commit, not "whatever's currently sitting in the tree," so an
+   uncommitted task refuses rather than silently evidencing nothing.
+2. Every artifact file's own mtime must be >= the last commit's timestamp,
+   not just the capture-time wall clock — an artifact copied forward from
+   an earlier, possibly stale or failed, attempt is caught even if the
+   working tree happens to be clean for an unrelated reason.
+
+Exit codes: 0 evidence captured. 1 refused for a freshness reason (dirty
+tree, stale artifact, clock skew). 2 usage error (bad args, missing
+artifact, existing target directory without --force).
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import shutil
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import git_repo_root, last_commit_sha_and_epoch, working_tree_status  # noqa: E402
+
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+# Any identifier that flows into a destination path (the --task directory
+# name; an --artifact's PRODUCER and LABEL, which become the copied
+# filename) must be a plain token — no '/' or '..' to escape the evidence
+# directory. An explicit allowlist (rather than a per-field blocklist of bad
+# substrings) closes that off structurally and gives --task, PRODUCER, and
+# LABEL one shared rule instead of three that can drift apart (issue #51:
+# --task was guarded, the parallel --artifact label was not).
+SAFE_IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+
+def _check_safe_identifier(value: str, field: str) -> None:
+    """Raise ValueError unless `value` is a plain path-safe identifier.
+
+    The SAFE_IDENTIFIER_RE allowlist admits '.' as a character (so labels
+    like "v1.2" work), which means the bare strings '.' and '..' pass it
+    too — those are the two traversal tokens the regex was meant to keep
+    out in the first place. A no-suffix artifact source combined with a
+    '..' label collapses to a destination name of exactly '..'
+    (`dest_name = f"{label}{path.suffix}"`), which shutil.copy2 resolves
+    to the evidence directory's parent rather than refusing (issue #60).
+    Reject both exact strings explicitly, on top of the regex.
+    """
+    if value in {".", ".."} or not SAFE_IDENTIFIER_RE.match(value):
+        raise ValueError(
+            f"{field} '{value}' must be a plain identifier matching [A-Za-z0-9_.-]+ and not be '.' or '..'"
+        )
+
+
+def parse_artifact_spec(spec: str) -> tuple[str, str, Path]:
+    """Parse a `PRODUCER:LABEL=PATH` --artifact value."""
+    if "=" not in spec:
+        raise ValueError(f"--artifact '{spec}' must be of the form PRODUCER:LABEL=PATH")
+    head, _, path_str = spec.partition("=")
+    if ":" not in head:
+        raise ValueError(f"--artifact '{spec}' must be of the form PRODUCER:LABEL=PATH")
+    producer, _, label = head.partition(":")
+    if not producer or not label or not path_str:
+        raise ValueError(f"--artifact '{spec}' must be of the form PRODUCER:LABEL=PATH")
+    _check_safe_identifier(producer, "--artifact producer")
+    _check_safe_identifier(label, "--artifact label")
+    return producer, label, Path(path_str)
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="evidence-capture",
+        description="Write a task's verification artifacts + a freshness-stamped manifest to docs/jig/evidence/.",
+    )
+    parser.add_argument("--task", required=True, help="task identifier (used in the evidence directory name)")
+    parser.add_argument("--repo", default=".", help="path to the git repo the evidence is checked against")
+    parser.add_argument(
+        "--date", default=None, help="evidence date, YYYY-MM-DD (default: today, UTC)"
+    )
+    parser.add_argument(
+        "--evidence-root",
+        default=None,
+        help="root directory evidence folders are created under (default: <repo>/docs/jig/evidence)",
+    )
+    parser.add_argument(
+        "--artifact",
+        action="append",
+        default=[],
+        metavar="PRODUCER:LABEL=PATH",
+        help="an artifact to capture, repeatable; PRODUCER names the script that produced it (e.g. verify)",
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="overwrite an existing evidence directory for this date+task"
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+
+    if not args.artifact:
+        print("error: at least one --artifact is required", file=sys.stderr)
+        return 2
+    try:
+        _check_safe_identifier(args.task, "--task")
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.date is not None and not DATE_RE.match(args.date):
+        print(f"error: --date '{args.date}' must be YYYY-MM-DD", file=sys.stderr)
+        return 2
+
+    try:
+        specs = [parse_artifact_spec(a) for a in args.artifact]
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    labels = [label for _, label, _ in specs]
+    if len(labels) != len(set(labels)):
+        print(f"error: --artifact labels must be unique, got {labels}", file=sys.stderr)
+        return 2
+
+    repo = git_repo_root(Path(args.repo))
+    if repo is None:
+        print(f"error: '{args.repo}' is not inside a git repository", file=sys.stderr)
+        return 2
+
+    dirty = working_tree_status(repo)
+    if dirty.strip():
+        print(
+            "error: refusing to capture evidence against an uncommitted working "
+            "tree — evidence must be checked against a real commit. Commit the "
+            "task's work first, then re-run evidence-capture.\n"
+            f"dirty files:\n{dirty}",
+            file=sys.stderr,
+        )
+        return 1
+
+    commit_info = last_commit_sha_and_epoch(repo)
+    if commit_info is None:
+        print(f"error: could not read the last commit in '{repo}'", file=sys.stderr)
+        return 2
+    commit_sha, commit_epoch = commit_info
+
+    now = time.time()
+    if now < commit_epoch:
+        print(
+            "error: system clock appears to be behind the last commit's timestamp; "
+            "refusing to stamp evidence",
+            file=sys.stderr,
+        )
+        return 1
+
+    missing = [str(path) for _, _, path in specs if not path.is_file()]
+    if missing:
+        print(f"error: artifact(s) not found: {', '.join(missing)}", file=sys.stderr)
+        return 2
+
+    stale = [str(path) for _, _, path in specs if path.stat().st_mtime < commit_epoch]
+    if stale:
+        print(
+            "error: refusing to capture stale evidence — the following artifact(s) "
+            f"predate the last commit ({commit_sha[:8]}) they're supposed to "
+            "evidence, and were likely copied forward from a prior attempt:\n  "
+            + "\n  ".join(stale),
+            file=sys.stderr,
+        )
+        return 1
+
+    date = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    evidence_root = Path(args.evidence_root) if args.evidence_root else repo / "docs" / "jig" / "evidence"
+    target_dir = evidence_root / f"{date}-{args.task}"
+
+    if target_dir.exists() and not args.force:
+        print(
+            f"error: evidence directory already exists: {target_dir}\n"
+            "Pass --force to overwrite, or remove it first if this is a stale capture.",
+            file=sys.stderr,
+        )
+        return 2
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    manifest_artifacts = []
+    for producer, label, path in specs:
+        dest_name = f"{label}{path.suffix}"
+        shutil.copy2(path, target_dir / dest_name)
+        manifest_artifacts.append({"producer": producer, "label": label, "source": str(path), "path": dest_name})
+
+    manifest = {
+        "task": args.task,
+        "date": date,
+        "commit_sha": commit_sha,
+        "commit_timestamp": datetime.fromtimestamp(commit_epoch, tz=timezone.utc).isoformat(),
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "artifacts": manifest_artifacts,
+    }
+    (target_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    print(f"evidence-capture: wrote {len(manifest_artifacts)} artifact(s) + manifest.json to {target_dir}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

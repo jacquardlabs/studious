@@ -6,9 +6,9 @@ explicitly approved epic plan. This file names the interface between the driver 
 worker: what every dispatch brief must hand over, and what a worker must hand back
 before its phase counts as done. It is the build-side analogue of
 `reference/design-doc-contract.md`. The contract, not any particular executor, is
-normative — a worker MAY use Superpowers' plan/execute workflow when it's installed, or
-jig's `/plan` + `/build` workflow, but a worker without either must still satisfy every
-row below.
+normative — a worker MAY use this plugin's own `/plan` + `/build` workflow, or
+Superpowers' plan/execute workflow when it's installed, but a worker using neither must
+still satisfy every row below.
 
 Workers never gate. A worker must not run a gate command, record a verdict, or
 self-assess against a gate's rubric — the gates judge its output blind, from the diff
@@ -50,7 +50,7 @@ work-log --slug "<that-slug>" --step <phase> --outcome "<status>"`, omitting `--
 at all → skip silently; this is best-effort corroboration, not a required part of the
 contract. This is a first-person status report, not a gate verdict or a self-assessment
 against a rubric, and does not conflict with "workers never... record a verdict" below
-— jig's `/build` reports `BUILT | PAUSED | ESCALATED` this way when `gate-ledger` is
+— the built-in `/build` reports `BUILT | PAUSED | ESCALATED` this way when `gate-ledger` is
 present.
 
 ## Boundaries

@@ -1,0 +1,397 @@
+#!/usr/bin/env python3
+"""jig's plan-lint script (story plan-lint, issue #12).
+
+A zero-model, deterministic-exit-code structural linter for a `PLAN.md`-
+shaped file, per `docs/design/plan-lint.md`. Every check below is a regex,
+a filesystem `exists()`, or a string match over the plan's own text --
+never a model call, never a Task-tool dispatch. This is the mechanical gate
+between "a plan drafted" and "a plan a human vivas and a fresh `/build`
+executor can trust" (the ratified handoff, §5.2 step 5; issue #11).
+
+**Grammar validated** -- exactly `skills/build/SKILL.md`'s own checkpoint-
+block shape, plus the one addition this story makes explicit: what goes
+*inside* the tier parenthetical. `script` / `test-backed` items carry a
+backtick-quoted, repo-relative method path immediately after the tier word
+(`` (tier: script `scripts/plan-lint`) ``); `probe` items carry none
+(`` (tier: probe) ``) -- there is no pre-existing repo file to name for a
+probe's live-observed artifact.
+
+**The backtick convention.** A backtick span is the plan author's explicit
+signal that a token is concrete and checkable, not narrative. This one
+convention answers three checks below: Read-first pointer resolution,
+checkpoint method existence, and LOAD-BEARING cap concreteness. Prose
+outside backticks is never inspected -- guessing which prose "really"
+names a path is exactly the judgment call a zero-model linter can't make.
+
+**Violation categories** (eight total; the acceptance criteria's checks map
+onto these one-to-one, per-item where an item is the unit, per-task
+otherwise):
+
+- `cap-count`    -- a task's Done means has zero `[cap]` items.
+- `hold-count`   -- a task's Done means has zero `[hold]` items.
+- `item-count`   -- a task's Done means has more than 5 items.
+- `invalid-tier` -- an item's `(tier: ...)` parenthetical is missing, or
+  names anything other than `script` / `test-backed` / `probe` (including
+  the literal token `judgment` -- no judgment tier ever accepted).
+- `method-not-found` -- a `script`/`test-backed` item names no
+  backtick-quoted method path, or names one that doesn't exist on disk and
+  isn't named (backtick-quoted or as a plain substring) in an *earlier*
+  task's own `Do:` line.
+- `read-first-unresolved` -- a task's `Read first:` line has no backtick
+  span, or a backtick span (line-locator suffix stripped) doesn't resolve
+  to a real path under the repo root.
+- `not-here-followup-undrafted` -- a bullet under a "Not-here follow-ups"
+  heading (any `#` depth -- located by text, not depth, since issue #23's
+  heading-level fix is a sibling story's job) is empty or one of a short
+  placeholder set (`""`, `"todo"`, `"tbd"`, `"..."`, case-insensitive).
+- `load-bearing-cap-vague` -- a `[cap]` item on a LOAD-BEARING task (a task
+  some *other* task's `Rests on:` line names, derived mechanically, never
+  declared -- the handoff's own §5.3 decision 8) has no backtick span in
+  its behavior text.
+
+LOAD-BEARING and the method-existence "earlier task" clause are both
+computed against **document order**, not task-number order -- the same
+order `/build`'s own Step 1.4 splits the plan in.
+
+**Reporting.** Every violation found in one pass is printed, never just the
+first -- so one run against a deliberately-broken plan names one distinct
+failure per violation category, matching `verify`'s own per-item (not
+per-run) reporting precedent.
+
+Exit codes: 0 zero violations. 1 one or more violations (all printed).
+2 usage error -- the file doesn't exist or isn't readable, it isn't inside
+a git repository (paths can't be resolved), or it has zero `### Task`
+headings at all (nothing to lint -- a fail-closed stance, never a vacuous
+PASS, matching `verify`'s own refusal on an empty items list).
+
+Out of scope (see docs/design/plan-lint.md "Out of scope"): the `/plan`
+skill itself; issue #23 (the Not-here-follow-ups heading-*level* fix) and
+issue #13 (UI-probe mechanization); any semantic/quality judgment; CI
+wiring; auto-fixing anything found; validating `/build`'s own status-suffix
+writes beyond tolerating their presence in the heading pattern; the debug
+two-phase fingerprint's untiered meta-item; cross-referencing the design
+doc a plan claims to derive from.
+"""
+from __future__ import annotations
+
+import argparse
+import re
+import sys
+from collections import Counter
+from dataclasses import dataclass
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import git_repo_root  # noqa: E402
+
+# The task-splitting and Done-means-item grammar (`### Task N` blocks, the
+# `N. [cap|hold] ... (tier: ...)` item shape, the tier-parenthetical body)
+# is shared with `verify`'s --plan mode via `_planparse` -- one grammar,
+# never two drifting copies. `TASK_HEADING_RE` and `HEADING_LEVEL_1_TO_3_RE`
+# are (re-)exported here because `tests/_task_split_boundary.py` reads them
+# off this module as surface 1 of the three-way boundary-agreement check
+# (issue #66) -- its mutation test monkeypatches HEADING_LEVEL_1_TO_3_RE on
+# *this* module, which is why `split_tasks` below re-reads it at call time
+# instead of being a bare re-export of `_planparse.split_tasks`.
+from _planparse import (  # noqa: E402
+    COMMAND_TIERS,
+    HEADING_LEVEL_1_TO_3_RE,
+    TASK_HEADING_RE,  # noqa: F401  (re-export for tests/_task_split_boundary.py)
+    TIER_BODY_RE,
+    VALID_TIERS,
+    Item,
+    parse_items,
+)
+from _planparse import split_tasks as _split_tasks  # noqa: E402
+
+MAX_ITEMS = 5
+PLACEHOLDER_FOLLOWUPS = frozenset({"", "todo", "tbd", "..."})
+
+# Captures a task heading's own title text (after the em-dash), for
+# compute_load_bearing's title-match path (issue #62's sibling gap: the
+# reference tests/_load_bearing.py already matches this way; this was the
+# still-number-only copy). No title (a bare "### Task N" with nothing
+# after it) is fine -- _task_title returns "" and title-match never fires.
+TASK_HEADING_TITLE_RE = re.compile(r"^### Task \d+(?:\s*—\s*(.*))?$", re.MULTILINE)
+# scripts/status-flip's own SUFFIX_RE, duplicated here (scripts are
+# self-contained, not a shared package) so a title comparison ignores the
+# suffix status-flip appends and compares the same text a human reads.
+STATUS_FLIP_SUFFIX_RE = re.compile(r"\s*\[(?:PASS|REPLAN|ESCALATE)\]\s*$")
+# Located by heading *text*, not depth -- issue #23's heading-level fix is
+# the sibling plan-skill story's job, not this linter's.
+NOT_HERE_FOLLOWUPS_HEADING_RE = re.compile(r"^(#{1,6})[ \t]*Not-here follow-ups[ \t]*$", re.IGNORECASE | re.MULTILINE)
+ANY_HEADING_RE = re.compile(r"^(#{1,6})[ \t]", re.MULTILINE)
+
+READ_FIRST_RE = re.compile(r"^Read first:[ \t]*(.*)$", re.MULTILINE)
+RESTS_ON_RE = re.compile(r"^Rests on:[ \t]*(.*)$", re.MULTILINE)
+DO_RE = re.compile(r"^Do:[ \t]*(.*)$", re.MULTILINE)
+
+BACKTICK_RE = re.compile(r"`([^`]+)`")
+LINE_LOCATOR_SUFFIX_RE = re.compile(r":\d+(?:-\d+)?$")
+BULLET_RE = re.compile(r"^[ \t]*[-*][ \t]+(.*)$", re.MULTILINE)
+
+NOT_HERE_FOLLOWUPS_LABEL = "(Not-here follow-ups)"
+
+
+@dataclass
+class Violation:
+    task: str
+    category: str
+    detail: str
+
+    def __str__(self) -> str:
+        return f"[{self.category}] task {self.task}: {self.detail}"
+
+
+def split_tasks(text: str) -> list[tuple[str, str]]:
+    """`_planparse.split_tasks`, bound to this module's own
+    `HEADING_LEVEL_1_TO_3_RE` at call time -- so the boundary-agreement
+    mutation check (tests/_task_split_boundary.py, issue #66) can still
+    monkeypatch that constant here and see the very next call change."""
+    return _split_tasks(text, boundary_re=HEADING_LEVEL_1_TO_3_RE)
+
+
+def extract_field(block: str, pattern: re.Pattern[str]) -> str:
+    """First match of a single-line `Label: ...` field, or "" if absent."""
+    m = pattern.search(block)
+    return m.group(1).strip() if m else ""
+
+
+def strip_line_locator(span: str) -> str:
+    return LINE_LOCATOR_SUFFIX_RE.sub("", span)
+
+
+def _task_title(block: str) -> str:
+    """The task's own heading title (after the em-dash), with any
+    status-flip suffix stripped -- "" if the heading carries no title at
+    all (a bare `### Task N`)."""
+    first_line = block.splitlines()[0] if block else ""
+    m = TASK_HEADING_TITLE_RE.match(first_line)
+    if not m or not m.group(1):
+        return ""
+    return STATUS_FLIP_SUFFIX_RE.sub("", m.group(1)).strip()
+
+
+def _is_number_match(rests_on_text: str, task_num: str) -> bool:
+    """SKILL.md step 1.5's first alternative: the `Rests on:` line names
+    the dependency by its heading number, e.g. the literal text "Task 2"."""
+    return bool(re.search(rf"\bTask\s+{re.escape(task_num)}\b", rests_on_text))
+
+
+def _is_title_match(rests_on_text: str, title: str, title_counts: Counter[str]) -> bool:
+    """SKILL.md step 1.5's second, independent alternative: an *unambiguous*
+    title match to task N's own heading -- the `Rests on:` line names the
+    dependency by its title alone, with no heading number anywhere in it.
+    Unambiguous means no other task in the same plan shares that exact
+    title (case-insensitive) -- a title two tasks share can't uniquely
+    identify either one, so it never counts as a match. Mirrors
+    tests/_load_bearing.py's own `_is_title_match` (issue #62's sibling
+    reference implementation) so both copies of this rule agree."""
+    if not title or title_counts[title.casefold()] > 1:
+        return False
+    return title.casefold() in rests_on_text.casefold()
+
+
+def compute_load_bearing(tasks: list[tuple[str, str]]) -> frozenset[str]:
+    """A task is LOAD-BEARING iff some *other* task's `Rests on:` line names
+    it -- by heading number (e.g. "Task 2") or by an unambiguous title
+    match to that task's own heading, SKILL.md step 1.5's two independent
+    match paths -- derived mechanically, never declared (the handoff's own
+    §5.3 decision 8), reused rather than re-invented for a second
+    definition."""
+    titles = {task_num: _task_title(block) for task_num, block in tasks}
+    title_counts: Counter[str] = Counter(t.casefold() for t in titles.values() if t)
+    load_bearing: set[str] = set()
+    for task_num, block in tasks:
+        rests_on = extract_field(block, RESTS_ON_RE)
+        for other_num, other_title in titles.items():
+            if other_num == task_num:
+                continue
+            if _is_number_match(rests_on, other_num) or _is_title_match(rests_on, other_title, title_counts):
+                load_bearing.add(other_num)
+    return frozenset(load_bearing)
+
+
+def check_item_tier(task_num: str, item: Item, repo_root: Path, earlier_do_lines: list[str]) -> list[Violation]:
+    if item.tier_body is None:
+        return [Violation(task_num, "invalid-tier", f"item {item.num} has no '(tier: ...)' parenthetical")]
+
+    m = TIER_BODY_RE.match(item.tier_body.strip())
+    if not m:
+        return [Violation(task_num, "invalid-tier", f"item {item.num} tier annotation is malformed: {item.tier_body!r}")]
+
+    tier_word, method_path = m.group(1), m.group(2)
+    if tier_word not in VALID_TIERS:
+        return [
+            Violation(
+                task_num,
+                "invalid-tier",
+                f"item {item.num} tier '{tier_word}' is not one of {sorted(VALID_TIERS)} (no 'judgment' tier permitted)",
+            )
+        ]
+
+    if tier_word not in COMMAND_TIERS:
+        return []  # probe: no pre-existing repo file to name, nothing to check.
+
+    if not method_path:
+        return [
+            Violation(task_num, "method-not-found", f"item {item.num} (tier: {tier_word}) names no backtick-quoted method path")
+        ]
+
+    if (repo_root / method_path).exists():
+        return []
+    if any(method_path in do_line for do_line in earlier_do_lines):
+        return []
+    return [
+        Violation(
+            task_num,
+            "method-not-found",
+            f"item {item.num} method '{method_path}' does not exist on disk and is not named in any earlier task's Do: line",
+        )
+    ]
+
+
+def check_read_first(task_num: str, read_first_line: str, repo_root: Path) -> list[Violation]:
+    spans = BACKTICK_RE.findall(read_first_line)
+    if not spans:
+        return [Violation(task_num, "read-first-unresolved", "Read first: line has no backtick-quoted pointer")]
+
+    violations = []
+    for span in spans:
+        candidate = strip_line_locator(span)
+        if not (repo_root / candidate).exists():
+            violations.append(
+                Violation(
+                    task_num,
+                    "read-first-unresolved",
+                    f"Read first: pointer '{span}' does not resolve to a real path (resolved: '{candidate}')",
+                )
+            )
+    return violations
+
+
+def check_task(
+    task_num: str, block: str, repo_root: Path, is_load_bearing: bool, earlier_do_lines: list[str]
+) -> list[Violation]:
+    violations: list[Violation] = []
+
+    items = parse_items(block)
+    cap_items = [it for it in items if it.kind == "cap"]
+    hold_items = [it for it in items if it.kind == "hold"]
+
+    if not cap_items:
+        violations.append(Violation(task_num, "cap-count", "Done means has no [cap] item (need >=1)"))
+    if not hold_items:
+        violations.append(Violation(task_num, "hold-count", "Done means has no [hold] item (need >=1)"))
+    if len(items) > MAX_ITEMS:
+        violations.append(Violation(task_num, "item-count", f"Done means has {len(items)} items (max {MAX_ITEMS})"))
+
+    for item in items:
+        violations.extend(check_item_tier(task_num, item, repo_root, earlier_do_lines))
+
+    if is_load_bearing:
+        violations.extend(
+            Violation(
+                task_num,
+                "load-bearing-cap-vague",
+                f"LOAD-BEARING task's cap item {item.num} has no concrete (backtick) referent: {item.behavior!r}",
+            )
+            for item in cap_items
+            if not BACKTICK_RE.search(item.behavior)
+        )
+
+    read_first = extract_field(block, READ_FIRST_RE)
+    violations.extend(check_read_first(task_num, read_first, repo_root))
+
+    return violations
+
+
+def check_not_here_followups(text: str) -> list[Violation]:
+    heading_match = NOT_HERE_FOLLOWUPS_HEADING_RE.search(text)
+    if heading_match is None:
+        return []
+
+    level = len(heading_match.group(1))
+    start = heading_match.end()
+    end = next(
+        (h.start() for h in ANY_HEADING_RE.finditer(text) if h.start() >= start and len(h.group(1)) <= level),
+        len(text),
+    )
+    section_text = text[start:end]
+
+    violations = []
+    for bullet in BULLET_RE.findall(section_text):
+        normalized = bullet.strip().strip("`").strip().lower()
+        if normalized in PLACEHOLDER_FOLLOWUPS:
+            violations.append(
+                Violation(NOT_HERE_FOLLOWUPS_LABEL, "not-here-followup-undrafted", f"empty or placeholder follow-up: {bullet!r}")
+            )
+    return violations
+
+
+def lint(text: str, repo_root: Path) -> tuple[list[tuple[str, str]], list[Violation]]:
+    tasks = split_tasks(text)
+    if not tasks:
+        return tasks, []
+
+    load_bearing = compute_load_bearing(tasks)
+    do_lines = [extract_field(block, DO_RE) for _, block in tasks]
+
+    violations: list[Violation] = []
+    for i, (task_num, block) in enumerate(tasks):
+        violations.extend(check_task(task_num, block, repo_root, task_num in load_bearing, do_lines[:i]))
+    violations.extend(check_not_here_followups(text))
+
+    return tasks, violations
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="plan-lint",
+        description="Zero-model structural linter for a PLAN.md-shaped file.",
+    )
+    parser.add_argument(
+        "plan",
+        nargs="?",
+        default="PLAN.md",
+        help="path to the PLAN.md-shaped file (default: PLAN.md in the current directory)",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+    plan_path = Path(args.plan)
+
+    if not plan_path.is_file():
+        print(f"error: '{plan_path}' does not exist or is not a file", file=sys.stderr)
+        return 2
+    try:
+        text = plan_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"error: could not read '{plan_path}': {exc}", file=sys.stderr)
+        return 2
+
+    repo_root = git_repo_root(plan_path.resolve().parent)
+    if repo_root is None:
+        print(f"error: '{plan_path}' is not inside a git repository -- can't resolve its relative paths", file=sys.stderr)
+        return 2
+
+    tasks, violations = lint(text, repo_root)
+    if not tasks:
+        print(f"error: '{plan_path}' contains no '### Task' headings -- nothing to lint", file=sys.stderr)
+        return 2
+
+    for violation in violations:
+        print(str(violation))
+
+    if violations:
+        print(f"plan-lint: {plan_path} -- {len(violations)} violation(s) across {len(tasks)} task(s)")
+        return 1
+
+    print(f"plan-lint: {plan_path} -- 0 violations across {len(tasks)} task(s)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""jig's worktree-setup script (story build-scripts, issue #14).
+
+Creates a fresh branch + git worktree for a `/build` session, then runs the
+target project's own baseline verification command inside it *before* any
+task is dispatched. A non-zero baseline is a **dirty baseline**: this script
+surfaces the failure, frames it explicitly as pre-existing (not caused by
+this build session), leaves the worktree in place for inspection, and exits
+non-zero — `/build` must stop before task 1 rather than let a fresh
+executor start against an ambiguous starting point
+(docs/design/build-scripts.md, "Proposed design" / this story's acceptance
+criteria).
+
+Colliding with an existing branch or worktree at the given path fails loudly
+with the exact remediation command, rather than silently reusing stale
+state (docs/studious/premortems/build-scripts.md, risk #2).
+
+Trust boundary (issue #48): the baseline command is project-supplied (read
+from the target project's own CLAUDE.md by `/build`'s Foreman) and is
+executed verbatim via the shell -- `shell=True`, no allowlist, sandbox, or
+confirmation gate. Commands in a plan are executed verbatim via the shell;
+only run /build on plans you would run by hand.
+
+Timeout (issue #49): the baseline command runs under `--timeout` seconds
+(a generous default -- suites legitimately run minutes). A hung command
+(waiting on stdin, deadlocked, a network-bound test with no timeout of its
+own) is killed and reported as a distinct BASELINE TIMEOUT, never
+conflated with the command's own non-zero-exit BASELINE FAILURE message --
+a hang produces no exit code at all, so the two cases must read
+differently. The kill takes down the baseline command's whole process
+group, not just the shell (issue #61) -- via `_gitutil.run_shell_with_
+timeout`, launched with `start_new_session=True` and killed on timeout
+with `os.killpg(process.pid, signal.SIGKILL)` -- so a backgrounded or
+piped child can't outlive the shell that was reported killed.
+
+Exit codes: 0 clean baseline: worktree ready to build in. 1 the worktree
+was created but the baseline command failed, timed out, or failed to
+create. 2 usage error, or a collision with existing branch/worktree state.
+"""
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import (  # noqa: E402
+    DEFAULT_TIMEOUT_SECONDS,
+    branch_exists,
+    git_repo_root,
+    run,
+    run_shell_with_timeout,
+    worktree_registered,
+)
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="worktree-setup",
+        description=(
+            "Create a fresh branch + git worktree, then refuse to proceed if the "
+            "baseline verification command fails inside it (a dirty baseline)."
+        ),
+    )
+    parser.add_argument("--branch", required=True, help="new branch name to create")
+    parser.add_argument("--path", required=True, help="filesystem path for the new worktree")
+    parser.add_argument(
+        "--baseline",
+        required=True,
+        help=(
+            "the target project's own baseline verification command (its test "
+            "suite invocation, per that project's CLAUDE.md), run via the shell "
+            "inside the new worktree before any task is dispatched"
+        ),
+    )
+    parser.add_argument(
+        "--base",
+        default=None,
+        help="branch/commit the new branch starts from (default: current HEAD)",
+    )
+    parser.add_argument(
+        "--repo",
+        default=".",
+        help="path to the git repository to branch/worktree from (default: current directory)",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help=(
+            "seconds to allow the baseline command to run before treating it as "
+            f"hung and killing it (default: {DEFAULT_TIMEOUT_SECONDS:g}s -- suites "
+            "legitimately run minutes; issue #49)"
+        ),
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+
+    repo = git_repo_root(Path(args.repo))
+    if repo is None:
+        print(f"error: '{args.repo}' is not inside a git repository", file=sys.stderr)
+        return 2
+
+    branch = args.branch
+    worktree_path = Path(args.path).resolve()
+
+    collision = branch_exists(repo, branch) or worktree_path.exists() or worktree_registered(repo, worktree_path)
+    if collision:
+        print(
+            f"error: branch '{branch}' or worktree path '{worktree_path}' already "
+            "exists (collision).\n"
+            "Reusing existing state here would mask whether this build is really "
+            "starting fresh, so this refuses rather than reusing it silently.\n"
+            "To retry from a clean slate, run:\n"
+            f"  git -C {repo} worktree remove {worktree_path}\n"
+            f"  git -C {repo} branch -D {branch}\n"
+            "then re-run worktree-setup.",
+            file=sys.stderr,
+        )
+        return 2
+
+    add_cmd = ["git", "-C", str(repo), "worktree", "add", "-b", branch, str(worktree_path)]
+    if args.base:
+        add_cmd.append(args.base)
+    add_result = run(add_cmd)
+    if add_result.returncode != 0:
+        print(
+            f"error: failed to create worktree '{worktree_path}' on branch "
+            f"'{branch}':\n{add_result.stderr}",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        baseline_result = run_shell_with_timeout(args.baseline, worktree_path, args.timeout)
+    except subprocess.TimeoutExpired as exc:
+        print(
+            "BASELINE TIMEOUT (the command did not finish within --timeout "
+            f"{args.timeout:g}s and was killed -- distinct from an ordinary "
+            "non-zero-exit failure below; a hung command produces no exit "
+            "code at all):\n"
+            f"  command:   {args.baseline}\n"
+            f"  timeout:   {args.timeout:g}s\n"
+            f"  worktree:  {worktree_path}\n"
+            "A hung baseline (waiting on stdin, deadlocked, a network-bound "
+            "test with no timeout of its own) hangs the whole /build session "
+            "silently otherwise. Increase --timeout if this suite "
+            "legitimately needs longer, or investigate the worktree above "
+            "for what's stuck; do not attribute this to /build itself.\n"
+            "--- stdout captured before timeout ---\n"
+            f"{exc.stdout or ''}\n"
+            "--- stderr captured before timeout ---\n"
+            f"{exc.stderr or ''}",
+            file=sys.stderr,
+        )
+        return 1
+
+    if baseline_result.returncode != 0:
+        print(
+            "BASELINE FAILURE (pre-existing — not caused by this /build session):\n"
+            f"  command:   {args.baseline}\n"
+            f"  exit code: {baseline_result.returncode}\n"
+            f"  worktree:  {worktree_path}\n"
+            "This baseline was already broken before any task was dispatched; no "
+            "task will be attempted here. Resolve the baseline failure (or "
+            "investigate the worktree above) before retrying — do not attribute "
+            "this failure to /build itself.\n"
+            "--- baseline stdout ---\n"
+            f"{baseline_result.stdout}\n"
+            "--- baseline stderr ---\n"
+            f"{baseline_result.stderr}",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(
+        f"worktree-setup: branch '{branch}' and worktree '{worktree_path}' are "
+        f"ready; baseline is green ({args.baseline})."
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

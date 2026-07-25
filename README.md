@@ -10,11 +10,11 @@ A product development workflow for Claude Code, from [Jacquard Labs](https://git
 
 Claude Code made building cheap. That moved the bottleneck. The hard part is no longer *can we build it*. It's *should we build it, and did we build it right*.
 
-Studious adds that judgment back as one discipline entered at the scope of the work: a feature (the gates), a story (`/work-on`), or a whole milestone (`/work-through`). It owns the judgment: what to work on, whether a design serves users, whether the implementation delivers, whether the codebase stays healthy. The building enters through a contract (`reference/worker-contract.md`: story brief in, implementation and evidence out). Any executor can satisfy it — you, a dispatched agent, or [Superpowers](https://github.com/obra/superpowers) if you use it.
+Studious adds that judgment back as one discipline entered at the scope of the work: a feature (the gates), a story (`/work-on`), or a whole milestone (`/work-through`). It owns the judgment: what to work on, whether a design serves users, whether the implementation delivers, whether the codebase stays healthy. The building enters through a contract (`reference/worker-contract.md`: story brief in, implementation and evidence out). A build loop that satisfies it ships in the box (`/design` → `/plan` → `/build` → `/finish`), and so does any other executor you prefer — you by hand, a dispatched agent, or [Superpowers](https://github.com/obra/superpowers). No gate knows or cares which built the branch; CI enforces that.
 
 ## How it works
 
-Studious runs on 2 rhythms. A per-feature gate flow that checks each piece of work before and after you build it, and a per-project health loop that reviews the whole on a cadence. Both read from 3 context documents (PRODUCT.md, DESIGN.md, CLAUDE.md) that hold your product's through-lines, so every judgment is grounded in the same context. That's the whole system.
+Studious runs on 2 rhythms. A per-feature gate flow that checks each piece of work before and after you build it, and a per-project health loop that reviews the whole on a cadence. Both read from 3 context documents (PRODUCT.md, DESIGN.md, CLAUDE.md) that hold your product's through-lines, so every judgment is grounded in the same context. Between the gates you build — with the loop Studious ships, or with anything else. That's the whole system.
 
 ## Quick start
 
@@ -25,12 +25,7 @@ Via the Jacquard Labs marketplace:
 /plugin install studious@jacquardlabs-marketplace
 ```
 
-Or directly:
-
-```bash
-/plugin marketplace add jacquardlabs/studious
-/plugin install studious@studious
-```
+That also installs [viva](https://github.com/jacquardlabs/viva), a declared dependency: `/design` and `/plan` drive it for their human sign-off rounds, and Claude Code resolves it from the same marketplace automatically.
 
 Then, in any project:
 
@@ -73,7 +68,7 @@ Each gate exists to catch a specific failure. Reach for one on its own when you 
 
 - Pick what to build with `/backlog-priorities` (ranks your open GitHub issues by severity/alignment/unblocking potential) or `/gate-should-we-build [idea]` (scores a raw idea against PRODUCT.md and the smallest version worth shipping). Catches building the wrong thing.
 - Gate the design with `/gate-design-review`. It walks your design doc as your primary persona would and flags where they'd get confused or frustrated. Catches a bad design before you spend build effort on it. On a passing verdict, it also writes a pre-mortem register (`docs/studious/premortems/<slug>.md`) — failure modes predicted at design time, checked back against the finished changeset at the end of the flow.
-- Build it with your own workflow — by hand or with any executor (Superpowers works well here). Studious steps back in the supervised flow; in `/work-through` epics, dispatched workers build to `reference/worker-contract.md` and are gated like anyone else.
+- Build it with `/plan` and `/build` (see [The build loop](#the-build-loop)), or with any other executor — by hand, or Superpowers. The gates step back in the supervised flow; in `/work-through` epics, dispatched workers build to `reference/worker-contract.md` and are gated like anyone else.
 - Audit before merge with `/gate-audit`. Security, code quality, docs, architecture, and test adequacy always run; UX, frontend, and an accessibility pass (via the `web-design-guidelines` skill, or a vendored fallback when it isn't installed) join in on projects with a web surface; infrastructure joins in when the changeset touches IaC, container, or CI-pipeline files; operability joins in when the changeset touches runtime code (request handlers, queue consumers, daemons, outbound calls); a dependency check joins in when the changeset touches dependency manifests or lockfiles (new or updated packages, known vulnerabilities, license compatibility, maintenance signal, lockfile-manifest drift); a prompt check joins in when the changeset touches prompt files — agent/command/skill definitions, model-facing instruction docs, prompt templates (trigger reliability, instruction conflicts, orchestrator-subagent contract drift, duplication, injection safety, runtime identity, token economy); and if the design-review gate recorded a pre-mortem register for this branch, a dedicated auditor checks each predicted failure mode — REALIZED / NOT REALIZED / CAN'T VERIFY, evidence attached. Up to 13 auditors, each staying in its lane.
 - Gate acceptance with `/gate-acceptance`. Product review, not code review: does the implementation actually deliver the experience? It walks every user-facing change, checks error states for human-friendly messaging, regression-tests the critical journeys in PRODUCT.md, and verifies the pre-mortem's product-lane items against what shipped (same register, other half).
 
@@ -100,6 +95,20 @@ When you run `gh pr create`, a PR-time hook reads the gate verdicts recorded to 
 You don't need every gate every time. For small fixes, `/gate-audit` alone is enough. The gates exist to catch building the wrong thing or shipping a bad experience. Use judgment about when that risk applies.
 
 The three product gates also fire from natural language, not just the slash command: asking "should we build this?", "review this design before I build it", or "does this actually deliver?" routes to the matching gate. So does flow continuation — "do the next piece" resumes `/work-on`. Triggers are deliberately conservative, so you'll still reach for the commands directly most of the time.
+
+## The build loop
+
+Two steps in the gate flow above — the `design doc` and `implement` boxes — are what the gates judge but don't perform. Studious ships a route through both. Use it, or don't; the gates can't tell.
+
+- `/design` inventories your context docs and the code the change touches, runs one batch interview of 5–9 questions (forks as 2–3 options, one recommended), drafts `design-<slug>.md` section by section, and holds every section at a viva sign-off round in the browser until you approve it. Reports `DESIGNED`, `NEEDS RESEARCH`, or `REVISED`.
+- `/plan` turns that doc into a `PLAN.md`: a dependency spine, 3–8 calibrated tasks, and a checkpoint block per task tagged `LOW`, `REPLAN-RISK`, or `ESCALATE-RISK`. `scripts/plan-lint` has to exit 0, then viva reviews one card per task. Reports `PLAN READY`, `DESIGN GAP`, or `TOO BIG`.
+- `/build` works the plan one task at a time in a fresh, isolated executor, verifies each by running the task's own commands, and captures the output as evidence. Status flips are written by scripts, never by the model, and load-bearing tasks get a fresh inspector that judges exactly test self-dealing, contract match, and technicality gaming. Reports `BUILT`, `PAUSED`, or `ESCALATED`, and never auto-continues past a pause.
+- `/finish` closes out a `BUILT` branch: an evidence table mapping each done-means item to how it was verified, follow-ups filed only on per-item confirmation, proposed (never applied) patches to PRODUCT.md/DESIGN.md/CLAUDE.md, and a dated build report. Reports `MERGE`, `PR`, `KEEP`, or `DISCARD`.
+- `/coach` reads the repo and tells you where you are and the single next action, with rough cost. It does no work itself and dispatches nothing without your say-so.
+
+`/design` and `/plan` require [viva](https://github.com/jacquardlabs/viva) for their sign-off rounds — a declared dependency, so it installs with Studious.
+
+**No gate requires any of this.** `scripts/check_gate_independence.py` fails CI if a gate command, agent, driver, hook, or the ledger so much as invokes a build skill or reads a build artifact. What a gate may rely on is `reference/evidence-format.md`, which any executor can satisfy.
 
 ## CI mode (optional)
 
@@ -162,14 +171,19 @@ Every command Studious ships, for quick reference:
 | `/gate-design-review` | Product review of a design doc before implementation begins. |
 | `/gate-audit` | Runs the audit suite — security, code quality, docs, architecture, and tests, scoped to the changeset. |
 | `/gate-acceptance` | Product acceptance review after implementation, before merge. |
+| `/design` | Interviews you, drafts a design doc, and holds it at a viva sign-off round per section. |
+| `/plan` | Turns a design doc into a lint-clean `PLAN.md` of 3–8 tasks with checkpoint blocks. |
+| `/build` | Works the plan one task at a time in a fresh executor, script-verified, evidence captured. |
+| `/finish` | Closes out a `BUILT` branch: evidence table, follow-ups, build report, merge decision. |
+| `/coach` | Reads the repo and names the single next action in the build loop. |
 | `/deep-review [area]` | Runs the periodic review suite: one area, or all 7 with a compiled summary. |
 | `/extract-design-system` | Extracts the interface design system from the codebase into DESIGN.md. |
 | `/extract-product-context` | Extracts product context from the codebase into PRODUCT.md. |
 
 ## Works well with
 
-- [Superpowers](https://github.com/obra/superpowers): an optional executor for the build step — brainstorming, planning, TDD, debugging. Studious owns the gates and the worker contract; any executor that satisfies the contract works, Superpowers included.
-- [jig](https://github.com/jacquardlabs/jig): a purpose-built executor for the build step — `/design`, `/plan`, `/build`, `/finish` satisfy the worker contract directly and report back into the same flow state.
+- [viva](https://github.com/jacquardlabs/viva): a declared dependency, installed automatically. `/design` and `/plan` drive it for their human sign-off rounds — section-by-section review in the browser, through viva's published headless contract. It stays a separate repo because that contract is versioned and tested, not a format convention.
+- [Superpowers](https://github.com/obra/superpowers): an optional alternative to the built-in build loop. Studious owns the gates and the worker contract; any executor that satisfies the contract works, and no gate requires the built-in one — CI enforces that.
 - GitHub Issues: `/backlog-priorities` and `/backlog-hygiene` work with your tracker via the `gh` CLI.
 
 ## Contributing

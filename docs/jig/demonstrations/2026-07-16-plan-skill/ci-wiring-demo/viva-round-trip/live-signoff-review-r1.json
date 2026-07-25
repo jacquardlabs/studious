@@ -1,0 +1,26 @@
+{
+  "round": 1,
+  "submitted_early": false,
+  "sections": [
+    {
+      "id": "s1",
+      "verdict": "approved"
+    },
+    {
+      "id": "s2",
+      "verdict": "approved"
+    },
+    {
+      "id": "s3",
+      "verdict": "approved"
+    },
+    {
+      "id": "s4",
+      "verdict": "approved"
+    },
+    {
+      "id": "s5",
+      "verdict": "approved"
+    }
+  ]
+}
