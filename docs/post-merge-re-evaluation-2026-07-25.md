@@ -548,3 +548,75 @@ grep -n "studious repo\|studious being installed" skills/build/SKILL.md
 # T2
 git log --oneline --diff-filter=A -- docs/studious/architecture-reviews/
 ```
+
+---
+
+## Execution record — Phase 2 (2026-07-25)
+
+Phase 2 was executed on the tracker the same day. Phase 3 remains a proposal; no milestone was
+created, renamed, closed, or reassigned.
+
+### Closed (7)
+
+| Issue | Reason |
+|---|---|
+| #163 | Shipped by `c31ace3` (PR #168) — story-level premortem dispatch, fallback discovery, third compile block |
+| #185 | Superseded by #187, which says so in its own body |
+| #175, #177, #178, #180, #207 | Bundled Track-findings bags, triaged and dissolved (below) |
+
+### Rewritten in place (5)
+
+Retitled where the title carried the stale premise, with a dated correction block prepended and
+the original body preserved below it: **#148** (evidence grammar), **#187** (routing-table
+contract), **#188** (replay harness — placement note half-stale), **#189** (`#40`/`#41` were
+jig-era numbers; corrected to #187/#188 per `docs/jig-issue-transfer-map.md`), **#190**
+(build-side dispatch audit).
+
+### Filed from Phase 1 (11)
+
+#211 (C1, `design-lint` vs the contract) · #212 (C2, epic-driver on the gate surface) · #213
+(build-step outcome vocabulary) · #214 (two navigators) · #215 (`/studious-doctor` tooling
+rows) · #216 (design-doc lifecycle) · #217 (skills-as-shims convention, M9) · #218
+(`test_no_jig_prose` framing guard, M9) · #219 (design-record home) · #220 (jig's reviews in
+studious's trend directories) · #221 (`bin/` vs `scripts/` rule).
+
+### The five bags — triage result
+
+All ~40 checkboxes re-verified against `a2be1b2`, not carried forward on faith.
+
+- **9 had shipped** and were dropped with the evidence stated: the `test_discipline_skill.py`
+  dead assignment, `/finish`'s milestone hedge, the non-parallel Pillar headings, the
+  "`plan-lint`/`design-lint` are no-op stubs" claim (397 and 561 lines now), `verify --since`
+  test coverage (`test_verify.py:298`, `:370`), jig's `DESIGN.md` M1-stub narrative, jig's
+  PRODUCT.md "all five skills" framing, the stub-description section number, and the demo-README
+  note.
+- **2 were dropped** as unverifiable or working-as-intended: the plugin-loader truncation
+  question, and the `sys.path.insert` boilerplate.
+- **6 folded into existing issues** rather than becoming new ones: #211 (the uncommitted
+  "ratified handoff" that `design-lint:12` and `plan-lint:9` both cite — the archaeology of C1),
+  #197 (vocabulary dedup idioms), #201 (SHA-pin `actions/checkout@v4` + `setup-python@v5`, same
+  privileged release job), #147 (PRODUCT.md `FILL IN` placeholders, telemetry cluster
+  invisibility), #206 (the `_load_bearing.py` drift risk is the other half of the parser
+  divergence), #218 (`coach/SKILL.md:26`'s pointer to a `DESIGN.md` risk list that no longer
+  exists).
+- **The rest promoted into 7 fix-scoped issues**: #222 (build-script CLI conventions) · #223
+  (unbounded probe regex, git calls without `--`) · #224 (`evidence-capture --force` orphans) ·
+  #225 (CLAUDE.md's two undocumented patterns, M9) · #226 (test-helper duplication) · #227
+  (untested default timeout and cadence pause) · #228 (god-file watch, with the trend).
+
+Several items had *worsened* since filing and are now recorded with numbers: `_normalize_ws` is
+duplicated across 7 test files (was 4), and `skills/build/SKILL.md` is 616 lines (329 → 506 →
+600 → 616 across three audits that each declined to split it).
+
+### Net effect
+
+| | Before | After |
+|---|---|---|
+| Open issues | 69 | 80 |
+| Unmilestoned | 20 | 33 |
+| Milestones | 13 | 13 (untouched — Phase 3 pending) |
+
+The backlog got larger, deliberately. Five bags holding ~40 unactionable checkboxes became 7
+issues that each name a fix; 11 real defects that were invisible are now filed. The 33
+unmilestoned issues are the Phase 3 input, not a regression — 18 of them were created by this
+pass and are waiting on the milestone decision.
