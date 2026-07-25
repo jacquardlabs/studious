@@ -231,12 +231,16 @@ class TestCoachSkillBody(unittest.TestCase):
         self.assertIn("docs/jig/evidence/", self.body)
         self.assertIn("docs/jig/reports/", self.body)
 
-    def test_gate_verdicts_are_read_from_gate_ledger_when_installed(self) -> None:
+    def test_gate_verdicts_are_read_from_gate_ledger_when_readable(self) -> None:
+        # The probe stays — whether the ledger is readable is a real question.
+        # What it establishes changed (studious #150): a missing binary once
+        # read as "studious not installed", which now describes an impossible
+        # state and would have the coach skip a gate that is right there.
         self.assertIn("command -v gate-ledger", self.body)
         self.assertIn("gate-ledger gate-get --branch <branch>", self.body)
         self.assertIn("`gate-ledger status`", self.body)
-        self.assertPhraseIn("studious not installed — no recorded gate verdicts to read")
-        self.assertPhraseIn("never assume one passed")
+        self.assertPhraseIn("the *ledger* is unreadable")
+        self.assertPhraseIn("Never assume one passed, and never conclude a gate is unavailable")
 
     def test_repo_evidence_outranks_conversation_claims(self) -> None:
         # Pre-mortem risk #4: the conversation says BUILT, PLAN.md shows an
@@ -364,13 +368,18 @@ class TestCoachSkillBody(unittest.TestCase):
             "a lint, a test, or a build script, and never commits"
         )
 
-    def test_studious_absent_degradation_is_named_never_silent(self) -> None:
-        self.assertPhraseIn("skipped by name with the reason stated")
-        self.assertPhraseIn("Never an error, never a silent omission.")
-        self.assertPhraseIn("`/gate-should-we-build` skipped — studious not installed")
-        self.assertPhraseIn(
-            "skipping the `/gate-audit` recommendation — studious not installed"
-        )
+    def test_unreadable_ledger_routes_to_the_gate_never_past_it(self) -> None:
+        # Was "degrades gracefully without studious", where every gate-touching
+        # row carried a skip-the-gate branch. There is no studious-absent state
+        # now, and the ambiguity that remains — can't tell "never ran" from
+        # "ran and passed" — must resolve toward the gate, not around it.
+        self.assertPhraseIn("The gates always exist")
+        self.assertPhraseIn("Resolve that ambiguity toward recommending the gate, never past it")
+        self.assertPhraseIn("Never an error, never a silent omission, and never a skipped gate.")
+        self.assertPhraseIn("recommending `/gate-audit` rather than assuming it passed")
+        # That the dead phrasings ("studious absent", "studious not installed")
+        # stay gone is enforced centrally, for every build skill at once, by
+        # tests/jig/test_gate_handoffs.py.
 
 
 if __name__ == "__main__":

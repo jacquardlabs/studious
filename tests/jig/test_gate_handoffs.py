@@ -12,11 +12,13 @@ host), takes the otherwise-branch, and terminates without ever naming the
 audit gate. The seam between the build loop and the gates — the whole point
 of the merge — silently disappears on the happy path.
 
-`coach` is deliberately not covered yet. Its degradation rows key off
-`command -v gate-ledger`, an observable predicate that still means something
-real (whether recorded verdicts are readable); only its *label* says
-"studious not installed". Correcting it means reworking a state-table row
-rather than deleting a dead conditional, so it is tracked separately.
+`coach` is covered too, and was the awkward one. It keeps its `command -v
+gate-ledger` probe — whether recorded verdicts are *readable* is a real
+question — but the probe used to answer a different one, labelling a missing
+binary "studious not installed" and then skipping the gate recommendation
+that hangs off it. The predicate survived; the conclusion drawn from it did
+not. An unreadable ledger now resolves toward recommending the gate rather
+than around it.
 """
 from __future__ import annotations
 
@@ -28,7 +30,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # The skills whose hand-offs cross into studious's gates.
-HANDOFF_SKILLS = ("design", "plan", "build", "finish")
+HANDOFF_SKILLS = ("design", "plan", "build", "finish", "coach")
 
 # Any phrasing that makes studious's presence a question the skill must answer.
 # The bare `studious installed` alternative matters: the first version of this

@@ -309,10 +309,20 @@ class TestVerifyProbeFreshnessFloor(unittest.TestCase):
             repo.mkdir()
             init_repo(repo)
 
-            dispatch_time = datetime.now(UTC)
+            dispatch_time = datetime.now(UTC) - timedelta(minutes=5)
 
             artifact = repo / "probe-evidence.txt"
             artifact.write_text("no orphaned process found\n", encoding="utf-8")
+            # Pin the mtime rather than racing the clock. This read
+            # `dispatch_time = datetime.now(UTC)` immediately before the write,
+            # so on a filesystem whose timestamp granularity is coarser than
+            # `datetime.now()`'s, a write that genuinely happened *after* the
+            # floor quantizes down to a tick *before* it and the item reads as
+            # stale — observed once on CI, passing on rerun of the same commit.
+            # The real gap is the executor's own runtime, seconds at minimum,
+            # which is why the sibling test above forces its dates too.
+            write_epoch = (dispatch_time + timedelta(minutes=1)).timestamp()
+            os.utime(artifact, (write_epoch, write_epoch))
             commit_all(repo, "task work")
 
             items_path = write_items(

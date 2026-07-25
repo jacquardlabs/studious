@@ -45,11 +45,11 @@ paraphrase:
 | Signal | Read from | Establishes |
 |---|---|---|
 | Design docs | `docs/design/*.md` (Glob) | Which stories have designs. A `## Revision History` heading means at least one completed viva sign-off — viva appends it the moment a review round finishes (per `skills/plan/SKILL.md` Step 6). A doc without one exists but is unconfirmed from the repo alone. |
-| Plan | `PLAN.md` at the repo root — a filesystem read, never `git ls-files` (jig's own `.gitignore` excludes `/PLAN.md` as disposable scaffolding, so an index read misses a real plan) | A plan exists; its `### Task N — <title>` blocks. |
+| Plan | `PLAN.md` at the repo root — a filesystem read, never `git ls-files` (a project that treats `/PLAN.md` as disposable scaffolding gitignores it, so an index read misses a real plan) | A plan exists; its `### Task N — <title>` blocks. |
 | Task statuses | Heading suffixes ` [PASS]` / ` [REPLAN]` / ` [ESCALATE]` — `scripts/status-flip`'s own `SUFFIX_RE` grammar, written only by that script, never the model | Which tasks closed, which paused or escalated. No suffix means not yet terminal (`todo` / `in-progress`). |
 | Failure reasons | `git log` for the `status-flip: task <N> -> REPLAN\|ESCALATE` commit — the Foreman's `--reason` lives in that commit's body, not in `PLAN.md` | The finding `/design` revision mode (or the human's block revision) needs, quoted verbatim. |
 | Evidence & reports | `docs/jig/evidence/<date>-<task>/`, `docs/jig/reports/` | Which tasks captured evidence; whether a story already closed out via `/finish` (a dated build report). |
-| Gate verdicts | `command -v gate-ledger`; if found, `gate-ledger gate-get --branch <branch>` (recorded verdict history) and `gate-ledger status` | Which studious gates actually recorded verdicts. Not found: state "studious not installed — no recorded gate verdicts to read" and treat gates per the degradation rules below — never assume one passed. |
+| Gate verdicts | `command -v gate-ledger`; if found, `gate-ledger gate-get --branch <branch>` (recorded verdict history) and `gate-ledger status` | Which gates actually recorded verdicts. Not found: the *ledger* is unreadable, which says nothing about whether the gates exist — they ship in this same plugin. State "`gate-ledger` not on `PATH` — can't read recorded verdicts; run `/studious-doctor`" and treat gates per the degradation rules below. Never assume one passed, and never conclude a gate is unavailable. |
 | Conversation | Session verdicts stated earlier in this conversation (`BUILT`/`PAUSED`/`ESCALATED`, `DESIGNED`/`NEEDS RESEARCH`/`REVISED`, `PLAN READY`/`DESIGN GAP`/`TOO BIG`) | Fills only the gaps the repo cannot show — e.g. a `NEEDS RESEARCH` verdict that deliberately wrote nothing to disk. |
 
 Three hard rules govern the read:
@@ -86,15 +86,14 @@ Routing, observed state → the one action:
 
 | Observed state | Next action (exactly one) | Context handed over |
 |---|---|---|
-| No design doc, no `PLAN.md`; studious installed, no should-we-build verdict recorded | Recommend the human run `/gate-should-we-build` | The feature idea from conversation |
-| No design doc, no `PLAN.md`; studious absent | Dispatch `/design` — skip named: "`/gate-should-we-build` skipped — studious not installed" | The one-line feature ask |
-| Design doc present and signed off (`## Revision History`, or this conversation's own `DESIGNED`); studious installed, no design-review verdict recorded | Recommend the human run `/gate-design-review` | The doc path |
-| Design doc signed off, design-review verdict recorded (or studious absent — gap named); no `PLAN.md` | Dispatch `/plan` | The design doc path |
+| No design doc, no `PLAN.md`; no should-we-build verdict recorded (or the ledger is unreadable) | Recommend the human run `/gate-should-we-build` | The feature idea from conversation |
+| Design doc present and signed off (`## Revision History`, or this conversation's own `DESIGNED`); no design-review verdict recorded (or the ledger is unreadable) | Recommend the human run `/gate-design-review` | The doc path |
+| Design doc signed off, design-review verdict recorded (or the ledger is unreadable — gap named); no `PLAN.md` | Dispatch `/plan` | The design doc path |
 | `PLAN.md` present, no terminal suffixes | Dispatch `/build` | The plan path |
 | ` [REPLAN]` suffix on Task N | Name the manual step: revise Task N's checkpoint block by hand, quoting the status-flip commit's reason; after the human says done, reassess and recommend `/build` | The quoted REPLAN reason |
 | ` [ESCALATE]` suffix on Task N | Dispatch `/design` in revision mode | The ESCALATE finding (status-flip commit body, quoted) plus the design doc path |
-| Every task ` [PASS]`; studious installed, audit/acceptance not yet recorded | Recommend the human run `/gate-audit` (then `/gate-acceptance`) | The branch name |
-| Every task ` [PASS]`; gates recorded — or studious absent, with the skipped gates named | Dispatch `/finish` | Nothing beyond the invocation — `/finish` reads `PLAN.md` and the evidence folders itself |
+| Every task ` [PASS]`; audit/acceptance not yet recorded (or the ledger is unreadable) | Recommend the human run `/gate-audit` (then `/gate-acceptance`) | The branch name |
+| Every task ` [PASS]`; both gates recorded as passed | Dispatch `/finish` | Nothing beyond the invocation — `/finish` reads `PLAN.md` and the evidence folders itself |
 | Dated build report exists for this story / branch closed out | Nothing to dispatch — state it and stop | — |
 
 **Rough cost** comes from this fixed vocabulary — order-of-magnitude,
@@ -165,14 +164,21 @@ The coach also has **no verdict enum of its own** — it is not a pipeline
 judgment point; its closed vocabulary is Step 2's action set. It reads the
 other skills' verdicts; it never emits one.
 
-## Degrades gracefully without studious
+## Degrades gracefully when the ledger can't be read
 
-Every routing row that touches a gate carries a named studious-absent
-line: the gate is skipped by name with the reason stated ("studious not
-installed"), and the flow continues to the next jig-owned step — e.g.
-"skipping the `/gate-audit` recommendation — studious not installed;
-proceeding to `/finish`, whose own precondition trust boundary still
-applies." Never an error, never a silent omission.
+The gates always exist — they ship in this same plugin, so there is no
+state in which one is unavailable and nothing here may reason as if there
+were. What can fail is *reading recorded verdicts*: `gate-ledger` off
+`PATH` leaves this skill unable to tell a gate that never ran from a gate
+that ran and passed.
+
+Resolve that ambiguity toward recommending the gate, never past it. An
+unreadable ledger means "unknown," and unknown routes to the gate the same
+way "not recorded" does — the human confirms or declines, which is the
+whole posture anyway. Name the gap when you do it: "can't read recorded
+verdicts (`gate-ledger` not on `PATH`, see `/studious-doctor`) —
+recommending `/gate-audit` rather than assuming it passed." Never an error,
+never a silent omission, and never a skipped gate.
 
 ## Why this shape
 
