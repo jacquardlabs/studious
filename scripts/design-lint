@@ -1,29 +1,22 @@
 #!/usr/bin/env python3
-"""jig's design-lint script (story design-lint, issue #9; section-name
-schema reconciled to studious's `reference/design-doc-contract.md` at story
-design-lint-reconcile, docs/design/design-lint-reconcile.md).
+"""design-lint -- the mechanical pre-check for a design doc (issue #9).
 
-Mechanically validates a `design-<slug>.md` document against
-`reference/design-doc-contract.md`'s seven required sections -- `Problem &
-persona`, `Proposed design`, `User journey`, `Out of scope`, `Alternatives
-considered`, `Operational readiness`, `Open questions` -- the same seven
-names every real, gate-design-reviewed doc this repo has ever produced
-actually carries (`DESIGN.md`'s own "Design doc structure" line still
-names the ratified handoff's stale seven; see that story's Open questions
-for the follow-up to correct it, out of scope here):
+`reference/design-doc-contract.md` is the sole authority for the section
+set; this script mirrors that file's "Required sections" table in
+`CANONICAL_SECTIONS`, and `tests/python/test_design_doc_sections.py` fails
+if the two ever drift apart again (#211).
 
-1. Section count and vocabulary: all seven canonical headings present,
-   exactly once each, in any order, no unrecognized top-level heading --
-   a straight `== 7` requirement (the contract draws no required/optional
-   distinction to carry a floor-range check the way the old handoff-based
-   schema did).
+1. Section vocabulary: every required section present, exactly once each,
+   in any order. A doc may carry additional top-level sections -- the
+   contract permits any heading text so long as the content answers the
+   mapped question ("the gate reads for substance, not exact titles"), so
+   an unrecognized heading is not a violation and there is no exact-count
+   requirement. A misspelled required heading still fails, reported as the
+   required section it was meant to be.
 2. `Proposed design` is concrete, not prose-only: a fenced code block, a
    markdown table, or >= `MIN_ARTIFACT_SPANS` distinct artifact-shaped
    inline-code spans (a filename, an endpoint, a field -- NOT any
-   backtick-quoted filler word; see premortem risk #7). Remapped from the
-   old schema's `Contracts` -- `design-skill`'s own ratified fork ruling
-   names `Proposed design` as where `Experience`/`Contracts`/`Approach`
-   fold under the contract's names (docs/design/design-lint-reconcile.md).
+   backtick-quoted filler word; see premortem risk #7).
 3. `Problem & persona`'s core claim (the persona and its problem) is
    checkable one of three ways: (a) an interview-ruled `(qN)` fork
    citation (Check 5 verifies the ruling itself), (b) a tree-checkable
@@ -34,20 +27,18 @@ for the follow-up to correct it, out of scope here):
    -- when one is present it is authoritative: a wrong/fabricated
    blockquote is not rescued by an unrelated real path or fork tag
    elsewhere in the section (premortem risk #1). Only a section with no
-   blockquote at all falls back to buckets (a)/(b). Remapped from the old
-   schema's `Assumptions` -- the contract's own "what good looks like" for
-   `Problem & persona` ("verbatim, not a paraphrase invented for this
-   doc") restates Check 3's founding "don't trust prose, check it"
-   principle, narrowed to `PRODUCT.md` specifically.
+   blockquote at all falls back to buckets (a)/(b). The contract's own
+   "what good looks like" for `Problem & persona` ("verbatim, not a
+   paraphrase invented for this doc") is Check 3's founding "don't trust
+   prose, check it" principle narrowed to `PRODUCT.md` specifically.
 4. `User journey` names at least one failure path alongside its happy
    path -- a closed, deliberately narrow token vocabulary (premortem risk
    #3: a real failure phrased without any listed token is a known false
-   negative, not a bug). A direct rename of the old schema's `Experience`
-   -- same semantic, same mechanism.
+   negative, not a bug).
 5. Every distinct `(qN)` fork citation, scanned across the whole document,
    has a ruling-shaped clause (closed ruling-verb vocabulary) in the same
    sentence or bullet as at least one of its occurrences. Section-name
-   agnostic; untouched by this remap. A second, independent sub-check
+   agnostic. A second, independent sub-check
    covers the table-shaped fork convention real `/design` output actually
    uses (SKILL.md Step 4): a section with a lettered-options table (>= 2
    rows) must also carry a `(recommended): <letter>` marker somewhere in
@@ -73,18 +64,21 @@ from dataclasses import dataclass
 from itertools import pairwise
 from pathlib import Path
 
-# The canonical section vocabulary this repo's design docs actually use --
-# studious's reference/design-doc-contract.md's seven required sections
-# (docs/design/design-lint-reconcile.md). The contract draws no
-# required/optional distinction (its table is titled "Required sections",
-# seven rows, none marked optional, no stated count range), so neither does
-# this check: all seven are unconditionally required, exactly once each.
+# Mirrors reference/design-doc-contract.md's "Required sections" table, in
+# its order. That file is the authority; this tuple is a copy kept honest by
+# tests/python/test_design_doc_sections.py. The contract draws no
+# required/optional distinction (no row is marked optional, no count range
+# is stated), so every name here is unconditionally required, exactly once
+# each -- but a doc may add sections beyond them (contract: "Sections may
+# carry any heading text as long as the content answers the mapped
+# question"), so this is a floor, never an exact count.
 CANONICAL_SECTIONS = (
     "Problem & persona",
     "Proposed design",
     "User journey",
     "Out of scope",
     "Alternatives considered",
+    "Success metrics",
     "Operational readiness",
     "Open questions",
 )
@@ -92,10 +86,8 @@ CANONICAL_SECTIONS = (
 # Check 2's concreteness floor: the minimum number of distinct
 # artifact-shaped inline-code spans a prose Proposed design section needs
 # to count as "concrete, not prose-only" when it carries neither a fenced
-# code block nor a markdown table. A build-phase constant per the design
-# doc's own non-requirements clause; unchanged by the Contracts ->
-# Proposed design remap (docs/design/design-lint-reconcile.md, Open
-# questions).
+# code block nor a markdown table. A build-phase constant, deliberately not
+# configurable.
 MIN_ARTIFACT_SPANS = 3
 
 # Check 4's failure-path vocabulary -- deliberately narrow (design doc:
@@ -254,6 +246,14 @@ def _bullet_label(bullet: str) -> str:
 
 
 def check_1_section_vocabulary(sections: list[Section]) -> list[str]:
+    """Every required section present, exactly once each.
+
+    A required section is one of `CANONICAL_SECTIONS`, mirrored from
+    `reference/design-doc-contract.md`. Sections beyond those are permitted
+    and ignored -- the contract lets a doc carry any heading text as long as
+    the content answers the mapped question, so this check is a floor on
+    what must be there, never a ceiling on what may be (#211).
+    """
     violations: list[str] = []
     present: dict[str, str] = {}
 
@@ -261,21 +261,11 @@ def check_1_section_vocabulary(sections: list[Section]) -> list[str]:
         norm = _normalize(s.heading)
         canonical = _CANONICAL_BY_NORM.get(norm)
         if canonical is None:
-            violations.append(
-                f"section '{s.heading}' does not match design-doc-contract.md's "
-                "seven required section names"
-            )
-        elif norm in present:
+            continue  # an extra section the contract permits; not this check's business
+        if norm in present:
             violations.append(f"duplicate section '{canonical}' (appears more than once)")
         else:
             present[norm] = canonical
-
-    count = len(sections)
-    if count != len(CANONICAL_SECTIONS):
-        violations.append(
-            f"{count} top-level sections found; design-doc-contract.md requires "
-            f"exactly {len(CANONICAL_SECTIONS)}"
-        )
 
     present_names = set(present.values())
     violations.extend(
@@ -442,10 +432,8 @@ def check_4_user_journey_failure_path(sections: list[Section]) -> list[str]:
 
 
 def check_5_fork_rulings(sections: list[Section]) -> list[str]:
-    # Scans the whole document -- section-name agnostic already (forks are
-    # referenced across whichever sections carry them), so the
-    # design-lint-reconcile remap leaves this check untouched
-    # (docs/design/design-lint-reconcile.md, Out of scope).
+    # Scans the whole document -- section-name agnostic by design, since forks
+    # are referenced across whichever sections happen to carry them.
     units: list[str] = []
     for s in sections:
         units.extend(split_bullets(s.body))
@@ -509,7 +497,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         prog="design-lint",
         description=(
             "Mechanically validate a design-<slug>.md doc against "
-            "design-doc-contract.md's seven required sections."
+            "design-doc-contract.md's required sections."
         ),
     )
     parser.add_argument("--doc", required=True, help="path to the design-<slug>.md file to lint")

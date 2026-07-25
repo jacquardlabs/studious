@@ -3,9 +3,8 @@
 <!-- Stub scaffold for a design doc — the artifact /gate-design-review reviews before
      implementation begins. The required sections and what "good" looks like for each
      are defined in reference/design-doc-contract.md; this file is just the shape.
-     Actual authoring (fleshing this out, turning it into an implementation plan) happens
-     in Superpowers — this is a starting point, not a tool. Delete this comment block
-     once filled in. -->
+     Fleshing it out is /design's job, or your own, or any planner you prefer — the
+     gate judges the doc, not who wrote it. Delete this comment block once filled in. -->
 
 ## Problem & persona
 

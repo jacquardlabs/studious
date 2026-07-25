@@ -124,6 +124,12 @@ call the interview confirmed after review.
 1. A fully server-autonomous handoff. Rejected: it removes the human
    checkpoint the QA server's own contract requires.
 
+## Success metrics
+
+Handoffs that complete in the same tab, read from the review server's own
+session log. N/A for adoption — this is one step inside an existing flow,
+not a surface a human opts into.
+
 ## Operational readiness
 
 Same class of change as `verify`/`evidence-capture` — no deployed service,
@@ -138,12 +144,11 @@ no data migration.
 
 ## Revision History
 
-Signed off via viva review — 1 round, 7 sections, 0 revised. 2026-07-16
+Signed off via viva review — 1 round, 8 sections, 0 revised. 2026-07-16
 """
 
-# A minimal doc carrying only three of the seven required sections — too
-# few by count alone, independent of vocabulary or missing-section
-# concerns (all three present names are canonical).
+# A minimal doc carrying only three of the eight required sections. Every
+# name present is canonical, so the only violations are the five it omits.
 TOO_FEW_SECTIONS_DOC = """# Design: too few sections (fixture)
 
 ## Problem & persona
@@ -232,7 +237,11 @@ class TestDesignLintCheck1SectionVocabulary(unittest.TestCase):
             self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
             self.assertIn("missing required section 'Open questions'", result.stdout)
 
-    def test_wrong_section_count_is_named(self) -> None:
+    def test_short_doc_names_every_missing_section_never_a_bare_count(self) -> None:
+        """#211 (c): the exact-count check is gone. A doc carrying three of
+        the eight required sections is reported as five sections missing *by
+        name* — actionable — never as an arithmetic mismatch the author has
+        to decode."""
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             repo = _write_repo_with_server(tmp_path)
@@ -241,12 +250,42 @@ class TestDesignLintCheck1SectionVocabulary(unittest.TestCase):
             result = run_script(doc, repo)
 
             self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-            self.assertIn(
-                "3 top-level sections found; design-doc-contract.md requires exactly 7",
-                result.stdout,
-            )
+            for name in (
+                "Out of scope",
+                "Alternatives considered",
+                "Success metrics",
+                "Operational readiness",
+                "Open questions",
+            ):
+                self.assertIn(f"missing required section '{name}'", result.stdout)
+            self.assertNotIn("top-level sections found", result.stdout)
 
-    def test_unrecognized_heading_is_named(self) -> None:
+    def test_extra_section_beyond_the_required_set_is_permitted(self) -> None:
+        """#211 (c): `reference/design-doc-contract.md` lets a doc carry any
+        heading text as long as the content answers the mapped question, so a
+        section beyond the required set is not a violation. This test is the
+        guard against the exact-count check being reintroduced."""
+        self.assertIn("## Operational readiness\n", CLEAN_DOC)
+        doc_text = CLEAN_DOC.replace(
+            "## Operational readiness\n",
+            "## Rollout sequencing\n\nThree stories, landed in order.\n\n## Operational readiness\n",
+            1,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            repo = _write_repo_with_server(tmp_path)
+            doc = _write_doc(tmp_path, doc_text)
+
+            result = run_script(doc, repo)
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("clean pass", result.stdout)
+
+    def test_renamed_required_section_reports_the_absence_not_the_heading(self) -> None:
+        """A required section renamed away is caught as the section that is
+        now *missing*, never as an unrecognized-heading complaint — the extra
+        heading is the author's business, the absent answer is the gate's."""
         self.assertIn("## Alternatives considered\n", CLEAN_DOC)
         doc_text = CLEAN_DOC.replace("## Alternatives considered\n", "## Implementation Plan\n", 1)
 
@@ -258,11 +297,8 @@ class TestDesignLintCheck1SectionVocabulary(unittest.TestCase):
             result = run_script(doc, repo)
 
             self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-            self.assertIn(
-                "section 'Implementation Plan' does not match design-doc-contract.md's "
-                "seven required section names",
-                result.stdout,
-            )
+            self.assertIn("missing required section 'Alternatives considered'", result.stdout)
+            self.assertNotIn("does not match", result.stdout)
 
 
 class TestDesignLintCheck2ProposedDesignConcrete(unittest.TestCase):
