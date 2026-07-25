@@ -222,8 +222,12 @@ default.
 
 Every verdict shares the same cleanup step *before* whichever git action
 happens: remove `docs/design/<story-slug>.md` and `PLAN.md` (and any
-scratch `docs/jig/demonstrations/` narrative, if used) in a commit whose
-message notes the promoted-elsewhere destination — the PR body, for `PR`;
+scratch `docs/jig/demonstrations/` narrative, if used). A project that
+gitignores them the way this plugin does has nothing to commit — delete
+them from the worktree and say so. A project that tracks them needs a
+`git rm` commit whose message notes the promoted-elsewhere destination.
+Check which case you are in (`git ls-files -- <path>`) rather than
+assuming; the destination is the PR body, for `PR`;
 the dated build report's own full text, for `MERGE`/`KEEP`/`DISCARD` (no PR
 body exists to point to on those three, so the report is where the
 assembled evidence table actually lives once the design doc is gone).
