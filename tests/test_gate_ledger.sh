@@ -1097,11 +1097,14 @@ check "the build outcome check is case-sensitive" "2" "$rc"
 
 # The rejection names the accepted set and where it is specified — a caller that hits
 # this is a mis-authored prompt, and the message is what points at the fix.
+# grep, not a `case` inside `$( )`: bash 3.2 (what macOS ships, and what CI's
+# macos-latest runner uses) fails to parse a case statement inside command
+# substitution. This suite has to pass on both runners.
 msg37=$( ( cd "$d37" && "$LEDGER" work-log --slug enum-work --step build --outcome DONE ) 2>&1 )
 check "the rejection names the accepted set" "yes" \
-  "$(case "$msg37" in *BUILT*PAUSED*ESCALATED*) echo yes ;; *) echo no ;; esac)"
+  "$(printf '%s' "$msg37" | grep -q 'BUILT.*PAUSED.*ESCALATED' && echo yes || echo no)"
 check "the rejection names the contract that owns the vocabulary" "yes" \
-  "$(case "$msg37" in *worker-contract.md*) echo yes ;; *) echo no ;; esac)"
+  "$(printf '%s' "$msg37" | grep -q 'worker-contract\.md' && echo yes || echo no)"
 
 # A rejected write leaves no trace: history must not carry the bad token.
 check "a rejected outcome appends no history entry" "0" \
