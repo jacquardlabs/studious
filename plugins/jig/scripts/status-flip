@@ -1,0 +1,212 @@
+#!/usr/bin/env python3
+"""jig's status-flip script (story build-skill, issue #14).
+
+Writes a task's terminal status back onto its own `### Task <label>` heading
+in a `PLAN.md`-shaped file, and commits that annotation — the mechanical
+write `docs/design/build-skill.md`'s "Status-flip persistence" section calls
+for so `DESIGN.md`'s Vocabulary table ("flipped by scripts only, never the
+model") and `PRODUCT.md`'s "Judgment in the model, mechanics in scripts"
+principle are true in fact, not just in spirit. The Foreman decides *what*
+status a task reaches (PASS is derived here from `verify`'s own
+`results.json`, never accepted as a caller-supplied token; REPLAN/ESCALATE
+are the Foreman's own judgment calls, handed in already-decided); this script
+only performs the heading edit and the commit.
+
+Two call shapes:
+
+  status-flip --plan PLAN.md --task 1 --results results.json
+      The PASS path. Reads `results.json`, derives the token itself: `PASS`
+      iff `overall == "PASS"`. Refuses (exit 2) otherwise -- a FAIL result
+      has no status-flip token of its own; a FAIL is the Foreman's failure
+      routine to react to, not a status this script writes.
+
+  status-flip --plan PLAN.md --task 1 --status REPLAN --reason "..."
+      The failure-routine path (REPLAN or ESCALATE), the Foreman's own
+      diagnosis handed in as an already-decided token -- no script could
+      make this call.
+
+Idempotency: a heading already carrying a `PASS` or `ESCALATE` suffix
+refuses any further status-flip call (both close the task out for this
+session). A heading already carrying `REPLAN` does NOT refuse -- REPLAN is
+the failure routine's resumable, paused-not-closed state, and the human's
+ordinary resume path (revise the block by hand, re-invoke /build) needs the
+task's eventual PASS/ESCALATE to be able to overwrite it in place.
+
+Exit codes: 0 the flip was written and committed. 2 any usage error or
+refusal -- bad arguments, zero or more than one matching heading, a
+malformed/non-PASS `--results` document, or a heading already flipped to a
+terminal (PASS/ESCALATE) status.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import git_repo_root, run  # noqa: E402
+
+TERMINAL_STATUSES = frozenset({"PASS", "ESCALATE"})
+RESUMABLE_STATUSES = frozenset({"REPLAN"})
+ALL_STATUSES = TERMINAL_STATUSES | RESUMABLE_STATUSES
+
+SUFFIX_RE = re.compile(r"\s*\[(PASS|REPLAN|ESCALATE)\]\s*$")
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="status-flip",
+        description=(
+            "Write a task's terminal status onto its own heading in a PLAN.md-"
+            "shaped file, and commit that annotation -- the only thing allowed "
+            "to edit a task's status suffix."
+        ),
+    )
+    parser.add_argument("--plan", required=True, help="path to the PLAN.md-shaped file")
+    parser.add_argument("--task", required=True, help="the task's label, e.g. '1' for '### Task 1 -- ...'")
+    parser.add_argument(
+        "--repo",
+        default=None,
+        help="git repo the plan file lives in (default: the repo containing --plan)",
+    )
+    parser.add_argument(
+        "--results",
+        default=None,
+        help="the PASS path: path to verify's results JSON; the PASS token is derived from its 'overall' field",
+    )
+    parser.add_argument(
+        "--status",
+        choices=("REPLAN", "ESCALATE"),
+        default=None,
+        help="the failure-routine path: the Foreman's already-decided REPLAN or ESCALATE diagnosis",
+    )
+    parser.add_argument(
+        "--reason",
+        default=None,
+        help="required with --status: the Foreman's stated reason for the REPLAN/ESCALATE diagnosis",
+    )
+    return parser.parse_args(argv)
+
+
+def resolve_new_status(args: argparse.Namespace) -> tuple[str | None, str]:
+    """Returns (status_or_None, error_message). status is None iff the call is invalid."""
+    if args.results and args.status:
+        return None, "--results and --status are mutually exclusive (PASS path vs. failure-routine path)"
+    if not args.results and not args.status:
+        return None, "one of --results (PASS path) or --status (failure-routine path) is required"
+    if args.status and not args.reason:
+        return None, "--status requires --reason (the Foreman's stated diagnosis)"
+    if args.reason and not args.status:
+        return None, "--reason without --status has nothing to attach to"
+
+    if args.status:
+        return args.status, ""
+
+    results_path = Path(args.results)
+    try:
+        data = json.loads(results_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        return None, f"could not read --results '{results_path}': {exc}"
+    except json.JSONDecodeError as exc:
+        return None, f"--results '{results_path}' is not valid JSON: {exc}"
+
+    if not isinstance(data, dict) or "overall" not in data:
+        return None, f"--results '{results_path}' has no 'overall' field"
+
+    overall = data["overall"]
+    if overall != "PASS":
+        return (
+            None,
+            f"--results '{results_path}' has overall={overall!r}, not 'PASS' -- "
+            "a FAIL result has no status-flip token; the Foreman's failure "
+            "routine handles it, not this script",
+        )
+    return "PASS", ""
+
+
+def find_heading(plan_text: str, task: str) -> tuple[str | None, int, int, str]:
+    """Locate the single `### Task <task>` heading line.
+
+    Returns (heading_line_or_None, start_offset, end_offset, error_message).
+    """
+    pattern = re.compile(rf"^### Task {re.escape(task)}\b.*$", re.MULTILINE)
+    matches = list(pattern.finditer(plan_text))
+    if not matches:
+        return None, -1, -1, f"no '### Task {task}' heading found in the plan file"
+    if len(matches) > 1:
+        return None, -1, -1, f"{len(matches)} headings match '### Task {task}' -- expected exactly one"
+    match = matches[0]
+    return match.group(0), match.start(), match.end(), ""
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+
+    new_status, error = resolve_new_status(args)
+    if new_status is None:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    plan_path = Path(args.plan)
+    if not plan_path.is_file():
+        print(f"error: --plan '{plan_path}' does not exist", file=sys.stderr)
+        return 2
+
+    plan_text = plan_path.read_text(encoding="utf-8")
+    heading, start, end, error = find_heading(plan_text, args.task)
+    if heading is None:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    existing_suffix_match = SUFFIX_RE.search(heading)
+    existing_status = existing_suffix_match.group(1) if existing_suffix_match else None
+    if existing_status in TERMINAL_STATUSES:
+        print(
+            f"error: task '{args.task}' is already flipped to {existing_status}, which flips "
+            "exactly once -- refusing to overwrite a terminal status",
+            file=sys.stderr,
+        )
+        return 2
+
+    repo = git_repo_root(Path(args.repo)) if args.repo else git_repo_root(plan_path.parent)
+    if repo is None:
+        print(f"error: could not resolve a git repository for '{plan_path}'", file=sys.stderr)
+        return 2
+
+    heading_without_suffix = SUFFIX_RE.sub("", heading)
+    new_heading = f"{heading_without_suffix} [{new_status}]"
+    new_plan_text = plan_text[:start] + new_heading + plan_text[end:]
+    plan_path.write_text(new_plan_text, encoding="utf-8")
+
+    commit_message = f"status-flip: task {args.task} -> {new_status}"
+    if args.reason:
+        commit_message += f"\n\n{args.reason}"
+
+    # -f: the plan file this script commits is routinely gitignored by the
+    # target project's own convention (jig's own .gitignore excludes
+    # `/PLAN.md` for exactly this reason -- disposable scaffolding that
+    # dies at merge, per decision 12). Without -f, a plain `git add` on a
+    # still-untracked, ignored path refuses outright, which would make this
+    # script's own documented job ("commits that annotation") structurally
+    # impossible on the one repo (jig itself) most likely to run it.
+    add_result = run(["git", "-C", str(repo), "add", "-f", "--", str(plan_path.resolve())])
+    if add_result.returncode != 0:
+        print(f"error: 'git add' failed: {add_result.stderr}", file=sys.stderr)
+        return 2
+
+    # --allow-empty: a REPLAN-on-REPLAN re-flip (same token, a new --reason)
+    # can leave the plan file's own bytes unchanged while still being a real,
+    # distinct status-flip event worth its own commit.
+    commit_result = run(["git", "-C", str(repo), "commit", "-q", "--allow-empty", "-m", commit_message])
+    if commit_result.returncode != 0:
+        print(f"error: 'git commit' failed: {commit_result.stderr}", file=sys.stderr)
+        return 2
+
+    print(f"status-flip: task '{args.task}' -> {new_status} (committed in {repo})")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

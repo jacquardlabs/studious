@@ -1,0 +1,27 @@
+{
+  "task": "2",
+  "overall": "PASS",
+  "items": [
+    {
+      "id": 1,
+      "kind": "cap",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: uv run --no-project python3 -m unittest discover -s tests -k test_step_7_assembles_replay_bundle_at_scratch_path_before_evidence_capture -v\nexit code: 0\n--- stdout ---\n\n--- stderr ---\ntest_step_7_assembles_replay_bundle_at_scratch_path_before_evidence_capture (test_build_skill.TestBuildSkillBody.test_step_7_assembles_replay_bundle_at_scratch_path_before_evidence_capture) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.001s\n\nOK\n"
+    },
+    {
+      "id": 2,
+      "kind": "cap",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: uv run --no-project python3 -m unittest discover -s tests -k test_step_7_replay_bundle_rides_the_existing_evidence_capture_call -v\nexit code: 0\n--- stdout ---\n\n--- stderr ---\ntest_step_7_replay_bundle_rides_the_existing_evidence_capture_call (test_build_skill.TestBuildSkillBody.test_step_7_replay_bundle_rides_the_existing_evidence_capture_call) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.001s\n\nOK\n"
+    },
+    {
+      "id": 3,
+      "kind": "hold",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: uv run --no-project python3 -m unittest discover -s tests -k test_evidence_directory_is_committed_before_status_flip -k test_step_7_evidence_capture_points_at_the_scratch_path_results -v\nexit code: 0\n--- stdout ---\n\n--- stderr ---\ntest_evidence_directory_is_committed_before_status_flip (test_build_skill.TestBuildSkillBody.test_evidence_directory_is_committed_before_status_flip) ... ok\ntest_step_7_evidence_capture_points_at_the_scratch_path_results (test_build_skill.TestBuildSkillBody.test_step_7_evidence_capture_points_at_the_scratch_path_results) ... ok\n\n----------------------------------------------------------------------\nRan 2 tests in 0.002s\n\nOK\n"
+    }
+  ]
+}

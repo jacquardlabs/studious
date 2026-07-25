@@ -1,0 +1,15 @@
+# Pre-mortem — M3: /plan skill
+
+- Epic: m3-plan-skill
+- Stories: plan-lint (#12), plan-skill (#11, #23, #13)
+- Branch: epic/m3-plan-skill
+- SHA: 73b2c81
+- Date: 2026-07-16
+
+| # | Lane | Failure mode | Detection hint |
+|---|------|--------------|-----------------|
+| 1 | technical | `plan-skill`'s design-review lands on a checkpoint-block shape that diverges from what `plan-lint` (built and gated first, as a separate story) actually validates — the dependency edge orders the two stories but doesn't guarantee schema agreement between them. | Run `scripts/plan-lint` against the actual `PLAN.md` fixtures `plan-skill`'s own demonstration produces; confirm every fixture that `/plan` calls `PLAN READY` also passes lint clean, and a fixture `/plan` would call `DESIGN GAP`/`TOO BIG` fails lint for the matching reason. |
+| 2 | product | Issue #23's heading-level fix lands in `/plan`'s own output but the two already-shipped stale references — `skills/build/SKILL.md:94`'s parsing note and `skills/finish/SKILL.md:133`'s "Read it directly" pointer, both currently naming `## Not-here follow-ups` — are left untouched, so the bug is fixed at `/plan`'s point of emission but two live consumers still describe the old, wrong convention. | Grep `skills/build/SKILL.md` and `skills/finish/SKILL.md` for `Not-here follow-ups` after this epic lands; confirm both name the same heading level `/plan` actually emits, not the pre-#23 `##`. |
+| 3 | technical | #13's "script the probes" resolution is asserted in `/plan`'s prose (or its design doc) without ever exercising the infra-inventory step against a repo that actually lacks a scripted-probe tool — the resolution reads as decided but the DESIGN GAP path for missing tooling is never demonstrated. | Confirm a real demonstration exists where a plan proposing a `probe`-tier item is inventoried against a repo without Playwright (or equivalent) installed, and the result is `DESIGN GAP`, not a silently-assumed pass. |
+| 4 | technical | `/plan`'s emitted `PLAN.md` drifts from what `/build` (M4, shipped in a separate epic, frozen contract) actually parses in its step-1.4 task-splitting logic — the two skills were built months apart with no shared integration test, so a format choice that satisfies `plan-lint` could still break `/build`'s own parser. | Take a real `PLAN.md` `/plan` produced and confirm `/build`'s step-1.4 split (next `### ` heading, explicit exclusion of trailing coarser sections) partitions it exactly as `/plan` intended — not just that `plan-lint` accepts it. |
+| 5 | product | The heading-level choice for #23 is justified by citing the M0 paper dogfood's finding against viva's splitter behavior at that time, without re-verifying against whatever viva version is actually installed now — viva may have changed since. | Run an actual viva review round-trip (not a described one) over a `PLAN.md` containing the new heading level; confirm the Not-here-follow-ups section survives as its own reviewable unit rather than being absorbed into the last task's card. |

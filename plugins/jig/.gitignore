@@ -1,0 +1,18 @@
+.idea/
+.DS_Store
+.gg/
+__pycache__/
+
+# viva local session state (do not commit)
+.viva/
+
+# Studious local gate ledger (do not commit)
+.studious/
+
+# jig design principle 7: design docs, PLAN.md, and demonstration evidence
+# are disposable -- they live on the branch and die at merge. What survives:
+# the Done-means table + evidence in the PR body, and decision patches
+# proposed to PRODUCT.md/DESIGN.md/CLAUDE.md. No fourth document class.
+/PLAN.md
+docs/design/
+docs/jig/demonstrations/

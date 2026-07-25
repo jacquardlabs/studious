@@ -1,0 +1,15 @@
+{
+  "task": "2-retroactive-inspection",
+  "date": "2026-07-17",
+  "commit_sha": "72002cacf0880553cfd3ee448b39f00664f9544a",
+  "commit_timestamp": "2026-07-17T22:10:16+00:00",
+  "captured_at": "2026-07-17T22:16:04.160830+00:00",
+  "artifacts": [
+    {
+      "producer": "inspector",
+      "label": "report",
+      "source": "/private/tmp/claude-501/-Users-bryan-Projects-jig/a30f8525-d4f1-41d8-9ef8-d9560fd0fdb1/scratchpad/build-task-2/retroactive-inspector-report.md",
+      "path": "report.md"
+    }
+  ]
+}

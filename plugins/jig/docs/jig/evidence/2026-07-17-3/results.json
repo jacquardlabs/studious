@@ -1,0 +1,27 @@
+{
+  "task": "3",
+  "overall": "PASS",
+  "items": [
+    {
+      "id": 1,
+      "kind": "cap",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: uv run --no-project python3 -m unittest discover -s tests -k test_dispatch_model_names_unavailable_case_beside_override_and_inherited -v\nexit code: 0\n--- stdout ---\n\n--- stderr ---\ntest_dispatch_model_names_unavailable_case_beside_override_and_inherited (test_build_skill.TestBuildSkillBody.test_dispatch_model_names_unavailable_case_beside_override_and_inherited) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.001s\n\nOK\n"
+    },
+    {
+      "id": 2,
+      "kind": "cap",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: uv run --no-project python3 -m unittest discover -s tests -k test_step_7_bundle_assembly_writes_unavailable_rather_than_refusing_capture -v\nexit code: 0\n--- stdout ---\n\n--- stderr ---\ntest_step_7_bundle_assembly_writes_unavailable_rather_than_refusing_capture (test_build_skill.TestBuildSkillBody.test_step_7_bundle_assembly_writes_unavailable_rather_than_refusing_capture) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.001s\n\nOK\n"
+    },
+    {
+      "id": 3,
+      "kind": "hold",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: uv run --no-project python3 -m unittest discover -s tests -k test_dispatch_names_the_executor_model_beside_the_timestamp_capture -k test_step_7_assembles_replay_bundle_at_scratch_path_before_evidence_capture -k test_step_7_replay_bundle_rides_the_existing_evidence_capture_call -v\nexit code: 0\n--- stdout ---\n\n--- stderr ---\ntest_dispatch_names_the_executor_model_beside_the_timestamp_capture (test_build_skill.TestBuildSkillBody.test_dispatch_names_the_executor_model_beside_the_timestamp_capture) ... ok\ntest_step_7_assembles_replay_bundle_at_scratch_path_before_evidence_capture (test_build_skill.TestBuildSkillBody.test_step_7_assembles_replay_bundle_at_scratch_path_before_evidence_capture) ... ok\ntest_step_7_replay_bundle_rides_the_existing_evidence_capture_call (test_build_skill.TestBuildSkillBody.test_step_7_replay_bundle_rides_the_existing_evidence_capture_call) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.002s\n\nOK\n"
+    }
+  ]
+}

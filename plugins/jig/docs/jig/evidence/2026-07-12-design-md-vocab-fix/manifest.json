@@ -1,0 +1,15 @@
+{
+  "task": "task-1",
+  "date": "2026-07-12",
+  "commit_sha": "3f72252a5602cec029e329d5df93822ce374d028",
+  "commit_timestamp": "2026-07-12T22:26:24+00:00",
+  "captured_at": "2026-07-12T22:27:54.860821+00:00",
+  "artifacts": [
+    {
+      "producer": "verify",
+      "label": "results",
+      "source": "/private/tmp/claude-501/-Users-bryan-Projects-jig/f260e0cf-a2ee-4e79-9c90-9e4dfccdc606/scratchpad/demo-design-vocab-fix/task-1-results.json",
+      "path": "results.json"
+    }
+  ]
+}

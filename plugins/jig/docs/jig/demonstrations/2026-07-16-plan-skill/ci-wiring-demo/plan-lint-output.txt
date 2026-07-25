@@ -1,0 +1,2 @@
+plan-lint: docs/jig/demonstrations/2026-07-16-plan-skill/ci-wiring-demo/PLAN.md -- 0 violations across 3 task(s)
+exit code: 0

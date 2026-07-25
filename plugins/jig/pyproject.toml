@@ -1,0 +1,26 @@
+[tool.semantic_release]
+version_variables = [".claude-plugin/plugin.json:version"]
+tag_format = "v{version}"
+commit_message = "chore(release): v{version} [skip ci]"
+major_on_zero = false
+build_command = ""
+upload_to_vcs_release = true
+
+[tool.semantic_release.branches.main]
+match = "main"
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+# Mirrors the rule set CLAUDE.md documents and studious's own idiom rubric
+# (reference/idioms/python.md) names as "the linter" for this portfolio:
+# bugbear, comprehensions, simplify, perflint, pyflakes-refactor, and
+# flake8-pie. `code-auditor`'s judgment layer picks up structural
+# recognitions a linter misses; CLAUDE.md conventions override this list.
+#
+# extend-select, not select: `select` *replaces* ruff's default rule set
+# (E4/E7/E9/F) rather than adding to it, which would silently disable
+# Pyflakes and the default pycodestyle error checks CLAUDE.md's own
+# checklist calls out (issue #36).
+extend-select = ["B", "C4", "PERF", "PIE", "RUF", "SIM"]

@@ -1,0 +1,21 @@
+{
+  "task": "1",
+  "date": "2026-07-17",
+  "commit_sha": "c8e99cf281bc110b80dfe441da2e418c7ea92155",
+  "commit_timestamp": "2026-07-17T02:45:36+00:00",
+  "captured_at": "2026-07-17T02:51:34.075714+00:00",
+  "artifacts": [
+    {
+      "producer": "verify",
+      "label": "results",
+      "source": "/private/tmp/claude-501/-Users-bryan-Projects-jig/a30f8525-d4f1-41d8-9ef8-d9560fd0fdb1/scratchpad/build-task-1/results.json",
+      "path": "results.json"
+    },
+    {
+      "producer": "inspector",
+      "label": "report",
+      "source": "/private/tmp/claude-501/-Users-bryan-Projects-jig/a30f8525-d4f1-41d8-9ef8-d9560fd0fdb1/scratchpad/build-task-1/inspector-report.md",
+      "path": "report.md"
+    }
+  ]
+}

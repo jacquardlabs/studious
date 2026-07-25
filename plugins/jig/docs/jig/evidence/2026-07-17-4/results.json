@@ -1,0 +1,34 @@
+{
+  "task": "4",
+  "overall": "PASS",
+  "items": [
+    {
+      "id": 1,
+      "kind": "cap",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: uv run --no-project python3 -m unittest discover -s tests -k test_step_1_5_names_plan_growth_recompute_trigger -v\nexit code: 0\n--- stdout ---\n\n--- stderr ---\ntest_step_1_5_names_plan_growth_recompute_trigger (test_build_skill.TestBuildSkillBody.test_step_1_5_names_plan_growth_recompute_trigger) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.001s\n\nOK\n"
+    },
+    {
+      "id": 2,
+      "kind": "cap",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: uv run --no-project python3 -m unittest discover -s tests -k test_step_1_5_names_retroactive_catch_up_inspector -v\nexit code: 0\n--- stdout ---\n\n--- stderr ---\ntest_step_1_5_names_retroactive_catch_up_inspector (test_build_skill.TestBuildSkillBody.test_step_1_5_names_retroactive_catch_up_inspector) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.001s\n\nOK\n"
+    },
+    {
+      "id": 3,
+      "kind": "cap",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: uv run --no-project python3 -m unittest discover -s tests -k test_step_1_5_names_retroactive_inspection_evidence_dir_convention -v\nexit code: 0\n--- stdout ---\n\n--- stderr ---\ntest_step_1_5_names_retroactive_inspection_evidence_dir_convention (test_build_skill.TestBuildSkillBody.test_step_1_5_names_retroactive_inspection_evidence_dir_convention) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.001s\n\nOK\n"
+    },
+    {
+      "id": 4,
+      "kind": "hold",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: uv run --no-project python3 -m unittest discover -s tests -k test_load_bearing_set_is_computed_once_after_the_task_split -v\nexit code: 0\n--- stdout ---\n\n--- stderr ---\ntest_load_bearing_set_is_computed_once_after_the_task_split (test_build_skill.TestBuildSkillBody.test_load_bearing_set_is_computed_once_after_the_task_split) ... ok\n\n----------------------------------------------------------------------\nRan 1 test in 0.001s\n\nOK\n"
+    }
+  ]
+}
