@@ -301,6 +301,42 @@ class TestCoachSkillBody(unittest.TestCase):
         self.assertPhraseIn("Report it as unevidenced *and* name it")
         self.assertPhraseIn('the same state `/finish` labels "evidence ambiguous"')
 
+    def test_the_tokens_own_note_is_read_rather_than_glossed(self) -> None:
+        """"Never interpret it" is right — the meaning is the script's to state
+        — but on the `list` path every route to that meaning was closed: the
+        explanatory note was printed only by the sibling verb, `--help` shows
+        usage lines, and this skill may not gloss the token itself. The row
+        alone left the persona holding an undecodable string. The verb now
+        prints the note on this path too; the fix here is being told to read
+        it."""
+        self.assertPhraseIn("on stderr, one line per qualified row")
+        # And the destination, because a quoted message with nowhere stated to
+        # land is the defect `/finish` spent a round fixing on its own side:
+        # `list` prints one note per qualified row, so an unbounded set of them
+        # routed into a single-cell signal is the same shape one layer over.
+        self.assertPhraseIn("verbatim on that row's own evidence line (below), one note per qualified row")
+        self.assertPhraseIn("never merged across rows and never carried up into the recommendation")
+
+    def test_an_ambiguous_row_on_an_unbuilt_task_is_about_the_id(self) -> None:
+        """The verb enumerates every task id in every manifest in the tree, so
+        on a fresh branch here tasks whose ids collide with inherited evidence
+        report `[ambiguous]` before either is built. Naming that an ambiguity
+        turns an ordinary todo into a reported evidence problem — and the status
+        row above already says which it is."""
+        self.assertPhraseIn("On a task the **Task statuses** row above shows as not yet terminal")
+        self.assertPhraseIn("inherited from earlier work sharing the number")
+        self.assertPhraseIn("rather than reporting an ordinary todo as an evidence problem")
+
+    def test_an_unrunnable_evidence_verb_is_a_named_gap_never_a_glob(self) -> None:
+        """`evidence-capture` was the one external dependency in Step 1 with no
+        named-gap path, while its fallback — a glob — is banned in the same row.
+        The sibling `gate-ledger` dependency gets degradation prose twice, and
+        this row now mirrors its shape: name the gap, mark the signal unread,
+        never substitute the banned fallback, never omit the line."""
+        self.assertPhraseIn("If the verb cannot be run at all")
+        self.assertPhraseIn("mark this signal unread")
+        self.assertPhraseIn("Never fall back to a glob, and never drop the line")
+
     def test_the_branch_argument_names_the_command_that_produces_it(self) -> None:
         """`<the branch you are on>` is not a command, and the two obvious
         candidates disagree: the writer stamps `rev-parse --abbrev-ref HEAD`

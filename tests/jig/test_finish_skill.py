@@ -186,6 +186,39 @@ class TestFinishSkillBody(unittest.TestCase):
         self.assertPhraseIn("squash-merged, whose recorded commit no longer exists anywhere in this history")
         self.assertPhraseIn("that new folder is what the next `resolve` prints")
 
+    def test_the_halt_is_scoped_to_an_answer_the_verb_did_not_qualify(self) -> None:
+        """The stop belongs to evidence this branch owns. An unqualified answer
+        is one this branch's own capture produced, so a freshness failure on it
+        is a fact about this branch; a qualified one is not, and the blanket
+        halt is what carried the asymmetry below."""
+        self.assertPhraseIn("An *unqualified* answer — a bare path, no bracketed token beside it")
+        self.assertPhraseIn("the run does not continue past it")
+
+    def test_a_token_qualified_folder_that_fails_the_hold_is_a_row_not_a_halt(self) -> None:
+        """The script made one branch-less folder and two of them report as the
+        same state; one layer up, the halt undid it. `resolve` answers exit 0
+        with a token, so the freshness hold runs on it — and a squash-merged
+        origin's commit is not an ancestor, so it fails by construction (all 11
+        committed manifests in this repo are in that state). Halting there stops
+        closeout for the single folder, while the pair — which exits 1 and never
+        reaches the hold — becomes a named row and lets closeout proceed. Same
+        epistemic state, opposite outcome, one layer above where it was closed.
+        """
+        self.assertPhraseIn(
+            "A token-qualified answer that fails the ancestor check is a named row, not a halt"
+        )
+        self.assertPhraseIn("carries the token as printed and **no link**")
+        self.assertPhraseIn("would make closeout turn on a count")
+
+    def test_re_capture_is_offered_only_where_there_is_something_to_re_capture(self) -> None:
+        """The recovery the hold names has to be one the item can perform. An
+        item that reached `PASS` by hand captured nothing and has no capture to
+        re-run — and it is exactly the item that produces a token-qualified row,
+        so the unqualified "re-capture and re-invoke" pointed the commonest case
+        at a command nothing on the branch could satisfy."""
+        self.assertPhraseIn("re-capturing is what clears it — where there is anything to re-capture")
+        self.assertPhraseIn("there is no capture to re-run, so the named row *is* the outcome")
+
     def test_finish_never_backfills_missing_evidence(self) -> None:
         self.assertPhraseIn("Do not call `evidence-capture` yourself to backfill a gap")
         self.assertPhraseIn("evidence not found for item N")

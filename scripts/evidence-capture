@@ -109,8 +109,11 @@ Exit codes, per mode — one ladder, three honest readings of it:
            printed token says, since neither is "evidence not found" by
            default. 2 usage error (missing --branch, malformed task id).
   list     0 always, including the empty answer — a branch that has captured
-           nothing yet is an ordinary early-pipeline state, not an error.
-           2 usage error (missing --branch).
+           nothing yet is an ordinary early-pipeline state, not an error. A
+           row qualified by `[legacy]` prints the *same* stderr note `resolve`
+           prints for that answer: the token is one fact, so its explanation
+           cannot live on one verb's path only. 2 usage error (missing
+           --branch).
 
 `resolve` and `list` report rule 3 differently while applying it identically:
 a per-task lookup that finds nothing is a failed lookup, but an inventory read
@@ -127,6 +130,13 @@ honestly be named; `[legacy]` precedes the path it qualifies. A reader that
 splits the row on its tab still sees exactly two fields either way, and a
 caveat carried in the same column the path occupies cannot be dropped by a
 reader that only looked at the path.
+
+The token is the caveat's handle, not the caveat. `/coach` is told to quote a
+token as printed and never to interpret it — correctly, since the meaning is
+this script's to state — so a row is the whole of what that reader gets, and a
+meaning stated only on `resolve`'s path arrives at `list`'s reader as a bare
+string in a stream. Both verbs therefore print one shared note (`legacy_note`)
+on stderr for the same answer, leaving stdout byte-identical in both.
 """
 from __future__ import annotations
 
@@ -321,6 +331,23 @@ def answer_column(row: Resolution, repo: Path) -> str:
     return f"[{row.token}] {path}" if row.token else path
 
 
+def legacy_note(task: str, branch: str, answer: str) -> str:
+    """The one stderr caveat both query verbs print for a rule-2 answer.
+
+    Shared rather than printed by whichever verb happened to need it first: the
+    two verbs answer the same reader in the same state, and a note only one of
+    them says leaves the other's reader holding a token with no stated meaning
+    anywhere on its path. Kept to a single line so a row-oriented reader can
+    carry it beside the row it qualifies.
+    """
+    return (
+        f"note: [{LEGACY}] the folder resolved for task '{task}' records no branch, so "
+        f"nothing ties it to '{branch}' — it predates the manifest's branch field and may "
+        f"belong to a branch that has already merged; read {answer}/manifest.json before "
+        "promoting it as this item's evidence."
+    )
+
+
 def clear_directory(target_dir: Path) -> int:
     """Remove every entry inside `target_dir`; return how many were removed.
 
@@ -418,6 +445,11 @@ def run_query(verb: str, argv: list[str]) -> int:
 
     if verb == "list":
         for task, row in list_branch_tasks(entries, args.branch):
+            # The row carries the token; the note carries what the token means.
+            # stdout is untouched by it — the row grammar is unchanged and a
+            # reader parsing lines sees exactly what it saw before.
+            if row.folder is not None and row.token == LEGACY:
+                print(legacy_note(task, args.branch, display_path(row.folder, repo)), file=sys.stderr)
             print(f"{task}\t{answer_column(row, repo)}")
         return 0
 
@@ -453,17 +485,11 @@ def run_query(verb: str, argv: list[str]) -> int:
 
     answer = display_path(row.folder, repo)
     # An answer, qualified. Exit stays 0 and stdout stays the bare path, so a
-    # caller that only reads the path is unaffected; the caveat goes to stderr
-    # where the two refusal tokens already are, because that is where a caller
-    # that selects on tokens is already looking.
+    # caller that only reads the path is unaffected; the caveat goes to stderr,
+    # where the two refusal tokens already are. Why both verbs print the same
+    # one is `legacy_note`'s own docstring, not this call site's.
     if row.token == LEGACY:
-        print(
-            f"note: [{LEGACY}] the folder resolved for task '{args.task}' records no branch, so "
-            f"nothing ties it to '{args.branch}' — it predates the manifest's branch field and may "
-            f"belong to a branch that has already merged; read {answer}/manifest.json before "
-            "promoting it as this item's evidence.",
-            file=sys.stderr,
-        )
+        print(legacy_note(args.task, args.branch, answer), file=sys.stderr)
     print(answer)
     return 0
 

@@ -1124,6 +1124,43 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
             )
             self.assertEqual([len(line.split("\t")) for line in result.stdout.splitlines()], [2, 2])
 
+    def test_a_qualified_row_carries_the_same_note_resolve_prints(self) -> None:
+        """A token with no reachable meaning is a bare string in a stream.
+
+        Every route to `[legacy]`'s meaning was closed on this verb's path:
+        `resolve`'s explanatory note sits after the branch `list` returns from,
+        `--help`'s epilog prints usage lines only, and `/coach` is told — for
+        the one-home reason — to quote a token as printed and never interpret
+        it. So the note is printed here too, byte-for-byte the one `resolve`
+        prints, and stdout stays exactly what it was.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, root = self._repo_and_root(tmp)
+            legacy = write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
+
+            listed = self._list(repo, root, "feat/alpha")
+            self.assertEqual(listed.returncode, 0, listed.stderr)
+            self.assertEqual(listed.stdout.splitlines(), [f"task-1\t[legacy] {legacy}"])
+
+            resolved = run_script(
+                ["resolve", "--repo", str(repo), "--evidence-root", str(root),
+                 "--branch", "feat/alpha", "--task", "task-1"]
+            )
+            self.assertEqual(resolved.returncode, 0, resolved.stderr)
+            self.assertIn("[legacy]", listed.stderr)
+            self.assertEqual(listed.stderr, resolved.stderr)
+
+    def test_an_unqualified_row_says_nothing_on_stderr(self) -> None:
+        """The note belongs to the token, not to the verb: a branch-bearing
+        answer is not caveated, so an inventory of them is silent."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, root = self._repo_and_root(tmp)
+            write_manifest_folder(root, "2026-07-12-task-1-feat-alpha", task="task-1", branch="feat/alpha")
+
+            result = self._list(repo, root, "feat/alpha")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stderr, "")
+
     def test_a_task_with_no_bearing_on_the_branch_stays_omitted(self) -> None:
         """The marker row is for the undecidable case only. A task that belongs
         to another branch outright is not this branch's inventory at all, and

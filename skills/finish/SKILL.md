@@ -113,7 +113,11 @@ purely mechanical things:
    `commit_timestamp` (catches an artifact silently touched or replaced
    after capture).
 
-**A folder that fails either check is not promoted silently.** Stop before
+**A folder that fails either check is not promoted silently**, and which of two
+dispositions it takes turns on whether the answer arrived qualified. An
+*unqualified* answer — a bare path, no bracketed token beside it — is a folder
+this branch's own capture produced, so a failure on it is a fact about this
+branch's own evidence and the run does not continue past it. Stop before
 assembling the PR body. Report the exact task and reason (stale/orphaned)
 by name. The human's resume action is re-running the task's evidence
 capture (via `/build` or by hand) and re-invoking `/finish`. Do not call
@@ -121,19 +125,33 @@ capture (via `/build` or by hand) and re-invoking `/finish`. Do not call
 or re-capture evidence (see Out of scope in the design doc this skill
 implements).
 
+**A token-qualified answer that fails the ancestor check is a named row, not a
+halt.** The verb printed that token because it declines to vouch that this
+branch captured the folder; the hold then confirms exactly that, so the row
+says what a refusal says and takes the treatment a refusal already gets —
+closeout continues. The cell carries the token as printed and **no link**, the
+hold having declined that path; the verb's own message and the hold's own
+reason both go verbatim into the row's `<details>` block, the same destination
+every other message in this step lands in. One such folder stopping the run
+while two of them become a row would make closeout turn on a count, in the one
+state the script itself reports as identical either way.
+
 **A folder this branch did not capture is the expected way that first check
-fails, and re-capturing is what clears it.** The ancestor check is against
-*this* branch's `HEAD`, so a folder captured on some other branch — one since
-squash-merged, whose recorded commit no longer exists anywhere in this
-history — fails it every time. That is the hold working, not damage to this
-branch, and the resume action above genuinely resolves it rather than looping:
-the re-capture writes a *new* folder on this branch, with its own manifest and
-a commit that is in this branch's history, and that new folder is what the next
-`resolve` prints. Expect the two signals together — the row carrying a token
-beside its link (above) is the row this check most often stops on. Say which of
-the two you stopped on: a folder this branch captured that has since gone
-stale, or one it never captured at all. A human told "stale/orphaned" about a
-folder their branch never produced goes looking for damage that isn't there.
+fails, and re-capturing is what clears it — where there is anything to
+re-capture.** The ancestor check is against *this* branch's `HEAD`, so a folder
+captured on some other branch — one since squash-merged, whose recorded commit
+no longer exists anywhere in this history — fails it every time. That is the
+hold working, not damage to this branch. For an item `/build` verified, the
+recovery resolves it rather than looping: the re-capture writes a *new* folder
+on this branch, with its own manifest and a commit that is in this branch's
+history, and that new folder is what the next `resolve` prints. For an item
+that reached `PASS` by hand — the item that most often produces one of these
+rows — there is no capture to re-run, so the named row *is* the outcome, and
+offering re-capture there points the human at a command nothing on this branch
+can satisfy. Say which of the two you are looking at: a folder this branch
+captured that has since gone stale, or one it never captured at all. A human
+told "stale/orphaned" about a folder their branch never produced goes looking
+for damage that isn't there.
 
 **Any `Done means` item the resolve verb refused on** — a task that reached
 `PASS` by a path other than `/build`'s own loop (e.g. a hand-verified fix), so
