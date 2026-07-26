@@ -284,7 +284,7 @@ class TestBuildSkillBody(unittest.TestCase):
 
     def test_dispatch_model_names_unavailable_case_beside_override_and_inherited(self) -> None:
         # Task 3 (issue #34 follow-up, /gate-acceptance SHOULD FIX): the
-        # design doc's own Failure path (docs/design/replay-bundle.md) names
+        # design's own documented Failure path names
         # a third dispatch-model case -- when the model genuinely can't be
         # determined at all, the Foreman states it plainly as `unavailable`,
         # immediately beside the existing `override`/`inherited` cases.
@@ -428,8 +428,8 @@ class TestBuildSkillBody(unittest.TestCase):
         # Task 3: step 7's bundle-assembly instruction must reference the
         # unavailable case so a Foreman hitting it still assembles and
         # writes the bundle -- model recorded as `unavailable`, never a
-        # reason to refuse the whole evidence-capture call (the design
-        # doc's own Failure path, docs/design/replay-bundle.md).
+        # reason to refuse the whole evidence-capture call (a
+        # documented Failure path, not a judgment call made there).
         self.assertPhraseIn(
             "If step 2.2 recorded `unavailable` for this attempt, the "
             "bundle is still assembled and written the same way"

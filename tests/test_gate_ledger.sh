@@ -1118,5 +1118,55 @@ check "a gate step's outcome stays free-form" "0" "$?"
 ( cd "$d37" && "$LEDGER" work-log --slug enum-work --step run-boundary --outcome DISPATCHED ) >/dev/null 2>&1
 check "a non-build marker step's outcome stays free-form" "0" "$?"
 
+# --- gc collects finished flow state, not only branch-orphaned state (#237) ---
+# The epic path deliberately keeps a story's branch after landing it, so the
+# branch-gone rule alone could never fire: 34 of 35 work files sat pinned at phase
+# `merge` forever, and /work-on counted every one as an active feature.
+d38=$(sandbox)
+
+( cd "$d38" && "$LEDGER" work-set --slug done-feature --title "finished" --branch "$(git -C "$d38" rev-parse --abbrev-ref HEAD)" --phase "done" ) >/dev/null 2>&1
+( cd "$d38" && "$LEDGER" work-set --slug stopped-feature --title "abandoned" --phase "stopped" ) >/dev/null 2>&1
+( cd "$d38" && "$LEDGER" work-set --slug live-feature --title "in flight" --branch "$(git -C "$d38" rev-parse --abbrev-ref HEAD)" --phase build ) >/dev/null 2>&1
+( cd "$d38" && "$LEDGER" work-set --slug fresh-feature --title "no branch yet" --phase decide ) >/dev/null 2>&1
+
+out38=$( cd "$d38" && "$LEDGER" gc 2>&1 )
+check "gc collects a work file at phase done, branch still present" "no" \
+  "$([ -f "$d38/.studious/work/done-feature.json" ] && echo yes || echo no)"
+check "gc collects a work file at phase stopped" "no" \
+  "$([ -f "$d38/.studious/work/stopped-feature.json" ] && echo yes || echo no)"
+check "gc keeps a work file still in flight" "yes" \
+  "$([ -f "$d38/.studious/work/live-feature.json" ] && echo yes || echo no)"
+# decide/design happen before a branch exists; a branchless file is not orphaned.
+check "gc keeps a branchless non-terminal work file" "yes" \
+  "$([ -f "$d38/.studious/work/fresh-feature.json" ] && echo yes || echo no)"
+check "gc names the phase it collected on" "yes" \
+  "$(printf '%s' "$out38" | grep -q 'removed finished work file.*phase done' && echo yes || echo no)"
+
+# --- gc collects epic state only once the epic actually shipped ---
+# `ready` is the driver's finale status and means "ready for you to PR" — the
+# branch is still live and the epic is still the answer to "what's in flight".
+# Shipped means ready AND the integration branch is gone.
+d39=$(sandbox)
+git -C "$d39" branch "epic/shipped-epic" >/dev/null 2>&1
+git -C "$d39" branch "epic/live-epic" >/dev/null 2>&1
+( cd "$d39" && "$LEDGER" epic-set --slug shipped-epic --title "merged" --branch "epic/shipped-epic" --status ready ) >/dev/null 2>&1
+( cd "$d39" && "$LEDGER" epic-set --slug live-epic --title "awaiting PR" --branch "epic/live-epic" --status ready ) >/dev/null 2>&1
+( cd "$d39" && "$LEDGER" epic-set --slug running-epic --title "in flight" --branch "epic/running-epic" --status running ) >/dev/null 2>&1
+( cd "$d39" && "$LEDGER" epic-story-set --epic shipped-epic --slug s1 --status landed ) >/dev/null 2>&1
+
+check "epic events file exists before gc" "yes" \
+  "$([ -f "$d39/.studious/epics/shipped-epic.events.jsonl" ] && echo yes || echo no)"
+git -C "$d39" branch -D "epic/shipped-epic" >/dev/null 2>&1   # the PR merged, branch deleted
+( cd "$d39" && "$LEDGER" gc ) >/dev/null 2>&1
+
+check "gc collects a ready epic whose branch is gone" "no" \
+  "$([ -f "$d39/.studious/epics/shipped-epic.json" ] && echo yes || echo no)"
+check "gc collects that epic's events file too" "no" \
+  "$([ -f "$d39/.studious/epics/shipped-epic.events.jsonl" ] && echo yes || echo no)"
+check "gc keeps a ready epic whose branch is still live" "yes" \
+  "$([ -f "$d39/.studious/epics/live-epic.json" ] && echo yes || echo no)"
+check "gc keeps a running epic" "yes" \
+  "$([ -f "$d39/.studious/epics/running-epic.json" ] && echo yes || echo no)"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

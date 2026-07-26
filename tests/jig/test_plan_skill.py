@@ -315,20 +315,28 @@ class TestPlanSkillBody(unittest.TestCase):
 class TestStaleReferencesUpdated(unittest.TestCase):
     """Resolves issue #23's second half: the two already-shipped stale
     references now cite this story's own verified round-trip, and neither
-    changed the heading level itself (docs/design/plan-skill.md, Step 6)."""
+    changed the heading level itself (issue #23, Step 6)."""
+
+    # Both assertions used to also require the literal path of this story's own
+    # design doc. That pinned the attribution to a branch-local file which, by the rule ratified in #219, is deleted at closeout --
+    # so the assertion guaranteed a permanently dangling pointer (#233). The
+    # issue number is the durable half and is what these check now: the claim
+    # still has to be attributed, just not to a file that cannot exist.
+    #
+    # The negative is deliberately the whole directory rather than one filename.
+    # Naming a file here would put the very string this rule forbids back into a
+    # permanent file, and the point is that *no* design-doc path belongs in one.
 
     def test_build_skill_cites_the_verified_round_trip(self) -> None:
         body = BUILD_SKILL_MD.read_text(encoding="utf-8")
         self.assertIn("## Not-here follow-ups", body)
         self.assertIn("issue #23", body)
-        self.assertIn("docs/design/plan-skill.md", body)
         self.assertNotIn("#### Not-here follow-ups", body)
 
     def test_finish_skill_cites_the_verified_round_trip(self) -> None:
         body = FINISH_SKILL_MD.read_text(encoding="utf-8")
         self.assertIn("## Not-here follow-ups", body)
         self.assertIn("issue #23", body)
-        self.assertIn("docs/design/plan-skill.md", body)
         self.assertNotIn("#### Not-here follow-ups", body)
 
 

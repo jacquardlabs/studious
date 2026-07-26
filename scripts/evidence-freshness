@@ -8,7 +8,7 @@ evidence folder (`docs/jig/evidence/<date>-<task>/`, written by
 reproduce issue #44's bug shape one layer up (a producing step that commits
 *after* writing the artifact it's timestamping against makes a "must be >=
 current HEAD" check structurally unpassable for every folder but the most
-recent). See docs/design/finish-skill.md, Step 1.
+recent).
 
 Two checks per folder, both floored on the manifest's own `commit_sha` /
 `commit_timestamp`, never a moving target:

@@ -40,7 +40,7 @@ Flow position lives in a per-feature work file, `.studious/work/<slug>.json`, re
 gate-ledger work-list
 ```
 
-- **`$ARGUMENTS` is empty — "do the next piece."** If a work file's branch matches the current branch, that's the feature. Otherwise, if exactly one work file is active (phase not `done`/`stopped`), use it. If several are active, list them and ask which — don't guess. If none exist, say there's no feature in flight and invite `/work-on [idea or issue]`.
+- **`$ARGUMENTS` is empty — "do the next piece."** If a work file's branch matches the current branch, that's the feature. Otherwise, if exactly one work file is active (phase not `done`/`stopped`), use it. If several are active, list them and ask which — don't guess. **Cap that list at the 5 most recently updated** (`updatedAt`), and say how many more there are rather than printing them all: a menu long enough to scroll is not a choice a user can make. If the list is long, say so plainly and suggest `gate-ledger gc`, which collects finished work files — a flow that ended should not still be asking for attention. If none exist, say there's no feature in flight and invite `/work-on [idea or issue]`.
 - **`$ARGUMENTS` names in-flight work** (matches a slug, branch, or title) — resume that feature.
 - **Anything else starts a new feature** — a raw idea or an issue reference. For an issue, fetch its title and body with `gh issue view` and use them as the gate input. Derive a short slug from the title, then create the work file at phase `decide`:
 

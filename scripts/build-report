@@ -5,8 +5,7 @@
 `docs/jig/reports/YYYY-MM-DD-<story-slug>-build-report.md` -- same class
 and naming shape as studious's own dated review reports
 (`docs/studious/<kind>-reviews/YYYY-MM-DD-<kind>-review.md`), reusing an
-established convention rather than inventing a new report shape (see
-docs/design/finish-skill.md, Step 5).
+established convention rather than inventing a new report shape.
 
 This script only performs the mechanical write of already-assembled
 content -- it does not draft, summarize, or judge the report body itself;

@@ -4,8 +4,8 @@ Standard library only, matching test_build_skill.py's convention. Run with:
 
     uv run --no-project python3 -m unittest discover -s tests -v
 
-Checks this story's acceptance criteria and docs/design/coach-skill.md's
-commitments mechanically, by inspecting the prose a `/coach` session
+Checks this story's acceptance criteria and its design commitments
+mechanically, by inspecting the prose a `/coach` session
 actually reads (the same approach the other four skills' test modules
 already take):
 
@@ -192,7 +192,7 @@ class TestCoachSkillBody(unittest.TestCase):
         )
 
     def test_coach_owns_no_verdict_enum_of_its_own(self) -> None:
-        # docs/design/coach-skill.md, Out of scope: the coach is not a
+        # Out of scope by design: the coach is not a
         # pipeline judgment point; its closed vocabulary is the action set.
         self.assertPhraseIn("no verdict enum of its own")
         self.assertPhraseIn("It reads the other skills' verdicts; it never emits one.")

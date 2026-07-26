@@ -3,8 +3,7 @@
 
 Writes a task's terminal status back onto its own `### Task <label>` heading
 in a `PLAN.md`-shaped file, and commits that annotation — the mechanical
-write `docs/design/build-skill.md`'s "Status-flip persistence" section calls
-for so `DESIGN.md`'s Vocabulary table ("flipped by scripts only, never the
+write that makes `DESIGN.md`'s Vocabulary table ("flipped by scripts only, never the
 model") and `PRODUCT.md`'s "Judgment in the model, mechanics in scripts"
 principle are true in fact, not just in spirit. The Foreman decides *what*
 status a task reaches (PASS is derived here from `verify`'s own

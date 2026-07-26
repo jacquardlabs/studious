@@ -2,7 +2,7 @@
 
 Exercises the script against a throwaway git repo (`tests/_tempgit.py`),
 never the real jig repo, checking this story's acceptance criteria and
-`docs/design/build-skill.md`'s "Status-flip persistence" section
+`skills/build/SKILL.md`'s status-flip contract
 mechanically:
 
 1. The PASS path derives its token solely from `verify`'s own `results.json`
