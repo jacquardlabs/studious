@@ -21,6 +21,10 @@ export const meta = {
 //               story; the sentinel 'merge' means every profiled gate already
 //               proceeded at HEAD and only the merge onto the epic branch is missing,
 //   repoRoot:   absolute path of the MAIN working tree,
+//   worktrees:  `gate-ledger worktree-path --slug <slug> --json` verbatim —
+//               { epic: '<__epic checkout>', stories: { '<story>': '<checkout>' } }.
+//               See the comment on epicWorktree below for why this crosses the
+//               args boundary instead of being derived here,
 //   defaultBranch: e.g. 'main',
 //   contract:   reference/prompt-contract.md's five blocks, verbatim, read once by
 //               work-through.md from the plugin root and handed over as data — never
@@ -43,8 +47,31 @@ const stories = epic.stories || {}
 // simultaneous token spend, a real cost dial, not just a speed one.
 const cap = epic.concurrency || 5
 const repoRoot = input.repoRoot
-const worktreesDir = `${repoRoot}/.studious/worktrees/${slug}`
-const epicWorktree = `${worktreesDir}/__epic`
+
+// The worktree layout — the `.studious/worktrees` root, the `__epic` sentinel for
+// the integration checkout, one directory per in-flight story — has exactly one
+// owner: bin/gate-ledger's worktree_path() (#166). This script cannot ask it
+// directly, because a Workflow script has no filesystem or exec access; that is
+// the same constraint that makes args.contract arrive as text rather than as a
+// path to read. So commands/work-through.md runs `gate-ledger worktree-path
+// --slug <slug> --json` once and hands the answer over as args.worktrees, and
+// every path below is a lookup into it. Rebuilding a path from repoRoot + slug
+// here would put the layout back in two places, which is the whole defect.
+//
+// Fail loud, not closed: a missing entry is a wiring error in the args this
+// script is handed, not a runtime condition to degrade around. Dispatching a
+// worker at a silently-wrong checkout is the failure worth crashing to avoid.
+const worktrees = input.worktrees || {}
+function requireWorktree(path, what) {
+  if (typeof path !== 'string' || !path) {
+    throw new Error(
+      `epic-driver: args.worktrees has no path for ${what}. commands/work-through.md must pass ` +
+      '`gate-ledger worktree-path --slug <slug> --json` verbatim as args.worktrees — this script ' +
+      'cannot derive the layout itself.')
+  }
+  return path
+}
+const epicWorktree = requireWorktree(worktrees.epic, 'the __epic integration worktree')
 
 const FULL_PROFILE = ['design', 'design-review', 'build', 'audit', 'acceptance']
 const GATES = {
@@ -685,7 +712,7 @@ const MERGE_RESULT = {
 const REPORT = { type: 'object', properties: { findings: { type: 'string' } }, required: ['findings'] }
 
 function storyBranch(story) { return `epic/${slug}--${story}` }
-function storyWorktree(story) { return `${worktreesDir}/${story}` }
+function storyWorktree(story) { return requireWorktree(worktrees.stories && worktrees.stories[story], `story '${story}'`) }
 function profileOf(story) { return stories[story].gates && stories[story].gates.length ? stories[story].gates : FULL_PROFILE }
 
 // Epic-dispatched work files (`work-set`/`work-log`/`work-get` — never
