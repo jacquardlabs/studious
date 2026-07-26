@@ -832,16 +832,57 @@ cmd_gc() {
     fi
   done
 
-  # Work files: prune only those tied to a branch that's gone. A work file with
-  # no branch yet (decide/design phases happen before one exists) is kept.
+  # Work files: two independent collection rules, either one sufficient.
+  #
+  #   1. The branch is gone. The flow it tracked cannot be resumed.
+  #   2. The phase is terminal (`done`/`stopped`). The file is flow *position*,
+  #      and a finished flow has none; the durable record is the commit history,
+  #      the PR, and the pre-mortem register.
+  #
+  # Rule 2 exists because rule 1 alone could not fire on the epic path (#237):
+  # a landed story's branch is deliberately kept, so its work file was pinned
+  # forever at phase `merge` and `/work-on` counted it as an active feature. Once
+  # the driver writes a terminal phase, this is what actually collects it.
+  #
+  # A work file with no branch yet (decide/design happen before one exists) is
+  # kept unless its phase is terminal.
   local wdir; wdir=$(work_dir)
+  local phase
   for f in "$wdir"/*.json; do
     [ -e "$f" ] || continue
     branch=$(jq -r '.branch // empty' "$f" 2>/dev/null)
-    [ -n "$branch" ] || continue
-    if ! git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1; then
+    phase=$(jq -r '.phase // empty' "$f" 2>/dev/null)
+    if [ "$phase" = "done" ] || [ "$phase" = "stopped" ]; then
+      rm -f "$f"
+      printf 'removed finished work file: %s (phase %s)\n' "$(basename "$f")" "$phase"
+    elif [ -n "$branch" ] && ! git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1; then
       rm -f "$f"
       printf 'removed stale work file: %s (branch %s no longer exists)\n' "$(basename "$f")" "$branch"
+    fi
+  done
+
+  # Epic state: collect an epic the driver finished (`epic-set --status ready`,
+  # its finale step) once its integration branch is gone — which is what merging
+  # the epic PR and deleting the branch leaves behind. `ready` alone is not
+  # enough: it means "ready for you to open the PR", so the branch is still live
+  # and the epic is still the answer to "what is in flight". Both conditions
+  # together mean the epic shipped.
+  #
+  # An epic still `running`, or one whose branch survives, is left alone — that
+  # includes an epic parked on a story, which is exactly the state a user needs
+  # to still be able to see.
+  local edir; edir=$(epic_dir)
+  local status eslug
+  for f in "$edir"/*.json; do
+    [ -e "$f" ] || continue
+    status=$(jq -r '.status // empty' "$f" 2>/dev/null)
+    branch=$(jq -r '.branch // empty' "$f" 2>/dev/null)
+    eslug=$(jq -r '.slug // empty' "$f" 2>/dev/null)
+    [ "$status" = "ready" ] || continue
+    [ -n "$branch" ] || branch="epic/$eslug"
+    if ! git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1; then
+      rm -f "$f" "${f%.json}.events.jsonl"
+      printf 'removed shipped epic: %s (status ready, branch %s no longer exists)\n' "$(basename "$f")" "$branch"
     fi
   done
 }

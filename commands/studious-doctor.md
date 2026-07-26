@@ -40,6 +40,18 @@ For each of PRODUCT.md, DESIGN.md, CLAUDE.md in the consuming project's root:
 
 CLAUDE.md has no shipped template (`templates/CLAUDE.md` does not exist), so it only ever reports **missing** or **populated** — never stub.
 
+## 4. Flow-state hygiene
+
+`.studious/` accumulates one work file per feature and one state file per epic, and nothing collects them automatically. When they pile up, `/work-on` with no argument stops being able to answer "what's next" — it has to ask you to pick from a list instead (#237).
+
+Count them with `gate-ledger work-list` (one line per work file) and by globbing `.studious/epics/*.json`. Classify:
+
+- **More than 10 work files** — **Important** — "`/work-on` will ask you to choose from N features instead of resuming one. Run `gate-ledger gc`." That verb collects work files whose flow ended (phase `done`/`stopped`) or whose branch is gone, and epic state for epics that shipped.
+- **1–10** — **OK**, with the count.
+- **A work file whose branch no longer exists** — name it: `gc` will collect it, and until then it is noise in every `work-list` read.
+
+Report the counts, never the full list — this is a health check, not an inventory. And recommend `gc`; never run it. Same recommend-only posture as everything else here.
+
 ## Output
 
 ```
@@ -55,6 +67,9 @@ CLAUDE.md has no shipped template (`templates/CLAUDE.md` does not exist), so it 
 - [OK|Important] PRODUCT.md: <populated | stub (<section>) | missing> — <consequence if not OK>
 - [OK|Important] DESIGN.md: <same>
 - [OK|Important] CLAUDE.md: <populated | missing> — <consequence if not OK>
+
+**Flow state**
+- [OK|Important] <n work files, m epics> — <"clean" | "`/work-on` will ask you to choose from n features; run `gate-ledger gc`">
 
 ### Summary
 <N> critical, <N> important, <N> ok. This is a health check, not a gate — no verdict token, nothing recorded to the ledger.

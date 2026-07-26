@@ -31,6 +31,7 @@ Three defects, three test groups:
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -113,18 +114,35 @@ console.log(JSON.stringify({{ cycle: result.cycle, downstream: result.downstream
 
 
 def test_work_verb_call_sites_use_the_qualified_slug() -> None:
-    """Every work-set/work-log/work-get call site interpolates workSlug(story)."""
+    """Every work-set/work-log/work-get call site interpolates workSlug(story).
+
+    Asserted as a property over the call sites actually present, not against a
+    hardcoded total. The count was pinned at 7 and broke the moment #237 added a
+    legitimate eighth call site — a maintainer's only signal being "the number
+    changed" tells them nothing about whether the new site is correct. `>=` keeps
+    the guard against the check going vacuous if the interpolation is renamed.
+    """
     source = DRIVER.read_text()
-    count = source.count('--slug "${workSlug(story)}"')
-    assert count == WORK_VERB_SLUG_CALL_COUNT, (
-        f"expected {WORK_VERB_SLUG_CALL_COUNT} work-verb call sites using the "
-        f"qualified slug, found {count}"
+    qualified = source.count('--slug "${workSlug(story)}"')
+    assert qualified >= WORK_VERB_SLUG_CALL_COUNT, (
+        f"only {qualified} work-verb call sites use the qualified slug; expected at "
+        f"least {WORK_VERB_SLUG_CALL_COUNT} — did an interpolation get renamed?"
     )
-    # No bare-slug work-verb call site should remain.
+    # The real property: no work-verb call site keys on the *bare* story slug.
+    # Two interpolations are legitimate — `workSlug(story)` and `workSlugVal`, a
+    # variable already holding the qualified slug (acceptanceScopeCheckPrompt takes
+    # it as a parameter). Both resolve to `<epic>--<story>`; only `${story}` does not,
+    # and that is the collision this guard exists to prevent.
     for verb in ("work-set", "work-get", "work-log"):
-        assert f'{verb} --slug "${{story}}"' not in source, (
-            f"{verb} still keys a work file to the bare story slug"
-        )
+        for match in re.finditer(rf"{verb} --slug \"(\$\{{[^}}]+\}})\"", source):
+            assert match.group(1) != "${story}", (
+                f"{verb} keys a work file to the bare story slug — two epics with a "
+                f"story of the same name would share one work file"
+            )
+            assert "workSlug" in match.group(1), (
+                f"{verb} keys a work file to {match.group(1)}, which is not a known "
+                f"epic-qualified slug expression"
+            )
 
 
 def test_epic_story_set_keeps_the_bare_slug() -> None:
