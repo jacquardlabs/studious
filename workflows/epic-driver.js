@@ -1350,39 +1350,78 @@ let finale = null
 if (landedCount + droppedCount === allSettled.length && landedCount > 0) {
   phase('Finale')
   log('All stories landed/dropped — running the epic finale on the integration branch')
-  const { result: auditVerdict } = await finaleGate('audit', (note, prior) => finaleAuditRound(note, prior))
-  const stalledAudit = stalledFinaleEntry(slug, 'audit', auditVerdict, GATES.audit.retry, MAX_FIX_CYCLES)
-  if (stalledAudit) parkedThisRun.push(stalledAudit)
 
-  // The premortem register verification is independent of the acceptance VERDICT, so
-  // it runs concurrently with acceptance's first round instead of serializing after
-  // it. It is NOT independent of acceptance's FIXERS — a fix cycle commits to the
-  // same epic branch the register is verified against — so when any fixer was
-  // dispatched (cycles > 0), the raced read is discarded and one fresh premortem
-  // dispatch replaces it below. Audit's own fixers are no hazard here: this dispatch
-  // is created only after the audit finaleGate fully resolved. `.catch(() => null)`
-  // matches the died-agent shape the `premortem &&` reads below already handle —
-  // a thrown dispatch must not crash the finale (same convention as park()).
+  // Acceptance's raced first round is independent of audit's VERDICT — a `FIX AND
+  // RE-AUDIT` doesn't change what acceptance is judging, since acceptance evaluates
+  // the epic against its goal and stories' acceptance criteria, not against audit's
+  // own findings. It is NOT independent of audit's FIXERS — a fix cycle commits to
+  // the same epic branch acceptance just read — so race the two finale gates here,
+  // and discard the raced acceptance result below only when a fixer actually ran
+  // (auditFixCycles > 0), never on audit's verdict alone.
+  const auditPromise = finaleGate('audit', (note, prior) => finaleAuditRound(note, prior))
+
+  const acceptanceRunOnce = note => agent(
+    `${note} Run Studious's acceptance gate against the WHOLE epic, not any single story: read commands/gate-acceptance.md from the plugin root (gate-ledger is on PATH; plugin root is its dirname, up one) and execute its workflow in ${epicWorktree} judging against the epic goal: "${epic.goal}" and the epic's stories' acceptance criteria. Where the command dispatches subagents you cannot spawn, perform those roles' checks yourself from their agent files — rubrics verbatim. If this review writes or produces any file in ${epicWorktree} — a note, a register, anything, prescribed or your own initiative — commit it before recording: gate-ledger record stamps the verdict's sha from HEAD at that moment, and a file committed afterward leaves the PR-time hook and this epic's own ready-check seeing a stale gate over a commit that changed nothing substantive. Commit first, then record from inside the epic worktree: cd "${epicWorktree}" && gate-ledger record --gate acceptance --verdict "<TOKEN>". Return: verdict, sha, summary.`,
+    { label: 'finale:acceptance', phase: 'Finale', schema: GATE_RESULT, model: 'opus' })
+
   // Perf item 8: premortem runs once per epic (not once per round like the audit
   // lanes), so it has no per-round routing dispatch to piggyback a diff fetch onto
   // — this is the one genuinely *additional* dispatch this perf item costs, and only
   // when a register exists. Still net-positive: one cheap haiku fetch vs. the
   // premortem-auditor's own git-diff discovery round-trips against the full epic
-  // worktree.
+  // worktree. `.catch(() => null)` matches the died-agent shape the `premortem &&`
+  // reads below already handle — a thrown dispatch must not crash the finale (same
+  // convention as park()).
   const premortemDispatch = async () => {
     const flags = await resolveRoutingMatchFlags(epicWorktree, input.defaultBranch, 'finale:premortem-diff', 'Finale')
     return agent(premortemDispatchPrompt({ repoRoot, premortemPath: epic.premortem, slug, epicWorktreePath: epicWorktree, contract: CONTRACT, diffPath: flags && flags.diffPath }),
       { agentType: 'studious:premortem-auditor', label: 'finale:premortem', phase: 'Finale', schema: REPORT })
       .catch(() => null)
   }
-  const premortemPromise = epic.premortem ? premortemDispatch() : null
+  // Premortem now races BOTH finale gates from the same starting line, not just
+  // acceptance: leaving its dispatch where it used to be (fired only once
+  // `finaleGate('audit', ...)` resolves) would stop giving premortem the guaranteed
+  // overlap it has today — once audit and acceptance race each other, "after audit
+  // resolves" is no longer a fixed point relative to acceptance, degrading premortem's
+  // overlap from "always concurrent with acceptance's entire first round" to
+  // "concurrent with whatever's left of it," nondeterministically. Starting premortem
+  // at the same t=0 as both races restores that guarantee — which also means audit's
+  // fixers are now a mutation hazard for this read too, handled by the same
+  // `auditFixCycles > 0` branch below that redoes acceptance.
+  let premortemPromise = epic.premortem ? premortemDispatch() : null
 
-  const { result: acceptance, cycles: acceptanceFixCycles } = await finaleGate('acceptance', note => agent(
-    `${note} Run Studious's acceptance gate against the WHOLE epic, not any single story: read commands/gate-acceptance.md from the plugin root (gate-ledger is on PATH; plugin root is its dirname, up one) and execute its workflow in ${epicWorktree} judging against the epic goal: "${epic.goal}" and the epic's stories' acceptance criteria. Where the command dispatches subagents you cannot spawn, perform those roles' checks yourself from their agent files — rubrics verbatim. If this review writes or produces any file in ${epicWorktree} — a note, a register, anything, prescribed or your own initiative — commit it before recording: gate-ledger record stamps the verdict's sha from HEAD at that moment, and a file committed afterward leaves the PR-time hook and this epic's own ready-check seeing a stale gate over a commit that changed nothing substantive. Commit first, then record from inside the epic worktree: cd "${epicWorktree}" && gate-ledger record --gate acceptance --verdict "<TOKEN>". Return: verdict, sha, summary.`,
-    { label: 'finale:acceptance', phase: 'Finale', schema: GATE_RESULT, model: 'opus' }))
+  const acceptancePromise = finaleGate('acceptance', acceptanceRunOnce)
+
+  const { result: auditVerdict, cycles: auditFixCycles } = await auditPromise
+  const stalledAudit = stalledFinaleEntry(slug, 'audit', auditVerdict, GATES.audit.retry, MAX_FIX_CYCLES)
+  if (stalledAudit) parkedThisRun.push(stalledAudit)
+
+  let { result: acceptance, cycles: acceptanceFixCycles } = await acceptancePromise
+
+  if (auditFixCycles > 0) {
+    log('finale: audit fix cycle(s) mutated the epic branch — discarding the raced acceptance result and re-running acceptance fresh')
+    let freshPremortemPromise = null
+    if (premortemPromise) {
+      log('finale: audit fix cycle(s) mutated the epic branch — discarding the raced premortem read and re-running it fresh')
+      freshPremortemPromise = premortemDispatch()
+    }
+    // Same shape as today's premortem/acceptance race, entered from the other side:
+    // acceptance and premortem both redispatch fresh, concurrently with each other,
+    // now that audit is done mutating.
+    const redo = await finaleGate('acceptance', acceptanceRunOnce)
+    acceptance = redo.result
+    acceptanceFixCycles = redo.cycles
+    premortemPromise = freshPremortemPromise
+  }
+
   const stalledAcceptance = stalledFinaleEntry(slug, 'acceptance', acceptance, GATES.acceptance.retry, MAX_FIX_CYCLES)
   if (stalledAcceptance) parkedThisRun.push(stalledAcceptance)
 
+  // Whichever acceptance run is authoritative — the t=0 race winner, or the fresh
+  // redo above — its OWN fix cycles are the correct trigger for premortem's second
+  // redo: `acceptanceFixCycles` always names the cycles of whichever run
+  // `premortemPromise` actually raced against, so this composes correctly regardless
+  // of whether acceptance's own first round was itself a discard-and-redo.
   let premortem = premortemPromise ? await premortemPromise : null
   if (premortemPromise && acceptanceFixCycles > 0) {
     log('finale: acceptance fix cycle(s) mutated the epic branch — re-running premortem verification fresh')
