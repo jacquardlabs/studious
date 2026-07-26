@@ -3,7 +3,7 @@
 Exercises the script against throwaway git repos (`tests/_tempgit.py`),
 never the real jig repo, plus the two committed fixtures under
 `tests/fixtures/plan-lint/` (this story's own required demonstration --
-docs/design/plan-lint.md, "Operational readiness"), checking the
+the plan-lint story's "Operational readiness"), checking the
 acceptance criteria mechanically:
 
 1. Every task needs >=1 [cap], >=1 [hold], <=5 items total.
@@ -67,7 +67,7 @@ def write(path: Path, text: str) -> Path:
 
 
 class TestPlanLintCommittedFixtures(unittest.TestCase):
-    """This story's own required demonstration (docs/design/plan-lint.md,
+    """This story's own required demonstration (
     'Operational readiness'): a clean fixture exits 0, and a deliberately
     broken one exits 1 naming one distinct violation per category, in a
     single run.
@@ -571,7 +571,7 @@ class TestPlanLintNotHereFollowups(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout)
 
     def test_heading_located_by_text_regardless_of_depth(self) -> None:
-        """Deliberate defensive property (docs/design/plan-lint.md,
+        """Deliberate defensive property (
         'Not-here follow-ups'): issue #23's heading-*level* fix is a sibling
         story's job; plan-lint matches the heading text at any # depth."""
         with tempfile.TemporaryDirectory() as tmp:

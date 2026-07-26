@@ -1,7 +1,7 @@
 """Regression tests for scripts/build-report (story finish-skill, issue #20).
 
 Checks this story's acceptance criteria mechanically
-(`docs/design/finish-skill.md`, Step 5):
+(the finish-skill story, Step 5):
 
 1. Happy path: writes `docs/jig/reports/YYYY-MM-DD-<slug>-build-report.md`
    with the caller-supplied content copied in verbatim -- this script is a

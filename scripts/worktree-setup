@@ -7,9 +7,7 @@ task is dispatched. A non-zero baseline is a **dirty baseline**: this script
 surfaces the failure, frames it explicitly as pre-existing (not caused by
 this build session), leaves the worktree in place for inspection, and exits
 non-zero — `/build` must stop before task 1 rather than let a fresh
-executor start against an ambiguous starting point
-(docs/design/build-scripts.md, "Proposed design" / this story's acceptance
-criteria).
+executor start against an ambiguous starting point.
 
 Colliding with an existing branch or worktree at the given path fails loudly
 with the exact remediation command, rather than silently reusing stale

@@ -5,8 +5,7 @@ Writes a task's verification artifacts (from `verify` and/or
 `worktree-setup`) to `docs/jig/evidence/<date>-<task>/`, alongside a
 manifest recording a timestamp, the commit SHA the evidence was checked
 against, and which script produced each artifact — the paper trail
-`/gate-audit` and a human read afterward (docs/design/build-scripts.md,
-"Proposed design").
+`/gate-audit` and a human read afterward.
 
 Freshness rule (this story's acceptance criteria: "timestamp >= last code
 commit"): an evidence folder can only exist if it was provably produced

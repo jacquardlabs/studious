@@ -1,7 +1,6 @@
 """Regression tests for scripts/design-lint (story design-lint, issue #9;
-section-name schema reconciled to studious's `reference/design-doc-
-contract.md` at story design-lint-reconcile,
-docs/design/design-lint-reconcile.md).
+section-name schema reconciled to `reference/design-doc-contract.md`,
+which is the sole authority for the section set -- see #211).
 
 Exercises the script as a black box (subprocess against the real
 executable), matching `test_verify.py`/`test_evidence_capture.py`'s own
@@ -9,8 +8,8 @@ convention, never importing its internals directly. Each violation fixture
 is `CLEAN_DOC` with exactly one targeted change, so a failure names the
 *specific* element this story's acceptance criteria require:
 
-1. Clean pass: a 7-section, fully-conformant doc (using
-   `design-doc-contract.md`'s seven names) exits 0.
+1. Clean pass: a fully-conformant doc carrying every section
+   `reference/design-doc-contract.md` requires exits 0.
 2. Each of Check 1's sub-cases (missing required section, wrong section
    count, unrecognized heading), Check 2 (prose-only Proposed design),
    Check 3 (Problem & persona's three grounding buckets, each direction),
@@ -63,8 +62,8 @@ PERSONA_BLOCKQUOTE = (
 # (bucket c) followed by a "problem today" paragraph that also carries a
 # real, tree-checkable path citation (`src/server.py`) — both grounding
 # shapes present at once, matching this repo's own real fixtures
-# (docs/design/design-lint.md's Problem & persona cites a real premortem
-# path *alongside* its persona blockquote).
+# (a real shipped doc's Problem & persona cites a real premortem path
+# *alongside* its persona blockquote).
 PERSONA_SECTION_BODY = (
     "Primary persona, verbatim from `PRODUCT.md`:\n\n"
     f"{PERSONA_BLOCKQUOTE}\n"
@@ -85,11 +84,10 @@ PROPOSED_DESIGN_CONCRETE_BLOCK = (
     "`src/server.py:5-8`.\n\n"
 )
 
-# A fully-conformant 7-section design-<slug>.md, using
-# design-doc-contract.md's seven required section names — the same seven
+# A fully-conformant design-<slug>.md carrying every section
+# `reference/design-doc-contract.md` requires, in its order -- the same set
 # every real, gate-design-reviewed doc this repo has produced actually
-# carries (docs/design/design-lint.md, docs/design/finish-skill.md,
-# docs/design/design-skill.md). Every check actually resolves clean against
+# carries. Every check actually resolves clean against
 # a throwaway fixture repo: `Problem & persona` carries a PRODUCT.md-
 # verbatim blockquote, `Proposed design` carries a fenced code block plus
 # artifact-shaped inline code and its own ruled `(q1)` fork, `User journey`
@@ -411,7 +409,7 @@ class TestDesignLintProposedDesignArtifactSpanThreshold(unittest.TestCase):
 class TestDesignLintCheck3PersonaCheckable(unittest.TestCase):
     """Check 3's three grounding buckets, remapped from the old schema's
     per-bullet `Assumptions` check onto `Problem & persona`'s single
-    section-level claim (docs/design/design-lint-reconcile.md)."""
+    section-level claim."""
 
     def test_blockquote_not_verbatim_in_product_is_named(self) -> None:
         fabricated = (

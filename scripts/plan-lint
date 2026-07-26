@@ -64,7 +64,7 @@ a git repository (paths can't be resolved), or it has zero `### Task`
 headings at all (nothing to lint -- a fail-closed stance, never a vacuous
 PASS, matching `verify`'s own refusal on an empty items list).
 
-Out of scope (see docs/design/plan-lint.md "Out of scope"): the `/plan`
+Out of scope: the `/plan`
 skill itself; issue #23 (the Not-here-follow-ups heading-*level* fix) and
 issue #13 (UI-probe mechanization); any semantic/quality judgment; CI
 wiring; auto-fixing anything found; validating `/build`'s own status-suffix

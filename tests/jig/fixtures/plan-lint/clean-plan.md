@@ -1,7 +1,7 @@
 # Plan: plan-lint clean fixture
 
 This is a structural fixture for `scripts/plan-lint`'s own regression tests
-and this story's required demonstration (docs/design/plan-lint.md,
+and this story's required demonstration (
 "Operational readiness") -- not a real build plan, and never run through
 `/build`. Its `Read first:` and tier-method paths resolve against files
 that actually exist in this repo, so plan-lint's checks run for real
