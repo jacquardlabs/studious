@@ -1,6 +1,5 @@
 # Pre-mortem — Race finale acceptance against audit's fix-cycle loop
 
-- Design doc: docs/superpowers/specs/2026-07-22-overlap-acceptance-audit-design.md
 - Branch: epic/finale-gate-overlap--overlap-acceptance-audit
 - SHA: 69865e6
 - Date: 2026-07-22
