@@ -2,8 +2,8 @@
 """jig's evidence-freshness script (story finish-skill, issue #20).
 
 `/finish`'s Step 1 freshness hold: re-validates each already-captured
-evidence folder (`docs/jig/evidence/<date>-<task>/`, written by
-`evidence-capture` during `/build`) against its own recorded
+evidence folder (`docs/jig/evidence/<date>-<task>-<branch-slug>/`, written
+by `evidence-capture` during `/build`) against its own recorded
 `manifest.json` -- never against the branch's current `HEAD`, which would
 reproduce issue #44's bug shape one layer up (a producing step that commits
 *after* writing the artifact it's timestamping against makes a "must be >=

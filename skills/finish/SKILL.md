@@ -30,16 +30,26 @@ it.
 
 For each task in `PLAN.md` (now fully status-flipped), read its `Done
 means` items and the evidence folder `/build`'s own `evidence-capture` call
-wrote for it: `docs/jig/evidence/<date>-<task>/`, carrying a
-`manifest.json` (`commit_sha`, `commit_timestamp`, one entry per captured
-artifact) and the captured artifacts themselves — including the task's
-`verify:results` artifact, whose own JSON carries each item's `id`, `kind`,
-`tier`, `status`, and `detail`.
+wrote for it. **Ask the script which folder that is — never rebuild the
+path from its shape:**
+
+```
+scripts/evidence-capture resolve --repo <worktree> --branch <the branch you are on> --task <task id>
+```
+
+It prints one folder path on exit 0. Exit 1 means this task has no folder
+to promote — take the "evidence not found for item N" path below and quote
+the script's own message for the reason. The folder carries a
+`manifest.json` (`commit_sha`, `commit_timestamp`, `branch`, one entry per
+captured artifact) and the captured artifacts themselves — including the
+task's `verify:results` artifact, whose own JSON carries each item's `id`,
+`kind`, `tier`, `status`, and `detail`.
 
 **Freshness hold — run this before promoting anything.** Call
 `scripts/evidence-freshness --repo <worktree> --evidence <folder>` once per
-evidence folder involved (repeat `--evidence` per folder, or one call
-covering all of them). This re-validates each folder against its own
+evidence folder involved — each `<folder>` being a path `resolve` printed
+above, passed through unchanged (repeat `--evidence` per folder, or one
+call covering all of them). This re-validates each folder against its own
 recorded `manifest.json` — never against the branch's current `HEAD`.
 Re-deriving freshness against current `HEAD` reproduces issue #44's bug
 shape one layer up: a producing step that commits *after* writing the
@@ -83,7 +93,8 @@ Two evidence shapes, two treatments:
   new repository file.
 - **Image evidence** (a `probe` item whose artifact is a screenshot or
   other binary) stays exactly where `evidence-capture` already put it —
-  `docs/jig/evidence/<date>-<task>/<label>.<ext>` — and is referenced by
+  `<the folder resolve printed>/<label>.<ext>`, that path verbatim and
+  never one rebuilt by hand — and is referenced by
   its raw URL: `https://raw.githubusercontent.com/<owner>/<repo>/<sha>/<path>`,
   because `gh` cannot upload an image into a PR body. Resolve `<owner>/<repo>`
   from the repo's own `origin` remote. Anchor `<sha>` to the commit current

@@ -245,6 +245,28 @@ class TestCoachSkillBody(unittest.TestCase):
         self.assertIn("docs/jig/evidence/", self.body)
         self.assertIn("docs/jig/reports/", self.body)
 
+    def test_evidence_is_read_through_the_list_verb_never_a_glob(self) -> None:
+        """Issue #179's read side. `/coach` asks "which tasks captured
+        evidence" — a question with no task id in it — so it calls the `list`
+        arity rather than globbing folder names it would have to keep in sync
+        with `evidence-capture`'s own shape."""
+        self.assertIn("evidence-capture list --branch", self.body)
+        self.assertPhraseIn("never a glob over `docs/jig/evidence/`")
+        # Risk 2: a row can be an inherited capture carrying no branch, so the
+        # signal must not promise provenance the verb cannot establish.
+        self.assertPhraseIn("not proof this branch produced it")
+
+    def test_the_resolution_rule_is_not_restated_in_this_prose(self) -> None:
+        """Pre-mortem risk 4, the coach half: the tiebreak has one home — the
+        script both readers call. Pin the absence of its vocabulary."""
+        for token in ("captured_at", "branch-bearing", "legacy", "newest"):
+            self.assertNotIn(
+                token,
+                self.body,
+                f"{SKILL_MD} restates the resolution tiebreak ({token!r}); it belongs only "
+                "in scripts/evidence-capture, which both readers call",
+            )
+
     def test_gate_verdicts_are_read_from_gate_ledger_when_readable(self) -> None:
         # The probe stays — whether the ledger is readable is a real question.
         # What it establishes changed (studious #150): a missing binary once

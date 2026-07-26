@@ -168,6 +168,31 @@ class TestFinishSkillBody(unittest.TestCase):
         self.assertPhraseIn("Do not call `evidence-capture` yourself to backfill a gap")
         self.assertPhraseIn("evidence not found for item N")
 
+    # -- Step 1: the evidence folder comes from the resolve verb ------------
+
+    def test_the_evidence_folder_is_resolved_by_the_script_not_rebuilt(self) -> None:
+        """Issues #179/#224's read side: the folder name gained a branch slug,
+        and a reader that rebuilds the path from its shape breaks on every
+        future change to that shape. Both call sites ask the script."""
+        self.assertIn("evidence-capture resolve --repo <worktree> --branch", self.body)
+        self.assertPhraseIn("never rebuild the path from its shape")
+        # The image-evidence URL is built from the folder the verb printed.
+        self.assertPhraseIn("`<the folder resolve printed>/<label>.<ext>`, that path verbatim")
+
+    def test_the_resolution_rule_is_not_restated_in_this_prose(self) -> None:
+        """Pre-mortem risk 4: the tiebreak has exactly one home — the script.
+        Nothing mechanically stops a later edit from re-explaining it here,
+        which is how a rule acquires a second uncoordinated copy, so pin the
+        *absence* of its vocabulary rather than only the presence of the call.
+        """
+        for token in ("captured_at", "branch-bearing", "legacy", "newest"):
+            self.assertNotIn(
+                token,
+                self.body,
+                f"{SKILL_MD} restates the resolution tiebreak ({token!r}); it belongs only "
+                "in scripts/evidence-capture, which both readers call",
+            )
+
     def test_two_evidence_shapes_are_named(self) -> None:
         self.assertPhraseIn("quoted **inline**, in a collapsible `<details>` block per item")
         self.assertPhraseIn("referenced by its raw URL")

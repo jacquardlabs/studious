@@ -2,10 +2,43 @@
 """jig's evidence-capture script (story build-scripts, issue #14).
 
 Writes a task's verification artifacts (from `verify` and/or
-`worktree-setup`) to `docs/jig/evidence/<date>-<task>/`, alongside a
-manifest recording a timestamp, the commit SHA the evidence was checked
-against, and which script produced each artifact — the paper trail
-`/gate-audit` and a human read afterward.
+`worktree-setup`) to `docs/jig/evidence/<date>-<task>-<branch-slug>/`,
+alongside a manifest recording a timestamp, the commit SHA the evidence was
+checked against, the branch it was captured on, and which script produced
+each artifact — the paper trail `/gate-audit` and a human read afterward.
+
+The branch slug is in the folder name because two independent branches
+building on the same day had no reason to invent different `--task` values,
+so they wrote genuinely different content to one path and collided as an
+add/add merge conflict once both targeted the same base (issue #179). The
+slug distinguishes branch *names*, not branches: two branches named the same
+thing in two repos still collide, and so do `feat/foo` and `feat-foo`, since
+`branch_slug()` collapses '/' to '-'. Neither is fixable by a slug, and
+neither is what #179 recorded.
+
+Three modes — capture is the default and takes no verb word:
+
+    evidence-capture --task T --artifact P:L=F ...   capture
+    evidence-capture resolve --branch B --task T     print that task's folder
+    evidence-capture list --branch B                 print every task with a folder
+
+`resolve` and `list` are the **one home** for the rule that says which folder
+belongs to which task. Readers (`/finish`, `/coach`) call them instead of
+rebuilding a folder name from a shape they would otherwise have to keep in
+sync — and instead of keying on task + date, which cannot tell two branches'
+identically-tasked folders apart once one has merged into the other's base.
+One rule, applied identically by both verbs:
+
+1. **A branch-bearing match wins.** Among manifests whose `branch` equals the
+   branch being resolved for and whose `task` is the requested one, the answer
+   is the newest by `captured_at`.
+2. **A legacy match is used only when it is the unique legacy match for that
+   task.** A manifest with no `branch` predates this rule. Two or more carrying
+   one task id have no tiebreak available — and that is not hypothetical: a
+   project that ran `/build` on two different days has repeated task ids across
+   dates by default.
+3. **Zero matches, or several with no tiebreak, resolve to nothing.** Never a
+   guess: a visible "not found" beats an invisible wrong link.
 
 Freshness rule (this story's acceptance criteria: "timestamp >= last code
 commit"): an evidence folder can only exist if it was provably produced
@@ -24,9 +57,25 @@ defenses close that gap:
    an earlier, possibly stale or failed, attempt is caught even if the
    working tree happens to be clean for an unrelated reason.
 
-Exit codes: 0 evidence captured. 1 refused for a freshness reason (dirty
-tree, stale artifact, clock skew). 2 usage error (bad args, missing
-artifact, existing target directory without --force).
+Exit codes, per mode — one ladder, three honest readings of it:
+
+  capture  0 evidence captured. 1 refused for a freshness reason (dirty
+           tree, stale artifact, clock skew). 2 usage error (bad args,
+           missing artifact, an existing target directory without --force,
+           or a --force target that is non-empty and carries no
+           manifest.json).
+  resolve  0 the query was answered — the folder is on stdout. 1 a
+           well-formed query that resolved to nothing: no match, or several
+           legacy matches with no tiebreak. This is the refusal that routes
+           a reader to its own "evidence not found" path. 2 usage error
+           (missing --branch, malformed task id).
+  list     0 always, including the empty answer — a branch that has captured
+           nothing yet is an ordinary early-pipeline state, not an error.
+           2 usage error (missing --branch).
+
+`resolve` and `list` report rule 3 differently while applying it identically:
+a per-task lookup that finds nothing is a failed lookup, but an inventory read
+of a branch that has captured nothing is a complete answer.
 """
 from __future__ import annotations
 
@@ -40,9 +89,24 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _gitutil import git_repo_root, last_commit_sha_and_epoch, working_tree_status  # noqa: E402
+from _gitutil import (  # noqa: E402
+    branch_slug,
+    current_branch,
+    git_repo_root,
+    last_commit_sha_and_epoch,
+    working_tree_status,
+)
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+QUERY_VERBS = ("resolve", "list")
+
+# Why a resolve returned nothing. The two are reported separately because a
+# reader cannot otherwise tell a designed refusal from a broken lookup: a
+# project whose only evidence for a task is two branch-less manifests gets the
+# same "not found" as a task that never captured anything.
+NO_MATCH = "no-match"
+AMBIGUOUS_LEGACY = "ambiguous-legacy"
 
 # Any identifier that flows into a destination path (the --task directory
 # name; an --artifact's PRODUCER and LABEL, which become the copied
@@ -87,6 +151,82 @@ def parse_artifact_spec(spec: str) -> tuple[str, str, Path]:
     return producer, label, Path(path_str)
 
 
+def load_manifests(evidence_root: Path) -> list[tuple[Path, dict]]:
+    """Every (folder, manifest) pair under `evidence_root`, in folder order.
+
+    A folder with no `manifest.json`, an unreadable one, or one that is not a
+    JSON object is skipped rather than raised on: evidence folders are
+    repository content, and a reader that crashes on one malformed file
+    answers no query at all.
+    """
+    if not evidence_root.is_dir():
+        return []
+    entries: list[tuple[Path, dict]] = []
+    for folder in sorted(evidence_root.iterdir()):
+        if not folder.is_dir():
+            continue
+        try:
+            manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(manifest, dict):
+            entries.append((folder, manifest))
+    return entries
+
+
+def resolve_folder(entries: list[tuple[Path, dict]], branch: str, task: str) -> tuple[Path | None, str]:
+    """Apply the resolution rule; return (folder, "") or (None, reason).
+
+    The rule itself is stated once, in this module's docstring. `branch` is
+    matched as a *name* against the manifest's own `branch` field — never as a
+    slug, which would collapse `feat/foo` and `feat-foo` back together.
+    """
+    branch_bearing = [
+        (folder, manifest)
+        for folder, manifest in entries
+        if manifest.get("branch") == branch and manifest.get("task") == task
+    ]
+    if branch_bearing:
+        newest = max(branch_bearing, key=lambda pair: (str(pair[1].get("captured_at") or ""), pair[0].name))
+        return newest[0], ""
+
+    legacy = [
+        folder for folder, manifest in entries if not manifest.get("branch") and manifest.get("task") == task
+    ]
+    if len(legacy) == 1:
+        return legacy[0], ""
+    return None, AMBIGUOUS_LEGACY if legacy else NO_MATCH
+
+
+def list_resolving_tasks(entries: list[tuple[Path, dict]], branch: str) -> list[tuple[str, Path]]:
+    """Every task that resolves for `branch`, task-sorted, one folder each."""
+    tasks = sorted({m["task"] for _, m in entries if isinstance(m.get("task"), str)})
+    resolved = ((task, resolve_folder(entries, branch, task)[0]) for task in tasks)
+    return [(task, folder) for task, folder in resolved if folder is not None]
+
+
+def display_path(folder: Path, repo: Path) -> str:
+    """Repo-relative when the folder is inside the repo, absolute otherwise.
+
+    A repo-relative path is what both callers need: `evidence-freshness
+    --evidence` takes it as-is, and `/finish`'s raw GitHub URL is built from
+    exactly that path with no prefix to strip.
+    """
+    try:
+        return str(folder.resolve().relative_to(repo.resolve()))
+    except ValueError:
+        return str(folder)
+
+
+def clear_directory(target_dir: Path) -> None:
+    """Remove every entry inside `target_dir`, keeping the directory itself."""
+    for entry in target_dir.iterdir():
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="evidence-capture",
@@ -110,12 +250,79 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="an artifact to capture, repeatable; PRODUCER names the script that produced it (e.g. verify)",
     )
     parser.add_argument(
-        "--force", action="store_true", help="overwrite an existing evidence directory for this date+task"
+        "--force",
+        action="store_true",
+        help="re-capture into an existing evidence directory, clearing its contents first",
     )
     return parser.parse_args(argv)
 
 
-def main(argv: list[str]) -> int:
+def parse_query_args(verb: str, argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog=f"evidence-capture {verb}",
+        description=(
+            "Print the evidence folder for a branch + task."
+            if verb == "resolve"
+            else "Print every task that has an evidence folder for a branch, one per line."
+        ),
+    )
+    parser.add_argument("--branch", required=True, help="branch name to resolve for (a name, never a slug)")
+    if verb == "resolve":
+        parser.add_argument("--task", required=True, help="task identifier to resolve")
+    parser.add_argument("--repo", default=".", help="path to the git repo the evidence lives in")
+    parser.add_argument(
+        "--evidence-root",
+        default=None,
+        help="root directory evidence folders live under (default: <repo>/docs/jig/evidence)",
+    )
+    return parser.parse_args(argv)
+
+
+def run_query(verb: str, argv: list[str]) -> int:
+    args = parse_query_args(verb, argv)
+
+    repo = git_repo_root(Path(args.repo))
+    if repo is None:
+        print(f"error: '{args.repo}' is not inside a git repository", file=sys.stderr)
+        return 2
+
+    evidence_root = Path(args.evidence_root) if args.evidence_root else repo / "docs" / "jig" / "evidence"
+    entries = load_manifests(evidence_root)
+
+    if verb == "list":
+        for task, folder in list_resolving_tasks(entries, args.branch):
+            print(f"{task}\t{display_path(folder, repo)}")
+        return 0
+
+    try:
+        _check_safe_identifier(args.task, "--task")
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    folder, reason = resolve_folder(entries, args.branch, args.task)
+    if folder is None:
+        if reason == AMBIGUOUS_LEGACY:
+            print(
+                f"error: evidence for task '{args.task}' is ambiguous, not missing: several "
+                f"folders under {evidence_root} record that task and none records a branch, "
+                "so there is no tiebreak to pick between them. Rename the one you want by "
+                "hand, or re-capture on this branch.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"error: no evidence found for task '{args.task}' on branch '{args.branch}' "
+                f"under {evidence_root}",
+                file=sys.stderr,
+            )
+        return 1
+
+    print(display_path(folder, repo))
+    return 0
+
+
+def run_capture(argv: list[str]) -> int:
     args = parse_args(argv)
 
     if not args.artifact:
@@ -190,15 +397,45 @@ def main(argv: list[str]) -> int:
 
     date = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     evidence_root = Path(args.evidence_root) if args.evidence_root else repo / "docs" / "jig" / "evidence"
-    target_dir = evidence_root / f"{date}-{args.task}"
+    branch = current_branch(repo)
+    # Field order keeps the existing <date>-<task> prefix byte-stable, at the
+    # cost that a legacy name is now a prefix of a new one. Affordable only
+    # because nothing parses this name — the resolve verb reads manifests.
+    target_dir = evidence_root / f"{date}-{args.task}-{branch_slug(branch)}"
 
-    if target_dir.exists() and not args.force:
-        print(
-            f"error: evidence directory already exists: {target_dir}\n"
-            "Pass --force to overwrite, or remove it first if this is a stale capture.",
-            file=sys.stderr,
-        )
-        return 2
+    if target_dir.exists():
+        if not args.force:
+            print(
+                f"error: evidence directory already exists: {target_dir}\n"
+                "Pass --force to re-capture into it, or remove it first if this is a stale capture.",
+                file=sys.stderr,
+            )
+            return 2
+        if not target_dir.is_dir():
+            print(f"error: {target_dir} exists and is not a directory", file=sys.stderr)
+            return 2
+        # --force clears before copying, so the folder can never disagree with
+        # its own manifest (issue #224): previously a prior capture's
+        # differently-labelled artifact survived beside a rewritten manifest
+        # that no longer listed it, and `evidence-freshness` checks that every
+        # *listed* artifact is fresh, never that every *present* one is listed.
+        #
+        # Clearing is destructive, so it happens only where the directory is
+        # recognizable as this script's own output. An opt-in past the default
+        # refusal authorizes replacing evidence; it does not authorize deleting
+        # a directory the tool cannot identify as evidence at all — a shape
+        # reachable by accident, since a capture that crashed after copying but
+        # before writing its manifest leaves exactly that.
+        if any(target_dir.iterdir()) and not (target_dir / "manifest.json").is_file():
+            print(
+                f"error: refusing to clear {target_dir}: it is not empty and carries no "
+                "manifest.json, so it is not recognizable as an evidence directory (a capture "
+                "that crashed before writing its manifest leaves exactly this shape).\n"
+                f"Remove it and re-run: rm -rf {target_dir}",
+                file=sys.stderr,
+            )
+            return 2
+        clear_directory(target_dir)
 
     target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -211,6 +448,10 @@ def main(argv: list[str]) -> int:
     manifest = {
         "task": args.task,
         "date": date,
+        # The branch *name*, not its slug: resolution matches on the name, so
+        # `feat/foo` and `feat-foo` stay distinguishable to a reader even
+        # though they share a folder name.
+        "branch": branch,
         "commit_sha": commit_sha,
         "commit_timestamp": datetime.fromtimestamp(commit_epoch, tz=timezone.utc).isoformat(),
         "captured_at": datetime.now(timezone.utc).isoformat(),
@@ -220,6 +461,28 @@ def main(argv: list[str]) -> int:
 
     print(f"evidence-capture: wrote {len(manifest_artifacts)} artifact(s) + manifest.json to {target_dir}")
     return 0
+
+
+def main(argv: list[str]) -> int:
+    """Dispatch on a bare first argument, defaulting to capture.
+
+    Every capture invocation starts with a flag (`--task` is required), so a
+    leading bare word is unambiguously a verb. An unrecognized one exits 2 by
+    name rather than falling through to the capture parser, which would report
+    it as an unrecognized *argument* and send the reader looking for a typo in
+    the wrong place.
+    """
+    if argv and not argv[0].startswith("-"):
+        verb = argv[0]
+        if verb not in QUERY_VERBS:
+            print(
+                f"error: unknown verb '{verb}'; expected one of {', '.join(QUERY_VERBS)}, "
+                "or capture arguments beginning with --task",
+                file=sys.stderr,
+            )
+            return 2
+        return run_query(verb, argv[1:])
+    return run_capture(argv)
 
 
 if __name__ == "__main__":
