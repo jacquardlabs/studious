@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v2.27.2 (2026-07-26)
+
+### Documentation
+
+- Drop the register's pointer to a design doc that cannot survive
+  ([#241](https://github.com/jacquardlabs/studious/pull/241),
+  [`c987415`](https://github.com/jacquardlabs/studious/commit/c987415457febcd66243e77bd9254f67ae10d0a0))
+
+- Persist design-review pre-mortem register for overlap-acceptance-audit
+  ([#241](https://github.com/jacquardlabs/studious/pull/241),
+  [`c987415`](https://github.com/jacquardlabs/studious/commit/c987415457febcd66243e77bd9254f67ae10d0a0))
+
+### Performance Improvements
+
+- Race finale acceptance against audit's fix-cycle loop
+  ([#241](https://github.com/jacquardlabs/studious/pull/241),
+  [`c987415`](https://github.com/jacquardlabs/studious/commit/c987415457febcd66243e77bd9254f67ae10d0a0))
+
+
 ## v2.27.1 (2026-07-26)
 
 ### Bug Fixes
