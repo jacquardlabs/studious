@@ -125,8 +125,13 @@ supervised, evidence-first flow instead.
      ```bash
      default=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
      git branch "epic/<slug>" "${default:-main}"
-     git worktree add ".studious/worktrees/<slug>/__epic" "epic/<slug>"
+     git worktree add "$(gate-ledger worktree-path --slug "<slug>")" "epic/<slug>"
      ```
+
+     `gate-ledger worktree-path` is the only thing that knows where a worktree
+     goes — never write the `.studious/worktrees/...` path out by hand here or
+     anywhere below. Bare `--slug` answers for the epic's `__epic` integration
+     checkout; `--story <story>` answers for a story's.
 
 6. Close with the report block below. Driving starts on the next invocation — approval
    and execution never share one.
@@ -243,6 +248,19 @@ their own Task dispatches. This is the whole handoff — no runtime-pointer reso
 happens on this path. The script fails closed at any dispatch that needed the contract
 if it arrives empty or missing, so treat a missing file here as a stop, not a skip.
 
+Resolve the epic's worktree layout the same way — one call, handed over as data:
+
+```bash
+worktrees_json=$(gate-ledger worktree-path --slug "<slug>" --json)
+```
+
+The script has no hands to run that verb itself, exactly as it has none to read the
+contract file, so this is the second and last thing it is handed rather than told
+where to find. Pass the output verbatim as `args.worktrees`; it names the `__epic`
+integration checkout and every story's checkout, and the script throws on the spot if
+an entry it needs is absent — never patch around that by writing a
+`.studious/worktrees/...` path into the args yourself.
+
 Call the Workflow tool with `scriptPath` set to that file and `args`:
 
 ```json
@@ -250,6 +268,7 @@ Call the Workflow tool with `scriptPath` set to that file and `args`:
   "epic": "<$reconcile_json's .epic field, verbatim — no second epic-get call>",
   "phases": { "<story>": "<next phase>" },
   "repoRoot": "<absolute path of the main working tree>",
+  "worktrees": "<$worktrees_json, verbatim>",
   "defaultBranch": "<resolved default branch>",
   "contract": "<reference/prompt-contract.md's five blocks, verbatim>",
   "timestamp": "<current ISO time>"
@@ -293,7 +312,8 @@ Apply verdicts exactly as the script does:
   one merge-fix attempt, abort → park), then
   `epic-story-set --epic "<slug>" --slug "<story>" --status landed`,
   `work-log --slug "<slug>--<story>" --step merge --outcome LANDED --phase done`, and
-  `git worktree remove ".studious/worktrees/<slug>/<story>"` (keep the branch). The
+  `git worktree remove "$(gate-ledger worktree-path --slug "<slug>" --story "<story>")"`
+  (keep the branch). The
   work-log write is not optional bookkeeping: this step deliberately keeps the branch,
   so a terminal phase is the only thing that ever closes the work file out and lets
   `gate-ledger gc` collect it. Without it the story stays an "active feature" in
@@ -317,7 +337,7 @@ mode, run it in the `__epic` worktree):
 Verdicts record to the epic branch's ledger — the PR-time hook reads the same file.
 All pass → `gate-ledger epic-set --slug "<slug>" --status ready`, then release the
 integration checkout so the branch is checkoutable from the user's clone:
-`git worktree remove ".studious/worktrees/<slug>/__epic"`. Recap every story's verdict
+`git worktree remove "$(gate-ledger worktree-path --slug "<slug>")"`. Recap every story's verdict
 trail and remind the user the PR is theirs (`gh pr create` from the epic branch).
 
 A finale gate (audit or acceptance) whose fix cycles run out while it still holds its
@@ -469,7 +489,10 @@ Use this same qualified string everywhere a story is named back to the user — 
 "Needs you" queue prints it exactly as recorded, so `/work-on "<the printed slug>"`
 resolves the right work file directly. State lives in the MAIN working tree's
 `.studious/` no matter which worktree an agent writes from — the ledger anchors there
-itself. Never hand-edit or directly read the JSON files. Worktrees live under
-`.studious/worktrees/<slug>/` — gitignored, one per running story plus `__epic`,
-removed as stories land and at `ready`; `git worktree list` is the recovery tool when
-state and disk disagree.
+itself. Never hand-edit or directly read the JSON files. Worktrees are gitignored, one per
+running story plus `__epic`, removed as stories land and at `ready`; `git worktree
+list` is the recovery tool when state and disk disagree. `gate-ledger worktree-path`
+owns where they go — `--slug "<slug>"` for `__epic`, `--story "<story>"` for a story's,
+`--json` for the whole map the driver is handed. That layout is described here so the
+shape is legible, not so it can be retyped: every path you actually use comes from the
+verb, so the layout can move without this file changing.

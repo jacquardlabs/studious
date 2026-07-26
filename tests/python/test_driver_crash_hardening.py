@@ -242,10 +242,20 @@ def _run_driver(epic: dict, agent_rules: list[dict], phases: dict | None = None,
     """
     source = DRIVER.read_text()
     stripped = re.sub(r"^export\s+", "", source)
+    # The driver no longer derives worktree paths (#166): bin/gate-ledger's
+    # worktree_path() owns the layout, and the driver — which has no exec access
+    # to ask for one — is handed the answer as args.worktrees. This harness plays
+    # commands/work-through.md's part, so it supplies the same map
+    # `gate-ledger worktree-path --slug <slug> --json` would.
+    _wt = f"/repo/.studious/worktrees/{epic.get('slug', '')}"
     args = {
         "epic": epic,
         "phases": phases or {},
         "repoRoot": "/repo",
+        "worktrees": {
+            "epic": f"{_wt}/__epic",
+            "stories": {s: f"{_wt}/{s}" for s in (epic.get("stories") or {})},
+        },
         "defaultBranch": "main",
         "contract": contract,
     }
