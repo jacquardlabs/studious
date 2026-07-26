@@ -16,8 +16,11 @@ sibling skill):
    `_vocabulary.py`), not hand-copied.
 3. Step 1's freshness hold is floored on each evidence folder's own
    manifest, never the branch's current HEAD (pre-mortem risk #1), uses
-   the ancestor check (risk #2), and stops the run by name rather than
-   promoting a failed folder silently.
+   the ancestor check (risk #2), stops the run by name rather than
+   promoting a failed folder silently, and names the case that fails the
+   ancestor check by construction — a folder this branch never captured,
+   whose producing branch was squash-merged — together with the recovery
+   that clears it rather than loops.
 4. Step 1 defines `<worktree>` before its first use, names the two evidence
    shapes (inline `<details>` text, raw-URL images pinned to a commit SHA,
    never the branch name), labels a refused lookup from the token the script
@@ -171,6 +174,18 @@ class TestFinishSkillBody(unittest.TestCase):
         self.assertPhraseIn("Stop before assembling the PR body")
         self.assertPhraseIn("Report the exact task and reason (stale/orphaned) by name")
 
+    def test_the_hold_names_the_folder_this_branch_never_captured(self) -> None:
+        """An inherited capture fails the ancestor check by construction: the
+        branch that produced it was squash-merged and the commit its manifest
+        names is gone (every committed manifest in this repo is already in
+        that state). Since a resolved answer can be one of those folders, the
+        hold fires on a path `resolve` just printed — and unless the prose
+        says so, the persona reads a structural refusal as damage to this
+        branch and has no stated reason to believe re-capturing ends it."""
+        self.assertPhraseIn("A folder this branch did not capture is the expected way that first check fails")
+        self.assertPhraseIn("squash-merged, whose recorded commit no longer exists anywhere in this history")
+        self.assertPhraseIn("that new folder is what the next `resolve` prints")
+
     def test_finish_never_backfills_missing_evidence(self) -> None:
         self.assertPhraseIn("Do not call `evidence-capture` yourself to backfill a gap")
         self.assertPhraseIn("evidence not found for item N")
@@ -296,6 +311,28 @@ class TestFinishSkillBody(unittest.TestCase):
         self.assertPhraseIn("referenced by its raw URL")
         self.assertIn("raw.githubusercontent.com", self.body)
         self.assertPhraseIn("never the branch name")
+
+    def test_the_details_block_exists_for_a_row_with_nothing_to_quote(self) -> None:
+        """The token's message is routed into "that item's collapsible
+        `<details>` block", but the block below was established only for a
+        `script`/`test-backed` item quoting a `detail` from `verify:results`.
+        A refused item has no folder, hence no `verify:results`, hence no
+        `detail` — so the named destination did not exist for exactly the
+        rows that need one. The block is a property of the row, not of
+        having evidence."""
+        self.assertPhraseIn(
+            "Every row opens its own collapsible `<details>` block — created "
+            "even when there is no evidence to quote into it"
+        )
+        self.assertPhraseIn("a message with nowhere to land is a message dropped")
+
+    def test_the_raw_url_sha_is_read_from_the_worktree_explicitly(self) -> None:
+        """Step 1 forbids leaving any of these flags to default, then read the
+        anchor SHA with a bare `git rev-parse HEAD` — the one command in the
+        step not passed `<worktree>`, and so the one that reads whatever
+        checkout the session's cwd sits in."""
+        self.assertPhraseIn("`git -C <worktree> rev-parse HEAD`")
+        self.assertNotIn("`git rev-parse HEAD`", self.flat_body)
 
     # -- Step 2: cctx footer ------------------------------------------------
 
