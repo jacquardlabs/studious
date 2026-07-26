@@ -291,8 +291,13 @@ Apply verdicts exactly as the script does:
   proceeds at story HEAD (SHIP for a full profile; whatever its last gate's proceed
   token is for a trimmed one), merge in the `__epic` worktree (`git merge --no-ff`,
   one merge-fix attempt, abort → park), then
-  `epic-story-set --epic "<slug>" --slug "<story>" --status landed` and
-  `git worktree remove ".studious/worktrees/<slug>/<story>"` (keep the branch).
+  `epic-story-set --epic "<slug>" --slug "<story>" --status landed`,
+  `work-log --slug "<slug>--<story>" --step merge --outcome LANDED --phase done`, and
+  `git worktree remove ".studious/worktrees/<slug>/<story>"` (keep the branch). The
+  work-log write is not optional bookkeeping: this step deliberately keeps the branch,
+  so a terminal phase is the only thing that ever closes the work file out and lets
+  `gate-ledger gc` collect it. Without it the story stays an "active feature" in
+  `/work-on` forever (#237).
 - **Fix and retry** → `epic-story-set --epic "<slug>" --slug "<story>" --bump-retry
   <gate>`; park once the recorded counter exceeds 2; otherwise a fixer agent (never
   re-runs the gate), then a fresh gate agent.
