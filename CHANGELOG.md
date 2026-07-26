@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v2.27.1 (2026-07-26)
+
+### Bug Fixes
+
+- Close a landed story's work file, and let gc collect finished flow state
+  ([#240](https://github.com/jacquardlabs/studious/pull/240),
+  [`7ef85b0`](https://github.com/jacquardlabs/studious/commit/7ef85b0f17215d5afb399b87e4de996662ad78fd))
+
+- Collect finished flow state, and drain citations to docs that no longer exist
+  ([#240](https://github.com/jacquardlabs/studious/pull/240),
+  [`7ef85b0`](https://github.com/jacquardlabs/studious/commit/7ef85b0f17215d5afb399b87e4de996662ad78fd))
+
+- Drain the design-doc citations that outlive the docs they name
+  ([#240](https://github.com/jacquardlabs/studious/pull/240),
+  [`7ef85b0`](https://github.com/jacquardlabs/studious/commit/7ef85b0f17215d5afb399b87e4de996662ad78fd))
+
+
 ## v2.27.0 (2026-07-25)
 
 ### Bug Fixes
