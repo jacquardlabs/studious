@@ -58,6 +58,25 @@ the PR body, neither is fabricated, and the two are not the same state — a
 reviewer told "not found" about evidence that exists but is undecidable goes
 looking for the wrong thing.
 
+**Which stream carries what.** The folder path is the whole of stdout; every
+bracketed token and its message are on stderr. Read the two separately — a
+prompt reading merged output takes the first line it sees as the path, and on a
+qualified answer that first line is the note, which the freshness call below
+then rejects as a folder with no `manifest.json`. That symptom has more than one
+cause, and this is one of them.
+
+**Exit 2 is not a third missing-folder state.** It means the verb could not run
+or could not understand what it was asked — a bad `--repo`, a malformed task id,
+or the script not found, which is reachable here because the invocation above is
+cwd-relative and the step two lines up says the cwd is not guaranteed to be the
+worktree. Its message carries no bracketed token, so a reader following "label
+the row by the token" falls through to `[no-match]` and writes "evidence not
+found for item N" about a branch whose evidence was never read — the fabricated
+claim this step exists to prevent. Do not label the row: name the gap and mark
+that item's evidence unread ("couldn't run `evidence-capture resolve`; evidence
+unread for item N"), the same shape `/coach` takes when the verb won't run.
+There are still exactly two missing-folder labels; this is not one of them.
+
 **Where the script's own words go, since a cell is one line and the message is
 not.** The row's cell carries the token, and the link when there is one; the
 message itself is quoted verbatim into that item's collapsible `<details>` block
@@ -98,6 +117,15 @@ form instead, because that path is what the URL appends. Do not unify the
 two, and do not "fix" this by changing what `resolve` prints. This
 re-validates each folder against its own
 recorded `manifest.json` — never against the branch's current `HEAD`.
+
+**On a batched call, the exit code is not the per-folder answer.** One call
+covering several folders returns a single aggregate status for the whole batch,
+so any one stale folder makes it non-zero. A mixed batch is the normal case
+here — an older folder with no branch in its name fails the ancestor check by
+construction — so keying the hold on that aggregate stops closeout over folders
+that are individually fine. The per-folder `[FAIL]` lines carry the disposition; read
+them and hold only the items whose own folder failed. Calling once per folder
+sidesteps the question entirely and is the safer default when you are unsure.
 Re-deriving freshness against current `HEAD` reproduces issue #44's bug
 shape one layer up: a producing step that commits *after* writing the
 artifact it's timestamping against makes a "must be >= current HEAD" check

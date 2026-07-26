@@ -327,6 +327,26 @@ class TestCoachSkillBody(unittest.TestCase):
         self.assertPhraseIn("inherited from earlier work sharing the number")
         self.assertPhraseIn("rather than reporting an ordinary todo as an evidence problem")
 
+    def test_an_id_no_plan_mentions_is_also_about_the_id(self) -> None:
+        """gate-acceptance round 6, the other half of the same clause. The
+        not-yet-terminal reading was scoped to tasks with a status row, but
+        the verb enumerates every task id in every manifest in the tree —
+        so an id no `### Task` block names has no status row at all, is
+        therefore neither terminal nor non-terminal, and the coach had no
+        antecedent for it. On this repo that is a standing pair of rows
+        reported as live evidence problems on every invocation."""
+        self.assertPhraseIn("An id with no status row at all takes the same reading")
+        self.assertPhraseIn("no `### Task` block in this branch's `PLAN.md` names that id")
+        self.assertPhraseIn("say the id belongs to no task here")
+
+    def test_a_qualified_path_on_an_unplanned_id_is_not_this_branchs_evidence(self) -> None:
+        """The second hole in the same clause: a row that is a token followed
+        by a *path* on a non-terminal task is the same inherited-id state and
+        names a real folder, so it reads as "this task has evidence" for work
+        nobody started. Closing only the bare-token half leaves this open."""
+        self.assertPhraseIn("where such a row sits on either kind of non-terminal task")
+        self.assertPhraseIn("never let it read as this branch having evidence")
+
     def test_an_unrunnable_evidence_verb_is_a_named_gap_never_a_glob(self) -> None:
         """`evidence-capture` was the one external dependency in Step 1 with no
         named-gap path, while its fallback — a glob — is banned in the same row.

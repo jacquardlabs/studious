@@ -474,3 +474,52 @@ if __name__ == "__main__":
     import sys
 
     sys.exit(unittest.main())
+
+
+class TestFinishEvidenceReadContract(unittest.TestCase):
+    """gate-acceptance round 6: exit-2 handling and the stdout/stderr split.
+
+    Both are about /finish reading `evidence-capture resolve` correctly. A
+    misread here does not fail loudly -- it writes a confident wrong claim
+    into the PR body, which is the one output this skill says it never
+    fabricates.
+    """
+
+    def setUp(self) -> None:
+        self.body = SKILL_MD.read_text(encoding="utf-8")
+        self.flat_body = _normalize_ws(self.body)
+
+    def assertPhraseIn(self, phrase: str) -> None:
+        self.assertIn(
+            _normalize_ws(phrase),
+            self.flat_body,
+            f"phrase not found (whitespace-normalized): {phrase!r}",
+        )
+
+    def test_exit_two_is_unread_not_a_missing_folder_label(self) -> None:
+        # `resolve` can exit 2 (bad --repo, malformed task id, script not
+        # found -- reachable because the invocation is cwd-relative and the
+        # step two lines up says cwd is not guaranteed to be the worktree).
+        # Exit-2 messages carry no bracketed token, so "label the row by the
+        # token" falls through to [no-match] and reports "evidence not found"
+        # about a branch whose evidence was never read.
+        self.assertPhraseIn("Exit 2 is not a third missing-folder state")
+        self.assertPhraseIn("evidence unread for item N")
+        # The count of missing-folder labels must stay at two -- a third
+        # would collide with the two-labels reconciliation pin above.
+        self.assertPhraseIn("There are still exactly two missing-folder labels")
+
+    def test_the_two_streams_are_named_separately(self) -> None:
+        # On a qualified answer the note goes to stderr before the path goes
+        # to stdout; a reader taking merged output's first line as the path
+        # hands the note to evidence-freshness, which rejects it as a folder
+        # with no manifest.json -- a symptom with more than one cause.
+        self.assertPhraseIn("The folder path is the whole of stdout")
+        self.assertPhraseIn("are on stderr")
+
+    def test_a_batched_freshness_call_does_not_key_on_the_aggregate(self) -> None:
+        # evidence-freshness returns one aggregate status for a batch, and a
+        # mixed batch is the normal case, so keying the hold on it stops
+        # closeout over folders that are individually fine.
+        self.assertPhraseIn("the exit code is not the per-folder answer")
+        self.assertPhraseIn("carry the disposition")
