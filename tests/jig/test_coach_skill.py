@@ -259,6 +259,33 @@ class TestCoachSkillBody(unittest.TestCase):
         # signal must not promise provenance the verb cannot establish.
         self.assertPhraseIn("not proof this branch produced it")
 
+    def test_the_worktree_placeholder_is_defined_before_the_table_uses_it(self) -> None:
+        """`<worktree>` appears in the table with no definition anywhere in the
+        skill, while every sibling row is cwd-relative — so a reader has no way
+        to know which of the two a given read takes."""
+        self.assertPhraseIn("**`<worktree>` in the table below** is the checkout the build ran in")
+        self.assertIn("git rev-parse --show-toplevel", self.body)
+        definition = self.flat_body.index("`<worktree>` in the table below")
+        first_use = self.flat_body.index("evidence-capture list --repo <worktree>")
+        self.assertLess(definition, first_use, "`<worktree>` is used before it is defined")
+
+    def test_an_undecidable_task_is_reported_not_silently_absent(self) -> None:
+        """One rule, two navigators, one answer. The verb dropping the task
+        would have `/coach` say nothing about a task `/finish` calls ambiguous
+        — and the omission is invisible where a human asks "what do I have"."""
+        self.assertIn("`[ambiguous]`", self.body)
+        self.assertPhraseIn("Report it as unevidenced *and* name it")
+        self.assertPhraseIn('the same state `/finish` labels "evidence ambiguous"')
+
+    def test_the_branch_argument_names_the_command_that_produces_it(self) -> None:
+        """`<the branch you are on>` is not a command, and the two obvious
+        candidates disagree: the writer stamps `rev-parse --abbrev-ref HEAD`
+        with a literal `HEAD` fallback, where `git branch --show-current`
+        prints nothing on a detached checkout."""
+        self.assertIn('--branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)"', self.body)
+        self.assertPhraseIn("`git branch --show-current` prints an empty string")
+        self.assertNotIn("<the branch you are on>", self.body)
+
     def test_the_resolution_rule_is_not_restated_in_this_prose(self) -> None:
         """Pre-mortem risk 4, the coach half: the tiebreak has one home — the
         script both readers call. Pin the absence of its vocabulary."""

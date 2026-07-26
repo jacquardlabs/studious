@@ -34,17 +34,30 @@ wrote for it. **Ask the script which folder that is — never rebuild the
 path from its shape:**
 
 ```
-scripts/evidence-capture resolve --repo <worktree> --branch <the branch you are on> --task <task id>
+scripts/evidence-capture resolve --repo <worktree> --branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" --task <task id>
 ```
 
-It prints one folder path, repo-relative, on exit 0. Exit 1 means this task
-has no folder to promote — quote the script's own message for the reason,
-and label the row by what that message says: an absence is "evidence not
-found for item N"; a refusal the script itself calls ambiguous is "evidence
-ambiguous for item N". Both are named in the PR body, neither is fabricated,
-and the two are not the same state — a reviewer told "not found" about
-evidence that exists but is undecidable goes looking for the wrong thing.
-The folder carries a
+`--branch` takes that exact command and not `git branch --show-current`: the
+capture stamped the manifest using `rev-parse --abbrev-ref HEAD`
+(`scripts/_gitutil.py`'s `current_branch`), literal `HEAD` fallback included, so
+on a detached checkout the reader and the writer still name the branch the same
+thing — where `--show-current` prints an empty string that matches no manifest.
+
+It prints one folder path, repo-relative, on exit 0. Exit 1 means this task has
+no folder to promote — quote the script's own message for the reason, and label
+the row by the bracketed token that message opens with, never by matching its
+English: `[no-match]` is "evidence not found for item N"; `[ambiguous]` is
+"evidence ambiguous for item N". Both are named in the PR body, neither is
+fabricated, and the two are not the same state — a reviewer told "not found"
+about evidence that exists but is undecidable goes looking for the wrong thing.
+
+**An `[ambiguous]` row promotes nothing and asserts nothing about this branch.**
+The message enumerates the folders it could not pick between and none of them is
+tied to the branch you asked about, so the honest row is that this branch
+captured no evidence for the item, naming those folders as the unresolved thing
+a human may want to look at. Never adopt one into the table — not by renaming it,
+not by linking it — and never re-label the row "not found", which would hide
+that the folders exist. The folder carries a
 `manifest.json` (`commit_sha`, `commit_timestamp`, `branch`, one entry per
 captured artifact) and the captured artifacts themselves — including the
 task's `verify:results` artifact, whose own JSON carries each item's `id`,
@@ -88,10 +101,14 @@ capture (via `/build` or by hand) and re-invoking `/finish`. Do not call
 or re-capture evidence (see Out of scope in the design doc this skill
 implements).
 
-**Any `Done means` item with no corresponding evidence folder at all** (a
-task that reached `PASS` by a path other than `/build`'s own loop, e.g. a
-hand-verified fix) is named explicitly in the PR body as "evidence not
-found for item N" — never silently omitted, never fabricated.
+**Any `Done means` item the resolve verb refused on** — a task that reached
+`PASS` by a path other than `/build`'s own loop (e.g. a hand-verified fix), so
+this branch captured nothing for it — is named explicitly in the PR body, never
+silently omitted, never fabricated. Which of the two labels it gets is the
+token's call and not this line's — the same item can refuse either way in two
+projects, and only the script knows which. "evidence not found for item N" is the
+`[no-match]` wording; the `[ambiguous]` wording above covers the other. Both say
+the branch has nothing to promote.
 
 **Assembling the table.** One row per item: item text (from `PLAN.md`'s own
 numbered `Done means` line) → verification method (the item's own tier —

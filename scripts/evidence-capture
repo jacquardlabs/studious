@@ -16,11 +16,22 @@ thing in two repos still collide, and so do `feat/foo` and `feat-foo`, since
 `branch_slug()` collapses '/' to '-'. Neither is fixable by a slug, and
 neither is what #179 recorded.
 
+**Rolling the slug back is not the revert alone.** A reader that reconstructs
+`<date>-<task>` and matches it *exactly* simply misses a slug-bearing folder —
+the correct failure direction, a visible "not found". A reader that **globs**
+`<date>-<task>*` fails the other way: the field order below keeps a legacy name
+a prefix of a new one (this repo already carries `2026-07-17-2` beside
+`2026-07-17-2-retroactive-inspection`), so once two branches' folders sit in one
+tree that glob matches both and can emit the wrong branch's link — the silent
+wrong link the slug exists to prevent. A rollback therefore reverts the code
+*and* removes or renames the slug-bearing folders captured under it. Say that at
+rollback time rather than discovering it.
+
 Three modes — capture is the default and takes no verb word:
 
     evidence-capture --task T --artifact P:L=F ...   capture
     evidence-capture resolve --branch B --task T     print that task's folder
-    evidence-capture list --branch B                 print every task with a folder
+    evidence-capture list --branch B                 print each task's answer
 
 `resolve` and `list` are the **one home** for the rule that says which folder
 belongs to which task. Readers (`/finish`, `/coach`) call them instead of
@@ -38,7 +49,21 @@ One rule, applied identically by both verbs:
    project that ran `/build` on two different days has repeated task ids across
    dates by default.
 3. **Zero matches, or several with no tiebreak, resolve to nothing.** Never a
-   guess: a visible "not found" beats an invisible wrong link.
+   guess: a visible "not found" beats an invisible wrong link. The two are
+   reported apart, each behind a literal bracketed token its message opens
+   with — `[no-match]` and `[ambiguous]` — so a reader can tell a designed
+   refusal from a broken lookup, and so a prompt selecting a label never has to
+   match on an English sentence that the next edit rewrites.
+
+   `[ambiguous]` is **not** a claim that the branch asked about has evidence. A
+   branch that captured nothing reaches it whenever two or more branch-less
+   manifests happen to share the requested task id — this repository's own
+   state, tasks `1`-`4` each carrying two. So the refusal names the branch it
+   could not tie anything to, enumerates the folders it could not pick between,
+   and says what they are: captures predating the `branch` field, any of which
+   may belong to a branch that has since merged. Adopting one is a human's
+   decision taken after reading its `manifest.json`, never this script's
+   suggestion.
 
 Freshness rule (this story's acceptance criteria: "timestamp >= last code
 commit"): an evidence folder can only exist if it was provably produced
@@ -66,16 +91,22 @@ Exit codes, per mode — one ladder, three honest readings of it:
            manifest.json).
   resolve  0 the query was answered — the folder is on stdout. 1 a
            well-formed query that resolved to nothing: no match, or several
-           legacy matches with no tiebreak. This is the refusal that routes
-           a reader to its own "evidence not found" path. 2 usage error
-           (missing --branch, malformed task id).
+           legacy matches with no tiebreak. This is the refusal that routes a
+           reader to its own no-evidence path — to which of two, the printed
+           token says, since neither is "evidence not found" by default.
+           2 usage error (missing --branch, malformed task id).
   list     0 always, including the empty answer — a branch that has captured
            nothing yet is an ordinary early-pipeline state, not an error.
            2 usage error (missing --branch).
 
 `resolve` and `list` report rule 3 differently while applying it identically:
 a per-task lookup that finds nothing is a failed lookup, but an inventory read
-of a branch that has captured nothing is a complete answer.
+of a branch that has captured nothing is a complete answer. The one refusal
+`list` still has to *say* is `[ambiguous]`, which it prints as that literal
+token in the answer column instead of a path. Dropping such a task from the
+inventory would leave `/coach` silent about a task `/finish` calls ambiguous —
+two navigators, two answers, one rule. A task with no bearing on the branch at
+all (`[no-match]`) is genuinely not in that branch's inventory and stays out.
 """
 from __future__ import annotations
 
@@ -87,6 +118,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _gitutil import (  # noqa: E402
@@ -101,12 +133,15 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 QUERY_VERBS = ("resolve", "list")
 
-# Why a resolve returned nothing. The two are reported separately because a
-# reader cannot otherwise tell a designed refusal from a broken lookup: a
-# project whose only evidence for a task is two branch-less manifests gets the
-# same "not found" as a task that never captured anything.
+# Why a lookup returned nothing, as the literal token its message carries.
+# Printed, not merely returned: `/finish` picks its PR-body label from this
+# token and `/coach` prints it as a row, and an English sentence is not a stable
+# thing for a prompt to match on. The two are named for the *reader's* two
+# states — nothing at all, versus folders that exist and cannot be tied to the
+# branch asked about — deliberately not for the rule that produced them, which
+# lives in this module's docstring and nowhere else.
 NO_MATCH = "no-match"
-AMBIGUOUS_LEGACY = "ambiguous-legacy"
+AMBIGUOUS = "ambiguous"
 
 # Any identifier that flows into a destination path (the --task directory
 # name; an --artifact's PRODUCER and LABEL, which become the copied
@@ -174,8 +209,22 @@ def load_manifests(evidence_root: Path) -> list[tuple[Path, dict]]:
     return entries
 
 
-def resolve_folder(entries: list[tuple[Path, dict]], branch: str, task: str) -> tuple[Path | None, str]:
-    """Apply the resolution rule; return (folder, "") or (None, reason).
+class Resolution(NamedTuple):
+    """A lookup's answer: a folder, or a reason plus what it could not pick between.
+
+    `candidates` is carried rather than recomputed by the caller so the refusal
+    can enumerate the folders it is refusing over. A message that names none
+    leaves its reader nothing to inspect, and the only recovery it can honestly
+    offer is one that starts with reading those folders' manifests.
+    """
+
+    folder: Path | None
+    reason: str
+    candidates: tuple[Path, ...] = ()
+
+
+def resolve_folder(entries: list[tuple[Path, dict]], branch: str, task: str) -> Resolution:
+    """Apply the resolution rule; return the folder, or the reason and candidates.
 
     The rule itself is stated once, in this module's docstring. `branch` is
     matched as a *name* against the manifest's own `branch` field — never as a
@@ -188,21 +237,27 @@ def resolve_folder(entries: list[tuple[Path, dict]], branch: str, task: str) -> 
     ]
     if branch_bearing:
         newest = max(branch_bearing, key=lambda pair: (str(pair[1].get("captured_at") or ""), pair[0].name))
-        return newest[0], ""
+        return Resolution(newest[0], "")
 
     legacy = [
         folder for folder, manifest in entries if not manifest.get("branch") and manifest.get("task") == task
     ]
     if len(legacy) == 1:
-        return legacy[0], ""
-    return None, AMBIGUOUS_LEGACY if legacy else NO_MATCH
+        return Resolution(legacy[0], "")
+    return Resolution(None, AMBIGUOUS if legacy else NO_MATCH, tuple(legacy))
 
 
-def list_resolving_tasks(entries: list[tuple[Path, dict]], branch: str) -> list[tuple[str, Path]]:
-    """Every task that resolves for `branch`, task-sorted, one folder each."""
+def list_branch_tasks(entries: list[tuple[Path, dict]], branch: str) -> list[tuple[str, Resolution]]:
+    """Every task `branch` has an answer for, task-sorted, one row each.
+
+    An undecidable task is a row, not an omission — see this module's docstring
+    on why `list` still has to say `[ambiguous]` out loud. A task with no
+    bearing on this branch at all is absent from its inventory, which is the
+    honest answer rather than a suppressed one.
+    """
     tasks = sorted({m["task"] for _, m in entries if isinstance(m.get("task"), str)})
-    resolved = ((task, resolve_folder(entries, branch, task)[0]) for task in tasks)
-    return [(task, folder) for task, folder in resolved if folder is not None]
+    rows = ((task, resolve_folder(entries, branch, task)) for task in tasks)
+    return [(task, row) for task, row in rows if row.folder is not None or row.reason == AMBIGUOUS]
 
 
 def display_path(folder: Path, repo: Path) -> str:
@@ -314,8 +369,9 @@ def run_query(verb: str, argv: list[str]) -> int:
     entries = load_manifests(evidence_root)
 
     if verb == "list":
-        for task, folder in list_resolving_tasks(entries, args.branch):
-            print(f"{task}\t{display_path(folder, repo)}")
+        for task, row in list_branch_tasks(entries, args.branch):
+            answer = display_path(row.folder, repo) if row.folder is not None else f"[{row.reason}]"
+            print(f"{task}\t{answer}")
         return 0
 
     try:
@@ -324,25 +380,31 @@ def run_query(verb: str, argv: list[str]) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    folder, reason = resolve_folder(entries, args.branch, args.task)
-    if folder is None:
-        if reason == AMBIGUOUS_LEGACY:
+    row = resolve_folder(entries, args.branch, args.task)
+    if row.folder is None:
+        if row.reason == AMBIGUOUS:
+            listed = "\n  ".join(display_path(candidate, repo) for candidate in row.candidates)
             print(
-                f"error: evidence for task '{args.task}' is ambiguous, not missing: several "
-                f"folders under {evidence_root} record that task and none records a branch, "
-                "so there is no tiebreak to pick between them. Rename the one you want by "
-                "hand, or re-capture on this branch.",
+                f"error: [{AMBIGUOUS}] evidence for task '{args.task}' cannot be tied to "
+                f"branch '{args.branch}': {len(row.candidates)} folders under {evidence_root} "
+                "record that task and none of them records a branch, so nothing here says "
+                "this branch captured any of it —\n  "
+                f"{listed}\n"
+                "Each predates the manifest's branch field and may well belong to a branch "
+                "that has already merged. If this branch verified the task, capture on this "
+                "branch. Adopt one of the folders above only after reading its manifest.json "
+                "and confirming it is this item's evidence.",
                 file=sys.stderr,
             )
         else:
             print(
-                f"error: no evidence found for task '{args.task}' on branch '{args.branch}' "
-                f"under {evidence_root}",
+                f"error: [{NO_MATCH}] no evidence found for task '{args.task}' on branch "
+                f"'{args.branch}' under {evidence_root}",
                 file=sys.stderr,
             )
         return 1
 
-    print(display_path(folder, repo))
+    print(display_path(row.folder, repo))
     return 0
 
 

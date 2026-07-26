@@ -32,7 +32,13 @@ mechanically:
    names, because one rule with two implementations drifts otherwise.
 8. The `resolve` / `list` verbs answer "which folder is task N's" from
    manifests, never from the folder name — branch-bearing match first, a
-   unique legacy match second, and a refusal (never a guess) otherwise.
+   unique legacy match second, and a refusal (never a guess) otherwise. Each
+   refusal opens with a stable bracketed token (`[no-match]`, `[ambiguous]`)
+   that `/finish` labels its row from; an `[ambiguous]` refusal enumerates the
+   folders it could not pick between and never advises an unqualified rename,
+   because on a *new* branch in this repo it is reached by a task that has no
+   evidence here at all. `list` prints that same token as a marker row rather
+   than dropping the task, so both navigators answer one rule the same way.
 9. A real capture's `resolve` output is repo-relative, and `/finish` must
    join the repo onto it before `evidence-freshness` (which resolves
    `--evidence` against its own cwd) can read it. Every test above points
@@ -895,6 +901,59 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
             self.assertIn("ambiguous", result.stderr)
             self.assertNotIn("no evidence found", result.stderr)
 
+    def test_the_ambiguity_message_enumerates_the_folders_it_refused_over(self) -> None:
+        """A refusal that names no folder leaves its reader nothing to inspect.
+        The shape is not hypothetical: on any *new* branch in this repo, a task
+        whose id collides with two inherited branch-less manifests refuses this
+        way, and the message used to list zero candidates."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, root = self._repo_and_root(tmp)
+            first = write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
+            second = write_manifest_folder(root, "2026-07-12-design-md-vocab-fix", task="task-1")
+
+            result = self._resolve(repo, root, "feat/alpha", "task-1")
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(str(first), result.stderr)
+            self.assertIn(str(second), result.stderr)
+
+    def test_the_ambiguity_message_does_not_advise_an_unqualified_rename(self) -> None:
+        """The old recovery — "rename the one you want by hand" — installs a
+        merged, unrelated branch's artifact as this item's link whenever the
+        branch asking captured nothing itself. Any adoption is gated on reading
+        the candidate's own manifest first."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, root = self._repo_and_root(tmp)
+            write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
+            write_manifest_folder(root, "2026-07-12-design-md-vocab-fix", task="task-1")
+
+            result = self._resolve(repo, root, "feat/alpha", "task-1")
+            self.assertNotIn("Rename the one you want by hand", result.stderr)
+            self.assertIn("after reading its manifest.json", result.stderr)
+
+    def test_an_ambiguity_never_claims_the_asking_branch_has_evidence(self) -> None:
+        """"This branch captured none" is the true statement, so the refusal
+        names the branch it could not tie the folders to rather than reading as
+        "evidence exists, pick one"."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, root = self._repo_and_root(tmp)
+            write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
+            write_manifest_folder(root, "2026-07-12-design-md-vocab-fix", task="task-1")
+
+            result = self._resolve(repo, root, "feat/alpha", "task-1")
+            self.assertIn("cannot be tied to branch 'feat/alpha'", result.stderr)
+            self.assertIn("nothing here says this branch captured any of it", result.stderr)
+
+    def test_both_refusals_open_with_a_stable_bracketed_token(self) -> None:
+        """`/finish` picks its PR-body label from the token, not from the
+        English sentence around it — which the next prose edit rewrites."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, root = self._repo_and_root(tmp)
+            write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
+            write_manifest_folder(root, "2026-07-12-design-md-vocab-fix", task="task-1")
+
+            self.assertIn("error: [ambiguous]", self._resolve(repo, root, "feat/alpha", "task-1").stderr)
+            self.assertIn("error: [no-match]", self._resolve(repo, root, "feat/alpha", "task-9").stderr)
+
     def test_no_match_at_all_reports_absence(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
@@ -979,6 +1038,46 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, "")
 
+    def test_an_undecidable_task_is_a_marker_row_not_an_omission(self) -> None:
+        """One rule, two navigators, one answer: `/finish` calls this task
+        ambiguous, so an inventory that silently dropped it would have `/coach`
+        report the task as having no evidence question at all — and the omission
+        is invisible exactly where a human is asking "what do I have"."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, root = self._repo_and_root(tmp)
+            write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
+            write_manifest_folder(root, "2026-07-12-design-md-vocab-fix", task="task-1")
+
+            result = self._list(repo, root, "feat/alpha")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.splitlines(), ["task-1\t[ambiguous]"])
+
+    def test_a_marker_row_sorts_beside_ordinary_rows_under_one_grammar(self) -> None:
+        """The marker occupies the answer column a path would, so a reader
+        splitting on the tab handles both rows the same way."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, root = self._repo_and_root(tmp)
+            write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
+            write_manifest_folder(root, "2026-07-12-design-md-vocab-fix", task="task-1")
+            two = write_manifest_folder(root, "2026-07-12-task-2-feat-alpha", task="task-2", branch="feat/alpha")
+
+            result = self._list(repo, root, "feat/alpha")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.splitlines(), ["task-1\t[ambiguous]", f"task-2\t{two}"])
+
+    def test_a_task_with_no_bearing_on_the_branch_stays_omitted(self) -> None:
+        """The marker row is for the undecidable case only. A task that belongs
+        to another branch outright is not this branch's inventory at all, and
+        listing it as a marker would re-report another branch's work."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, root = self._repo_and_root(tmp)
+            write_manifest_folder(root, "2026-07-12-task-1-feat-beta", task="task-1", branch="feat/beta")
+            write_manifest_folder(root, "2026-07-12-task-1-feat-gamma", task="task-1", branch="feat/gamma")
+
+            result = self._list(repo, root, "feat/alpha")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "")
+
 
 class TestResolvedPathComposesWithFreshness(unittest.TestCase):
     """`/finish` Step 1 runs `resolve`, then feeds the printed path to
@@ -1053,6 +1152,29 @@ class TestResolvedPathComposesWithFreshness(unittest.TestCase):
             joined = self._freshness(str(repo / printed), repo, cwd=elsewhere)
             self.assertEqual(joined.returncode, 0, joined.stderr + joined.stdout)
             self.assertIn("overall=PASS", joined.stdout)
+
+
+class TestEvidenceCaptureDocstringCarriesTheRollbackCaveat(unittest.TestCase):
+    """The rollback procedure has to outlive the design doc that stated it.
+
+    `docs/design/<slug>.md` is disposable and branch-local — `/finish` deletes
+    it at closeout — so a caveat that lives only there is gone precisely when
+    someone needs it. The script the caveat is about is the durable home.
+    """
+
+    def setUp(self) -> None:
+        self.source = SCRIPT.read_text(encoding="utf-8")
+
+    def test_the_docstring_says_a_revert_alone_is_not_the_rollback(self) -> None:
+        self.assertIn("Rolling the slug back is not the revert alone", self.source)
+        self.assertIn("removes or renames the slug-bearing folders", self.source)
+
+    def test_the_docstring_names_the_prefix_shape_that_makes_a_glob_lossy(self) -> None:
+        """The reverted-reader failure is only *sometimes* visible: an exact
+        matcher misses the folder (safe), a glob matches both and can emit the
+        wrong branch's link (the silent wrong link). Name which is which."""
+        self.assertIn("2026-07-17-2-retroactive-inspection", self.source)
+        self.assertIn("wrong branch's link", self.source)
 
 
 class TestEvidenceCaptureVerbDispatch(unittest.TestCase):

@@ -19,8 +19,11 @@ sibling skill):
    the ancestor check (risk #2), and stops the run by name rather than
    promoting a failed folder silently.
 4. Step 1 names the two evidence shapes (inline `<details>` text, raw-URL
-   images pinned to a commit SHA, never the branch name) and the "evidence
-   not found for item N" contract for a missing folder.
+   images pinned to a commit SHA, never the branch name), labels a refused
+   lookup from the token the script prints rather than its English, and says
+   the same thing in both places a missing folder is named — an `[ambiguous]`
+   row promotes nothing and claims nothing about this branch, since on a new
+   branch it is exactly what a task with no evidence *here* refuses as.
 5. Step 2's cctx-absent path is explicit and names the install pointer;
    the installed path never passes `--apply` outside an explicit,
    in-turn human confirmation (pre-mortem risk #3).
@@ -195,6 +198,39 @@ class TestFinishSkillBody(unittest.TestCase):
         between. One shared label reads to a reviewer as the first."""
         self.assertPhraseIn("evidence ambiguous for item N")
         self.assertPhraseIn("the two are not the same state")
+
+    def test_the_row_label_comes_from_the_token_not_the_english(self) -> None:
+        """The script prints `[no-match]` / `[ambiguous]` precisely so a prompt
+        never has to match on a sentence the next prose edit rewrites."""
+        self.assertPhraseIn("label the row by the bracketed token that message opens with")
+        self.assertPhraseIn('`[no-match]` is "evidence not found for item N"')
+        self.assertPhraseIn('`[ambiguous]` is "evidence ambiguous for item N"')
+
+    def test_an_ambiguous_row_promotes_nothing_and_claims_nothing(self) -> None:
+        """The failure this closes: on any new branch, a hand-verified task
+        whose id collides with two inherited branch-less folders refuses as
+        `[ambiguous]`, and a row that reads "evidence exists, undecidable"
+        asserts something about a branch that captured none of it."""
+        self.assertPhraseIn("An `[ambiguous]` row promotes nothing and asserts nothing about this branch")
+        self.assertPhraseIn("none of them is tied to the branch you asked about")
+        self.assertPhraseIn("Never adopt one into the table — not by renaming it, not by linking it")
+
+    def test_the_two_labels_are_reconciled_where_a_missing_folder_is_named(self) -> None:
+        """The "no folder at all" paragraph used to promise "evidence not
+        found" unconditionally, which contradicts the label rule above for
+        every project carrying duplicate branch-less task ids — this one
+        included. Both surfaces now defer to the token."""
+        self.assertPhraseIn("Which of the two labels it gets is the token's call and not this line's")
+        self.assertPhraseIn("Both say the branch has nothing to promote")
+
+    def test_the_branch_argument_names_the_command_that_produces_it(self) -> None:
+        """`<the branch you are on>` is not a command. The writer uses
+        `rev-parse --abbrev-ref HEAD` with a literal `HEAD` fallback, so a
+        reader reaching for `git branch --show-current` resolves nothing on a
+        detached checkout."""
+        self.assertIn('--branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)"', self.body)
+        self.assertPhraseIn("not `git branch --show-current`")
+        self.assertNotIn("<the branch you are on>", self.body)
 
     # -- Step 1: the evidence folder comes from the resolve verb ------------
 
