@@ -18,12 +18,16 @@ sibling skill):
    manifest, never the branch's current HEAD (pre-mortem risk #1), uses
    the ancestor check (risk #2), and stops the run by name rather than
    promoting a failed folder silently.
-4. Step 1 names the two evidence shapes (inline `<details>` text, raw-URL
-   images pinned to a commit SHA, never the branch name), labels a refused
-   lookup from the token the script prints rather than its English, and says
-   the same thing in both places a missing folder is named — an `[ambiguous]`
-   row promotes nothing and claims nothing about this branch, since on a new
-   branch it is exactly what a task with no evidence *here* refuses as.
+4. Step 1 defines `<worktree>` before its first use, names the two evidence
+   shapes (inline `<details>` text, raw-URL images pinned to a commit SHA,
+   never the branch name), labels a refused lookup from the token the script
+   prints rather than its English, routes the script's own multi-line message
+   into that item's `<details>` block rather than a one-line cell, carries
+   *any* bracketed token the script prints — including one printed alongside a
+   path on exit 0 — and says the same thing in both places a missing folder is
+   named: an `[ambiguous]` row promotes nothing and claims nothing about this
+   branch, since on a new branch it is exactly what a task with no evidence
+   *here* refuses as.
 5. Step 2's cctx-absent path is explicit and names the install pointer;
    the installed path never passes `--apply` outside an explicit,
    in-turn human confirmation (pre-mortem risk #3).
@@ -202,9 +206,39 @@ class TestFinishSkillBody(unittest.TestCase):
     def test_the_row_label_comes_from_the_token_not_the_english(self) -> None:
         """The script prints `[no-match]` / `[ambiguous]` precisely so a prompt
         never has to match on a sentence the next prose edit rewrites."""
-        self.assertPhraseIn("label the row by the bracketed token that message opens with")
+        self.assertPhraseIn("label the row by the bracketed token the script's message opens with")
         self.assertPhraseIn('`[no-match]` is "evidence not found for item N"')
         self.assertPhraseIn('`[ambiguous]` is "evidence ambiguous for item N"')
+
+    def test_the_quoted_message_has_a_named_destination(self) -> None:
+        """"Quote the script's own message" named no destination, and the
+        message is a multi-line block routed into a table specced as one row
+        per item. The per-item `<details>` block already exists for text
+        evidence; the fix is to name it, not to invent a second home."""
+        self.assertPhraseIn("Where the script's own words go, since a cell is one line and the message is not.")
+        self.assertPhraseIn("quoted verbatim into that item's collapsible `<details>` block")
+        self.assertPhraseIn("Never spill it across the cells and never drop it")
+
+    def test_a_token_printed_alongside_an_answer_is_carried_too(self) -> None:
+        """The script qualifies some exit-0 answers with a token of their own.
+        A reader that selects on tokens only when the lookup *failed* promotes
+        a qualified answer as an unqualified one — a real-SHA raw URL in the PR
+        body, arrived at from a state the script explicitly caveated."""
+        self.assertPhraseIn("including one printed *alongside* a folder path on exit 0")
+        self.assertPhraseIn("carry that token into the row beside the link")
+        self.assertPhraseIn("add nothing of your own about what the token means")
+
+    def test_the_worktree_placeholder_is_defined_before_its_first_use(self) -> None:
+        """`<worktree>` steers four commands in this skill and was defined in
+        none of them. Because `--repo` defaults to `.`, an undefined
+        placeholder lets `/finish` resolve against whatever checkout the
+        session's cwd sits in and report another repo's state as this
+        feature's — the same defect its sibling `/coach` already fixed."""
+        self.assertPhraseIn("`<worktree>` wherever it appears in this skill** is the checkout the build ran in")
+        self.assertIn("git rev-parse --show-toplevel", self.body)
+        definition = self.flat_body.index("`<worktree>` wherever it appears in this skill")
+        first_use = self.flat_body.index("evidence-capture resolve --repo <worktree>")
+        self.assertLess(definition, first_use, "`<worktree>` is used before it is defined")
 
     def test_an_ambiguous_row_promotes_nothing_and_claims_nothing(self) -> None:
         """The failure this closes: on any new branch, a hand-verified task

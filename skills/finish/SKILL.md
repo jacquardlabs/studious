@@ -28,6 +28,13 @@ it.
 
 ## Step 1 — PR evidence table
 
+**`<worktree>` wherever it appears in this skill** is the checkout the build ran
+in — the path `git rev-parse --show-toplevel` prints *there*. Resolve it once,
+here, and pass it explicitly to every command below that takes it. None of those
+flags may be left to default: `--repo` defaults to `.`, so a session whose own
+cwd is some other checkout would read that repository and report its state as
+this feature's — an evidence table assembled, plausibly, off the wrong branch.
+
 For each task in `PLAN.md` (now fully status-flipped), read its `Done
 means` items and the evidence folder `/build`'s own `evidence-capture` call
 wrote for it. **Ask the script which folder that is — never rebuild the
@@ -44,12 +51,25 @@ on a detached checkout the reader and the writer still name the branch the same
 thing — where `--show-current` prints an empty string that matches no manifest.
 
 It prints one folder path, repo-relative, on exit 0. Exit 1 means this task has
-no folder to promote — quote the script's own message for the reason, and label
-the row by the bracketed token that message opens with, never by matching its
-English: `[no-match]` is "evidence not found for item N"; `[ambiguous]` is
-"evidence ambiguous for item N". Both are named in the PR body, neither is
-fabricated, and the two are not the same state — a reviewer told "not found"
-about evidence that exists but is undecidable goes looking for the wrong thing.
+no folder to promote — label the row by the bracketed token the script's message
+opens with, never by matching its English: `[no-match]` is "evidence not found
+for item N"; `[ambiguous]` is "evidence ambiguous for item N". Both are named in
+the PR body, neither is fabricated, and the two are not the same state — a
+reviewer told "not found" about evidence that exists but is undecidable goes
+looking for the wrong thing.
+
+**Where the script's own words go, since a cell is one line and the message is
+not.** The row's cell carries the token, and the link when there is one; the
+message itself is quoted verbatim into that item's collapsible `<details>` block
+— the same per-item block **Assembling the table** below already uses for text
+evidence. Never spill it across the cells and never drop it: the table stays one
+row per item, and the reason stays attached to the row it belongs to. This holds
+for **every** bracketed token the script prints, including one printed
+*alongside* a folder path on exit 0 — carry that token into the row beside the
+link and its message into the `<details>` block, exactly as with a refusal, and
+add nothing of your own about what the token means. The script says that, once.
+A token the table quietly discards because the lookup "succeeded" is the wrong
+link this step exists to prevent, arriving with a green checkmark.
 
 **An `[ambiguous]` row promotes nothing and asserts nothing about this branch.**
 The message enumerates the folders it could not pick between and none of them is

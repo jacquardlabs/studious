@@ -48,6 +48,15 @@ One rule, applied identically by both verbs:
    one task id have no tiebreak available — and that is not hypothetical: a
    project that ran `/build` on two different days has repeated task ids across
    dates by default.
+
+   A unique one *answers*, but it answers every branch alike: nothing in it
+   says the branch asking captured it. So the answer carries a third token,
+   `[legacy]`, on stderr — beside the ordinary exit 0 and the ordinary path on
+   stdout. One branch-less folder and two of them are the same epistemic state,
+   and a reader that hears a loud `[ambiguous]` refusal for the pair while the
+   single one resolves silently into a real-SHA link is being told the two are
+   different. They are not. A caller promotes a `[legacy]` answer with its
+   caveat attached, or not at all.
 3. **Zero matches, or several with no tiebreak, resolve to nothing.** Never a
    guess: a visible "not found" beats an invisible wrong link. The two are
    reported apart, each behind a literal bracketed token its message opens
@@ -89,12 +98,16 @@ Exit codes, per mode — one ladder, three honest readings of it:
            missing artifact, an existing target directory without --force,
            or a --force target that is non-empty and carries no
            manifest.json).
-  resolve  0 the query was answered — the folder is on stdout. 1 a
-           well-formed query that resolved to nothing: no match, or several
-           legacy matches with no tiebreak. This is the refusal that routes a
-           reader to its own no-evidence path — to which of two, the printed
-           token says, since neither is "evidence not found" by default.
-           2 usage error (missing --branch, malformed task id).
+  resolve  0 the query was answered — the folder is on stdout. A `[legacy]`
+           note on stderr qualifies that answer as rule 2's: it is tied to no
+           branch, so it is not tied to this one either. stdout is unchanged by
+           the note, so a caller reading only the path is never broken by it,
+           and a caller selecting on tokens sees this one where it already
+           looks. 1 a well-formed query that resolved to nothing: no match, or
+           several legacy matches with no tiebreak. This is the refusal that
+           routes a reader to its own no-evidence path — to which of two, the
+           printed token says, since neither is "evidence not found" by
+           default. 2 usage error (missing --branch, malformed task id).
   list     0 always, including the empty answer — a branch that has captured
            nothing yet is an ordinary early-pipeline state, not an error.
            2 usage error (missing --branch).
@@ -107,6 +120,13 @@ token in the answer column instead of a path. Dropping such a task from the
 inventory would leave `/coach` silent about a task `/finish` calls ambiguous —
 two navigators, two answers, one rule. A task with no bearing on the branch at
 all (`[no-match]`) is genuinely not in that branch's inventory and stays out.
+
+`list`'s answer column is one grammar covering all three: a path, optionally
+opened by a bracketed token. `[ambiguous]` stands alone because no path can
+honestly be named; `[legacy]` precedes the path it qualifies. A reader that
+splits the row on its tab still sees exactly two fields either way, and a
+caveat carried in the same column the path occupies cannot be dropped by a
+reader that only looked at the path.
 """
 from __future__ import annotations
 
@@ -133,15 +153,23 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 QUERY_VERBS = ("resolve", "list")
 
-# Why a lookup returned nothing, as the literal token its message carries.
-# Printed, not merely returned: `/finish` picks its PR-body label from this
-# token and `/coach` prints it as a row, and an English sentence is not a stable
-# thing for a prompt to match on. The two are named for the *reader's* two
-# states — nothing at all, versus folders that exist and cannot be tied to the
-# branch asked about — deliberately not for the rule that produced them, which
-# lives in this module's docstring and nowhere else.
+# What a lookup says beyond the bare answer, as the literal token its message
+# carries. Printed, not merely returned: `/finish` picks its PR-body label from
+# this token and `/coach` prints it in a row, and an English sentence is not a
+# stable thing for a prompt to match on. Each is named for the *reader's* state
+# — nothing at all; folders that exist and cannot be tied to the branch asked
+# about; a folder that answers but is tied to no branch at all — deliberately
+# not for the rule that produced it, which lives in this module's docstring and
+# nowhere else.
+#
+# The first two accompany a refusal (exit 1). The third accompanies an *answer*
+# (exit 0, the path on stdout as always), because a lone branch-less folder and
+# two of them are the same epistemic state — and one refusing loudly while the
+# other resolved silently into a promoted link was the asymmetry this token
+# closes.
 NO_MATCH = "no-match"
 AMBIGUOUS = "ambiguous"
+LEGACY = "legacy"
 
 # Any identifier that flows into a destination path (the --task directory
 # name; an --artifact's PRODUCER and LABEL, which become the copied
@@ -210,7 +238,13 @@ def load_manifests(evidence_root: Path) -> list[tuple[Path, dict]]:
 
 
 class Resolution(NamedTuple):
-    """A lookup's answer: a folder, or a reason plus what it could not pick between.
+    """A lookup's answer: a folder or nothing, the token qualifying it, and the near misses.
+
+    `token` is empty only for an answer that needs no qualifying — a match the
+    branch's own name is on. Every other outcome carries one, whether it refuses
+    (`[no-match]`, `[ambiguous]`) or answers with a caveat (`[legacy]`). A field
+    that could only ever hold a *failure* reason has no room for the third —
+    which is how a qualified answer came to read as an unqualified one.
 
     `candidates` is carried rather than recomputed by the caller so the refusal
     can enumerate the folders it is refusing over. A message that names none
@@ -219,7 +253,7 @@ class Resolution(NamedTuple):
     """
 
     folder: Path | None
-    reason: str
+    token: str
     candidates: tuple[Path, ...] = ()
 
 
@@ -243,7 +277,7 @@ def resolve_folder(entries: list[tuple[Path, dict]], branch: str, task: str) -> 
         folder for folder, manifest in entries if not manifest.get("branch") and manifest.get("task") == task
     ]
     if len(legacy) == 1:
-        return Resolution(legacy[0], "")
+        return Resolution(legacy[0], LEGACY)
     return Resolution(None, AMBIGUOUS if legacy else NO_MATCH, tuple(legacy))
 
 
@@ -257,7 +291,7 @@ def list_branch_tasks(entries: list[tuple[Path, dict]], branch: str) -> list[tup
     """
     tasks = sorted({m["task"] for _, m in entries if isinstance(m.get("task"), str)})
     rows = ((task, resolve_folder(entries, branch, task)) for task in tasks)
-    return [(task, row) for task, row in rows if row.folder is not None or row.reason == AMBIGUOUS]
+    return [(task, row) for task, row in rows if row.folder is not None or row.token == AMBIGUOUS]
 
 
 def display_path(folder: Path, repo: Path) -> str:
@@ -271,6 +305,20 @@ def display_path(folder: Path, repo: Path) -> str:
         return str(folder.resolve().relative_to(repo.resolve()))
     except ValueError:
         return str(folder)
+
+
+def answer_column(row: Resolution, repo: Path) -> str:
+    """A `list` row's answer field: a path, a bracketed token, or a token then a path.
+
+    One column, one grammar, so a reader that splits the row on its tab sees
+    exactly two fields whichever outcome it got — and so a caveat cannot be
+    dropped by a reader that only looked at the path, the way it can when the
+    caveat lives in a column of its own.
+    """
+    if row.folder is None:
+        return f"[{row.token}]"
+    path = display_path(row.folder, repo)
+    return f"[{row.token}] {path}" if row.token else path
 
 
 def clear_directory(target_dir: Path) -> int:
@@ -370,8 +418,7 @@ def run_query(verb: str, argv: list[str]) -> int:
 
     if verb == "list":
         for task, row in list_branch_tasks(entries, args.branch):
-            answer = display_path(row.folder, repo) if row.folder is not None else f"[{row.reason}]"
-            print(f"{task}\t{answer}")
+            print(f"{task}\t{answer_column(row, repo)}")
         return 0
 
     try:
@@ -382,7 +429,7 @@ def run_query(verb: str, argv: list[str]) -> int:
 
     row = resolve_folder(entries, args.branch, args.task)
     if row.folder is None:
-        if row.reason == AMBIGUOUS:
+        if row.token == AMBIGUOUS:
             listed = "\n  ".join(display_path(candidate, repo) for candidate in row.candidates)
             print(
                 f"error: [{AMBIGUOUS}] evidence for task '{args.task}' cannot be tied to "
@@ -404,7 +451,20 @@ def run_query(verb: str, argv: list[str]) -> int:
             )
         return 1
 
-    print(display_path(row.folder, repo))
+    answer = display_path(row.folder, repo)
+    # An answer, qualified. Exit stays 0 and stdout stays the bare path, so a
+    # caller that only reads the path is unaffected; the caveat goes to stderr
+    # where the two refusal tokens already are, because that is where a caller
+    # that selects on tokens is already looking.
+    if row.token == LEGACY:
+        print(
+            f"note: [{LEGACY}] the folder resolved for task '{args.task}' records no branch, so "
+            f"nothing ties it to '{args.branch}' — it predates the manifest's branch field and may "
+            f"belong to a branch that has already merged; read {answer}/manifest.json before "
+            "promoting it as this item's evidence.",
+            file=sys.stderr,
+        )
+    print(answer)
     return 0
 
 

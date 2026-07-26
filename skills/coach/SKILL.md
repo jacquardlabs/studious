@@ -51,10 +51,14 @@ named against the grammar its producing script actually writes, never a
 paraphrase.
 
 **`<worktree>` in the table below** is the checkout the build ran in — the path
-`git rev-parse --show-toplevel` prints *there*. Every read in this step is
-against that checkout, named explicitly, because a `/coach` session's own cwd is
-not guaranteed to be it: a session started elsewhere that lets a path default to
-`.` reads a different repository and reports its state as this feature's.
+`git rev-parse --show-toplevel` prints *there*. The rows that pass a repo path
+to a script name it explicitly, because those flags default to `.` and a
+`/coach` session's own cwd is not guaranteed to be that checkout: a session
+started elsewhere that lets the path default reads a different repository and
+reports its state as this feature's. The rows that do not name it — the Globs,
+the root-relative `PLAN.md` read, `git log` — are relative to the session's own
+cwd, so the guarantee is per-row and not step-wide; say which checkout you read
+when the two could differ.
 
 | Signal | Read from | Establishes |
 |---|---|---|
@@ -62,7 +66,7 @@ not guaranteed to be it: a session started elsewhere that lets a path default to
 | Plan | `PLAN.md` at the repo root — a filesystem read, never `git ls-files` (a project that treats `/PLAN.md` as disposable scaffolding gitignores it, so an index read misses a real plan) | A plan exists; its `### Task N — <title>` blocks. |
 | Task statuses | Heading suffixes ` [PASS]` / ` [REPLAN]` / ` [ESCALATE]` — `scripts/status-flip`'s own `SUFFIX_RE` grammar, written only by that script, never the model | Which tasks closed, which paused or escalated. No suffix means not yet terminal (`todo` / `in-progress`). |
 | Failure reasons | `git log` for the `status-flip: task <N> -> REPLAN\|ESCALATE` commit — the Foreman's `--reason` lives in that commit's body, not in `PLAN.md` | The finding `/design` revision mode (or the human's block revision) needs, quoted verbatim. |
-| Evidence & reports | `scripts/evidence-capture list --repo <worktree> --branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)"` — one `<task>` + answer line per task, exit 0 even with no rows; never a glob over `docs/jig/evidence/`, whose folder names this skill does not parse. `--repo` is not optional here: it defaults to `.`, so an omitted flag reads whichever checkout the session's cwd happens to sit in rather than the one the build ran in. `--branch` takes that exact command because it is the one the capture stamped the manifest with, literal `HEAD` fallback included; `git branch --show-current` prints an empty string on a detached checkout and matches no row. Reports: `docs/jig/reports/` (Glob) | Which tasks have evidence — a row is a capture that resolved for this branch, not proof this branch produced it. A row whose answer column is the literal `[ambiguous]` instead of a path is the opposite fact: the verb could not tie any folder to this branch, so this branch has nothing to show for it. Report it as unevidenced *and* name it — it is the same state `/finish` labels "evidence ambiguous" — and never treat one of those folders as this branch's. Whether a story already closed out via `/finish` (a dated build report). |
+| Evidence & reports | `scripts/evidence-capture list --repo <worktree> --branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)"` — one `<task>` + answer line per task, exit 0 even with no rows; never a glob over `docs/jig/evidence/`, whose folder names this skill does not parse. `--repo` is not optional here: it defaults to `.`, so an omitted flag reads whichever checkout the session's cwd happens to sit in rather than the one the build ran in. `--branch` takes that exact command because it is the one the capture stamped the manifest with, literal `HEAD` fallback included; `git branch --show-current` prints an empty string on a detached checkout and matches no row. Reports: `docs/jig/reports/` (Glob) | Which tasks have evidence — a row is a capture that resolved for this branch, not proof this branch produced it. The answer column is a path, optionally opened by a bracketed token, and a token is the verb's own qualification of that row: quote it as printed and never interpret it, since its meaning is the script's to state and it states it once. A row whose answer column is the literal `[ambiguous]` instead of a path is the opposite fact: the verb could not tie any folder to this branch, so this branch has nothing to show for it. Report it as unevidenced *and* name it — it is the same state `/finish` labels "evidence ambiguous" — and never treat one of those folders as this branch's. A token *followed by* a path is a qualified answer rather than an absent one: report the path with its token attached, and never drop the token to make the row read cleanly. Whether a story already closed out via `/finish` (a dated build report). |
 | Flow position | `command -v gate-ledger`; if found, `gate-ledger work-list` and match the row whose branch equals the current branch, then `gate-ledger work-get --slug "<that-slug>"` | Whether `/work-on` is already tracking this feature, and where it thinks the flow is: `.phase`, and `.history`'s per-step outcomes. **Read this first among the ledger signals.** It is the same store `/work-on` writes — one flow, two entrypoints — so a feature in flight there is visible here, and skipping it is how the two navigators used to give different answers to the same question (#214). No matching row means this branch isn't under `/work-on`; that is ordinary, not an error. |
 | Gate verdicts | `command -v gate-ledger`; if found, `gate-ledger gate-get --branch <branch>` (recorded verdict history) and `gate-ledger status` | Which gates actually recorded verdicts. Not found: the *ledger* is unreadable, which says nothing about whether the gates exist — they ship in this same plugin. State "`gate-ledger` not on `PATH` — can't read recorded verdicts; run `/studious-doctor`" and treat gates per the degradation rules below. Never assume one passed, and never conclude a gate is unavailable. |
 | Conversation | Session verdicts stated earlier in this conversation (`BUILT`/`PAUSED`/`ESCALATED`, `DESIGNED`/`NEEDS RESEARCH`/`REVISED`, `PLAN READY`/`DESIGN GAP`/`TOO BIG`) | Fills only the gaps the repo cannot show — e.g. a `NEEDS RESEARCH` verdict that deliberately wrote nothing to disk. |
@@ -214,14 +218,25 @@ after `BUILT`."
 ## Does no work itself
 
 The coach's tool use is read-only, always: Read/Glob/Grep, `git log`,
-`git status`, `command -v`, and `gate-ledger`'s four *read* verbs —
-`gate-get`, `status`, `work-list`, `work-get`. Never `work-set`, never
+`git status`, `command -v`, `gate-ledger`'s four *read* verbs — `gate-get`,
+`status`, `work-list`, `work-get` — and the build scripts' *query* verbs, which
+print an answer and write nothing: `evidence-capture list` and
+`evidence-capture resolve`. Never `work-set`, never
 `work-log`, never `record`: sharing `/work-on`'s store means reading it, not
 writing it, and a coach that corrected the work file would be doing the work
 it exists not to do. It never writes or edits a file (no code, no docs, no
 state file of its own), never flips a status, never records a verdict, never
-runs a gate, a lint, a test, or a build script, and never commits. Anything that looks like work
+runs a gate, a lint, a test, or a write-effecting build script — a capture, a
+status flip, a report write — and never commits. Anything that looks like work
 is the dispatched skill's job or the human's.
+
+Read-only is about effect, not about which executable. Step 1's evidence signal
+*is* a build script's own query verb, and it is permitted for exactly the reason
+the writes are not: it changes nothing, and asking the script is how this skill
+avoids keeping a second copy of a rule the script already owns. A blanket ban on
+the executable would leave that signal reachable by no path at all, since the
+only route left — a glob over folder names — is the one Step 1 forbids in the
+same row.
 
 The coach also has **no verdict enum of its own** — it is not a pipeline
 judgment point; its closed vocabulary is Step 2's action set. It reads the

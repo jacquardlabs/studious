@@ -39,6 +39,10 @@ mechanically:
    because on a *new* branch in this repo it is reached by a task that has no
    evidence here at all. `list` prints that same token as a marker row rather
    than dropping the task, so both navigators answer one rule the same way.
+   A third token, `[legacy]`, qualifies the unique-legacy *answer* — exit 0
+   and stdout unchanged, the caveat on stderr and in the `list` row — because
+   one branch-less folder and two of them are the same epistemic state, and
+   only the pair was being said out loud.
 9. A real capture's `resolve` output is repo-relative, and `/finish` must
    join the repo onto it before `evidence-freshness` (which resolves
    `--evidence` against its own cwd) can read it. Every test above points
@@ -886,6 +890,42 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.strip(), str(legacy))
 
+    def test_a_unique_legacy_answer_carries_its_own_token(self) -> None:
+        """The asymmetry this closes: *two* branch-less folders sharing a task
+        id refuse loudly as `[ambiguous]`, while *one* of them resolved
+        silently — exit 0, bare path, no token, no caveat — and got promoted
+        into a PR body as a real-SHA raw URL. Identical epistemic state,
+        opposite handling. The answer stays an answer; it stops being an
+        unqualified one."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, root = self._repo_and_root(tmp)
+            legacy = write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
+
+            result = self._resolve(repo, root, "feat/alpha", "task-1")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            # stdout stays byte-identical: a caller reading only the path is
+            # not broken by the caveat, which is why it goes to stderr.
+            self.assertEqual(result.stdout, f"{legacy}\n")
+            self.assertIn("[legacy]", result.stderr)
+            self.assertIn("records no branch", result.stderr)
+            self.assertIn("feat/alpha", result.stderr)
+            self.assertIn("manifest.json", result.stderr)
+            # One line, so a caller quoting it into a table row can.
+            self.assertEqual(len(result.stderr.strip().splitlines()), 1)
+
+    def test_a_branch_bearing_answer_carries_no_caveat_at_all(self) -> None:
+        """The caveat must not leak onto the ordinary path. A token on every
+        answer trains a reader to ignore it, which costs exactly as much as
+        printing none."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, root = self._repo_and_root(tmp)
+            mine = write_manifest_folder(root, "2026-07-20-task-1-feat-alpha", task="task-1", branch="feat/alpha")
+
+            result = self._resolve(repo, root, "feat/alpha", "task-1")
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, f"{mine}\n")
+            self.assertEqual(result.stderr, "")
+
     def test_two_legacy_matches_refuse_and_name_ambiguity_not_absence(self) -> None:
         """Pre-mortem risk 1: the designed refusal must be distinguishable
         from a broken reader. This repo's own committed evidence has two
@@ -1065,6 +1105,25 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.splitlines(), ["task-1\t[ambiguous]", f"task-2\t{two}"])
 
+    def test_a_qualified_answer_carries_its_token_into_the_row(self) -> None:
+        """One rule, two arities, one report: the answer `/finish` is caveated
+        about must not read as a plain capture in `/coach`'s inventory. The
+        token opens the answer column the path occupies rather than taking a
+        column of its own, so a reader splitting on the tab still sees exactly
+        two fields — and cannot drop the caveat by reading only the path."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, root = self._repo_and_root(tmp)
+            legacy = write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
+            two = write_manifest_folder(root, "2026-07-12-task-2-feat-alpha", task="task-2", branch="feat/alpha")
+
+            result = self._list(repo, root, "feat/alpha")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                result.stdout.splitlines(),
+                [f"task-1\t[legacy] {legacy}", f"task-2\t{two}"],
+            )
+            self.assertEqual([len(line.split("\t")) for line in result.stdout.splitlines()], [2, 2])
+
     def test_a_task_with_no_bearing_on_the_branch_stays_omitted(self) -> None:
         """The marker row is for the undecidable case only. A task that belongs
         to another branch outright is not this branch's inventory at all, and
@@ -1175,6 +1234,17 @@ class TestEvidenceCaptureDocstringCarriesTheRollbackCaveat(unittest.TestCase):
         wrong branch's link (the silent wrong link). Name which is which."""
         self.assertIn("2026-07-17-2-retroactive-inspection", self.source)
         self.assertIn("wrong branch's link", self.source)
+
+    def test_the_docstring_is_the_one_home_of_the_third_token_too(self) -> None:
+        """Neither reader may explain what `[legacy]` means — both skills'
+        `test_the_resolution_rule_is_not_restated_in_this_prose` pins the
+        absence of that vocabulary — so the rule's own home has to carry it,
+        or it is stated nowhere and the token is a bare string in a stream."""
+        self.assertIn("`[legacy]`, on stderr", self.source)
+        self.assertIn("A caller promotes a `[legacy]` answer with its", self.source)
+        # And the ladder, since a token that changes no exit code is easy to
+        # document as a refusal by accident.
+        self.assertIn("beside the ordinary exit 0 and the ordinary path on", self.source)
 
 
 class TestEvidenceCaptureVerbDispatch(unittest.TestCase):

@@ -38,7 +38,10 @@ already take):
    dispatch targets; a declined recommendation ends the session.
 6. Shortcuts are honored with skipped steps named; the coach does no work
    itself (read-only tools, no writes, no status flips, no verdicts, no
-   commits); every studious-absent degradation is named, never silent.
+   commits) — read-only meaning *effect*, so the build scripts' query verbs
+   are permitted where their write verbs are not, since Step 1 requires one
+   and forbids the glob that would replace it; every studious-absent
+   degradation is named, never silent.
 7. No `SKILL.md` is nested deeper than the directory's top level.
 """
 from __future__ import annotations
@@ -269,6 +272,27 @@ class TestCoachSkillBody(unittest.TestCase):
         first_use = self.flat_body.index("evidence-capture list --repo <worktree>")
         self.assertLess(definition, first_use, "`<worktree>` is used before it is defined")
 
+    def test_the_worktree_guarantee_is_claimed_per_row_not_step_wide(self) -> None:
+        """It said "every read in this step is against that checkout, named
+        explicitly", which is false: only the rows passing a repo path to a
+        script name it, and the Globs, the root-relative `PLAN.md` read, and
+        `git log` are all cwd-relative. A guarantee that over-claims is worse
+        than none — it tells a reader not to check."""
+        self.assertPhraseIn("The rows that pass a repo path to a script name it explicitly")
+        self.assertPhraseIn("are relative to the session's own cwd, so the guarantee is per-row")
+        self.assertNotIn("Every read in this step is against that checkout", self.body)
+
+    def test_a_qualified_answer_row_keeps_its_token(self) -> None:
+        """The verb can answer *and* qualify the answer in one row. A reader
+        that only understands "path or marker" reports a qualified answer as a
+        plain capture, which is the same silent promotion the marker row exists
+        to prevent — so the row grammar is stated as token-then-path, and the
+        token's meaning is left where it is stated once."""
+        self.assertPhraseIn("The answer column is a path, optionally opened by a bracketed token")
+        self.assertPhraseIn("quote it as printed and never interpret it")
+        self.assertPhraseIn("A token *followed by* a path is a qualified answer rather than an absent one")
+        self.assertPhraseIn("never drop the token to make the row read cleanly")
+
     def test_an_undecidable_task_is_reported_not_silently_absent(self) -> None:
         """One rule, two navigators, one answer. The verb dropping the task
         would have `/coach` say nothing about a task `/finish` calls ambiguous
@@ -425,19 +449,37 @@ class TestCoachSkillBody(unittest.TestCase):
 
     def test_coach_does_no_work_itself(self) -> None:
         # The tool list grew the work-file read verbs when the two navigators were
-        # put on one store (#214). It must stay read-only in the same breath: the
-        # four reads named, the three writes explicitly refused.
+        # put on one store (#214), and the evidence query verbs when Step 1 was
+        # put on the script (#179). It must stay read-only in the same breath:
+        # the reads named, the three store writes explicitly refused.
         self.assertPhraseIn(
             "read-only, always: Read/Glob/Grep, `git log`, `git status`, `command -v`, "
-            "and `gate-ledger`'s four *read* verbs — `gate-get`, `status`, `work-list`, "
-            "`work-get`"
+            "`gate-ledger`'s four *read* verbs — `gate-get`, `status`, `work-list`, "
+            "`work-get` — and the build scripts' *query* verbs, which print an answer "
+            "and write nothing: `evidence-capture list` and `evidence-capture resolve`"
         )
         self.assertPhraseIn("Never `work-set`, never `work-log`, never `record`")
         self.assertPhraseIn("never writes or edits a file")
         self.assertPhraseIn(
             "never flips a status, never records a verdict, never runs a gate, "
-            "a lint, a test, or a build script, and never commits"
+            "a lint, a test, or a write-effecting build script — a capture, a status "
+            "flip, a report write — and never commits"
         )
+
+    def test_the_read_only_rule_permits_the_verb_step_1_requires(self) -> None:
+        """The two halves used to contradict each other outright: this section
+        banned running "a build script" while Step 1's evidence row *required*
+        `scripts/evidence-capture list` and forbade the glob fallback in the
+        same breath — so a compliant reader reached the evidence signal by no
+        path at all. Both halves were pinned, so it could not self-correct.
+        Read-only is a claim about effect, not about which executable."""
+        self.assertPhraseIn("Read-only is about effect, not about which executable.")
+        self.assertPhraseIn(
+            "A blanket ban on the executable would leave that signal reachable by no path at all"
+        )
+        # The unqualified prohibition is what made the contradiction, so pin its
+        # absence rather than only the presence of the narrowed one.
+        self.assertNotIn("or a build script, and never commits", self.body)
 
     def test_unreadable_ledger_routes_to_the_gate_never_past_it(self) -> None:
         # Was "degrades gracefully without studious", where every gate-touching
