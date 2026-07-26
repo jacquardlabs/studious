@@ -168,6 +168,34 @@ class TestFinishSkillBody(unittest.TestCase):
         self.assertPhraseIn("Do not call `evidence-capture` yourself to backfill a gap")
         self.assertPhraseIn("evidence not found for item N")
 
+    def test_the_freshness_call_joins_the_worktree_onto_the_resolved_path(self) -> None:
+        """`resolve` prints a repo-relative path; `evidence-freshness`
+        resolves `--evidence` against the process cwd and never joins its own
+        `--repo`. Passing the printed path through unchanged works only when
+        cwd happens to be the worktree, which sibling scripts in this repo are
+        forbidden to assume -- and the failure is not silent, it exits 2 and
+        stops `/finish` before the PR body exists."""
+        self.assertIn(
+            "scripts/evidence-freshness --repo <worktree> --evidence <worktree>/<folder>",
+            _normalize_ws(self.body),
+        )
+        self.assertPhraseIn("**joined onto `<worktree>/`**")
+        self.assertPhraseIn("resolves `--evidence` against the process's own cwd")
+
+    def test_the_two_uses_of_the_resolved_path_are_named_as_asymmetric(self) -> None:
+        """The join belongs to the freshness call only: the raw-URL
+        construction appends the repo-relative form, so "fixing" the
+        asymmetry in either direction breaks the other call site."""
+        self.assertPhraseIn("The raw-URL construction in the image-evidence bullet below wants the bare")
+        self.assertPhraseIn('do not "fix" this by changing what `resolve` prints')
+
+    def test_an_ambiguous_resolve_gets_its_own_label(self) -> None:
+        """Both `resolve` refusals exit 1, but they are different states: no
+        evidence at all versus evidence that exists and cannot be picked
+        between. One shared label reads to a reviewer as the first."""
+        self.assertPhraseIn("evidence ambiguous for item N")
+        self.assertPhraseIn("the two are not the same state")
+
     # -- Step 1: the evidence folder comes from the resolve verb ------------
 
     def test_the_evidence_folder_is_resolved_by_the_script_not_rebuilt(self) -> None:

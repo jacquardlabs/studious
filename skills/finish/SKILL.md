@@ -37,19 +37,33 @@ path from its shape:**
 scripts/evidence-capture resolve --repo <worktree> --branch <the branch you are on> --task <task id>
 ```
 
-It prints one folder path on exit 0. Exit 1 means this task has no folder
-to promote — take the "evidence not found for item N" path below and quote
-the script's own message for the reason. The folder carries a
+It prints one folder path, repo-relative, on exit 0. Exit 1 means this task
+has no folder to promote — quote the script's own message for the reason,
+and label the row by what that message says: an absence is "evidence not
+found for item N"; a refusal the script itself calls ambiguous is "evidence
+ambiguous for item N". Both are named in the PR body, neither is fabricated,
+and the two are not the same state — a reviewer told "not found" about
+evidence that exists but is undecidable goes looking for the wrong thing.
+The folder carries a
 `manifest.json` (`commit_sha`, `commit_timestamp`, `branch`, one entry per
 captured artifact) and the captured artifacts themselves — including the
 task's `verify:results` artifact, whose own JSON carries each item's `id`,
 `kind`, `tier`, `status`, and `detail`.
 
 **Freshness hold — run this before promoting anything.** Call
-`scripts/evidence-freshness --repo <worktree> --evidence <folder>` once per
-evidence folder involved — each `<folder>` being a path `resolve` printed
-above, passed through unchanged (repeat `--evidence` per folder, or one
-call covering all of them). This re-validates each folder against its own
+`scripts/evidence-freshness --repo <worktree> --evidence <worktree>/<folder>`
+once per evidence folder involved — each `<folder>` being a path `resolve`
+printed above, **joined onto `<worktree>/`** (repeat `--evidence` per folder,
+or one call covering all of them). The join is required and deliberately
+asymmetric with the other use of that same printed path below:
+`evidence-freshness` resolves `--evidence` against the process's own cwd and
+never joins its `--repo`, and no script in this repo may assume cwd is the
+worktree — so an unjoined path exits 2 with `no manifest.json found in
+'<path>'` and stops `/finish` before it assembles anything. The raw-URL
+construction in the image-evidence bullet below wants the bare repo-relative
+form instead, because that path is what the URL appends. Do not unify the
+two, and do not "fix" this by changing what `resolve` prints. This
+re-validates each folder against its own
 recorded `manifest.json` — never against the branch's current `HEAD`.
 Re-deriving freshness against current `HEAD` reproduces issue #44's bug
 shape one layer up: a producing step that commits *after* writing the

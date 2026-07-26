@@ -33,6 +33,11 @@ mechanically:
 8. The `resolve` / `list` verbs answer "which folder is task N's" from
    manifests, never from the folder name — branch-bearing match first, a
    unique legacy match second, and a refusal (never a guess) otherwise.
+9. A real capture's `resolve` output is repo-relative, and `/finish` must
+   join the repo onto it before `evidence-freshness` (which resolves
+   `--evidence` against its own cwd) can read it. Every test above points
+   `--evidence-root` outside the repo and so takes `display_path`'s absolute
+   fallback instead; this leg is the one a shipped caller actually walks.
 
 Run with:
 
@@ -54,6 +59,7 @@ from _tempgit import commit_all, init_repo
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "evidence-capture"
+FRESHNESS = REPO_ROOT / "scripts" / "evidence-freshness"
 GATE_LEDGER = REPO_ROOT / "bin" / "gate-ledger"
 
 
@@ -549,6 +555,59 @@ class TestEvidenceCaptureForceClearing(unittest.TestCase):
             self.assertEqual({p.name for p in target_dir.iterdir()}, listed)
             self.assertNotIn("results.txt", listed)
 
+    def test_a_clearing_run_reports_what_it_deleted(self) -> None:
+        """Deletion is the half of `--force` a reader cannot see in the
+        result. A run that reports only "wrote N artifact(s)" reads
+        identically whether the folder was empty or held a prior capture."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(Path(tmp))
+            evidence_root = Path(tmp) / "evidence"
+
+            first = Path(tmp) / "first.txt"
+            first.write_text("attempt A\n", encoding="utf-8")
+            initial = run_script(self._capture(repo, evidence_root, first, "results"))
+            self.assertEqual(initial.returncode, 0, initial.stderr)
+            self.assertNotIn("cleared", initial.stdout)
+
+            second = Path(tmp) / "second.txt"
+            second.write_text("attempt B\n", encoding="utf-8")
+            forced = run_script(self._capture(repo, evidence_root, second, "rerun", force=True))
+            self.assertEqual(forced.returncode, 0, forced.stderr)
+            # results.txt + manifest.json from the first capture.
+            self.assertIn("cleared 2 pre-existing entries", forced.stdout)
+            self.assertIn("wrote 1 artifact(s)", forced.stdout)
+
+    def test_a_force_run_with_nothing_to_clear_reports_no_deletion(self) -> None:
+        """The count is a report of what happened, not a fixed prefix on
+        every `--force` run -- otherwise it stops being evidence of anything."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(Path(tmp))
+            evidence_root = Path(tmp) / "evidence"
+            (evidence_root / "2026-07-12-task-1-main").mkdir(parents=True)
+
+            artifact = Path(tmp) / "artifact.txt"
+            artifact.write_text("evidence\n", encoding="utf-8")
+            result = run_script(self._capture(repo, evidence_root, artifact, "results", force=True))
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn("cleared", result.stdout)
+
+    def test_the_default_refusal_says_what_force_actually_does(self) -> None:
+        """`--force` deletes now; the refusal used to advertise it as
+        "re-capture into it", wording from before it cleared anything."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo(Path(tmp))
+            evidence_root = Path(tmp) / "evidence"
+            artifact = Path(tmp) / "artifact.txt"
+            artifact.write_text("evidence\n", encoding="utf-8")
+
+            args = self._capture(repo, evidence_root, artifact, "results")
+            self.assertEqual(run_script(args).returncode, 0)
+
+            refused = run_script(args)
+            self.assertEqual(refused.returncode, 2)
+            self.assertIn("Pass --force to clear it and re-capture", refused.stderr)
+
     def test_force_copies_into_an_existing_empty_directory(self) -> None:
         """Nothing to clear, nothing to lose — the second of --force's three
         recognized cases."""
@@ -921,6 +980,81 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
             self.assertEqual(result.stdout, "")
 
 
+class TestResolvedPathComposesWithFreshness(unittest.TestCase):
+    """`/finish` Step 1 runs `resolve`, then feeds the printed path to
+    `evidence-freshness`. Every other test here points `--evidence-root`
+    outside the repo, which takes `display_path`'s absolute fallback — so the
+    repo-relative branch, the only one a real capture ever reaches, went
+    untested, and with it the fact that the two scripts do not compose
+    directly: `resolve` prints repo-relative, `evidence-freshness` resolves
+    `--evidence` against its own cwd and never joins `--repo`.
+    """
+
+    def _capture_into_the_repo(self, tmp: Path) -> tuple[Path, str]:
+        repo = tmp / "repo"
+        repo.mkdir()
+        init_repo(repo)
+        time.sleep(0.05)  # the artifact must postdate the commit
+        artifact = tmp / "artifact.txt"
+        artifact.write_text("evidence\n", encoding="utf-8")
+
+        captured = run_script(
+            [
+                "--task", "task-1",
+                "--repo", str(repo),
+                "--date", "2026-07-12",
+                "--artifact", f"verify:results={artifact}",
+            ]
+        )
+        self.assertEqual(captured.returncode, 0, captured.stderr)
+        # The evidence lands inside the repo; commit it so the freshness
+        # check's ancestor test has a real commit to walk, exactly as
+        # `/build` step 7 commits its own capture.
+        commit_all(repo, "evidence: task-1")
+        return repo, git(["rev-parse", "--abbrev-ref", "HEAD"], repo).strip()
+
+    def _freshness(self, evidence: str, repo: Path, cwd: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [str(FRESHNESS), "--repo", str(repo), "--evidence", evidence],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+
+    def test_resolve_prints_a_repo_relative_path_for_a_real_capture(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, branch = self._capture_into_the_repo(Path(tmp))
+
+            resolved = run_script(["resolve", "--repo", str(repo), "--branch", branch, "--task", "task-1"])
+            self.assertEqual(resolved.returncode, 0, resolved.stderr)
+            printed = resolved.stdout.strip()
+            self.assertFalse(Path(printed).is_absolute(), f"expected a repo-relative path, got {printed!r}")
+            self.assertEqual(printed, f"docs/jig/evidence/2026-07-12-task-1-{branch}")
+
+    def test_the_printed_path_needs_the_repo_joined_before_freshness_reads_it(self) -> None:
+        """The regression `/finish`'s "passed through unchanged" prose caused:
+        run from anywhere but the worktree, the unjoined path exits 2 and
+        `/finish` stops before assembling a PR body."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, branch = self._capture_into_the_repo(Path(tmp))
+            elsewhere = Path(tmp) / "elsewhere"
+            elsewhere.mkdir()
+
+            printed = run_script(
+                ["resolve", "--repo", str(repo), "--branch", branch, "--task", "task-1"]
+            ).stdout.strip()
+
+            unjoined = self._freshness(printed, repo, cwd=elsewhere)
+            self.assertEqual(unjoined.returncode, 2, unjoined.stdout)
+            self.assertIn("no manifest.json found", unjoined.stderr)
+
+            joined = self._freshness(str(repo / printed), repo, cwd=elsewhere)
+            self.assertEqual(joined.returncode, 0, joined.stderr + joined.stdout)
+            self.assertIn("overall=PASS", joined.stdout)
+
+
 class TestEvidenceCaptureVerbDispatch(unittest.TestCase):
     def test_an_unknown_verb_is_named_rather_than_read_as_a_capture_argument(self) -> None:
         result = run_script(["resovle", "--branch", "main", "--task", "task-1"])
@@ -937,6 +1071,22 @@ class TestEvidenceCaptureVerbDispatch(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("--task", result.stdout)
         self.assertIn("--artifact", result.stdout)
+
+    def test_help_documents_all_three_modes_not_only_capture(self) -> None:
+        """A persona who hits a `resolve` failure quoted by `/finish` runs
+        `--help` next. Documenting only the capture surface sends them looking
+        for a verb the script's own help says does not exist. The epilog is
+        derived from the module docstring rather than restated, so the two
+        cannot drift into a third uncoordinated copy."""
+        result = run_script(["--help"])
+        self.assertEqual(result.returncode, 0)
+        for line in (
+            "evidence-capture --task T --artifact P:L=F ...",
+            "evidence-capture resolve --branch B --task T",
+            "evidence-capture list --branch B",
+        ):
+            with self.subTest(line=line):
+                self.assertIn(line, result.stdout)
 
 
 if __name__ == "__main__":

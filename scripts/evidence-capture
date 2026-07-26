@@ -218,19 +218,43 @@ def display_path(folder: Path, repo: Path) -> str:
         return str(folder)
 
 
-def clear_directory(target_dir: Path) -> None:
-    """Remove every entry inside `target_dir`, keeping the directory itself."""
-    for entry in target_dir.iterdir():
+def clear_directory(target_dir: Path) -> int:
+    """Remove every entry inside `target_dir`; return how many were removed.
+
+    The count is returned rather than discarded so the caller can say what it
+    deleted. A clearing run is the only destructive path in this script, and
+    a run that reports only what it wrote leaves the destructive half of its
+    own work invisible in stdout.
+    """
+    entries = list(target_dir.iterdir())
+    for entry in entries:
         if entry.is_dir() and not entry.is_symlink():
             shutil.rmtree(entry)
         else:
             entry.unlink()
+    return len(entries)
+
+
+def usage_modes() -> str:
+    """The three-mode usage block, lifted from this module's own docstring.
+
+    `--help` and the docstring are the same statement to two readers who
+    never meet: a persona who runs `--help` after `/finish` quotes a
+    `resolve` failure needs to find that verb documented. Deriving the block
+    from the docstring keeps that one statement in one place — a second
+    hand-maintained copy is exactly the drift that leaves `--help`
+    documenting only the capture surface while the docstring documents three.
+    """
+    lines = [line for line in (__doc__ or "").splitlines() if line.strip().startswith("evidence-capture ")]
+    return "\n".join(["Three modes — capture is the default and takes no verb word:", "", *lines])
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="evidence-capture",
         description="Write a task's verification artifacts + a freshness-stamped manifest to docs/jig/evidence/.",
+        epilog=usage_modes(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--task", required=True, help="task identifier (used in the evidence directory name)")
     parser.add_argument("--repo", default=".", help="path to the git repo the evidence is checked against")
@@ -395,6 +419,7 @@ def run_capture(argv: list[str]) -> int:
         )
         return 1
 
+    cleared = 0
     date = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     evidence_root = Path(args.evidence_root) if args.evidence_root else repo / "docs" / "jig" / "evidence"
     branch = current_branch(repo)
@@ -407,7 +432,7 @@ def run_capture(argv: list[str]) -> int:
         if not args.force:
             print(
                 f"error: evidence directory already exists: {target_dir}\n"
-                "Pass --force to re-capture into it, or remove it first if this is a stale capture.",
+                "Pass --force to clear it and re-capture, or remove it first if this is a stale capture.",
                 file=sys.stderr,
             )
             return 2
@@ -435,7 +460,7 @@ def run_capture(argv: list[str]) -> int:
                 file=sys.stderr,
             )
             return 2
-        clear_directory(target_dir)
+        cleared = clear_directory(target_dir)
 
     target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -459,7 +484,14 @@ def run_capture(argv: list[str]) -> int:
     }
     (target_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
-    print(f"evidence-capture: wrote {len(manifest_artifacts)} artifact(s) + manifest.json to {target_dir}")
+    # A clearing run says so first: deletion is the half of --force a reader
+    # cannot see in the result, and "wrote N artifacts" alone reads identically
+    # whether the folder was empty or held someone else's capture.
+    cleared_note = f"cleared {cleared} pre-existing entr{'y' if cleared == 1 else 'ies'}; " if cleared else ""
+    print(
+        f"evidence-capture: {cleared_note}wrote {len(manifest_artifacts)} artifact(s) "
+        f"+ manifest.json to {target_dir}"
+    )
     return 0
 
 

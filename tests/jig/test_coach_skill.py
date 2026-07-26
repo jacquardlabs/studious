@@ -250,8 +250,11 @@ class TestCoachSkillBody(unittest.TestCase):
         evidence" — a question with no task id in it — so it calls the `list`
         arity rather than globbing folder names it would have to keep in sync
         with `evidence-capture`'s own shape."""
-        self.assertIn("evidence-capture list --branch", self.body)
+        self.assertIn("evidence-capture list --repo <worktree> --branch", self.body)
         self.assertPhraseIn("never a glob over `docs/jig/evidence/`")
+        # `--repo` defaults to `.`, so omitting it silently reads whatever
+        # checkout the session's cwd sits in -- not the one the build ran in.
+        self.assertPhraseIn("`--repo` is not optional here")
         # Risk 2: a row can be an inherited capture carrying no branch, so the
         # signal must not promise provenance the verb cannot establish.
         self.assertPhraseIn("not proof this branch produced it")
