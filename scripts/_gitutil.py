@@ -19,7 +19,7 @@ dependency-free import.
 Not a package, not importable from outside `scripts/` — each script adds
 its own directory to `sys.path` before importing this (see any script's
 top for the pattern). Deliberately dependency-free (standard library only)
-so each script stays a standalone CLI tool per `docs/design/build-scripts.md`.
+so each script stays a standalone CLI tool.
 """
 from __future__ import annotations
 

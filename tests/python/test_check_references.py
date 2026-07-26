@@ -155,3 +155,59 @@ def test_an_undeclared_external_skill_is_still_broken(tmp_path: Path) -> None:
     _write(tmp_path / "commands" / "x.md", "the `not-a-dependency` skill handles it")
     errors = find_broken(tmp_path)
     assert any("skills/not-a-dependency/ missing" in e for e in errors)
+
+
+# The guard forbids a literal `docs/design/<file>.md` in any durable file — and this
+# file is one. The fixtures below therefore assemble the path at runtime: the regex
+# needs the filename immediately after the slash, so a concatenation never matches in
+# source while still producing the exact string under test. That keeps the invariant
+# absolute, with no self-exemption list to go stale (#233).
+_DIR = "docs/design/"
+
+
+def _cite(name: str) -> str:
+    return _DIR + name
+
+
+def test_a_durable_file_may_not_cite_a_specific_design_doc(tmp_path: Path) -> None:
+    """#233: 33 citations accumulated pointing at design docs that are deleted at
+    closeout by the rule ratified in #219. Each read as load-bearing rationale, so a
+    reader following one found nothing and could not tell whether the claim was ever
+    true."""
+    from check_references import find_disposable_citations
+
+    _write(tmp_path / "scripts" / "verify", f"per {_cite('build-scripts.md')}, step 2")
+    errors = find_disposable_citations(tmp_path)
+    assert len(errors) == 1
+    assert "build-scripts.md" in errors[0]
+    assert "#233" in errors[0]
+
+
+def test_the_design_doc_directory_itself_is_not_a_citation(tmp_path: Path) -> None:
+    """The bare directory and the `<slug>` placeholder are the producer's output
+    path, named legitimately by /design, /plan, /coach, and gate-design-review. Only
+    a concrete filename is a pointer that can dangle."""
+    from check_references import find_disposable_citations
+
+    _write(tmp_path / "skills" / "design" / "SKILL.md", f"Written to `{_DIR}<slug>.md`")
+    _write(tmp_path / "commands" / "work-on.md", f"discover a candidate under {_DIR}")
+    assert find_disposable_citations(tmp_path) == []
+
+
+def test_the_guard_covers_the_directories_the_old_check_missed() -> None:
+    """`find_broken` scans only commands/agents/skills/reference, which is why none
+    of the 33 were caught: most were in scripts/ and tests/."""
+    from check_references import DURABLE_DIRS
+
+    for missed in ("scripts", "tests", "bin", "workflows"):
+        assert missed in DURABLE_DIRS
+
+
+def test_the_guard_reads_non_markdown_files(tmp_path: Path) -> None:
+    """Most of the 33 were in Python and in extensionless script files, not .md —
+    the old check only ever globbed `*.md`."""
+    from check_references import find_disposable_citations
+
+    _write(tmp_path / "scripts" / "_gitutil.py", f"# per {_cite('build-scripts.md')}")
+    _write(tmp_path / "tests" / "jig" / "test_x.py", f"# {_cite('plan-lint.md')} says")
+    assert len(find_disposable_citations(tmp_path)) == 2

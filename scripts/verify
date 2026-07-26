@@ -3,8 +3,8 @@
 
 Independently re-runs a task's Done-means items — one PASS/FAIL per item,
 never a single suite-level boolean — instead of trusting the executor's
-claim that they're satisfied (docs/design/build-scripts.md, "Proposed
-design"; PRODUCT.md's "Nothing signs off on itself" principle). Takes its
+claim that they're satisfied (PRODUCT.md's "Nothing signs off on itself"
+principle). Takes its
 item list from exactly one of two sources:
 
 - `--items <json>`: an already-extracted item list (a small JSON document

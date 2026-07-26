@@ -28,6 +28,49 @@ SKILL_RES = (
 # Curated rubric paths agents cite, e.g. `reference/security-checklist.md` or the
 # template `reference/idioms/<language>.md`. Angle-bracket placeholders are allowed.
 REFERENCE_RE = re.compile(r"reference/[A-Za-z0-9_./<>-]+\.md")
+#: Directories holding files that outlive any branch. A file here may not cite a
+#: *specific* design doc, because design docs are branch-local and deleted at
+#: closeout (#219) — the citation is dangling the moment the branch merges. The
+#: bare directory (`docs/design/`, `docs/design/<slug>.md` as a template) is fine
+#: and common: that is the producer's output path, not a reference to one doc.
+DURABLE_DIRS = ("scripts", "skills", "commands", "agents", "reference", "bin", "workflows", "tests")
+#: A concrete filename under a disposable doc tree, as opposed to the bare
+#: directory or the `<slug>` placeholder form, both of which are legitimate.
+DISPOSABLE_CITATION = re.compile(r"docs/design/(?!<)([A-Za-z0-9_-]+\.md)")
+
+
+def find_disposable_citations(root: Path) -> list[str]:
+    """Durable files citing a design doc that cannot survive its branch (#233).
+
+    Thirty-three of these accumulated before anyone noticed, every one reading as
+    load-bearing rationale ("per the build-scripts design doc") that a reader
+    following it would find missing — unable to tell whether the claim was ever
+    true. `check_references.py` did not catch them because it validates only
+    `@agent-*`, skill names, and `reference/*.md`, and scans only three
+    directories.
+    """
+    errors: list[str] = []
+    for sub in DURABLE_DIRS:
+        base = root / sub
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*")):
+            if not path.is_file() or path.suffix in {".png", ".jpg", ".gif"}:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            rel = path.relative_to(root)
+            errors.extend(
+                f"{rel} cites docs/design/{name}, a branch-local design doc that is "
+                f"deleted at closeout — attribute the claim to the issue, the "
+                f"pre-mortem register, or state it inline (#233)"
+                for name in sorted(set(DISPOSABLE_CITATION.findall(text)))
+            )
+    return errors
+
+
 def _declared_dependencies() -> set[str]:
     """Plugins this one declares a dependency on. Their skills are legitimately
     referenced by name and legitimately absent from `skills/` — derived from the
@@ -87,13 +130,16 @@ def find_broken(root: Path) -> list[str]:
 
 
 def main() -> int:
-    errors = find_broken(REPO)
+    errors = find_broken(REPO) + find_disposable_citations(REPO)
     if errors:
         print("Reference check FAILED:")
         for e in errors:
             print(f"  - {e}")
         return 1
-    print("Reference check passed: all @agent-*, skill, and reference/ paths resolve.")
+    print(
+        "Reference check passed: all @agent-*, skill, and reference/ paths resolve, "
+        "and no durable file cites a disposable design doc."
+    )
     return 0
 
 

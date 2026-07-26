@@ -70,8 +70,8 @@ DESIGN_VOCABULARY_CONCEPTS = frozenset({"/design verdict"})
 # /finish's verdict enum (the coach dispatches /finish but never consumes
 # its MERGE/PR/KEEP/DISCARD outcome), the inspector's, or the risk tags
 # (a /plan-to-/build contract the coach never inspects). The coach has no
-# verdict enum of its own by design (docs/design/coach-skill.md, Out of
-# scope) -- there is no coach-owned row to derive.
+# verdict enum of its own by design (`skills/coach/SKILL.md` states it: "no
+# verdict enum of its own") -- there is no coach-owned row to derive.
 COACH_VOCABULARY_CONCEPTS = frozenset(
     {"/design verdict", "/plan verdict", "/build task status", "/build session verdict"}
 )

@@ -1,6 +1,6 @@
 # Plan: plan-lint broken fixture
 
-Deliberately broken, per docs/design/plan-lint.md's "Required demonstration"
+Deliberately broken, per the plan-lint story's "Required demonstration"
 -- one distinct violation category per task, so a single `scripts/plan-lint`
 run against this file demonstrates all eight in one pass. Not a real build
 plan; never run through `/build`. Task 8 exists only to make Task 7

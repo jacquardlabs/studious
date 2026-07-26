@@ -144,7 +144,7 @@ may appear anywhere in the block. No `Risk:` line means `LOW` — see Cadence.
    that trailing section into the preceding task card (a real bug the
    project's own M0 dogfood surfaced); read for meaning and don't reproduce
    it. The `##` level itself is not the bug and stays as-is (story
-   `plan-skill`, issue #23): `docs/design/plan-skill.md`'s Step 6 verified,
+   `plan-skill`, issue #23): that story verified,
    against the actually-installed viva, that a `####` level would be
    *coarser* than this rule's own level 1–3 boundary and nest inside the
    preceding task instead — this parsing rule, and `scripts/plan-lint`'s
@@ -238,8 +238,8 @@ For each task block, in order:
    model — the same model named in your own system prompt — so state it
    plainly as `inherited: <model>`. If the model genuinely can't be
    determined at all, state it plainly as `unavailable` — a third case
-   beside `override`/`inherited`, per the design's own documented
-   degradation path (`docs/design/replay-bundle.md`). Name this before you
+   beside `override`/`inherited` — a documented degradation path, not an
+   improvisation at capture time. Name this before you
    launch the subagent, the same plain-statement discipline step 1's
    load-bearing-set computation already uses ("state the computed set
    plainly before proceeding").
@@ -426,8 +426,8 @@ For each task block, in order:
      recorded `unavailable` for this attempt, the bundle is still
      assembled and written the same way — `model` recorded as
      `unavailable`, never a reason for this call to refuse the whole
-     `evidence-capture` capture (the design's own Failure path,
-     `docs/design/replay-bundle.md`). The replay
+     `evidence-capture` capture — a documented failure path, not a
+     judgment call made here. The replay
      harness itself (issue #41) and issue #33's richer identity fields
      (`run_id`/`step_id`/`parent_step_id`/`skill`/`role`/`routing_reason`)
      stay out of scope here — none of those exist in this session model

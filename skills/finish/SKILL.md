@@ -130,7 +130,7 @@ until now:
 - **Not-here follow-ups** — `PLAN.md`'s own `## Not-here follow-ups`
   section (bulleted, one line each). Read it directly. The `##` level is
   confirmed safe, not just carried forward (story `plan-skill`, issue #23):
-  `docs/design/plan-skill.md`'s Step 6 re-verified this against the
+  that story re-verified this against the
   actually-installed viva, including the `Revision History`-collision case
   a bare heading-level read would miss — `/plan`'s own viva invocation
   passes an explicit `--split-on` rather than relying on auto-detect alone.

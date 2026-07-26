@@ -3,7 +3,7 @@
 Exercises the script against a throwaway git repo (`tests/_tempgit.py`),
 never the real jig repo, checking this story's freshness-hold acceptance
 criteria (evidence timestamp >= last code commit) and
-`docs/design/finish-skill.md`'s Step 1 mechanically:
+the finish-skill story's Step 1 mechanically:
 
 1. Happy path: a folder whose manifest.json's commit_sha is an ancestor of
    the repo's current HEAD, and whose artifact mtimes are all >= the
