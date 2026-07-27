@@ -60,6 +60,8 @@ Run with:
 """
 from __future__ import annotations
 
+import importlib.machinery
+import importlib.util
 import json
 import os
 import re
@@ -82,6 +84,33 @@ def _normalize_ws(text: str) -> str:
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "verify"
+
+
+def _script_constant(name: str):
+    """Read a module-level constant out of `verify` by importing it by path.
+
+    The bound the probe tests exercise has to be the one `verify` actually
+    applies; restating the number here would let the two drift apart silently,
+    which is the failure `DEFAULT_TIMEOUT_SECONDS` was already filed for (#227).
+    Loading under a non-`__main__` name leaves the CLI entry point dormant.
+    The loader is explicit because `verify` has no `.py` suffix, so importlib
+    cannot infer one from the filename.
+    """
+    loader = importlib.machinery.SourceFileLoader("_verify_under_test", str(SCRIPT))
+    spec = importlib.util.spec_from_file_location("_verify_under_test", SCRIPT, loader=loader)
+    module = importlib.util.module_from_spec(spec)
+    # `verify` defines dataclasses, and `@dataclass` resolves annotations via
+    # `sys.modules[cls.__module__]` — absent that entry it raises on an
+    # unregistered module rather than importing.
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+        return getattr(module, name)
+    finally:
+        sys.modules.pop(spec.name, None)
+
+
+MAX_PROBE_ARTIFACT_BYTES = _script_constant("MAX_PROBE_ARTIFACT_BYTES")
 
 
 def run_script(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -192,6 +221,54 @@ class TestVerifyCommandTiers(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("[PASS] item 1", result.stdout)
             self.assertIn("[FAIL] item 2", result.stdout)
+
+
+class TestProbeArtifactReadIsBounded(unittest.TestCase):
+    """#223: the probe `pattern` is caller-supplied and `re` has no match
+    timeout, so an unbounded read handed a catastrophic-backtracking pattern an
+    unbounded input. `verify`'s job is to be the thing that cannot be talked out
+    of a verdict, and a silent hang defeats that more thoroughly than a wrong
+    answer — so an oversized artifact refuses loudly instead.
+    """
+
+    def _run_probe(self, tmp: Path, size: int, pattern: str | None) -> subprocess.CompletedProcess[str]:
+        since = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
+        artifact = tmp / "big.txt"
+        with artifact.open("w", encoding="utf-8") as handle:
+            handle.write("x" * size)
+        item = {"id": 1, "kind": "cap", "tier": "probe", "artifact": str(artifact)}
+        if pattern is not None:
+            item["pattern"] = pattern
+        return run_script(["--items", str(write_items(tmp, [item])), "--since", since])
+
+    def test_an_artifact_over_the_limit_fails_rather_than_matching(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._run_probe(Path(tmp), MAX_PROBE_ARTIFACT_BYTES + 1, "xxx")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("too large to pattern-match safely", result.stdout)
+
+    def test_the_refusal_names_both_the_size_and_the_limit(self) -> None:
+        """A verdict a reader can act on: the bound is a build-phase constant,
+        so the message has to say what it is rather than just 'too large'."""
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._run_probe(Path(tmp), MAX_PROBE_ARTIFACT_BYTES + 1, "xxx")
+        self.assertIn(str(MAX_PROBE_ARTIFACT_BYTES + 1), result.stdout)
+        self.assertIn(str(MAX_PROBE_ARTIFACT_BYTES), result.stdout)
+
+    def test_an_artifact_at_the_limit_is_still_matched(self) -> None:
+        """The bound is a ceiling on what is read, not a new failure mode for
+        ordinary artifacts — off-by-one here would reject a legitimate probe."""
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._run_probe(Path(tmp), MAX_PROBE_ARTIFACT_BYTES, "x+")
+        self.assertEqual(result.returncode, 0, result.stdout)
+
+    def test_an_oversized_artifact_without_a_pattern_still_passes(self) -> None:
+        """The cap exists to bound the *match*. A probe that only asserts the
+        artifact exists, is non-empty, and is fresh never reads its contents,
+        so size is none of its business."""
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self._run_probe(Path(tmp), MAX_PROBE_ARTIFACT_BYTES + 1, None)
+        self.assertEqual(result.returncode, 0, result.stdout)
 
 
 class TestVerifyProbeTier(unittest.TestCase):
