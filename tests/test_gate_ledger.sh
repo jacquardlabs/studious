@@ -1213,6 +1213,31 @@ check "--step without --outcome is rejected" "2" "$?"
 ( cd "$d45" && "$LEDGER" work-log --slug sd-invalid ) >/dev/null 2>&1
 check "a work-log call with nothing to record at all is rejected" "2" "$?"
 
+# --- work-log: --scope-delta-reason (fix-and-retry finding 3, #244) ---
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid --scope-delta-phase build \
+    --scope-delta-files "a.py" --scope-delta-reason dispatch-failed ) >/dev/null 2>&1
+check "--scope-delta-reason without --scope-delta-unmeasured is rejected" "2" "$?"
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid --scope-delta-phase build \
+    --scope-delta-reason dispatch-failed ) >/dev/null 2>&1
+check "--scope-delta-reason alone (no --scope-delta-unmeasured) is rejected" "2" "$?"
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid --scope-delta-phase build \
+    --scope-delta-unmeasured --scope-delta-reason bogus-reason ) >/dev/null 2>&1
+check "--scope-delta-reason rejects a token outside the closed vocabulary" "2" "$?"
+
+d45r=$(sandbox)
+( cd "$d45r" && "$LEDGER" work-log --slug sd-reason --scope-delta-phase build \
+    --scope-delta-unmeasured --scope-delta-reason dispatch-failed ) >/dev/null 2>&1
+wf45r="$d45r/.studious/work/sd-reason.json"
+check "--scope-delta-reason records on the unmeasured entry" "dispatch-failed" \
+  "$(jq -r '.scopeDelta[0].reason' "$wf45r")"
+
+d45u=$(sandbox)
+( cd "$d45u" && "$LEDGER" work-log --slug sd-no-reason --scope-delta-phase build \
+    --scope-delta-unmeasured ) >/dev/null 2>&1
+wf45u="$d45u/.studious/work/sd-no-reason.json"
+check "an unmeasured entry with no --scope-delta-reason given carries no reason key" "absent" \
+  "$(jq -r '.scopeDelta[0].reason // "absent"' "$wf45u")"
+
 # --- gc collects finished flow state, not only branch-orphaned state (#237) ---
 # The epic path deliberately keeps a story's branch after landing it, so the
 # branch-gone rule alone could never fire: 34 of 35 work files sat pinned at phase
@@ -1252,9 +1277,28 @@ check "gc keeps a finished work file with a measured scope-delta cohort" "yes" \
 check "gc names the kept file and its scope-delta moment count" "yes" \
   "$(printf '%s' "$out46" | grep -q 'kept: sd-done still holds 1 measured scope-delta moment' && echo yes || echo no)"
 
-( cd "$d46" && "$LEDGER" gc --force ) >/dev/null 2>&1
+out46f=$( cd "$d46" && "$LEDGER" gc --force 2>&1 )
 check "gc --force collects it anyway" "no" \
   "$([ -f "$wf46" ] && echo yes || echo no)"
+# Fix-and-retry finding 1: the destroying path used to print only the generic
+# "removed finished work file:" line, with no hint anything measured was lost
+# — unlike the keeping path's own "kept: ... still holds N measured
+# scope-delta moment(s)" message just above. --force must name what it threw
+# away.
+check "gc --force names the measured scope-delta moment(s) it discarded" "yes" \
+  "$(printf '%s' "$out46f" | grep -q 'removed finished work file: sd-done.json (phase done, --force discarded 1 measured scope-delta moment(s))' && echo yes || echo no)"
+
+# --- gc --force on the branch-gone path also names what it discards (fix-and-
+# retry finding 1: the terminal-phase path and the branch-gone path have
+# identical structure and the identical hazard) ---
+d46b=$(sandbox)
+git -C "$d46b" branch "epic/gone-branch" >/dev/null 2>&1
+( cd "$d46b" && "$LEDGER" work-set --slug sd-branch-gone --title "branch gone, measured" --branch "epic/gone-branch" ) >/dev/null 2>&1
+( cd "$d46b" && "$LEDGER" work-log --slug sd-branch-gone --scope-delta-phase build --scope-delta-files "a.py" ) >/dev/null 2>&1
+git -C "$d46b" branch -D "epic/gone-branch" >/dev/null 2>&1
+out46b=$( cd "$d46b" && "$LEDGER" gc --force 2>&1 )
+check "gc --force on the branch-gone path also names the discarded moment count" "yes" \
+  "$(printf '%s' "$out46b" | grep -q -- '--force discarded 1 measured scope-delta moment(s)' && echo yes || echo no)"
 
 d47=$(sandbox)
 ( cd "$d47" && "$LEDGER" work-set --slug sd-done-clean --title "finished, no scope-delta" --phase "done" ) >/dev/null 2>&1

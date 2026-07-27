@@ -477,11 +477,23 @@ gate-ledger work-get --slug "<slug>--<story>" | jq -r '
     # would render "outside 0" with the all-zero measured count demoted to a
     # trailing clause — the exact false-clean reading the AC's "never summed
     # as zero" rule exists to prevent.
-    "scope: declared \($declared | length), unmeasured (0 of " + plural($sd | length; "moment") + " measured)"
+    #
+    # Fix-and-retry finding 3 (#244): names WHY each moment is unmeasured.
+    # `.reason` is present only when the writer gave `--scope-delta-reason`
+    # (closed vocabulary: dispatch-failed/no-declaration/unsafe-path) —
+    # `// "unspecified"` covers a pre-finding-3 entry or a caller that
+    # omitted it, so a missing key renders as a stated fact, never a bare
+    # `null` reaching this line.
+    ([$sd[] | "\(.phase) \(.reason // "unspecified")"]) as $unmeasuredDetail |
+    "scope: declared \($declared | length), unmeasured (0 of " + plural($sd | length; "moment")
+      + " measured: " + ($unmeasuredDetail | join(", ")) + ")"
   else
     ([$sd[] | select(.unmeasured != true)] ) as $measured |
     ($measured | length) as $measuredCount |
-    ([$sd[] | select(.unmeasured == true) | .phase]) as $unmeasuredPhases |
+    # Fix-and-retry finding 3 (#244): each unmeasured entry's own `phase` and
+    # `reason` (`// "unspecified"` — same missing-key rule as the leading
+    # branch above), not just a bare count.
+    ([$sd[] | select(.unmeasured == true) | "\(.phase) \(.reason // "unspecified")"]) as $unmeasuredDetail |
     # "One file counts once" is enforced authoritatively by
     # workflows/epic-driver.js's computeScopeDelta, against every prior
     # moment's own already-written history — `| unique` here is a display-side
@@ -512,7 +524,9 @@ gate-ledger work-get --slug "<slug>--<story>" | jq -r '
       # (unmeasured/not-yet-measured), never this one reading as a false
       # all-clean "outside 0".
       + ("; " + plural($measuredCount; "moment") + " measured"
-          + (if ($unmeasuredPhases | length) > 0 then ", \($unmeasuredPhases | length) unmeasured" else "" end))
+          + (if ($unmeasuredDetail | length) > 0 then
+              ", \($unmeasuredDetail | length) unmeasured (\($unmeasuredDetail | join(", ")))"
+            else "" end))
       + (if ($outside | length) > 0 then ": " + (($outside[0:5]) | join(", "))
           + (if ($outside | length) > 5 then " +\(($outside | length) - 5) more" else "" end)
         else "" end))
@@ -549,17 +563,20 @@ this line names it: the trailing `amendment(s) reference no counted file` clause
 that signal, so a wrong or stale amendment reads as a visible discrepancy rather
 than a quietly lower `amended` number.
 
-The `; <N> moment(s) measured[, <M> unmeasured]` clause is the denominator: without
-it, a moment that was never recorded at all (a dropped or mistyped work-log flag,
-or the fallback driver's own documented gap above) renders identically to a moment
-that measured clean, both reading as the same `outside <N>` number with nothing to
-tell them apart — exactly the false-clean reading the AC's "never summed as zero"
-rule exists to prevent. It fires whenever the `else` branch above does — which now
-requires at least one *measured* `scopeDelta` entry, since an all-unmeasured cohort
-gets its own leading-fact rendering instead (above), rather than reaching this
-clause with a measured count of zero — and is never itself bracketed or omitted;
-only its own trailing `, <M> unmeasured` addendum drops when every recorded moment
-was measured.
+The `; <N> moment(s) measured[, <M> unmeasured (...)]` clause is the denominator:
+without it, a moment that was never recorded at all (a dropped or mistyped work-log
+flag, or the fallback driver's own documented gap above) renders identically to a
+moment that measured clean, both reading as the same `outside <N>` number with
+nothing to tell them apart — exactly the false-clean reading the AC's "never summed
+as zero" rule exists to prevent. It fires whenever the `else` branch above does —
+which now requires at least one *measured* `scopeDelta` entry, since an
+all-unmeasured cohort gets its own leading-fact rendering instead (above), rather
+than reaching this clause with a measured count of zero — and is never itself
+bracketed or omitted; only its own trailing `, <M> unmeasured (...)` addendum drops
+when every recorded moment was measured. Fix-and-retry finding 3 (#244): that
+addendum's own parenthetical names each unmeasured moment's `phase` and `reason`
+(`unspecified` for an entry with no recorded reason — a pre-finding-3 write, or a
+caller that omitted `--scope-delta-reason`) — never a bare count standing alone.
 
 End with exactly this shape and nothing after it:
 
@@ -589,15 +606,14 @@ entirely for a fallback-driven story with no scope-delta history, rather than
 being one of the jq's own outputs.
 
 - `scope: unmeasured (no declaration recorded)` — no declaration is on file for
-  this story: its design step never recorded `declaredFiles`. Verify with
-  `gate-ledger work-get --slug "<slug>--<story>"` that `.declaredFiles` is
-  genuinely absent. On the fallback path this only renders for a story with real
-  scope-delta history from an earlier script-mode run; an empty `.scopeDelta`
-  there renders `scope: not measured (...)` below instead, regardless of
-  declaration.
+  this story: `.declaredFiles` is absent. Verify with
+  `gate-ledger work-get --slug "<slug>--<story>"`. On the fallback path this
+  only renders for a story with real scope-delta history from an earlier
+  script-mode run; an empty `.scopeDelta` there renders
+  `scope: not measured (...)` below instead, regardless of declaration.
 - `scope: declared <N>, not yet measured (no moment recorded)`
-- `scope: declared <N>, unmeasured (0 of <M> moment(s) measured)`
-- `scope: declared <N>, outside <N> (<breakdown by moment>)[, <N> amended][, <N> amendment(s) reference/references no counted file]; <N> moment(s) measured[, <N> unmeasured][: <file, file, ..., +N more>]`
+- `scope: declared <N>, unmeasured (0 of <M> moment(s) measured: <phase> <reason>[, <phase> <reason>, ...])`
+- `scope: declared <N>, outside <N> (<breakdown by moment>)[, <N> amended][, <N> amendment(s) reference/references no counted file]; <N> moment(s) measured[, <N> unmeasured (<phase> <reason>[, <phase> <reason>, ...])][: <file, file, ..., +N more>]`
 - `scope: unavailable (could not read the work file)` — caller-side, not one of
   the jq's four: the `work-get` read failed or the jq pipeline errored.
 - `scope: not measured (fallback driver — measurement runs on the Workflow path only)` — caller-side, rendered by the fallback driver in place of the jq

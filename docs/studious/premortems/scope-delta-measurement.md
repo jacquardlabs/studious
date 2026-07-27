@@ -1,7 +1,7 @@
 # Pre-mortem — scope delta for the epic path
 
 - Branch: epic/driver-hygiene--scope-delta-measurement
-- SHA: 4d67a34
+- SHA: 7bd68e3
 - Date: 2026-07-27
 
 | # | Lane | Failure mode | Detection hint |

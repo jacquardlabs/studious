@@ -812,10 +812,26 @@ function scopeDeltaPhase(gate, attempts, hasAuditGate = true) {
 // plus every path matching the pre-mortem register's own fixed location
 // (`docs/studious/premortems/<slug>.md`, the pattern `/gate-design-review`
 // itself writes to and commits).
+//
+// Fix-and-retry finding 3 (#244): every `unmeasured: true` result also names
+// WHY, a short closed-vocabulary `reason` (never model-computed — the three
+// values below are the only branches that produce one), so a died dispatch,
+// an unsafe path, and a genuinely undeclared story stop rendering
+// identically. `files` unresolved is checked first and alone: a died/
+// unparseable scope-check dispatch usually loses both `files` and
+// `declaredFiles` together, and even when it doesn't, an unresolved diff
+// (`files`) is the more fundamental failure — 'dispatch-failed', matching the
+// design doc's own "a failed diff resolution" wording. `declaredFiles`
+// unresolved with `files` intact means the dispatch itself worked but no
+// declaration was ever recorded — 'no-declaration'. The boundary-validation
+// reject below is 'unsafe-path'.
 function computeScopeDelta(fields) {
   const { files, declaredFiles, designDoc, scopeDeltaHistory } = fields
-  if (!Array.isArray(files) || !Array.isArray(declaredFiles)) {
-    return { unmeasured: true, outsideFiles: [] }
+  if (!Array.isArray(files)) {
+    return { unmeasured: true, outsideFiles: [], reason: 'dispatch-failed' }
+  }
+  if (!Array.isArray(declaredFiles)) {
+    return { unmeasured: true, outsideFiles: [], reason: 'no-declaration' }
   }
   // Boundary validation (CWE-78/CWE-88), fixed at the boundary per CLAUDE.md's
   // "fix data at the boundary, not at the point of use": `files`/`declaredFiles`/
@@ -863,7 +879,7 @@ function computeScopeDelta(fields) {
     !/^\s|\s$/.test(p) &&
     !UNSAFE_PATH_CHARS.test(p)
   if (!files.every(isSafePath) || !declaredFiles.every(isSafePath) || (designDoc && !isSafePath(designDoc))) {
-    return { unmeasured: true, outsideFiles: [] }
+    return { unmeasured: true, outsideFiles: [], reason: 'unsafe-path' }
   }
   const excluded = new Set(declaredFiles)
   if (designDoc) excluded.add(designDoc)
@@ -920,9 +936,18 @@ function scopeDeltaWorkLogFlags(phase, delta) {
   // double-quoted, unchanged. `outsideFiles` is the one value that genuinely
   // traces back to an untrusted relay, so it gets single-quoted with `'\''`
   // escaping — belt-and-suspenders for a value already validated, not a
-  // substitute for that validation.
+  // substitute for that validation. `delta.reason` (fix-and-retry finding 3,
+  // #244) is computeScopeDelta's own closed-vocabulary output
+  // (dispatch-failed/no-declaration/unsafe-path — never model input), so it
+  // gets the same double-quoted, unhardened treatment as `phase` — omitted
+  // entirely (not `--scope-delta-reason "undefined"`) when a caller-built
+  // `delta` carries no `reason` of its own, which every computeScopeDelta
+  // result now does, but this function's own contract does not require.
   const shellQuote = s => `'${String(s).replace(/'/g, "'\\''")}'`
-  if (delta.unmeasured) return ` --scope-delta-phase "${phase}" --scope-delta-unmeasured`
+  if (delta.unmeasured) {
+    return ` --scope-delta-phase "${phase}" --scope-delta-unmeasured`
+      + (delta.reason ? ` --scope-delta-reason "${delta.reason}"` : '')
+  }
   return ` --scope-delta-phase "${phase}" --scope-delta-files ${shellQuote(delta.outsideFiles.join(','))}`
 }
 

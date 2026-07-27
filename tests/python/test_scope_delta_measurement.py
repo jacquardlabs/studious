@@ -123,19 +123,35 @@ console.log(JSON.stringify(computeScopeDelta({json.dumps(fields)})))
 
 
 def test_no_declaration_is_unmeasured_never_zero() -> None:
+    """Fix-and-retry finding 3 (#244): `files` resolved but `declaredFiles` did
+    not — a genuinely undeclared story — carries reason 'no-declaration'."""
     result = _compute_scope_delta(
         {"files": ["a.py", "b.py"], "declaredFiles": None, "designDoc": "", "scopeDeltaHistory": []}
     )
-    assert result == {"unmeasured": True, "outsideFiles": []}
+    assert result == {"unmeasured": True, "outsideFiles": [], "reason": "no-declaration"}
 
 
 def test_a_died_or_unparseable_scope_check_is_unmeasured() -> None:
     """`files` unresolved (a died/unparseable dispatch) fails to unmeasured even
-    when a declaration exists — the diff resolution itself is what failed."""
+    when a declaration exists — the diff resolution itself is what failed.
+    Fix-and-retry finding 3 (#244): reason is 'dispatch-failed', not
+    'no-declaration' — a declaration IS on file, the diff read is what broke."""
     result = _compute_scope_delta(
         {"files": None, "declaredFiles": ["a.py"], "designDoc": "", "scopeDeltaHistory": []}
     )
-    assert result == {"unmeasured": True, "outsideFiles": []}
+    assert result == {"unmeasured": True, "outsideFiles": [], "reason": "dispatch-failed"}
+
+
+def test_both_files_and_declared_files_unresolved_is_dispatch_failed_not_no_declaration() -> None:
+    """Fix-and-retry finding 3 (#244): when a scope-check dispatch dies outright,
+    BOTH `files` and `declaredFiles` come back unresolved (parsedScope itself is
+    null at the call site) — `files` is checked first, so this reads as the more
+    fundamental failure, 'dispatch-failed', never 'no-declaration' (which would
+    wrongly suggest the dispatch succeeded and simply found no declaration)."""
+    result = _compute_scope_delta(
+        {"files": None, "declaredFiles": None, "designDoc": "", "scopeDeltaHistory": []}
+    )
+    assert result == {"unmeasured": True, "outsideFiles": [], "reason": "dispatch-failed"}
 
 
 def test_an_explicit_empty_declaration_is_measured_not_unmeasured() -> None:
@@ -265,28 +281,29 @@ def test_a_shell_metacharacter_in_files_degrades_the_whole_moment() -> None:
         result = _compute_scope_delta(
             {"files": ["a.py", unsafe], "declaredFiles": ["a.py"], "designDoc": "", "scopeDeltaHistory": []}
         )
-        assert result == {"unmeasured": True, "outsideFiles": []}, f"{unsafe!r} did not degrade to unmeasured"
+        assert result == {"unmeasured": True, "outsideFiles": [], "reason": "unsafe-path"}, \
+            f"{unsafe!r} did not degrade to unmeasured"
 
 
 def test_a_shell_metacharacter_in_declared_files_also_degrades() -> None:
     result = _compute_scope_delta(
         {"files": ["a.py"], "declaredFiles": ["$(whoami).py"], "designDoc": "", "scopeDeltaHistory": []}
     )
-    assert result == {"unmeasured": True, "outsideFiles": []}
+    assert result == {"unmeasured": True, "outsideFiles": [], "reason": "unsafe-path"}
 
 
 def test_a_shell_metacharacter_in_design_doc_also_degrades() -> None:
     result = _compute_scope_delta(
         {"files": ["a.py"], "declaredFiles": ["a.py"], "designDoc": "docs/`id`.md", "scopeDeltaHistory": []}
     )
-    assert result == {"unmeasured": True, "outsideFiles": []}
+    assert result == {"unmeasured": True, "outsideFiles": [], "reason": "unsafe-path"}
 
 
 def test_an_overlong_path_degrades_rather_than_being_truncated() -> None:
     result = _compute_scope_delta(
         {"files": ["a.py", "b" * 5000 + ".py"], "declaredFiles": ["a.py"], "designDoc": "", "scopeDeltaHistory": []}
     )
-    assert result == {"unmeasured": True, "outsideFiles": []}
+    assert result == {"unmeasured": True, "outsideFiles": [], "reason": "unsafe-path"}
 
 
 def test_ordinary_paths_with_dots_dashes_and_underscores_still_measure() -> None:
@@ -355,8 +372,20 @@ def test_no_phase_renders_nothing() -> None:
 
 
 def test_unmeasured_renders_the_unmeasured_flag_not_files() -> None:
+    """A caller-built delta with no `reason` key (this function's own contract
+    does not require one) omits `--scope-delta-reason` entirely — never
+    `--scope-delta-reason "undefined"`."""
     flags = _work_log_flags("build", {"unmeasured": True, "outsideFiles": []})
     assert flags == ' --scope-delta-phase "build" --scope-delta-unmeasured'
+
+
+def test_unmeasured_with_a_reason_renders_the_reason_flag() -> None:
+    """Fix-and-retry finding 3 (#244): computeScopeDelta's own `reason` field
+    rides straight through as a third, double-quoted flag — driver-computed
+    closed vocabulary, same treatment as `phase`, never single-quoted like the
+    untrusted `outsideFiles` value."""
+    flags = _work_log_flags("build", {"unmeasured": True, "outsideFiles": [], "reason": "dispatch-failed"})
+    assert flags == ' --scope-delta-phase "build" --scope-delta-unmeasured --scope-delta-reason "dispatch-failed"'
 
 
 def test_measured_renders_the_files_flag_with_a_csv_join() -> None:
@@ -869,37 +898,54 @@ def test_report_all_unmeasured_moments_lead_with_the_fact_not_a_false_clean_outs
     prevent. It must instead get its own rendering that leads with the fact."""
     out = _run_scope_delta_jq({
         "declaredFiles": ["a.py", "b.py"],
-        "scopeDelta": [{"phase": "audit", "unmeasured": True, "outsideFiles": []}],
+        "scopeDelta": [{"phase": "audit", "unmeasured": True, "outsideFiles": [], "reason": "dispatch-failed"}],
         "amendments": [],
     })
-    assert out == "scope: declared 2, unmeasured (0 of 1 moment measured)"
+    assert out == "scope: declared 2, unmeasured (0 of 1 moment measured: audit dispatch-failed)"
 
 
 def test_report_all_unmeasured_moments_plural_denominator() -> None:
     out = _run_scope_delta_jq({
         "declaredFiles": ["a.py"],
         "scopeDelta": [
-            {"phase": "audit", "unmeasured": True, "outsideFiles": []},
-            {"phase": "acceptance", "unmeasured": True, "outsideFiles": []},
+            {"phase": "audit", "unmeasured": True, "outsideFiles": [], "reason": "dispatch-failed"},
+            {"phase": "acceptance", "unmeasured": True, "outsideFiles": [], "reason": "no-declaration"},
         ],
         "amendments": [],
     })
-    assert out == "scope: declared 1, unmeasured (0 of 2 moments measured)"
+    assert out == (
+        "scope: declared 1, unmeasured (0 of 2 moments measured: "
+        "audit dispatch-failed, acceptance no-declaration)"
+    )
+
+
+def test_report_all_unmeasured_moments_with_no_recorded_reason_renders_unspecified() -> None:
+    """Fix-and-retry finding 3 (#244): a pre-finding-3 entry (or a caller that
+    omitted --scope-delta-reason) has no `.reason` key at all — the jq must
+    render that as the stated fact 'unspecified', never a bare `null`."""
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py", "b.py"],
+        "scopeDelta": [{"phase": "audit", "unmeasured": True, "outsideFiles": []}],
+        "amendments": [],
+    })
+    assert out == "scope: declared 2, unmeasured (0 of 1 moment measured: audit unspecified)"
 
 
 def test_report_one_measured_moment_among_unmeasured_ones_still_uses_the_general_rendering() -> None:
     """The narrowing only excuses an ALL-unmeasured cohort — a single measured
     moment alongside unmeasured ones still renders the general outside-count
-    form, unaffected by the new leading branch."""
+    form, unaffected by the new leading branch. Fix-and-retry finding 3 (#244):
+    the unmeasured moment's own phase and reason are now named, not just a
+    bare count."""
     out = _run_scope_delta_jq({
         "declaredFiles": ["a.py"],
         "scopeDelta": [
             {"phase": "build", "unmeasured": False, "outsideFiles": []},
-            {"phase": "audit", "unmeasured": True, "outsideFiles": []},
+            {"phase": "audit", "unmeasured": True, "outsideFiles": [], "reason": "unsafe-path"},
         ],
         "amendments": [],
     })
-    assert out == "scope: declared 1, outside 0; 1 moment measured, 1 unmeasured"
+    assert out == "scope: declared 1, outside 0; 1 moment measured, 1 unmeasured (audit unsafe-path)"
 
 
 def test_report_a_measured_zero_moment_is_distinct_from_not_yet_measured() -> None:
@@ -989,15 +1035,20 @@ def test_report_orphaned_amendment_count_above_one_uses_the_plural_verb_form() -
 
 
 def test_report_an_unmeasured_moment_is_flagged_alongside_a_real_count() -> None:
+    """Fix-and-retry finding 3 (#244): the unmeasured moment's own phase and
+    reason are named alongside the count, not just a bare count."""
     out = _run_scope_delta_jq({
         "declaredFiles": ["a.py"],
         "scopeDelta": [
             {"phase": "build", "unmeasured": False, "outsideFiles": ["b.py"]},
-            {"phase": "audit-fix-1", "unmeasured": True, "outsideFiles": []},
+            {"phase": "audit-fix-1", "unmeasured": True, "outsideFiles": [], "reason": "no-declaration"},
         ],
         "amendments": [],
     })
-    assert out == "scope: declared 1, outside 1 (1 at build); 1 moment measured, 1 unmeasured: b.py"
+    assert out == (
+        "scope: declared 1, outside 1 (1 at build); 1 moment measured, "
+        "1 unmeasured (audit-fix-1 no-declaration): b.py"
+    )
 
 
 def test_report_all_four_bracketed_clauses_compose_in_the_documented_order() -> None:
@@ -1005,7 +1056,7 @@ def test_report_all_four_bracketed_clauses_compose_in_the_documented_order() -> 
         "declaredFiles": ["a.py"],
         "scopeDelta": [
             {"phase": "build", "unmeasured": False, "outsideFiles": ["b.py", "z.py"]},
-            {"phase": "audit-fix-1", "unmeasured": True, "outsideFiles": []},
+            {"phase": "audit-fix-1", "unmeasured": True, "outsideFiles": [], "reason": "unsafe-path"},
         ],
         "amendments": [
             {"file": "b.py", "phase": "build", "reason": "shared"},
@@ -1014,7 +1065,8 @@ def test_report_all_four_bracketed_clauses_compose_in_the_documented_order() -> 
     })
     assert out == (
         "scope: declared 1, outside 2 (2 at build), 1 amended, "
-        "1 amendment references no counted file; 1 moment measured, 1 unmeasured: b.py, z.py"
+        "1 amendment references no counted file; 1 moment measured, "
+        "1 unmeasured (audit-fix-1 unsafe-path): b.py, z.py"
     )
 
 
