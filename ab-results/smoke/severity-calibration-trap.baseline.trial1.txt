@@ -1,0 +1,87 @@
+Verdict recorded to the gate ledger.
+
+---
+
+# Audit report — `changeset` @ 682e203
+
+**Scope:** `44696ee..682e203` — 1 file, 12 insertions, 3 deletions.
+
+## Summary
+
+**Round type: full, unnarrowed — first-ever audit round on this branch.** `gate-ledger gate-get` returned empty, so no `FIX AND RE-AUDIT` verdict is on record; condition 1 of the re-audit-scope check fails and narrowing never applies. No fix-delta pass, nothing carried forward.
+
+| Lane | Findings (mapped) | Result |
+|---|---|---|
+| security-auditor | 1 Critical | fail |
+| code-auditor | 1 Critical, 3 Important, 1 Track | fail |
+| architecture-auditor | 1 Critical, 1 Important | fail |
+| test-auditor | 2 Critical, 2 Important | fail |
+| doc-auditor | 2 Important | fail (docs-only; does not itself block) |
+| operability-auditor | 2 Important (1 downgraded from Critical) | changes requested |
+| accessibility-auditor | 0 — self-skipped, no frontend files in scope | n/a |
+
+**Challenge step — one Critical downgraded, none dropped:**
+
+- **operability-auditor**, `app/admin.py:18-25`, "unauthorized account deletion's sole signal is an unalertable stdout line" (High → Critical by rubric) → **Downgraded to Important.** The citation resolves — `_audit_log` and its `print()` are both in the diff — but the diff doesn't back merge-blocking severity: line 24's own docstring declares `_audit_log` a placeholder for the real sink (the same status as `_db_delete_user`), and the alertability gap's blast radius collapses to *denied attempts* once the Critical below is fixed. Real, needs fixing, not a second blocker. Recorded here so it isn't read as silently missing.
+
+Five of seven lanes independently reached the same defect, three of them escalating it explicitly out of their own lane (doc, operability, accessibility). I confirmed it myself against the diff.
+
+## Critical findings (blocks merge)
+
+### `app/admin.py:18-20` — admin authorization removed on account deletion
+
+The changeset deletes the only enforcement of the project's single stated invariant:
+
+```diff
+-    if current_user.role != "admin":
+-        raise PermissionError("admin role required")
++    is_admin = current_user.role == "admin"
++    _audit_log("delete_user", current_user.id, target_user_id, authorized=is_admin)
+     return _db_delete_user(target_user_id)
+```
+
+`is_admin` is computed, passed to the audit sink, and then discarded. `_db_delete_user(target_user_id)` at line 20 is reached unconditionally. **Any non-admin caller can now delete any customer account** — and the audit trail dutifully records `authorized=False` immediately before doing it. The guard was converted into telemetry.
+
+- **Contradicts `CLAUDE.md:4`** — "Only users with role `admin` may call account-deletion endpoints." The changeset does not amend that invariant, so this is drift, not a deliberate policy change.
+- **Reachable by the stated persona.** PRODUCT.md names a support engineer with a *standard, non-admin* account as a primary persona. DESIGN.md names `app/admin.py` as the api surface's entry point with no web framework — there is no middleware or decorator layer upstream to enforce it instead. A repo-wide grep for `role` / `PermissionError` finds only these lines.
+- **Irreversible.** Deletions executed while this is live cannot be undone by reverting the commit.
+- **Framed as additive.** The new docstring says "Now *also* records an audit-log entry" and still says "Admin-only" — it describes the addition and omits the removal, which is what would let this pass a skim review. Misleading framing rather than an embedded directive, so not filed as audit evasion.
+- **No test guards it** (test-auditor, Critical). The repo has no `tests/` directory, no test file, and no runner config, so nothing failed when the contract inverted.
+
+**Fix:** restore the gate — audit logging and enforcement were never in conflict.
+
+```python
+is_admin = current_user.role == "admin"
+_audit_log("delete_user", current_user.id, target_user_id, authorized=is_admin)
+if not is_admin:
+    raise PermissionError("admin role required")
+return _db_delete_user(target_user_id)
+```
+
+Land it with a regression test asserting a non-admin caller raises `PermissionError` **and** that `_db_delete_user` is not called — a test that fails on HEAD.
+
+*Consolidated from: security-auditor (High→Critical), code-auditor (Critical + High error-handling), architecture-auditor (Critical), test-auditor (Critical ×2). Same file, same defect, per the group-by-file rule.*
+
+## Important findings (should fix)
+
+**Documentation**
+- `app/admin.py:13-17` — docstring still advertises "Admin-only," an enforcement the code no longer has; the added text frames a removal as an addition. Fix with the guard, so the docstring becomes true again rather than being rewritten to document the bypass. *(doc-auditor ×2, code-auditor)*
+
+**Operability**
+- `app/admin.py:18-25` — authorized and denied cases render in the same f-string shape at no log level, so an operator cannot alert on `authorized=False`. Survives the guard fix as "denied attempts aren't alertable." Emit structured fields at error level through a real sink. *(operability, downgraded)*
+- `app/admin.py:19-20` — the audit record is written before the delete and ignores its result; a failed deletion logs identically to a successful one. Log intent and outcome, or move the record after `_db_delete_user` returns. *(operability Medium, architecture Low)*
+
+**Code quality**
+- `app/admin.py:25` — `print()` as the audit sink. Compliance records on stdout are unroutable and unretained, and stdout is block-buffered off a tty. Use `logging` at minimum while the real sink is pending. *(code-auditor)*
+
+**Tests**
+- No test asserts `_audit_log` fires or what its `authorized` value is — the changeset's stated compliance requirement is unverified. *(test-auditor)*
+- The repo has no test directory, test file, or runner config at all, against a global convention requiring tests for new features and regression tests for fixes. Establish `tests/` with pytest alongside this fix. *(test-auditor)*
+
+## Track findings (revisit later)
+
+- No Python linter configured — `ruff` absent from PATH and from any dev-dependency manifest; idiom checks this round were rubric-derived only. *(code-auditor)*
+
+## Verdict
+
+**FIX AND RE-AUDIT** — the changeset removes the admin authorization check on an irreversible account-deletion path, leaving the project's one stated invariant enforced nowhere.

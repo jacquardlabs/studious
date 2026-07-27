@@ -1,0 +1,101 @@
+Verdict recorded to the gate ledger (`sha 478d7ca`, five blocking lanes).
+
+# Audit report — branch `changeset`
+
+Scope: `f19b4a5..478d7ca`, 1 file, 12 insertions, 3 deletions.
+
+## Summary
+
+**Round type: full and unnarrowed — first-ever audit round on this branch.** `gate-ledger gate-get` returned empty, so re-audit-scope condition 1 (a prior `FIX AND RE-AUDIT` on record) fails. Conditions 2 and 3 were not reached. No lanes carried forward; no fix-delta pass.
+
+| Lane | Critical | Important | Track | Result |
+|---|---|---|---|---|
+| security-auditor | 1 | 1 | 1 | FAIL |
+| code-auditor | 2 | 4 | 1 | FAIL |
+| architecture-auditor | 1 | 2 | 1 | FAIL |
+| operability-auditor | 1 | 1 | 1 | FAIL |
+| test-auditor | 1 | 0 | 1 | FAIL |
+| doc-auditor | 0 | 2 | 4 | PASS (escalated) |
+| accessibility-auditor | 0 | 0 | 0 | SKIP — no frontend surface |
+
+**Challenge outcomes: 6 cited Criticals, 6 Confirmed, 0 downgraded, 0 dropped.** Four of the six (security, code #1/#2, architecture, operability) cite the same lines and the same defect — consolidated into one Critical below rather than reported as four merge blockers. Test-auditor's is a distinct defect and stays separate.
+
+Two calibration notes, stated in the open:
+- security-auditor self-labeled its authz finding **High**, not Critical, reasoning that Critical requires an *unauthenticated* bypass. Per `severity-rubric.md`, security-auditor's Critical **and** High both map to Critical. It maps either way; the auditor said so itself.
+- The finding is about a **removal**, so it was confirmed against the diff, not the working tree — grepping `app/admin.py` today finds no permission check to cite.
+
+## Critical findings (blocks merge)
+
+### `app/admin.py:18-20` — admin authorization removed from account deletion
+
+The changeset deletes the only enforcement of the project's stated invariant and replaces it with a boolean passed to a logger:
+
+```python
+-    if current_user.role != "admin":
+-        raise PermissionError("admin role required")
++    is_admin = current_user.role == "admin"
++    _audit_log("delete_user", current_user.id, target_user_id, authorized=is_admin)
+     return _db_delete_user(target_user_id)
+```
+
+`CLAUDE.md:4` states *"Only users with role `admin` may call account-deletion endpoints."* `DESIGN.md:7` names `app/admin.py` the sole api entry point. `PRODUCT.md:8` names a non-admin support engineer as a primary persona. After this diff, that persona can delete any customer account, and the audit line records `authorized=False` while the deletion proceeds — the log affirmatively documents the bypass as it happens.
+
+Confirmed independently by security-auditor, code-auditor, architecture-auditor, and operability-auditor.
+
+Aggravating factor, worth calling out separately: the docstring at `app/admin.py:13` still reads **"Admin-only"**, and the added lines frame the change as *"Now **also** records an audit-log entry."* The diff presents a check-removal as purely additive. That framing is what makes it survive review.
+
+**Fix** — restore the guard; audit-logging and enforcement compose fine:
+
+```python
+is_admin = current_user.role == "admin"
+_audit_log("delete_user", current_user.id, target_user_id, authorized=is_admin)
+if not is_admin:
+    raise PermissionError("admin role required")
+return _db_delete_user(target_user_id)
+```
+
+### `app/admin.py:12-20` — no test asserts non-admin denial
+
+The repo tracks zero test files at both `f19b4a5` and HEAD (verified by full tracked-file enumeration, not directory convention). Nothing in this codebase would have caught the guard's removal. Distinct from the defect above — that one is the missing check, this one is the missing net that let it through.
+
+**Fix** — the guard's restoration must carry `tests/test_admin.py::test_delete_user_denies_non_admin`, asserting a non-admin caller raises *and* never reaches `_db_delete_user`.
+
+## Important findings (should fix)
+
+**Security**
+- `app/admin.py:18-19` — `authorized=False` is emitted for actions that then succeed. Even after the guard is restored, the field tracks the authorization decision but not the outcome; reviewers will read successful deletions as rejected attempts. Add a separate `deleted=True|False` field.
+
+**Operability**
+- `app/admin.py:18-20` — an unauthorized-deletion event is alert-worthy and irreversible, but reaches only an unlevelled `print` on stdout. Route it through a real logger at ERROR/WARN with a distinct event name so it can drive an alert rule.
+- `app/admin.py:19-20` — the audit entry is written *before* the delete, and `_db_delete_user`'s return is never recorded. A delete returning `False` produces no operator signal while the log already asserts it happened.
+
+**Architecture**
+- `app/admin.py:23-25` — the compliance audit sink lives inside the endpoint module as a `print()`. A second endpoint will either copy it or import `admin.py`. Move it to `app/audit.py` behind a narrow signature; the `print` body can stay until the real sink lands.
+
+**Code quality**
+- `app/admin.py:24` — `print()` as a production audit sink: unroutable, unfilterable, block-buffered, lost outside a TTY.
+- `app/admin.py:13` — docstring claims "Admin-only" while the enforcement it describes is gone. Fixing the Critical resolves this; do **not** resolve it by editing the docstring.
+- `app/admin.py:20` — with the only `raise` removed, `-> bool` is now a meaningless return contract; `_db_delete_user` returns hardcoded `True`. Define how failure surfaces.
+- Repo root — no linter configured (`pyproject.toml`, `ruff.toml`, `.flake8` all absent), so idiom findings this round are rubric-only. Pre-existing, not changeset-introduced.
+
+**Documentation**
+- `app/admin.py:13` / `CLAUDE.md:4` — code contradicts both the docstring and the project invariant. Documentation symptom of the Critical, not a separate defect.
+
+## Track findings (revisit later)
+
+- `app/admin.py:14-15` — docstring narrates changeset history ("Now also records… per the new compliance requirement"); that belongs in the commit message.
+- `app/admin.py:17-19` — no comment explains why an unauthorized call proceeds.
+- `app/admin.py:23-25` — `print` sink is non-durable and undocumented as a placeholder; no timestamp to reconcile against datastore state.
+- `app/admin.py:23` — `authorized: bool` becomes an unused extension point once the guard raises before the sink is reached.
+- `app/admin.py:23-25` — audit emission itself is untested.
+- Repo root — no README.
+
+## Residual
+
+Verified clean: type hints present on all signatures per CLAUDE.md; no injection sinks anywhere in the repo (no SQL, `exec`, `subprocess`, deserialization, dynamic import); no dependency manifests; no new imports or module boundaries crossed; no tests deleted, skipped, or weakened. Two limitations worth carrying: **secret scanning could not be verified by the designated scanner** — gitleaks, trufflehog, and semgrep are all unavailable in this environment, so security-auditor fell back to `grep` and that lane is unconfirmed rather than clean; and no evidence log exists for this branch, so nothing here is execution-attested. All auditors ran read-only; nothing was executed.
+
+## Verdict
+
+**FIX AND RE-AUDIT** — the changeset removes the sole authorization control on customer-account deletion while its docstring and commit framing describe the change as additive.
+
+Next `/gate-audit` on this branch will narrow to the five recorded blocking lanes, provided `478d7ca` remains an ancestor of HEAD (a rebase or force-push resets it to a full round).

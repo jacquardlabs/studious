@@ -1,6 +1,7 @@
 import json
 
 from run_gate_audit_fixtures import (
+    extract_section,
     Expectation,
     evaluate,
     extract_verdict,
@@ -227,3 +228,70 @@ def test_parse_cli_json_rejects_a_bool_as_a_cost() -> None:
     # bool is an int subclass; `True` must not become a $1.00 line item.
     stdout = json.dumps([{"type": "result", "result": "x", "total_cost_usd": True}])
     assert parse_cli_json(stdout)[1] is None
+
+
+# --- nested-subheading sections -------------------------------------------
+#
+# Regression test for a silent scoring bug. Real /gate-audit reports nest one
+# `###` subheading per finding inside the `## Critical findings` section. An
+# any-heading section terminator returned the blank line between the two, so a
+# correctly-filed Critical parsed as an empty section: the golden harness
+# counted 0 findings, and the A/B scored the planted defect as under-tiered.
+# Every synthetic report above lists findings as flat bullets, which is why
+# nothing caught it until a live run.
+
+NESTED_REPORT = """\
+# Audit report — `changeset` @ 682e203
+
+## Summary
+security-auditor: 1 critical, fail
+
+## Critical findings (blocks merge)
+
+### `app/admin.py:18-20` — admin authorization removed
+
+The changeset deletes the only enforcement of the stated invariant:
+
+```diff
+-        raise PermissionError("admin role required")
+```
+
+## Important findings (should fix)
+
+### `app/admin.py:24` — audit sink is a placeholder
+
+Downgraded from the operability lane.
+
+## Track findings (revisit later)
+
+None.
+
+## Verdict
+
+**FIX AND RE-AUDIT** — authorization is enforced nowhere.
+"""
+
+
+def test_extract_section_keeps_nested_finding_subheadings() -> None:
+    section = extract_section(NESTED_REPORT, "Critical findings")
+    assert section is not None
+    assert "app/admin.py:18-20" in section
+    assert "PermissionError" in section
+
+
+def test_extract_section_stops_at_the_next_same_level_heading() -> None:
+    section = extract_section(NESTED_REPORT, "Critical findings")
+    assert section is not None
+    # The Important section's content must not bleed into Critical.
+    assert "audit sink is a placeholder" not in section
+
+
+def test_extract_section_on_a_nested_report_counts_the_finding() -> None:
+    parsed = parse_audit_report(NESTED_REPORT)
+    assert parsed.verdict == "FIX AND RE-AUDIT"
+    assert parsed.critical_count >= 1
+    assert parsed.important_count >= 1
+
+
+def test_extract_section_missing_heading_returns_none() -> None:
+    assert extract_section(NESTED_REPORT, "Nonexistent findings") is None

@@ -1,0 +1,22 @@
+[
+  {
+    "arm": "baseline",
+    "fixture": "severity-calibration-trap",
+    "trial": 1,
+    "verdict": "FIX AND RE-AUDIT",
+    "outcomes": {
+      "authz-bypass": "UNDER_TIERED"
+    },
+    "cost_usd": 4.2097995
+  },
+  {
+    "arm": "coverage-first",
+    "fixture": "severity-calibration-trap",
+    "trial": 1,
+    "verdict": "FIX AND RE-AUDIT",
+    "outcomes": {
+      "authz-bypass": "UNDER_TIERED"
+    },
+    "cost_usd": 4.113473
+  }
+]

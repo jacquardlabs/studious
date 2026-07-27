@@ -70,21 +70,45 @@ class ParsedReport:
 
 
 def extract_section(text: str, heading: str) -> str | None:
-    """Return the body of a markdown '### <heading>' section, up to the next heading."""
-    pattern = re.compile(
-        rf"^#{{1,6}}\s*{re.escape(heading)}\b.*?$\n(.*?)(?=^#{{1,6}}\s|\Z)",
-        re.MULTILINE | re.DOTALL | re.IGNORECASE,
+    """Return a markdown section's body, up to the next heading at the same or a shallower level.
+
+    Stopping at *any* subsequent heading is wrong and silently so. A real audit
+    report nests one `###` subheading per finding inside its `## Critical
+    findings` section, so an any-heading terminator returns the blank line
+    between the two — which reads as "this section is empty" and scores a
+    correctly-filed Critical as missing. Synthetic reports that list findings as
+    flat bullets never surfaced it.
+    """
+    start = re.compile(
+        rf"^(#{{1,6}})\s*{re.escape(heading)}\b.*$",
+        re.MULTILINE | re.IGNORECASE,
     )
-    match = pattern.search(text)
-    return match.group(1) if match else None
+    match = start.search(text)
+    if not match:
+        return None
+    level = len(match.group(1))
+    rest = text[match.end() :]
+    terminator = re.compile(rf"^#{{1,{level}}}\s", re.MULTILINE).search(rest)
+    return (rest[: terminator.start()] if terminator else rest).lstrip("\n")
 
 
-def count_bullet_findings(section: str | None) -> int:
+def count_findings(section: str | None) -> int:
+    """Count findings in a section body, across both shapes reports use.
+
+    `/gate-audit` emits one `###` subheading per finding with prose beneath it;
+    shorter reports use a flat bullet list. Count subheadings when any are
+    present — bullets under a subheading are that finding's supporting detail,
+    not separate findings — and fall back to bullets otherwise. Counting only
+    bullets scores a real report's findings section as empty.
+    """
     if not section:
         return 0
     stripped = section.strip()
     if not stripped or re.match(r"(?i)^(none|no critical|no important|n/a)\b", stripped):
         return 0
+    subheadings = re.findall(r"^#{1,6}\s+\S", section, re.MULTILINE)
+    if subheadings:
+        return len(subheadings)
     return len(re.findall(r"^\s*[-*]\s+\S", section, re.MULTILINE))
 
 
@@ -120,8 +144,8 @@ def parse_audit_report(text: str) -> ParsedReport:
     combined = "\n".join(section for section in (critical_section, important_section) if section)
     return ParsedReport(
         verdict=extract_verdict(text),
-        critical_count=count_bullet_findings(critical_section),
-        important_count=count_bullet_findings(important_section),
+        critical_count=count_findings(critical_section),
+        important_count=count_findings(important_section),
         categories_mentioned=detect_categories(combined),
     )
 
