@@ -121,3 +121,44 @@ def test_doctor_reports_flow_state_but_does_not_collect_it() -> None:
     assert "## 4. Flow-state hygiene" in text
     assert "gate-ledger gc" in text
     assert "never run it" in text
+
+
+def test_doctor_menu_threshold_is_keyed_on_active_not_total() -> None:
+    """An acceptance fix-and-retry round found the '>10 work files' threshold counted
+    *every* work file, including scope-delta-retained ones sitting at a terminal
+    phase — files `commands/work-on.md`'s own menu (phase not `done`/`stopped`)
+    never lists. The threshold must be stated against the active count, not the
+    raw `work-list` count, or the doctor's consequence is false for exactly the
+    cohort #244 introduced."""
+    text = DOCTOR.read_text(encoding="utf-8")
+    assert "More than 10 active work files" in text
+    assert "phase not `done`/`stopped`" in text
+
+
+def test_doctor_names_gc_force_for_retained_files() -> None:
+    """Retained (terminal-phase, measured-scope-delta) files need their own
+    remedy distinct from the active-count threshold: `gc --force`, not a plain
+    `gc` recommendation that a 10-active-file OK would never trigger."""
+    text = DOCTOR.read_text(encoding="utf-8")
+    assert "Retained" in text
+    assert "gate-ledger gc --force" in text
+
+
+def test_doctor_keep_window_is_keyed_on_last_write_not_flow_end() -> None:
+    """`bin/gate-ledger`'s retention guard (`scope_delta_retention_lapsed`) checks
+    `.updatedAt // .createdAt` — the file's last write — never when its flow
+    ended. A work file whose branch is deleted long after its last write does
+    not get a fresh 14 days from that deletion, so the doctor must not promise
+    one."""
+    text = DOCTOR.read_text(encoding="utf-8")
+    assert "after its flow ends" not in text
+    assert "last write" in text
+
+
+def test_doctor_reads_work_files_through_the_ledger_tool() -> None:
+    """`commands/work-on.md` states work files are read and written only through
+    the ledger tool. The retained-file check must resolve scope-delta data via
+    `gate-ledger work-get`, never a raw glob of `.studious/work/*.json`."""
+    text = DOCTOR.read_text(encoding="utf-8")
+    assert "gate-ledger work-get" in text
+    assert ".studious/work/*.json" not in text
