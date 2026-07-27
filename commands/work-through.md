@@ -473,6 +473,14 @@ gate-ledger work-get --slug "<slug>--<story>" | jq -r '
   (.amendments // []) as $am |
   if $declared == null then "scope: unmeasured (no declaration recorded)"
   elif ($sd | length) == 0 then "scope: declared \($declared | length), not yet measured (no moment recorded)"
+  elif ([$sd[] | select(.unmeasured != true)] | length) == 0 then
+    # Every recorded moment is unmeasured — the fallback driver's normal
+    # output, since it can only ever write --scope-delta-unmeasured. Leads
+    # with that fact rather than falling into the general branch below,
+    # which would render "outside 0" with the all-zero measured count
+    # demoted to a trailing clause — the exact false-clean reading the AC's
+    # "never summed as zero" rule exists to prevent.
+    "scope: declared \($declared | length), unmeasured (0 of " + plural($sd | length; "moment") + " measured)"
   else
     ([$sd[] | select(.unmeasured != true)] ) as $measured |
     ($measured | length) as $measuredCount |
@@ -543,10 +551,12 @@ it, a moment that was never recorded at all (a dropped or mistyped work-log flag
 or the fallback driver's own documented gap above) renders identically to a moment
 that measured clean, both reading as the same `outside <N>` number with nothing to
 tell them apart — exactly the false-clean reading the AC's "never summed as zero"
-rule exists to prevent. It fires whenever the `else` branch above does (at least one
-`scopeDelta` entry recorded, measured or not) and is never itself bracketed or
-omitted; only its own trailing `, <M> unmeasured` addendum drops when every recorded
-moment was measured.
+rule exists to prevent. It fires whenever the `else` branch above does — which now
+requires at least one *measured* `scopeDelta` entry, since an all-unmeasured cohort
+gets its own leading-fact rendering instead (above), rather than reaching this
+clause with a measured count of zero — and is never itself bracketed or omitted;
+only its own trailing `, <M> unmeasured` addendum drops when every recorded moment
+was measured.
 
 End with exactly this shape and nothing after it:
 
@@ -563,12 +573,17 @@ Landed this run: <story> — <phase>: <outcome> (<Nm>) → <phase>: <outcome> (<
 Run /work-through when you're ready, or resolve the queue first.
 ```
 
-`<scope line>` is never omitted and is always exactly one of the three renderings the
-jq above produces — identical composition for a `Needs you` entry and a `Landed this
-run` entry, never a shortened form for one and the full one for the other:
+`<scope line>` is always exactly one of the four renderings the jq above produces
+when its read succeeds — identical composition for a `Needs you` entry and a
+`Landed this run` entry, never a shortened form for one and the full one for the
+other. The sole exception is the failed-read/jq-error case in the paragraph above:
+`<scope line>` is then omitted for that story only, per the degrade rule there —
+never any of the four renderings below standing in for a failure, and never any
+other story's line affected.
 
 - `scope: unmeasured (no declaration recorded)`
 - `scope: declared <N>, not yet measured (no moment recorded)`
+- `scope: declared <N>, unmeasured (0 of <M> moment(s) measured)`
 - `scope: declared <N>, outside <N> (<breakdown by moment>)[, <N> amended][, <N> amendment(s) reference/references no counted file]; <N> moment(s) measured[, <N> unmeasured][: <file, file, ..., +N more>]`
 
 `(<Nm>)` is a computed duration for a phase whose predecessor was real same-run work;
@@ -580,7 +595,7 @@ when nothing is parked. When the epic reaches `ready`, the last line becomes the
 `gh pr create` handoff; `stopped` states what ended it. A parked story is always also
 a valid `/work-on` feature — say so when the queue is non-empty; taking a story over
 by hand happens inside its worktree (the story branch is checked out there), or after
-`git worktree remove` on it. In the third rendering's bracketed `scope:` clauses,
+`git worktree remove` on it. In the fourth rendering's bracketed `scope:` clauses,
 `amended`, the amendment-orphan clause, and the trailing outside-file list are each
 omitted individually when empty (no amendments, no orphaned amendments, zero outside
 files) — never a literal `[, 0 amended]` or empty bracket rendered to the user; the

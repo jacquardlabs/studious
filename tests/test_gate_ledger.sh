@@ -1233,7 +1233,7 @@ out46=$( cd "$d46" && "$LEDGER" gc 2>&1 )
 check "gc keeps a finished work file with unread scope-delta data" "yes" \
   "$([ -f "$wf46" ] && echo yes || echo no)"
 check "gc names the kept file and its scope-delta moment count" "yes" \
-  "$(printf '%s' "$out46" | grep -q 'kept work file with unread scope-delta data: sd-done.json (phase done, 1 scope-delta moment' && echo yes || echo no)"
+  "$(printf '%s' "$out46" | grep -q 'kept work file with unread scope-delta data: sd-done.json (phase done, 1 measured scope-delta moment' && echo yes || echo no)"
 
 ( cd "$d46" && "$LEDGER" gc --force ) >/dev/null 2>&1
 check "gc --force collects it anyway" "no" \
@@ -1245,6 +1245,50 @@ wf47="$d47/.studious/work/sd-done-clean.json"
 ( cd "$d47" && "$LEDGER" gc ) >/dev/null 2>&1
 check "gc still collects a finished work file with no scope-delta data at all, force or not" "no" \
   "$([ -f "$wf47" ] && echo yes || echo no)"
+
+# --- gc's guard only arms on a MEASURED scope-delta entry (fix-and-retry finding
+# 2): every entry the fallback driver (commands/work-through.md) writes carries
+# --scope-delta-unmeasured, so a fallback-driven epic's work file must not be
+# pinned by a cohort it never actually measured. ---
+d46u=$(sandbox)
+( cd "$d46u" && "$LEDGER" work-set --slug sd-unmeasured-only --title "fallback-driven, never measured" --phase "done" ) >/dev/null 2>&1
+( cd "$d46u" && "$LEDGER" work-log --slug sd-unmeasured-only --scope-delta-phase audit --scope-delta-unmeasured ) >/dev/null 2>&1
+wf46u="$d46u/.studious/work/sd-unmeasured-only.json"
+( cd "$d46u" && "$LEDGER" gc ) >/dev/null 2>&1
+check "gc collects (never keeps) a work file whose scope-delta is entirely unmeasured" "no" \
+  "$([ -f "$wf46u" ] && echo yes || echo no)"
+
+# A mixed cohort (one measured entry, one unmeasured) still arms the guard on
+# the measured entry alone — the narrowing only excuses an ALL-unmeasured file.
+d46m=$(sandbox)
+( cd "$d46m" && "$LEDGER" work-set --slug sd-mixed --title "one measured, one not" --phase "done" ) >/dev/null 2>&1
+( cd "$d46m" && "$LEDGER" work-log --slug sd-mixed --scope-delta-phase build --scope-delta-files "a.py" ) >/dev/null 2>&1
+( cd "$d46m" && "$LEDGER" work-log --slug sd-mixed --scope-delta-phase audit-fix-1 --scope-delta-unmeasured ) >/dev/null 2>&1
+wf46m="$d46m/.studious/work/sd-mixed.json"
+( cd "$d46m" && "$LEDGER" gc ) >/dev/null 2>&1
+check "gc still keeps a work file with at least one measured entry, even alongside an unmeasured one" "yes" \
+  "$([ -f "$wf46m" ] && echo yes || echo no)"
+
+# --- gc's keep is bounded by SCOPE_DELTA_RETENTION_DAYS (fix-and-retry finding
+# 1, BLOCKER): the guard's first cut had no terminating condition, so a batch gc
+# never released a landed epic story's work file back to the default (no-`--force`)
+# path at all. A work file whose last write is older than the retention window
+# collects on the next plain `gc`, no `--force` needed. ---
+d46r=$(sandbox)
+( cd "$d46r" && "$LEDGER" work-set --slug sd-stale --title "unread past its keep window" --phase "done" ) >/dev/null 2>&1
+( cd "$d46r" && "$LEDGER" work-log --slug sd-stale --scope-delta-phase build --scope-delta-files "a.py" ) >/dev/null 2>&1
+wf46r="$d46r/.studious/work/sd-stale.json"
+# A fixed, far-past timestamp — not `date` arithmetic — keeps this
+# deterministic and portable across the BSD/GNU `date` divide (no precedent
+# for `date -d`/`date -j` elsewhere in this suite) without depending on
+# whichever OS runs it.
+tmp46r=$(mktemp)
+jq '.updatedAt = "2020-01-01T00:00:00Z"' "$wf46r" > "$tmp46r" && mv "$tmp46r" "$wf46r"
+out46r=$( cd "$d46r" && "$LEDGER" gc 2>&1 )
+check "gc collects (no --force) a work file whose unread scope-delta cohort is past its retention window" "no" \
+  "$([ -f "$wf46r" ] && echo yes || echo no)"
+check "gc names the retention-window collection distinctly from an ordinary finished-file collection" "yes" \
+  "$(printf '%s' "$out46r" | grep -q 'removed work file past its scope-delta keep window: sd-stale.json' && echo yes || echo no)"
 
 # --- gc collects epic state only once the epic actually shipped ---
 # `ready` is the driver's finale status and means "ready for you to PR" — the

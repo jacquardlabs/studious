@@ -938,16 +938,52 @@ cmd_work_list() {
   done
 }
 
+# Scope-delta measurement (#244) acceptance fix-and-retry: how long cmd_gc's
+# unread-scope-delta guard (below) keeps a work file before collecting it
+# regardless. Bounded, not permanent — the guard's first cut (`kept ... unless
+# --force`) had no terminating condition, so it never released a file to the
+# default (no-`--force`) path at all, silently re-disabling #237's fix on the
+# exact epic-driven files it was written for. Three mechanisms were on the
+# table: read-marking, bounded retention, per-slug opt-out. Read-marking is
+# rejected because `work-get` is called constantly by the driver's own
+# in-flow fact-checks (workflows/epic-driver.js) — marking "read" there would
+# defeat the guard before a human ever saw the cohort, the same failure this
+# guard exists to prevent, just relocated to a different call site. A
+# per-slug opt-out is rejected because it is `--force` at file granularity —
+# still a new action a human must remember to take, per file, rather than the
+# guard ever releasing on its own. Bounded retention needs neither: the same
+# plain `gc` a user already runs collects on its own once the window lapses,
+# so a batch run stops being a permanent trap without adding a second way to
+# lose data early. Not a flag — a configurable threshold is exactly the
+# round-one-deferred "no threshold" surface this story's epic-planning
+# decisions ruled out; the constant below is the whole knob for now.
+SCOPE_DELTA_RETENTION_DAYS=14
+
+scope_delta_retention_lapsed() { # file -> true (exit 0) once its last write is older than the keep window; false (exit 1) otherwise, and fail toward keeping (false) on any read failure or missing timestamp
+  local file="$1" updated
+  updated=$(jq -r '.updatedAt // .createdAt // empty' "$file" 2>/dev/null)
+  [ -n "$updated" ] || return 1
+  jq -n -e --arg u "$updated" --argjson days "$SCOPE_DELTA_RETENTION_DAYS" \
+    '(try (now - ($u | fromdateiso8601)) catch null) as $age
+     | $age != null and $age > ($days * 86400)' >/dev/null 2>&1
+}
+
 cmd_gc() {
   # Scope-delta measurement (#244), pre-mortem register item 7 (REALIZED): a
   # work file is the only copy of `declaredFiles`/`scopeDelta`/`amendments` —
   # collecting it discards that story's measurement cohort for good. `--force`
   # opts back into the old unconditional-collect behavior; without it, a work
-  # file that would otherwise be collected but still carries an unread
-  # `.scopeDelta` is kept instead, named in the output, so a batch `gc` run
-  # can't silently erase a cohort the same run it's needed for (success
-  # metric 1 wants 5-10 stories' worth, the same order of magnitude as the
-  # doctor's own "more than 10 work files" gc recommendation).
+  # file that would otherwise be collected but still carries unread *measured*
+  # `.scopeDelta` (an entry with `unmeasured: true` carries no file data by
+  # construction — see work-log above — so an all-unmeasured cohort has
+  # nothing this guard exists to save; narrowing on measured entries, rather
+  # than widening to `declaredFiles != null`, keeps a fallback-driven epic's
+  # own --scope-delta-unmeasured-only moments from pinning every work file it
+  # touches) is kept instead, named in the output, so a batch `gc` run can't
+  # silently erase a cohort the same run it's needed for (success metric 1
+  # wants 5-10 stories' worth, the same order of magnitude as the doctor's own
+  # "more than 10 work files" gc recommendation). The keep itself is bounded
+  # by SCOPE_DELTA_RETENTION_DAYS above — see that constant's comment for why.
   local force=0
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -988,23 +1024,33 @@ cmd_gc() {
     [ -e "$f" ] || continue
     branch=$(jq -r '.branch // empty' "$f" 2>/dev/null)
     phase=$(jq -r '.phase // empty' "$f" 2>/dev/null)
-    sd_len=$(jq -r '(.scopeDelta // []) | length' "$f" 2>/dev/null)
+    sd_len=$(jq -r '(.scopeDelta // []) | map(select(.unmeasured != true)) | length' "$f" 2>/dev/null)
     if [ "$phase" = "done" ] || [ "$phase" = "stopped" ]; then
-      if [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ]; then
-        printf 'kept work file with unread scope-delta data: %s (phase %s, %s scope-delta moment(s) recorded) — read it first: gate-ledger work-get --slug "%s"; then gc --force to collect anyway\n' \
-          "$(basename "$f")" "$phase" "$sd_len" "$(basename "$f" .json)"
+      if [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ] && ! scope_delta_retention_lapsed "$f"; then
+        printf 'kept work file with unread scope-delta data: %s (phase %s, %s measured scope-delta moment(s) recorded) — read it first: gate-ledger work-get --slug "%s"; then gc --force to collect anyway, or run gc again once its %s-day keep window lapses\n' \
+          "$(basename "$f")" "$phase" "$sd_len" "$(basename "$f" .json)" "$SCOPE_DELTA_RETENTION_DAYS"
         continue
       fi
       rm -f "$f"
-      printf 'removed finished work file: %s (phase %s)\n' "$(basename "$f")" "$phase"
+      if [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ]; then
+        printf 'removed work file past its scope-delta keep window: %s (phase %s, %s measured scope-delta moment(s) recorded, never read within %s days)\n' \
+          "$(basename "$f")" "$phase" "$sd_len" "$SCOPE_DELTA_RETENTION_DAYS"
+      else
+        printf 'removed finished work file: %s (phase %s)\n' "$(basename "$f")" "$phase"
+      fi
     elif [ -n "$branch" ] && ! git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1; then
-      if [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ]; then
-        printf 'kept work file with unread scope-delta data: %s (branch %s gone, %s scope-delta moment(s) recorded) — read it first: gate-ledger work-get --slug "%s"; then gc --force to collect anyway\n' \
-          "$(basename "$f")" "$branch" "$sd_len" "$(basename "$f" .json)"
+      if [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ] && ! scope_delta_retention_lapsed "$f"; then
+        printf 'kept work file with unread scope-delta data: %s (branch %s gone, %s measured scope-delta moment(s) recorded) — read it first: gate-ledger work-get --slug "%s"; then gc --force to collect anyway, or run gc again once its %s-day keep window lapses\n' \
+          "$(basename "$f")" "$branch" "$sd_len" "$(basename "$f" .json)" "$SCOPE_DELTA_RETENTION_DAYS"
         continue
       fi
       rm -f "$f"
-      printf 'removed stale work file: %s (branch %s no longer exists)\n' "$(basename "$f")" "$branch"
+      if [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ]; then
+        printf 'removed work file past its scope-delta keep window: %s (branch %s no longer exists, %s measured scope-delta moment(s) recorded, never read within %s days)\n' \
+          "$(basename "$f")" "$branch" "$sd_len" "$SCOPE_DELTA_RETENTION_DAYS"
+      else
+        printf 'removed stale work file: %s (branch %s no longer exists)\n' "$(basename "$f")" "$branch"
+      fi
     fi
   done
 

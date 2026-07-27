@@ -857,6 +857,49 @@ def test_report_declared_but_no_moment_recorded_is_not_a_manufactured_zero() -> 
     assert out == "scope: declared 3, not yet measured (no moment recorded)"
 
 
+def test_report_all_unmeasured_moments_lead_with_the_fact_not_a_false_clean_outside_zero() -> None:
+    """Fix-and-retry finding 3: the fallback driver (commands/work-through.md)
+    can only ever write --scope-delta-unmeasured, so every one of its work
+    files has a scopeDelta whose every entry is unmeasured. Before this fix
+    that fell into the general branch and rendered 'outside 0' with the
+    all-zero measured count demoted to a trailing clause — the exact
+    false-clean reading the AC's 'never summed as zero' rule exists to
+    prevent. It must instead get its own rendering that leads with the fact."""
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py", "b.py"],
+        "scopeDelta": [{"phase": "audit", "unmeasured": True, "outsideFiles": []}],
+        "amendments": [],
+    })
+    assert out == "scope: declared 2, unmeasured (0 of 1 moment measured)"
+
+
+def test_report_all_unmeasured_moments_plural_denominator() -> None:
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [
+            {"phase": "audit", "unmeasured": True, "outsideFiles": []},
+            {"phase": "acceptance", "unmeasured": True, "outsideFiles": []},
+        ],
+        "amendments": [],
+    })
+    assert out == "scope: declared 1, unmeasured (0 of 2 moments measured)"
+
+
+def test_report_one_measured_moment_among_unmeasured_ones_still_uses_the_general_rendering() -> None:
+    """The narrowing only excuses an ALL-unmeasured cohort — a single measured
+    moment alongside unmeasured ones still renders the general outside-count
+    form, unaffected by the new leading branch."""
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [
+            {"phase": "build", "unmeasured": False, "outsideFiles": []},
+            {"phase": "audit", "unmeasured": True, "outsideFiles": []},
+        ],
+        "amendments": [],
+    })
+    assert out == "scope: declared 1, outside 0; 1 moment measured, 1 unmeasured"
+
+
 def test_report_a_measured_zero_moment_is_distinct_from_not_yet_measured() -> None:
     """A recorded moment whose own outsideFiles is empty is a real measurement of
     zero — distinct from no moment ever having been recorded at all."""
@@ -1034,3 +1077,15 @@ def test_closing_shape_failure_path_renderings_match_the_jq_filter_verbatim() ->
     assert "scope: unmeasured (no declaration recorded)" in section
     assert ", not yet measured (no moment recorded)" in jq_filter
     assert ", not yet measured (no moment recorded)" in section
+
+
+def test_closing_shape_documents_the_all_unmeasured_rendering() -> None:
+    """Fix-and-retry finding 3's new leading-fact rendering is a fourth failure
+    path alongside the two finding 6a already locked above — same rule
+    applies: the literal shape block's bullet list must name it in the jq
+    filter's own words, not a paraphrase."""
+    section = _closing_shape_section()
+    jq_filter = _extract_scope_delta_jq_filter()
+    assert ", unmeasured (0 of " in jq_filter
+    assert ", unmeasured (0 of " in section
+    assert "four renderings" in section
