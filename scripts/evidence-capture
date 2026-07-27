@@ -681,7 +681,22 @@ def run_capture(argv: list[str]) -> int:
     # A clearing run says so first: deletion is the half of --force a reader
     # cannot see in the result, and "wrote N artifacts" alone reads identically
     # whether the folder was empty or held someone else's capture.
-    cleared_note = f"cleared {cleared} pre-existing entr{'y' if cleared == 1 else 'ies'}; " if cleared else ""
+    #
+    # It also names what those deletions cost, because the *next* capture is
+    # where they surface: clearing committed evidence leaves uncommitted
+    # deletions, and the dirty-tree refusal above says "Commit the task's
+    # work first" — the wrong cause, since the task's work already is
+    # committed. That refusal is generic and serves three other callers, so it
+    # cannot know a --force run produced the dirt; this run is the only place
+    # that holds the fact. Qualified, not asserted flat: entries under a
+    # scratch --evidence-root, or a capture re-run before it was ever
+    # committed, leave nothing tracked to delete.
+    cleared_note = (
+        f"cleared {cleared} pre-existing entr{'y' if cleared == 1 else 'ies'} "
+        "(clearing committed evidence leaves uncommitted deletions — commit them before the next capture); "
+        if cleared
+        else ""
+    )
     print(
         f"evidence-capture: {cleared_note}wrote {len(manifest_artifacts)} artifact(s) "
         f"+ manifest.json to {target_dir}"

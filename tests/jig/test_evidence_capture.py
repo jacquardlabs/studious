@@ -706,6 +706,14 @@ class TestEvidenceCaptureForceOverCommittedEvidence(unittest.TestCase):
             result = capture(second, "second", force=True)
             self.assertEqual(result.returncode, 0, result.stderr)
 
+            # The success line names the deletions, because the next capture
+            # meets them at the generic dirty-tree refusal ("Commit the task's
+            # work first"), which names the wrong cause and cannot know this
+            # run produced them. Substrings, not the whole line: the phrasing
+            # stays editable, the fact does not.
+            self.assertIn("uncommitted deletions", result.stdout)
+            self.assertIn("before the next capture", result.stdout)
+
             # The deletion is real and uncommitted — the untested shape.
             dirty = git(["status", "--porcelain"], repo)
             self.assertIn("first.txt", dirty)
