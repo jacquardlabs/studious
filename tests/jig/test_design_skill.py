@@ -46,6 +46,7 @@ import unittest
 from pathlib import Path
 
 from _frontmatter import FRONTMATTER
+from _text import normalize_ws
 from _vocabulary import derive_design_vocabulary
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -139,20 +140,15 @@ class TestDesignVocabularyDerivation(unittest.TestCase):
         )
 
 
-def _normalize_ws(text: str) -> str:
-    """Collapse whitespace runs (including line-wrap newlines) to a single
-    space, so a multi-word phrase check doesn't break on where prose
-    happens to be hand-wrapped."""
-    return re.sub(r"\s+", " ", text)
 
 
 class TestDesignSkillBody(unittest.TestCase):
     def setUp(self) -> None:
         self.body = SKILL_MD.read_text(encoding="utf-8")
-        self.flat_body = _normalize_ws(self.body)
+        self.flat_body = normalize_ws(self.body)
 
     def assertPhraseIn(self, phrase: str) -> None:
-        self.assertIn(_normalize_ws(phrase), self.flat_body, f"phrase not found (whitespace-normalized): {phrase!r}")
+        self.assertIn(normalize_ws(phrase), self.flat_body, f"phrase not found (whitespace-normalized): {phrase!r}")
 
     def test_body_uses_design_level_vocabulary(self) -> None:
         missing = [term for term in DESIGN_VOCABULARY if term not in self.body]
