@@ -39,8 +39,8 @@ Three modes — capture is the default and takes no verb word:
     evidence-capture list --branch B                 print each task's answer
 
 `resolve` and `list` are the **one home** for the rule that says which folder
-belongs to which task. Readers (`/finish`, `/coach`) call them instead of
-rebuilding a folder name from a shape they would otherwise have to keep in
+belongs to which task. A reader (`/finish` today) calls them instead of
+rebuilding a folder name from a shape it would otherwise have to keep in
 sync — and instead of keying on task + date, which cannot tell two branches'
 identically-tasked folders apart once one has merged into the other's base.
 One rule, applied identically by both verbs:
@@ -125,9 +125,10 @@ a per-task lookup that finds nothing is a failed lookup, but an inventory read
 of a branch that has captured nothing is a complete answer. The one refusal
 `list` still has to *say* is `[ambiguous]`, which it prints as that literal
 token in the answer column instead of a path. Dropping such a task from the
-inventory would leave `/coach` silent about a task `/finish` calls ambiguous —
-two navigators, two answers, one rule. A task with no bearing on the branch at
-all (`[no-match]`) is genuinely not in that branch's inventory and stays out.
+inventory would make the inventory disagree with the per-task lookup about the
+task both were asked about — one rule, two verbs, two answers. A task with no
+bearing on the branch at all (`[no-match]`) is genuinely not in that branch's
+inventory and stays out.
 
 `list`'s answer column is one grammar covering all three: a path, optionally
 opened by a bracketed token. `[ambiguous]` stands alone because no path can
@@ -136,12 +137,12 @@ splits the row on its tab still sees exactly two fields either way, and a
 caveat carried in the same column the path occupies cannot be dropped by a
 reader that only looked at the path.
 
-The token is the caveat's handle, not the caveat. `/coach` is told to quote a
-token as printed and never to interpret it — correctly, since the meaning is
-this script's to state — so a row is the whole of what that reader gets, and a
-meaning stated only on `resolve`'s path arrives at `list`'s reader as a bare
-string in a stream. Both verbs therefore print one shared note (`legacy_note`)
-on stderr for the same answer, leaving stdout byte-identical in both.
+The token is the caveat's handle, not the caveat. Its meaning is this script's
+to state and no reader's to infer, so it has to be reachable from either verb's
+own stream: a row is the whole of what a `list`-only reader gets, and a meaning
+stated only on `resolve`'s path arrives there as a bare string in a stream.
+Both verbs therefore print one shared note (`legacy_note`) on stderr for the
+same answer, leaving stdout byte-identical in both.
 """
 from __future__ import annotations
 
@@ -169,8 +170,8 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 QUERY_VERBS = ("resolve", "list")
 
 # What a lookup says beyond the bare answer, as the literal token its message
-# carries. Printed, not merely returned: `/finish` picks its PR-body label from
-# this token and `/coach` prints it in a row, and an English sentence is not a
+# carries. Printed, not merely returned: a prompt that has to tell one kind of
+# answer from another selects on this token, and an English sentence is not a
 # stable thing for a prompt to match on. Each is named for the *reader's* state
 # — nothing at all; folders that exist and cannot be tied to the branch asked
 # about; a folder that answers but is tied to no branch at all — deliberately
@@ -371,9 +372,8 @@ def ambiguous_note(task: str, branch: str, answers: tuple[str, ...]) -> str:
     verbatim. Kept to one line for the same reason, and carrying no recovery
     text — not even a pointer at where it lives. The recoveries stay
     single-sourced in `resolve`'s refusal, where a second copy could drift out
-    of step with the one `/finish` quotes; and this line is quoted verbatim
-    into a `/coach` assessment, which states what is, recommends exactly one
-    action, and must not carry a second instruction inside a signal.
+    of step with the original; and a line a reader may quote verbatim must not
+    carry a second instruction inside a signal.
     """
     return (
         f"note: [{AMBIGUOUS}] no folder resolved for task '{task}' on branch '{branch}': "
@@ -405,7 +405,7 @@ def usage_modes() -> str:
     """The three-mode usage block, lifted from this module's own docstring.
 
     `--help` and the docstring are the same statement to two readers who
-    never meet: a persona who runs `--help` after `/finish` quotes a
+    never meet: a persona who runs `--help` after `/finish` reports a
     `resolve` failure needs to find that verb documented. Deriving the block
     from the docstring keeps that one statement in one place — a second
     hand-maintained copy is exactly the drift that leaves `--help`

@@ -912,10 +912,10 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
             self.assertIn("manifest.json", result.stderr)
             # One line, so a caller quoting it into a table row can.
             self.assertEqual(len(result.stderr.strip().splitlines()), 1)
-            # And it names its own task. `/coach` reads the two streams by
-            # running `list` twice (it may write no scratch file), so the id
-            # inside the note is the only key that joins a note back to its
-            # row — two independent runs share no ordering guarantee.
+            # And it names its own task. A reader may take the two streams from
+            # two separate runs of `list`, so the id inside the note is the only
+            # key that joins a note back to its row — two independent runs share
+            # no ordering guarantee.
             self.assertIn("the folder resolved for task 'task-1'", result.stderr)
 
     def test_a_branch_bearing_answer_carries_no_caveat_at_all(self) -> None:
@@ -1009,7 +1009,7 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
             self.assertIn("nothing here says this branch captured any of it", result.stderr)
 
     def test_both_refusals_open_with_a_stable_bracketed_token(self) -> None:
-        """`/finish` picks its PR-body label from the token, not from the
+        """A reader tells the two refusals apart by the token, not by the
         English sentence around it — which the next prose edit rewrites."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
@@ -1104,10 +1104,10 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
             self.assertEqual(result.stdout, "")
 
     def test_an_undecidable_task_is_a_marker_row_not_an_omission(self) -> None:
-        """One rule, two navigators, one answer: `/finish` calls this task
-        ambiguous, so an inventory that silently dropped it would have `/coach`
-        report the task as having no evidence question at all — and the omission
-        is invisible exactly where a human is asking "what do I have"."""
+        """One rule, two verbs, one answer: `resolve` calls this task
+        ambiguous, so an inventory that silently dropped it would report the
+        task as having no evidence question at all — and the omission is
+        invisible exactly where a human is asking "what do I have"."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
@@ -1131,8 +1131,8 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
             self.assertEqual(result.stdout.splitlines(), ["task-1\t[ambiguous]", f"task-2\t{two}"])
 
     def test_a_qualified_answer_carries_its_token_into_the_row(self) -> None:
-        """One rule, two arities, one report: the answer `/finish` is caveated
-        about must not read as a plain capture in `/coach`'s inventory. The
+        """One rule, two arities, one report: the answer `resolve` is caveated
+        about must not read as a plain capture in `list`'s inventory. The
         token opens the answer column the path occupies rather than taking a
         column of its own, so a reader splitting on the tab still sees exactly
         two fields — and cannot drop the caveat by reading only the path."""
@@ -1154,9 +1154,9 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
 
         Every route to `[legacy]`'s meaning was closed on this verb's path:
         `resolve`'s explanatory note sits after the branch `list` returns from,
-        `--help`'s epilog prints usage lines only, and `/coach` is told — for
-        the one-home reason — to quote a token as printed and never interpret
-        it. So the note is printed here too, byte-for-byte the one `resolve`
+        `--help`'s epilog prints usage lines only, and the meaning is — for the
+        one-home reason — this script's to state rather than a reader's to
+        infer. So the note is printed here too, byte-for-byte the one `resolve`
         prints, and stdout stays exactly what it was.
         """
         with tempfile.TemporaryDirectory() as tmp:
@@ -1178,12 +1178,12 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
     def test_a_marker_row_carries_a_note_of_its_own(self) -> None:
         """`[ambiguous]` reached this verb with its meaning stated nowhere on
         the path a `list`-only reader walks: `resolve`'s refusal sits behind an
-        invocation `/coach` never makes, and that skill is told — for the
-        one-home reason — to quote a token as printed and never interpret it.
-        So the row gets the same treatment `[legacy]` already got: one line on
-        stderr, naming the branch nothing could be tied to and enumerating the
-        folders, with the task id inside it as the join key, since the two runs
-        `/coach` makes share no ordering guarantee."""
+        invocation such a reader never makes, and the meaning is — for the
+        one-home reason — this script's to state rather than a reader's to
+        infer. So the row gets the same treatment `[legacy]` already got: one
+        line on stderr, naming the branch nothing could be tied to and
+        enumerating the folders, with the task id inside it as the join key,
+        since two independent runs share no ordering guarantee."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             first = write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
@@ -1208,11 +1208,10 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
 
     def test_a_marker_rows_note_carries_no_recovery_at_all(self) -> None:
         """One home for the recovery text, and no pointer at it either.
-        `resolve`'s refusal is where the two repairs are stated and where
-        `/finish` quotes them from; a second copy here is a copy to drift, and
-        a "run `resolve`" pointer would put an instruction inside a signal
-        `/coach` quotes verbatim into an assessment that recommends exactly one
-        action of its own."""
+        `resolve`'s refusal is where the two repairs are stated; a second copy
+        here is a copy to drift, and a "run `resolve`" pointer would put an
+        instruction inside a signal a reader may quote verbatim into an
+        assessment that recommends exactly one action of its own."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
@@ -1374,7 +1373,7 @@ class TestEvidenceCaptureVerbDispatch(unittest.TestCase):
         self.assertIn("--artifact", result.stdout)
 
     def test_help_documents_all_three_modes_not_only_capture(self) -> None:
-        """A persona who hits a `resolve` failure quoted by `/finish` runs
+        """A persona who hits a `resolve` failure reported by `/finish` runs
         `--help` next. Documenting only the capture surface sends them looking
         for a verb the script's own help says does not exist. The epilog is
         derived from the module docstring rather than restated, so the two
