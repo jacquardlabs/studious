@@ -41,6 +41,7 @@ import unittest
 from pathlib import Path
 
 from _frontmatter import FRONTMATTER
+from _text import normalize_ws
 from _vocabulary import derive_finish_vocabulary
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -113,20 +114,15 @@ class TestFinishVocabularyDerivation(unittest.TestCase):
         )
 
 
-def _normalize_ws(text: str) -> str:
-    """Collapse whitespace runs (including line-wrap newlines) to a single
-    space, so a multi-word phrase check doesn't break on where prose
-    happens to be hand-wrapped."""
-    return re.sub(r"\s+", " ", text)
 
 
 class TestFinishSkillBody(unittest.TestCase):
     def setUp(self) -> None:
         self.body = SKILL_MD.read_text(encoding="utf-8")
-        self.flat_body = _normalize_ws(self.body)
+        self.flat_body = normalize_ws(self.body)
 
     def assertPhraseIn(self, phrase: str) -> None:
-        self.assertIn(_normalize_ws(phrase), self.flat_body, f"phrase not found (whitespace-normalized): {phrase!r}")
+        self.assertIn(normalize_ws(phrase), self.flat_body, f"phrase not found (whitespace-normalized): {phrase!r}")
 
     def test_body_uses_finish_level_vocabulary(self) -> None:
         missing = [term for term in FINISH_VOCABULARY if term not in self.body]
@@ -295,11 +291,11 @@ class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
 
     def setUp(self) -> None:
         self.body = SKILL_MD.read_text(encoding="utf-8")
-        self.flat_body = _normalize_ws(self.body)
+        self.flat_body = normalize_ws(self.body)
 
     def assertPhraseIn(self, phrase: str) -> None:
         self.assertIn(
-            _normalize_ws(phrase),
+            normalize_ws(phrase),
             self.flat_body,
             f"phrase not found (whitespace-normalized): {phrase!r}",
         )
@@ -334,7 +330,7 @@ class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
         # `--repo`. An unjoined path exits 2 and stops /finish outright.
         self.assertIn(
             "scripts/evidence-freshness --repo <worktree> --evidence <worktree>/<folder>",
-            _normalize_ws(self.body),
+            normalize_ws(self.body),
         )
         self.assertPhraseIn("**joined onto `<worktree>/`**")
         self.assertPhraseIn("resolves `--evidence` against the process's own cwd")
@@ -348,7 +344,7 @@ class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
 
     def test_the_manifest_sentence_describes_the_folder_resolve_printed(self) -> None:
         # Its antecedent is the exit-0 resolved folder, and it has one home.
-        contents = _normalize_ws("carries a `manifest.json` (`commit_sha`, `commit_timestamp`, `branch`")
+        contents = normalize_ws("carries a `manifest.json` (`commit_sha`, `commit_timestamp`, `branch`")
         self.assertEqual(self.flat_body.count(contents), 1, "the manifest description has one home")
-        exit_zero_at = self.flat_body.index(_normalize_ws("It prints one folder path, repo-relative, on exit 0."))
+        exit_zero_at = self.flat_body.index(normalize_ws("It prints one folder path, repo-relative, on exit 0."))
         self.assertLess(exit_zero_at, self.flat_body.index(contents))
