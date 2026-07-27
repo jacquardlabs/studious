@@ -35,7 +35,17 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = REPO_ROOT / "tests" / "jig" / "fixtures" / "plan-lint"
 BUILD_SKILL_MD = REPO_ROOT / "skills" / "build" / "SKILL.md"
 
-FIXTURE_NAMES = ("clean-plan.md", "broken-plan.md", "load-bearing-title-match.md")
+FIXTURE_NAMES = (
+    "clean-plan.md",
+    "broken-plan.md",
+    "load-bearing-title-match.md",
+    # Boundary fixtures (#206). The three above are all parsed identically by
+    # any reasonable task-heading grammar, which is why the agreement they
+    # proved was weaker than it read: the two surfaces carried different
+    # regexes and disagreed on all three inputs below.
+    "boundary-trailing-section.md",
+    "boundary-heading-variants.md",
+)
 
 
 class TestStep1_5DocumentsBothMatchPaths(unittest.TestCase):
@@ -61,7 +71,7 @@ class TestTwoSurfacesAgreeOnLoadBearingSets(unittest.TestCase):
     def setUp(self) -> None:
         self.plan_lint_module = load_plan_lint_module()
 
-    def test_all_three_fixtures_agree(self) -> None:
+    def test_every_fixture_agrees(self) -> None:
         for fixture_name in FIXTURE_NAMES:
             with self.subTest(fixture=fixture_name):
                 text = (FIXTURES / fixture_name).read_text(encoding="utf-8")
@@ -93,6 +103,30 @@ class TestTwoSurfacesAgreeOnLoadBearingSets(unittest.TestCase):
         )
         self.assertNotIn("Task 1", rests_on_line)
         self.assertEqual(surface_1_plan_lint(self.plan_lint_module, text), frozenset({"1"}))
+
+    def test_a_trailing_coarser_section_contributes_nothing(self) -> None:
+        """Step 1.4's explicit exclusion, which the old reference violated:
+        it split only at the next *task* heading, so a closing
+        `## Not-here follow-ups` was absorbed into the last task's block and
+        a `Rests on:` line down there was read as that task's own. Agreement
+        alone would not catch this -- both surfaces could agree on `{1}` --
+        so the expected set is asserted outright.
+        """
+        text = (FIXTURES / "boundary-trailing-section.md").read_text(encoding="utf-8")
+        # rsplit: the fixture's own header prose names the heading too, and the
+        # section that matters is the trailing one.
+        self.assertIn("Rests on:   Task 1", text.rsplit("## Not-here follow-ups", 1)[1])
+        self.assertEqual(surface_1_plan_lint(self.plan_lint_module, text), frozenset())
+        self.assertEqual(surface_2_reference(text), frozenset())
+
+    def test_only_the_documented_heading_form_contributes(self) -> None:
+        """`Task 2a` is outside the documented `### Task N` grammar, so it is
+        not a task block and its `Rests on:` line names nothing; `Task 3 -`
+        (hyphen, not em-dash) still is one. The old reference inverted both:
+        it accepted any `\\S+` label and required a literal em-dash."""
+        text = (FIXTURES / "boundary-heading-variants.md").read_text(encoding="utf-8")
+        self.assertEqual(surface_1_plan_lint(self.plan_lint_module, text), frozenset({"3"}))
+        self.assertEqual(surface_2_reference(text), frozenset({"3"}))
 
 
 class TestMutationIsCaughtAsMismatch(unittest.TestCase):
