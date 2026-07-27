@@ -315,7 +315,8 @@ def test_load_planted_treats_a_missing_key_as_a_control_fixture(tmp_path: Path) 
 
 def test_every_checked_in_fixture_declares_usable_ground_truth() -> None:
     # Guards the two files against drifting apart: a fixture whose expected.json
-    # promises critical findings but plants nothing cannot be scored by an arm.
+    # promises findings but plants nothing cannot be scored by an arm, and reads
+    # as a well-behaved flat metric rather than a broken one.
     from run_gate_audit_fixtures import discover_fixtures
 
     for fixture in discover_fixtures():
@@ -324,6 +325,10 @@ def test_every_checked_in_fixture_declares_usable_ground_truth() -> None:
         if expected.get("min_critical_findings", 0) > 0:
             assert any(d.floor == "critical" for d in planted), (
                 f"{fixture.name}: expects a critical finding but plants no critical defect"
+            )
+        if expected.get("min_important_findings", 0) > 0:
+            assert planted, (
+                f"{fixture.name}: expects an important finding but plants no defect"
             )
 
 

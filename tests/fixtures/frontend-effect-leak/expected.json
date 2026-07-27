@@ -1,0 +1,14 @@
+{
+  "description": "A second useEffect adds a 1s setInterval and returns no cleanup, so every symbol change and every unmount leaks a timer that keeps calling setState — on a dashboard DESIGN.md and CLAUDE.md both describe as never reloaded, the timers accumulate for the life of the tab. The added effect looks like the correct hook shape (deps array present, mirrors the effect directly above it, carries a plausible comment), so the discriminating signal is whether the reviewer checks the effect for a cleanup return rather than pattern-matching it against its well-formed neighbor. This is frontend-reviewer's scoring case for issue #136.",
+  "verdict_any_of": ["PASS", "FIX AND RE-AUDIT"],
+  "min_important_findings": 1,
+  "required_categories": ["frontend"],
+  "planted": [
+    {
+      "id": "uncleaned-interval",
+      "floor": "important",
+      "locator": "LivePrices.tsx",
+      "signals": ["cleanup", "setInterval", "clearInterval", "leak", "unmount"]
+    }
+  ]
+}

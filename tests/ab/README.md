@@ -134,14 +134,18 @@ check computed but never enforced) that §4's wording suppressed before.
 
 ### `arms/model-drop-136.json`
 
-Baseline against `code-auditor` + `test-auditor` pinned down a tier, for
+Baseline against all four `inherit` agents pinned down a tier, for
 [#136](https://github.com/jacquardlabs/studious/issues/136).
 
-**This settles two of the four `inherit` agents, not all four.** The fixture set plants
-no defect in `doc-auditor`'s or `frontend-reviewer`'s lane, so a drop for either scores
-as no change for the wrong reason. Settling those two needs a fixture that plants a
-documentation defect and one that plants a frontend defect first; until then, do not read
-a flat result for them as evidence.
+Dropping four agents in one arm does not confound the read, because each fixture's
+planted defect belongs to a single lane: `stale-api-docs` scores `doc-auditor`,
+`frontend-effect-leak` scores `frontend-reviewer`, and `missing-regression-test` scores
+`test-auditor` (with `code-auditor` as the plausible second catcher — both are in the
+drop set, so the overlap costs nothing). Read the per-fixture rows, not the aggregate.
+
+Judge on `MISSED` first. A tier drop that loses a planted defect is the silent false
+negative the gate in `CONTRIBUTING.md` exists to prevent; a drop that only moves
+`UNDER_TIERED` is a calibration change, which is cheaper and may be acceptable.
 
 ## Adding a fixture
 

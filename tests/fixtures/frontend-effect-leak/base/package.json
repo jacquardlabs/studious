@@ -1,0 +1,14 @@
+{
+  "name": "desk-dashboard",
+  "private": true,
+  "version": "1.4.0",
+  "type": "module",
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "typescript": "5.5.4",
+    "vite": "5.4.2"
+  }
+}

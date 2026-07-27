@@ -79,6 +79,16 @@ spent reading and reasoning).
 - **`low`** — mechanical, rule-based, or inventory work: `doc-auditor`, `review-readme`,
   `backlog-hygiene`.
 
+**`effort` is model-gated, and on `haiku` there is nothing to gate.** Claude Code's
+subagent frontmatter documents `effort`'s "available levels depend on the model", and
+Haiku 4.5 does not take the parameter at all. So the `effort: low` pins on `review-readme`
+and `backlog-hygiene` — both `model: haiku` — and the five `{model: 'haiku', effort:
+'low'}` dispatches in `workflows/epic-driver.js` are declarations of intent, not live
+dials: those six get haiku's own behavior regardless. They are kept rather than deleted
+because they record the stakes call and become live the moment either agent moves tier,
+but do not budget a turn-count saving from them, and do not read the `low` row above as
+covering them.
+
 `premortem-auditor` sits at `medium` despite being merge-blocking: it verifies a fixed
 register item by item and never free-hunts, so it is structured verification, not open-ended
 reasoning. `dependency-auditor` sits at `medium` by the same argument: it enumerates per
@@ -125,9 +135,9 @@ anywhere in this file as an endorsed default.
 It runs each arm over the golden fixtures N times and scores every planted defect as
 reported, under-tiered, demoted to prose, or missed — a model drop is judged on *missed*,
 the silent false negative this gate exists to catch, which a finding count cannot separate
-from a demotion. `tests/ab/arms/model-drop-136.json` is the configured experiment; note its
-stated limit, that the current fixtures plant nothing in `doc-auditor`'s or
-`frontend-reviewer`'s lane, so those two need a fixture before their drop can be judged.
+from a demotion. `tests/ab/arms/model-drop-136.json` is the configured experiment, and the
+six fixtures now plant a defect in each of the four agents' lanes, so all four can be
+judged in one run — read the per-fixture rows rather than the aggregate.
 
 Two levers move independently, and an A/B should vary one: pinning an explicit model ID
 (`model: claude-opus-5`) removes the same-branch-judged-by-two-models defect without
