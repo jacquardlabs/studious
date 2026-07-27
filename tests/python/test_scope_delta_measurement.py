@@ -858,10 +858,12 @@ def test_report_declared_but_no_moment_recorded_is_not_a_manufactured_zero() -> 
 
 
 def test_report_all_unmeasured_moments_lead_with_the_fact_not_a_false_clean_outside_zero() -> None:
-    """Fix-and-retry finding 3: the fallback driver (commands/work-through.md)
-    can only ever write --scope-delta-unmeasured, so every one of its work
-    files has a scopeDelta whose every entry is unmeasured. Before this fix
-    that fell into the general branch and rendered 'outside 0' with the
+    """Fix-and-retry finding 3: a scope check that dies or can't resolve a diff
+    on the script path writes --scope-delta-unmeasured (`computeScopeDelta`'s
+    dead-end path, workflows/epic-driver.js) — the fallback driver
+    (commands/work-through.md) writes no scope-delta entries at all, so it was
+    never the source of this. A work file whose scopeDelta is all such entries
+    used to fall into the general branch and render 'outside 0' with the
     all-zero measured count demoted to a trailing clause — the exact
     false-clean reading the AC's 'never summed as zero' rule exists to
     prevent. It must instead get its own rendering that leads with the fact."""
@@ -921,6 +923,21 @@ def test_report_by_moment_breaks_down_outside_files_per_phase() -> None:
         "amendments": [],
     })
     assert out == "scope: declared 1, outside 3 (2 at build, 1 at audit-fix-1); 2 moments measured: b.py, c.py, d.py"
+
+
+def test_report_by_moment_count_deduplicates_a_duplicated_stored_entry() -> None:
+    """Fix-and-retry finding 6: `$byMoment` used to sum each moment's raw
+    `outsideFiles` length while `$outside` applied `| unique` — a duplicated
+    stored entry within one moment inflated that moment's own count (here, 3)
+    while the deduplicated headline total (2) looked unaffected, shifting the
+    overreach-vs-accretion read the by-moment breakdown exists to give. Both
+    now apply the same display-side `unique`."""
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [{"phase": "build", "unmeasured": False, "outsideFiles": ["b.py", "b.py", "c.py"]}],
+        "amendments": [],
+    })
+    assert out == "scope: declared 1, outside 2 (2 at build); 1 moment measured: b.py, c.py"
 
 
 def test_report_more_than_five_outside_files_truncates_with_a_remainder_count() -> None:
@@ -1089,3 +1106,40 @@ def test_closing_shape_documents_the_all_unmeasured_rendering() -> None:
     assert ", unmeasured (0 of " in jq_filter
     assert ", unmeasured (0 of " in section
     assert "four renderings" in section
+
+
+def test_closing_shape_unavailable_rendering_is_caller_side_not_the_jqs() -> None:
+    """Fix-and-retry finding 4: `:514` said the scope line is "never a bare
+    omission" while `:516-518` said a failed read or jq error "renders nothing
+    for this line" — a direct contradiction on the same failure. The winning
+    rule is "never a bare omission": a failed read/jq error now renders
+    `scope: unavailable (could not read the work file)`, a caller-side line the
+    jq filter itself never produces (absence is otherwise indistinguishable
+    from `unmeasured`). The jq's own output space stays exactly the four
+    renderings locked above — this string must not appear in the jq filter."""
+    section = _closing_shape_section()
+    jq_filter = _extract_scope_delta_jq_filter()
+    assert "scope: unavailable (could not read the work file)" in section
+    assert "scope: unavailable (could not read the work file)" not in jq_filter
+    assert "is then omitted for that story only" not in section
+
+
+def test_closing_shape_documents_the_fallback_drivers_own_rendering() -> None:
+    """Fix-and-retry finding 5: the fallback driver's closing report used to
+    reuse `scope: unmeasured (no declaration recorded)` for every fallback-only
+    story, misattributing a mode-wide capability gap (no scope-delta
+    measurement on that path at all) to a missing declaration — and then sent
+    the reader to verify `.declaredFiles`, the wrong diagnostic for that cause.
+    The fallback driver now renders its own caller-side line instead of
+    running the jq for such a story, and the stale verify instruction is gone
+    from the `no declaration recorded` bullet."""
+    section = _closing_shape_section()
+    jq_filter = _extract_scope_delta_jq_filter()
+    assert "scope: not measured (fallback driver — measurement runs on the Workflow path only)" in section
+    assert "scope: not measured (fallback driver — measurement runs on the Workflow path only)" not in jq_filter
+    fallback_text = WORK_THROUGH.read_text()
+    fb_start = fallback_text.index("### Fallback driver")
+    fb_end = fallback_text.index("Apply verdicts exactly as the script does:")
+    fallback_section = fallback_text[fb_start:fb_end]
+    assert "scope: not measured (fallback driver — measurement runs on the Workflow path only)" in fallback_section
+    assert "renders `scope: unmeasured (no declaration recorded)` rather than a per-moment" not in fallback_section

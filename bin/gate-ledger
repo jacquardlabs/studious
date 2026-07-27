@@ -939,7 +939,7 @@ cmd_work_list() {
 }
 
 # Scope-delta measurement (#244) acceptance fix-and-retry: how long cmd_gc's
-# unread-scope-delta guard (below) keeps a work file before collecting it
+# measured-scope-delta guard (below) keeps a work file before collecting it
 # regardless. Bounded, not permanent — the guard's first cut (`kept ... unless
 # --force`) had no terminating condition, so it never released a file to the
 # default (no-`--force`) path at all, silently re-disabling #237's fix on the
@@ -973,9 +973,9 @@ cmd_gc() {
   # work file is the only copy of `declaredFiles`/`scopeDelta`/`amendments` —
   # collecting it discards that story's measurement cohort for good. `--force`
   # opts back into the old unconditional-collect behavior; without it, a work
-  # file that would otherwise be collected but still carries unread *measured*
-  # `.scopeDelta` (an entry with `unmeasured: true` carries no file data by
-  # construction — see work-log above — so an all-unmeasured cohort has
+  # file that would otherwise be collected but still carries at least one
+  # *measured* `.scopeDelta` moment (an entry with `unmeasured: true` carries
+  # no file data by construction — see work-log above — so an all-unmeasured cohort has
   # nothing this guard exists to save; narrowing on measured entries, rather
   # than widening to `declaredFiles != null`, keeps a fallback-driven epic's
   # own --scope-delta-unmeasured-only moments from pinning every work file it
@@ -1033,8 +1033,8 @@ cmd_gc() {
       fi
       rm -f "$f"
       if [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ]; then
-        printf 'removed work file past its scope-delta keep window: %s (phase %s, %s measured scope-delta moment(s) recorded, never read within %s days)\n' \
-          "$(basename "$f")" "$phase" "$sd_len" "$SCOPE_DELTA_RETENTION_DAYS"
+        printf 'removed work file past its %s-day scope-delta keep window: %s (phase %s, %s measured scope-delta moment(s) recorded)\n' \
+          "$SCOPE_DELTA_RETENTION_DAYS" "$(basename "$f")" "$phase" "$sd_len"
       else
         printf 'removed finished work file: %s (phase %s)\n' "$(basename "$f")" "$phase"
       fi
@@ -1192,5 +1192,5 @@ case "${1:-}" in
   evidence-append) shift; cmd_evidence_append "$@" ;;
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
 esac

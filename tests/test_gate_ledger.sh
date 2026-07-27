@@ -1237,17 +1237,17 @@ check "gc keeps a branchless non-terminal work file" "yes" \
 check "gc names the phase it collected on" "yes" \
   "$(printf '%s' "$out38" | grep -q 'removed finished work file.*phase done' && echo yes || echo no)"
 
-# --- gc keeps, rather than collects, a finished work file with unread scope-delta
-# data (#244, pre-mortem register item 7): the work file is the only copy of
-# declaredFiles/scopeDelta/amendments, so an unconditional collect discards a
-# story's measurement cohort for good. ---
+# --- gc keeps, rather than collects, a finished work file with a measured
+# scope-delta cohort (#244, pre-mortem register item 7): the work file is the
+# only copy of declaredFiles/scopeDelta/amendments, so an unconditional
+# collect discards a story's measurement cohort for good. ---
 d46=$(sandbox)
 ( cd "$d46" && "$LEDGER" work-set --slug sd-done --title "finished with scope-delta" --phase "done" ) >/dev/null 2>&1
 ( cd "$d46" && "$LEDGER" work-log --slug sd-done --scope-delta-phase build --scope-delta-files "a.py" ) >/dev/null 2>&1
 wf46="$d46/.studious/work/sd-done.json"
 
 out46=$( cd "$d46" && "$LEDGER" gc 2>&1 )
-check "gc keeps a finished work file with unread scope-delta data" "yes" \
+check "gc keeps a finished work file with a measured scope-delta cohort" "yes" \
   "$([ -f "$wf46" ] && echo yes || echo no)"
 check "gc names the kept file and its scope-delta moment count" "yes" \
   "$(printf '%s' "$out46" | grep -q 'kept: sd-done still holds 1 measured scope-delta moment' && echo yes || echo no)"
@@ -1264,11 +1264,13 @@ check "gc still collects a finished work file with no scope-delta data at all, f
   "$([ -f "$wf47" ] && echo yes || echo no)"
 
 # --- gc's guard only arms on a MEASURED scope-delta entry (fix-and-retry finding
-# 2): every entry the fallback driver (commands/work-through.md) writes carries
-# --scope-delta-unmeasured, so a fallback-driven epic's work file must not be
-# pinned by a cohort it never actually measured. ---
+# 2): a scope check that dies or can't resolve a diff on the script path writes
+# --scope-delta-unmeasured (`computeScopeDelta`'s dead-end path, workflows/
+# epic-driver.js) — the fallback driver (commands/work-through.md) writes no
+# scope-delta entries at all — so a work file whose cohort is only that must
+# not be pinned by a cohort it never actually measured. ---
 d46u=$(sandbox)
-( cd "$d46u" && "$LEDGER" work-set --slug sd-unmeasured-only --title "fallback-driven, never measured" --phase "done" ) >/dev/null 2>&1
+( cd "$d46u" && "$LEDGER" work-set --slug sd-unmeasured-only --title "died scope check, never measured" --phase "done" ) >/dev/null 2>&1
 ( cd "$d46u" && "$LEDGER" work-log --slug sd-unmeasured-only --scope-delta-phase audit --scope-delta-unmeasured ) >/dev/null 2>&1
 wf46u="$d46u/.studious/work/sd-unmeasured-only.json"
 ( cd "$d46u" && "$LEDGER" gc ) >/dev/null 2>&1
@@ -1292,7 +1294,7 @@ check "gc still keeps a work file with at least one measured entry, even alongsi
 # path at all. A work file whose last write is older than the retention window
 # collects on the next plain `gc`, no `--force` needed. ---
 d46r=$(sandbox)
-( cd "$d46r" && "$LEDGER" work-set --slug sd-stale --title "unread past its keep window" --phase "done" ) >/dev/null 2>&1
+( cd "$d46r" && "$LEDGER" work-set --slug sd-stale --title "past its keep window" --phase "done" ) >/dev/null 2>&1
 ( cd "$d46r" && "$LEDGER" work-log --slug sd-stale --scope-delta-phase build --scope-delta-files "a.py" ) >/dev/null 2>&1
 wf46r="$d46r/.studious/work/sd-stale.json"
 # A fixed, far-past timestamp — not `date` arithmetic — keeps this
@@ -1302,10 +1304,10 @@ wf46r="$d46r/.studious/work/sd-stale.json"
 tmp46r=$(mktemp)
 jq '.updatedAt = "2020-01-01T00:00:00Z"' "$wf46r" > "$tmp46r" && mv "$tmp46r" "$wf46r"
 out46r=$( cd "$d46r" && "$LEDGER" gc 2>&1 )
-check "gc collects (no --force) a work file whose unread scope-delta cohort is past its retention window" "no" \
+check "gc collects (no --force) a work file whose measured scope-delta cohort is past its retention window" "no" \
   "$([ -f "$wf46r" ] && echo yes || echo no)"
 check "gc names the retention-window collection distinctly from an ordinary finished-file collection" "yes" \
-  "$(printf '%s' "$out46r" | grep -q 'removed work file past its scope-delta keep window: sd-stale.json' && echo yes || echo no)"
+  "$(printf '%s' "$out46r" | grep -q 'removed work file past its 14-day scope-delta keep window: sd-stale.json' && echo yes || echo no)"
 
 # --- gc collects epic state only once the epic actually shipped ---
 # `ready` is the driver's finale status and means "ready for you to PR" — the

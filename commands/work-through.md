@@ -291,13 +291,21 @@ Log every step with
 of the script's own per-moment naming (`workflows/epic-driver.js`'s `scopeDeltaPhase`:
 `build` for audit's first round, `<gate>-fix-<N>` for each retry), and no
 `--declared-files` flag (which stays a `/design`-time step at `work-set`, untouched
-by this section). When a story runs on this fallback path alone, its closing report
-renders `scope: unmeasured (no declaration recorded)` rather than a per-moment
-breakdown. A story that switches to this fallback mode mid-epic (script path
-initially, then Workflow unavailable) continues rendering scope-delta results
-computed at each moment before the switch. This is a stated round-one limitation of
-the driver-only design, not a claim that the two modes fully agree on everything
-they do.
+by this section). When you (the fallback driver) compose the closing report and a
+story's `.scopeDelta` is empty — never measured, whether by you or an earlier
+script-mode run — render
+`scope: not measured (fallback driver — measurement runs on the Workflow path only)`
+for it in place of the "Scope-delta line" jq below.
+Never `scope: unmeasured (no declaration recorded)` for that case: that string
+names a missing declaration, and a fallback-driven story can have a real
+declaration on file (declaration is a `/design`-time write, not something this
+section controls) and still never get a per-moment breakdown — the gap is the
+mode, not the declaration. A story that switches to this fallback mode mid-epic
+(script path initially, then Workflow unavailable) has real `.scopeDelta` history
+from before the switch, so it still renders through the jq below exactly as the
+script path would, even while you are driving it now. This is a stated round-one
+limitation of the driver-only design, not a claim that the two modes fully agree
+on everything they do.
 
 Apply verdicts exactly as the script does:
 
@@ -460,12 +468,15 @@ gate-ledger work-get --slug "<slug>--<story>" | jq -r '
   if $declared == null then "scope: unmeasured (no declaration recorded)"
   elif ($sd | length) == 0 then "scope: declared \($declared | length), not yet measured (no moment recorded)"
   elif ([$sd[] | select(.unmeasured != true)] | length) == 0 then
-    # Every recorded moment is unmeasured — the fallback driver's normal
-    # output, since it can only ever write --scope-delta-unmeasured. Leads
-    # with that fact rather than falling into the general branch below,
-    # which would render "outside 0" with the all-zero measured count
-    # demoted to a trailing clause — the exact false-clean reading the AC's
-    # "never summed as zero" rule exists to prevent.
+    # Every recorded moment is unmeasured — reachable when a scope check dies
+    # or can't resolve a diff on the script path (`computeScopeDelta`'s
+    # dead-end path, workflows/epic-driver.js), never something the fallback
+    # driver writes: that path has no scope-delta measurement of its own (see
+    # "Fallback driver" above) and records no moment here at all. Leads with
+    # that fact rather than falling into the general branch below, which
+    # would render "outside 0" with the all-zero measured count demoted to a
+    # trailing clause — the exact false-clean reading the AC's "never summed
+    # as zero" rule exists to prevent.
     "scope: declared \($declared | length), unmeasured (0 of " + plural($sd | length; "moment") + " measured)"
   else
     ([$sd[] | select(.unmeasured != true)] ) as $measured |
@@ -476,9 +487,12 @@ gate-ledger work-get --slug "<slug>--<story>" | jq -r '
     # moment's own already-written history — `| unique` here is a display-side
     # idempotency guard over data that function already made disjoint, not a
     # second place this rule is decided. If this total and the driver's own
-    # per-moment writes ever disagree, trust the driver.
+    # per-moment writes ever disagree, trust the driver. `$byMoment` below
+    # applies the same display-side `unique` to each moment's own count, so a
+    # duplicated stored entry within one moment can't inflate that moment's
+    # number while $outside's total (already deduplicated) looks unaffected.
     ([$measured[] | .outsideFiles[]?] | unique) as $outside |
-    ([$measured[] | {phase: .phase, n: (.outsideFiles | length)} | select(.n > 0)]
+    ([$measured[] | {phase: .phase, n: ((.outsideFiles // []) | unique | length)} | select(.n > 0)]
       | map("\(.n) at \(.phase)") | join(", ")) as $byMoment |
     ([$am[] | .file] | unique) as $amendedFiles |
     ([$amendedFiles[] | select(. as $f | $outside | index($f) != null)] | length) as $amendedCount |
@@ -513,9 +527,12 @@ any amendment reasons (neither is printed inline — the reason is a work-file-o
 detail, same as the declared set): `gate-ledger work-get --slug "<slug>--<story>"`.
 A story with no declaration renders `unmeasured`, never a bare omission and never a
 manufactured zero — the same failure-path rule the design doc states for a failed
-diff resolution. Degrade the same way the duration chain does: a failed read or a
-jq error renders nothing for this line rather than aborting the story's own report
-entry, and never affects any other story's line.
+diff resolution. Degrade the same way the duration chain does, but never to a bare
+line: a failed read or a jq error renders `scope: unavailable (could not read the
+work file)` for this line rather than aborting the story's own report entry — the
+same never-a-bare-omission rule as the sentence above, since an actually blank line
+would otherwise be indistinguishable from `unmeasured` — and never affects any
+other story's line.
 
 This line carries no verdict effect — round one measures only (no park, no retry
 refusal, no threshold); it exists so the two motivating failure modes (a story that
@@ -563,17 +580,29 @@ Run /work-through when you're ready, or resolve the queue first.
 when its read succeeds — identical composition for a `Needs you` entry and a
 `Landed this run` entry, never a shortened form for one and the full one for the
 other. The sole exception is the failed-read/jq-error case in the paragraph above:
-`<scope line>` is then omitted for that story only, per the degrade rule there —
-never any of the four renderings below standing in for a failure, and never any
-other story's line affected.
+`<scope line>` renders `scope: unavailable (could not read the work file)` for
+that story only, per the degrade rule there — never one of the four success
+renderings standing in for a failure, never a bare omission, and never any other
+story's line affected. The fallback driver's `scope: not measured (...)` line
+("Fallback driver" above) is a third caller-side case: it replaces the jq
+entirely for a fallback-driven story with no scope-delta history, rather than
+being one of the jq's own outputs.
 
-- `scope: unmeasured (no declaration recorded)` — the story ran on the fallback path
-  without a design-phase declaration; the fallback driver has no scope-delta measurement
-  mechanism, so no moment data exists. Verify with `gate-ledger work-get --slug
-  "<slug>--<story>"` that no `.declaredFiles` field is recorded.
+- `scope: unmeasured (no declaration recorded)` — no declaration is on file for
+  this story: its design step never recorded `declaredFiles`. Verify with
+  `gate-ledger work-get --slug "<slug>--<story>"` that `.declaredFiles` is
+  genuinely absent. On the fallback path this only renders for a story with real
+  scope-delta history from an earlier script-mode run; an empty `.scopeDelta`
+  there renders `scope: not measured (...)` below instead, regardless of
+  declaration.
 - `scope: declared <N>, not yet measured (no moment recorded)`
 - `scope: declared <N>, unmeasured (0 of <M> moment(s) measured)`
 - `scope: declared <N>, outside <N> (<breakdown by moment>)[, <N> amended][, <N> amendment(s) reference/references no counted file]; <N> moment(s) measured[, <N> unmeasured][: <file, file, ..., +N more>]`
+- `scope: unavailable (could not read the work file)` — caller-side, not one of
+  the jq's four: the `work-get` read failed or the jq pipeline errored.
+- `scope: not measured (fallback driver — measurement runs on the Workflow path only)` — caller-side, rendered by the fallback driver in place of the jq
+  above whenever a fallback-driven story's `.scopeDelta` is empty ("Fallback
+  driver" above).
 
 `(<Nm>)` is a computed duration for a phase whose predecessor was real same-run work;
 a phase resumed across a run boundary (above) renders the
