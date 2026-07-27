@@ -1,3 +1,31 @@
+<!--
+A/B VARIANT — TESTED AND REJECTED, 2026-07-26. Do not merge §4 into
+reference/prompt-contract.md on the strength of the argument below; it was
+measured and the effect is absent.
+
+Hypothesis: §4's "calibrate, don't suppress" wording would suppress findings on
+Opus 5, which follows that class of instruction more literally than the model the
+wording was tuned against. A prior session had seen exactly that failure — a real
+missing-auth Critical rendered as prose.
+
+Result (12 runs, $47.12, `arms/calibration-wording.json` over
+severity-calibration-trap + clean-refactor, 3 trials/arm):
+
+    authz-bypass       baseline REPORTED=3    coverage-first REPORTED=3
+    trap verdict       FIX AND RE-AUDIT=3     FIX AND RE-AUDIT=3
+    clean-refactor     PASS=3, 0 findings     PASS=3, 0 findings
+
+Zero DEMOTED, zero UNDER_TIERED, zero MISSED in either arm. The current wording
+is not suppressing, and the variant buys nothing. The control is clean both ways,
+so the variant is not harmful either — just unnecessary.
+
+Kept as a record so the argument is not re-derived and re-run. What this does NOT
+rule out: suppression on a subtler defect. This fixture plants a deleted
+`raise PermissionError` — visible and unambiguous. The historical failure involved
+withheld CVEs and a claim the auditor could not verify, which is the harder case.
+A fixture planting an uncertain-but-real defect would be the honest re-test.
+-->
+
 # Prompt contract — shared posture, scope, output, closer, and style
 
 Canonical source for the five blocks the fan-out gate and review commands

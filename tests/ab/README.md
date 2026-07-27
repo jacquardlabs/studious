@@ -122,7 +122,26 @@ Which movement matters depends on the question:
 
 ## The two configured experiments
 
-### `arms/calibration-wording.json`
+### `arms/calibration-wording.json` — run 2026-07-26, variant rejected
+
+12 runs over `severity-calibration-trap` + `clean-refactor`, 3 trials/arm, $47.12.
+Flat on every axis: the planted authz bypass scored `REPORTED` 3/3 in both arms,
+both verdicts held 3/3, and the control stayed `PASS` with zero findings in both.
+No `DEMOTED`, `UNDER_TIERED`, or `MISSED` anywhere.
+
+§4's wording is not suppressing findings on Opus 5, so the variant should not
+merge — see the header comment in `variants/prompt-contract-coverage-first.md`
+for the full result and what it does not rule out. Scope the re-test to a defect
+the auditor is genuinely unsure about; this one plants a deleted
+`raise PermissionError`, which is the easy case.
+
+Two calibration notes for anyone reading a future run of this file. Critical
+counts were stable at 1 across all six trap runs, but Important counts ranged 0–8
+within a single arm — only large gaps at that tier are readable at n=3. And the
+one-trial pilot showed the opposite direction from the n=3 result, which is the
+whole reason the noise caveat below is not boilerplate.
+
+### The experiment as configured
 
 Baseline vs `variants/prompt-contract-coverage-first.md`, which rewrites §4 to make
 filing the default and route uncertainty into the existing `confidence: Potential` field
