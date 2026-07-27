@@ -46,7 +46,7 @@ CLAUDE.md has no shipped template (`templates/CLAUDE.md` does not exist), so it 
 
 Count them with `gate-ledger work-list` (one line per work file) and by globbing `.studious/epics/*.json`. Classify:
 
-- **More than 10 work files** — **Important** — "`/work-on` will ask you to choose from N features instead of resuming one. Run `gate-ledger gc`." That verb collects work files whose flow ended (phase `done`/`stopped`) or whose branch is gone, and epic state for epics that shipped, though it keeps a work file with unread scope-delta data (#244) for its retention window (`SCOPE_DELTA_RETENTION_DAYS` in `bin/gate-ledger`), or until you read it and `gate-ledger gc --force` past it sooner.
+- **More than 10 work files** — **Important** — "`/work-on` will ask you to choose from N features instead of resuming one. Run `gate-ledger gc`." That verb collects work files whose flow ended (phase `done`/`stopped`) or whose branch is gone, and epic state for epics that shipped, though it keeps a work file with unread scope-delta data (#244) for 14 days, or until you read it and `gate-ledger gc --force` past it sooner.
 - **1–10** — **OK**, with the count.
 - **A work file whose branch no longer exists** — name it: `gc` will collect it, and until then it is noise in every `work-list` read.
 

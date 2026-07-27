@@ -1175,6 +1175,23 @@ check "the build outcome itself is still exactly BUILT" "BUILT" "$(jq -r '.histo
 check "the scope-delta write landed in the same call" '["z.py"]' "$(jq -c '.scopeDelta[0].outsideFiles' "$wf44")"
 check "the amendment write landed in the same call" "z.py" "$(jq -r '.amendments[0].file' "$wf44")"
 
+# --- amendment as a standalone call (scope-delta-phase + amend-file/reason, no
+# --step/--outcome) should append to .amendments and not touch .history ---
+( cd "$d44" && "$LEDGER" work-log --slug sd-build --scope-delta-phase build \
+    --amend-file "unexpected.py" --amend-reason "discovered during verify stage" ) >/dev/null 2>&1
+rc44_amend=$?
+check "amendment as a standalone call succeeds" "0" "$rc44_amend"
+check "standalone amendment appends a second amendment entry" "2" "$(jq '.amendments | length' "$wf44")"
+check "standalone amendment does not add a history entry" "1" "$(jq '.history | length' "$wf44")"
+check "standalone amendment file is recorded" "unexpected.py" "$(jq -r '.amendments[1].file' "$wf44")"
+
+# --- multiple amendments in sequence (one per file, as the instruction prescribes) ---
+( cd "$d44" && "$LEDGER" work-log --slug sd-build --scope-delta-phase build \
+    --amend-file "other.py" --amend-reason "another unforeseen module" ) >/dev/null 2>&1
+check "second amendment also succeeds" "0" "$?"
+check "total amendments now reach three" "3" "$(jq '.amendments | length' "$wf44")"
+check "history still has only one entry (no amendment duplication)" "1" "$(jq '.history | length' "$wf44")"
+
 ( cd "$d44" && "$LEDGER" work-log --slug sd-build --step build --outcome BOGUS \
     --scope-delta-phase build --scope-delta-files "z.py" ) >/dev/null 2>&1
 rc44b=$?
@@ -1233,7 +1250,7 @@ out46=$( cd "$d46" && "$LEDGER" gc 2>&1 )
 check "gc keeps a finished work file with unread scope-delta data" "yes" \
   "$([ -f "$wf46" ] && echo yes || echo no)"
 check "gc names the kept file and its scope-delta moment count" "yes" \
-  "$(printf '%s' "$out46" | grep -q 'kept work file with unread scope-delta data: sd-done.json (phase done, 1 measured scope-delta moment' && echo yes || echo no)"
+  "$(printf '%s' "$out46" | grep -q 'kept: sd-done still holds 1 measured scope-delta moment' && echo yes || echo no)"
 
 ( cd "$d46" && "$LEDGER" gc --force ) >/dev/null 2>&1
 check "gc --force collects it anyway" "no" \

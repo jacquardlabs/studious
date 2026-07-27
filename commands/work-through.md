@@ -285,33 +285,19 @@ blocks into every audit and premortem Task prompt you dispatch in this mode — 
 are the assembly point on this path exactly as your own read is on the script path.
 Log every step with
 `gate-ledger work-log --slug "<slug>--<story>" --step <phase> --outcome "<token>" --phase "<next phase>"`
-(the same epic-qualified slug as script mode — see Record keeping). When `<phase>`
-is exactly `audit` or `acceptance` — the only two steps the script itself ever
-measures a scope-delta moment at — append `--scope-delta-phase "<phase>" --scope-delta-unmeasured`
-to that same call, zero new dispatch. Never append it for any other step (`design`,
-`design-review`, `merge`, `run-boundary`): the script never measures those either,
-so marking them unmeasured would manufacture moments the closing report has no
-business counting.
+(the same epic-qualified slug as script mode — see Record keeping).
 
 **Scope-delta measurement does not run on this path in round one** — no equivalent
 of the script's own per-moment naming (`workflows/epic-driver.js`'s `scopeDeltaPhase`:
-`build` for audit's first round, `<gate>-fix-<N>` for each retry). That logic lives
-only there; this fallback prose does not reimplement it, and no `--declared-files`
-flag is ever part of any call on this path (declaring files stays a `/design`-time,
-script-and-fallback-shared step at `work-set`, untouched by this section). What the
-`--scope-delta-phase`/`--scope-delta-unmeasured` pair above adds instead is
-deliberately partial: it marks the step itself (`<phase>`, literally `audit` or
-`acceptance` — never the script's own `build`/`<gate>-fix-<N>` moment name) as an
-unmeasured entry, so the closing report's `scope:` line renders a real
-`moment(s) unmeasured` count for it instead of silently reflecting nothing.
-`computeScopeDelta`'s own `files`/`declaredFiles` comparison and its `outsideFiles`
-count never run here — this is a marker that a moment went unmeasured, not a
-measurement. A story driven entirely by the script mode keeps accumulating real
-`scopeDelta` entries as usual; a story that switches to this fallback mode
-mid-epic starts recording unmeasured markers at its audit/acceptance steps from
-the switch onward instead — visible in the same summary, never a silent gap. This
-is a stated round-one limitation of the driver-only design, not a claim that the
-two modes fully agree on everything they do.
+`build` for audit's first round, `<gate>-fix-<N>` for each retry), and no
+`--declared-files` flag (which stays a `/design`-time step at `work-set`, untouched
+by this section). When a story runs on this fallback path alone, its closing report
+renders `scope: unmeasured (no declaration recorded)` rather than a per-moment
+breakdown. A story that switches to this fallback mode mid-epic (script path
+initially, then Workflow unavailable) continues rendering scope-delta results
+computed at each moment before the switch. This is a stated round-one limitation of
+the driver-only design, not a claim that the two modes fully agree on everything
+they do.
 
 Apply verdicts exactly as the script does:
 
@@ -581,7 +567,10 @@ other. The sole exception is the failed-read/jq-error case in the paragraph abov
 never any of the four renderings below standing in for a failure, and never any
 other story's line affected.
 
-- `scope: unmeasured (no declaration recorded)`
+- `scope: unmeasured (no declaration recorded)` — the story ran on the fallback path
+  without a design-phase declaration; the fallback driver has no scope-delta measurement
+  mechanism, so no moment data exists. Verify with `gate-ledger work-get --slug
+  "<slug>--<story>"` that no `.declaredFiles` field is recorded.
 - `scope: declared <N>, not yet measured (no moment recorded)`
 - `scope: declared <N>, unmeasured (0 of <M> moment(s) measured)`
 - `scope: declared <N>, outside <N> (<breakdown by moment>)[, <N> amended][, <N> amendment(s) reference/references no counted file]; <N> moment(s) measured[, <N> unmeasured][: <file, file, ..., +N more>]`
