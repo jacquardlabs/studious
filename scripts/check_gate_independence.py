@@ -12,7 +12,10 @@ Two ways a gate could quietly acquire that dependency, both checked here:
 
 1. **Invoking a build skill.** A gate command or auditor telling the reader to run
    `/build`, or routing a finding through `/plan`, only works for one kind of
-   producer.
+   producer — and reaching past the skill straight to the executable it wraps
+   (`scripts/verify`, `scripts/design-lint`, ...) is the same dependency wearing a
+   third hat (#246): a gate that shells out to a build skill's own script has bound
+   itself to that skill's implementation as surely as one that names the skill.
 2. **Requiring a build artifact.** A gate that reads `PLAN.md`'s checkpoint blocks or
    expects `docs/jig/evidence/` has the same dependency wearing a different hat — the
    evidence contract a gate may rely on is `reference/evidence-format.md`, which any
@@ -53,10 +56,28 @@ GATE_SURFACE = (
 
 BUILD_SKILLS = ("design", "plan", "build", "finish", "coach")
 
-#: A slash-command invocation, not a path segment. The lookarounds are what keep
+#: The build skills' own executables (`scripts/<name>`). A gate that shells out to one
+#: of these directly has the same producer dependency as a gate that names the skill
+#: that wraps it — the blind spot #246 closes: naming `/build` was already caught, but
+#: nothing stopped a gate from reaching straight past the skill to `scripts/verify`.
+BUILD_EXECUTABLES = (
+    "plan-lint",
+    "design-lint",
+    "verify",
+    "status-flip",
+    "build-report",
+    "evidence-capture",
+    "worktree-setup",
+)
+
+#: A slash-command invocation, or a shell invocation of a build skill's own
+#: executable — not a path segment. The lookarounds are what keep
 #: `templates/design-doc.md`, `docs/design/`, and "never run install/build/test" from
 #: reading as invocations — all three appear on the gate surface legitimately today.
-INVOCATION = re.compile(rf"(?<![\w/-])/({'|'.join(BUILD_SKILLS)})(?![\w/-])")
+INVOCATION = re.compile(
+    rf"(?<![\w/-])/(?P<skill>{'|'.join(BUILD_SKILLS)})(?![\w/-])"
+    rf"|(?<![\w/-])scripts/(?P<executable>{'|'.join(BUILD_EXECUTABLES)})(?![\w/-])"
+)
 
 #: Artifacts only a build-skill run produces. A gate that reads one has the same
 #: dependency as a gate that invokes the skill.
@@ -116,10 +137,15 @@ def scan(rel: str, text: str) -> tuple[list[str], int]:
         if match := INVOCATION.search(line):
             if open_at:
                 exempted += 1
+            elif skill := match.group("skill"):
+                problems.append(
+                    f"{rel}:{n}: a gate must not invoke /{skill} — it judges "
+                    f"the work, never who produced it\n    {line.strip()}"
+                )
             else:
                 problems.append(
-                    f"{rel}:{n}: a gate must not invoke /{match.group(1)} — it judges "
-                    f"the work, never who produced it\n    {line.strip()}"
+                    f"{rel}:{n}: a gate must not shell out to scripts/{match.group('executable')} "
+                    f"— it judges the work, never who produced it\n    {line.strip()}"
                 )
         # Never exempt: a gate must not *require* a build artifact anywhere, and a
         # dispatcher has no reason to name one.
