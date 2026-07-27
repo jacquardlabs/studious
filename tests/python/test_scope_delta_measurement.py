@@ -256,13 +256,13 @@ def test_a_shell_metacharacter_in_design_doc_also_degrades() -> None:
 
 def test_an_overlong_path_degrades_rather_than_being_truncated() -> None:
     result = _compute_scope_delta(
-        {"files": ["a.py", "b" * 400 + ".py"], "declaredFiles": ["a.py"], "designDoc": "", "scopeDeltaHistory": []}
+        {"files": ["a.py", "b" * 5000 + ".py"], "declaredFiles": ["a.py"], "designDoc": "", "scopeDeltaHistory": []}
     )
     assert result == {"unmeasured": True, "outsideFiles": []}
 
 
 def test_ordinary_paths_with_dots_dashes_and_underscores_still_measure() -> None:
-    """The boundary validation is an allowlist, not a denylist — it must not reject
+    """The boundary validation is a denylist, not an allowlist — it must not reject
     the ordinary path shapes this repo's own files actually have."""
     result = _compute_scope_delta(
         {
@@ -275,6 +275,37 @@ def test_ordinary_paths_with_dots_dashes_and_underscores_still_measure() -> None
     assert result == {
         "unmeasured": False,
         "outsideFiles": ["src/sub-dir/file_name.test.js", ".github/workflows/ci.yml"],
+    }
+
+
+def test_a_narrow_allowlist_would_have_wrongly_rejected_these_real_path_shapes() -> None:
+    """A denylist is deliberate, not an oversight: a project's real path shapes
+    (a Next.js App Router route, a scoped npm package, unicode) must measure
+    normally — and because one bad entry degrades the WHOLE moment, an
+    over-eager reject list would quietly unmeasure every real changeset in a
+    project whose paths don't happen to look like this repo's own."""
+    result = _compute_scope_delta(
+        {
+            "files": [
+                "a.py",
+                "app/[slug]/page.tsx",
+                "app/(marketing)/layout.tsx",
+                "packages/@scope/index.ts",
+                "docs/résumé.md",
+            ],
+            "declaredFiles": ["a.py"],
+            "designDoc": "",
+            "scopeDeltaHistory": [],
+        }
+    )
+    assert result == {
+        "unmeasured": False,
+        "outsideFiles": [
+            "app/[slug]/page.tsx",
+            "app/(marketing)/layout.tsx",
+            "packages/@scope/index.ts",
+            "docs/résumé.md",
+        ],
     }
 
 

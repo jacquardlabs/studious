@@ -811,24 +811,41 @@ function computeScopeDelta(fields) {
   // Boundary validation (CWE-78/CWE-88), fixed at the boundary per CLAUDE.md's
   // "fix data at the boundary, not at the point of use": `files`/`declaredFiles`/
   // `designDoc` all arrive from a haiku agent's JSON.parse'd relay of `git diff
-  // --name-only` output — untrusted, since git permits `"`, `$`, a backtick, `;`,
-  // a comma, and a newline inside a path, and this value is later interpolated
-  // (scopeDeltaWorkLogFlags) into a `gate-ledger work-log` command a DIFFERENT
-  // dispatched agent is instructed to run verbatim with Bash. Reject, never
-  // strip: `shellSafe()` (used elsewhere in this file for prose like titles)
-  // would silently rewrite the path, which breaks "one file counts once" against
-  // `alreadySeen`'s exact-string dedupe on the very next round. The allowlist
-  // also excludes a bare comma, which corrupts the CSV `--scope-delta-files`
-  // payload independent of injection — there is no escape for it there. Any one
-  // unsafe entry degrades the WHOLE moment to `unmeasured`, never a per-file
-  // drop, which would silently understate the count the acceptance criteria
-  // forbid summing as zero.
+  // --name-only` output — untrusted, and the outside-files result is later
+  // interpolated (scopeDeltaWorkLogFlags) into a `gate-ledger work-log` command a
+  // DIFFERENT dispatched agent is instructed to run verbatim with Bash. Reject,
+  // never strip: `shellSafe()` (used elsewhere in this file for prose like
+  // titles) would silently rewrite the path, which breaks "one file counts once"
+  // against `alreadySeen`'s exact-string dedupe on the very next round.
+  //
+  // A DENYLIST, not an allowlist — a narrow allowlist rejects real path shapes
+  // (`app/[slug]/page.tsx`, a Next.js App Router route; `packages/@scope/`, a
+  // scoped package) and, because one bad entry degrades the WHOLE moment
+  // (never a per-file drop, which would understate the count the acceptance
+  // criteria forbid summing as zero), an over-eager reject list quietly
+  // unmeasures every real changeset in a project whose paths don't happen to
+  // look like this repo's own. Once scopeDeltaWorkLogFlags single-quotes the
+  // value, only three things can still corrupt the pipeline: a bare comma (no
+  // escape exists in the CSV `--scope-delta-files` payload), leading/trailing
+  // whitespace (`csv_trim`'s own `gsub("^\\s+|\\s+$"; "")` would silently
+  // rewrite the path the same way stripping would), and a control character
+  // or newline (breaks the `&&` chain and the JSON relay carrying it here).
+  // `$`, a backtick, `"`, `;`, and a backslash are ALSO rejected below even
+  // though single-quoting already neutralizes them for this specific sink —
+  // belt-and-suspenders that costs nothing (none is a legitimate path
+  // character in any common project convention) against a future quoting
+  // change or a different, unquoted sink (e.g. `designDoc` also flows into
+  // plain prose in acceptanceProductReviewPrompt).
+  const UNSAFE_PATH_CHARS = /[$`";\\,\x00-\x1f\x7f]/
   const isSafePath = p =>
     typeof p === 'string' &&
     p.length > 0 &&
-    p.length <= 300 &&
-    /^[A-Za-z0-9._][A-Za-z0-9._/-]*$/.test(p) &&
-    !p.split('/').includes('..')
+    p.length <= 4096 &&
+    !p.startsWith('/') &&
+    !p.startsWith('-') &&
+    !p.split('/').includes('..') &&
+    !/^\s|\s$/.test(p) &&
+    !UNSAFE_PATH_CHARS.test(p)
   if (!files.every(isSafePath) || !declaredFiles.every(isSafePath) || (designDoc && !isSafePath(designDoc))) {
     return { unmeasured: true, outsideFiles: [] }
   }
