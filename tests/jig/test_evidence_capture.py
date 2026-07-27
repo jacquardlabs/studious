@@ -975,6 +975,26 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
             self.assertNotIn("Rename the one you want by hand", result.stderr)
             self.assertIn("after reading its manifest.json", result.stderr)
 
+    def test_the_ambiguity_message_names_only_recoveries_that_work(self) -> None:
+        """A recovery that cannot succeed is worse than none: the reader spends
+        the effort and the lookup refuses identically afterwards. Renaming is
+        exactly that under manifest-keyed resolution — `resolve_folder` matches
+        the manifest's branch and task and no reader parses a folder name, so a
+        rename leaves both candidates branch-less and still colliding. The two
+        that do work are re-capturing here, and editing the candidate's own
+        manifest — and saying so keeps this message, which `/finish` quotes
+        verbatim into a PR row, agreeing with that skill's "not by renaming it,
+        not by linking it" rather than contradicting it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, root = self._repo_and_root(tmp)
+            write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
+            write_manifest_folder(root, "2026-07-12-design-md-vocab-fix", task="task-1")
+
+            result = self._resolve(repo, root, "feat/alpha", "task-1")
+            self.assertIn("capture on this branch", result.stderr)
+            self.assertIn("edit one of those manifests", result.stderr)
+            self.assertIn("Renaming the folder repairs nothing", result.stderr)
+
     def test_an_ambiguity_never_claims_the_asking_branch_has_evidence(self) -> None:
         """"This branch captured none" is the true statement, so the refusal
         names the branch it could not tie the folders to rather than reading as
@@ -1154,6 +1174,53 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
             self.assertEqual(resolved.returncode, 0, resolved.stderr)
             self.assertIn("[legacy]", listed.stderr)
             self.assertEqual(listed.stderr, resolved.stderr)
+
+    def test_a_marker_row_carries_a_note_of_its_own(self) -> None:
+        """`[ambiguous]` reached this verb with its meaning stated nowhere on
+        the path a `list`-only reader walks: `resolve`'s refusal sits behind an
+        invocation `/coach` never makes, and that skill is told — for the
+        one-home reason — to quote a token as printed and never interpret it.
+        So the row gets the same treatment `[legacy]` already got: one line on
+        stderr, naming the branch nothing could be tied to and enumerating the
+        folders, with the task id inside it as the join key, since the two runs
+        `/coach` makes share no ordering guarantee."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, root = self._repo_and_root(tmp)
+            first = write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
+            second = write_manifest_folder(root, "2026-07-12-design-md-vocab-fix", task="task-1")
+
+            result = self._list(repo, root, "feat/alpha")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            # stdout is untouched: the row grammar a reader splits on is what
+            # it was before the note existed.
+            self.assertEqual(result.stdout.splitlines(), ["task-1\t[ambiguous]"])
+            self.assertIn("[ambiguous]", result.stderr)
+            self.assertIn("feat/alpha", result.stderr)
+            self.assertIn(str(first), result.stderr)
+            self.assertIn(str(second), result.stderr)
+            self.assertIn("no folder resolved for task 'task-1'", result.stderr)
+            # One line, so a row-oriented reader can carry it beside its row.
+            self.assertEqual(len(result.stderr.strip().splitlines()), 1)
+            # A note, not a refusal: `list` answers here where `resolve` refuses,
+            # and a reader that labels rows off the prefix must not read exit 0
+            # as an error.
+            self.assertTrue(result.stderr.startswith("note: "), result.stderr)
+
+    def test_a_marker_rows_note_carries_no_recovery_at_all(self) -> None:
+        """One home for the recovery text, and no pointer at it either.
+        `resolve`'s refusal is where the two repairs are stated and where
+        `/finish` quotes them from; a second copy here is a copy to drift, and
+        a "run `resolve`" pointer would put an instruction inside a signal
+        `/coach` quotes verbatim into an assessment that recommends exactly one
+        action of its own."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo, root = self._repo_and_root(tmp)
+            write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
+            write_manifest_folder(root, "2026-07-12-design-md-vocab-fix", task="task-1")
+
+            result = self._list(repo, root, "feat/alpha")
+            for recovery in ("Renaming the folder", "capture on this branch", "manifest.json", "run `resolve`"):
+                self.assertNotIn(recovery, result.stderr)
 
     def test_an_unqualified_row_says_nothing_on_stderr(self) -> None:
         """The note belongs to the token, not to the verb: a branch-bearing

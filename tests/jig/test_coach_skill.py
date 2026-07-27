@@ -300,6 +300,12 @@ class TestCoachSkillBody(unittest.TestCase):
         self.assertIn("`[ambiguous]`", self.body)
         self.assertPhraseIn("Report it as unevidenced *and* name it")
         self.assertPhraseIn('the same state `/finish` labels "evidence ambiguous"')
+        # And the row is routed to the verb's own note rather than to a
+        # sentence here. The skill glossing the token was this line's own rule
+        # broken one clause after stating it — `list` now says what
+        # `[ambiguous]` means on the stream the second run reads.
+        self.assertPhraseIn("carries a note of its own on that same stream")
+        self.assertNotIn("the verb could not tie any folder to this branch", self.flat_body)
 
     def test_the_tokens_own_note_is_read_rather_than_glossed(self) -> None:
         """"Never interpret it" is right — the meaning is the script's to state
@@ -308,13 +314,16 @@ class TestCoachSkillBody(unittest.TestCase):
         usage lines, and this skill may not gloss the token itself. The row
         alone left the persona holding an undecodable string. The verb now
         prints the note on this path too; the fix here is being told to read
-        it."""
-        self.assertPhraseIn("on stderr, one line per qualified row")
+        it — for both note-bearing rows, since a count scoped to the qualified
+        ones would send the persona looking for nothing on an `[ambiguous]`
+        row that now has a note of its own."""
+        self.assertPhraseIn("on stderr, one line per row it has anything to say about")
+        self.assertPhraseIn("whether that row carries a path or only a token")
         # And the destination, because a quoted message with nowhere stated to
         # land is the defect `/finish` spent a round fixing on its own side:
-        # `list` prints one note per qualified row, so an unbounded set of them
+        # `list` prints one note per noted row, so an unbounded set of them
         # routed into a single-cell signal is the same shape one layer over.
-        self.assertPhraseIn("verbatim on that row's own evidence line (below), one note per qualified row")
+        self.assertPhraseIn("verbatim on that row's own evidence line (below), one note per noted row")
         self.assertPhraseIn("never merged across rows and never carried up into the recommendation")
 
     def test_the_documented_list_invocation_separates_the_streams(self) -> None:
@@ -332,9 +341,13 @@ class TestCoachSkillBody(unittest.TestCase):
         self.assertPhraseIn("Two runs rather than `/finish`'s `2> <scratch-path>/resolve-note.txt` redirection")
         self.assertPhraseIn("because this skill writes no file")
         # And the notes are joined back to their rows by the task id the note
-        # itself names (`legacy_note` in scripts/evidence-capture), never by
-        # the order two independent runs happened to print in.
-        self.assertPhraseIn("Each note names its own task (`the folder resolved for task '<id>'`)")
+        # itself names (`legacy_note` and `ambiguous_note` in
+        # scripts/evidence-capture), never by the order two independent runs
+        # happened to print in. Both phrasings are named: an enumeration that
+        # stops at the first leaves the second note shape with no documented
+        # join key, which is this defect one note later.
+        self.assertPhraseIn("Each note names its own task (`the folder resolved for task '<id>'`")
+        self.assertPhraseIn("`no folder resolved for task '<id>'` where it carries only a token)")
         self.assertPhraseIn("never position, since the two runs print independently")
 
     def test_an_ambiguous_row_on_an_unbuilt_task_is_about_the_id(self) -> None:

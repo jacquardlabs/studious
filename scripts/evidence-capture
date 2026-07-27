@@ -312,9 +312,14 @@ def list_branch_tasks(entries: list[tuple[Path, dict]], branch: str) -> list[tup
 def display_path(folder: Path, repo: Path) -> str:
     """Repo-relative when the folder is inside the repo, absolute otherwise.
 
-    A repo-relative path is what both callers need: `evidence-freshness
-    --evidence` takes it as-is, and `/finish`'s raw GitHub URL is built from
-    exactly that path with no prefix to strip.
+    A repo-relative path is what both callers need, and they need it in two
+    shapes: `evidence-freshness` resolves `--evidence` against the process's
+    own cwd and never joins its `--repo`, so its caller joins `<worktree>/`
+    onto this path first — unjoined, it exits 2 with "no manifest.json found"
+    — while `/finish`'s raw GitHub URL appends exactly this bare form with no
+    prefix to strip. `skills/finish/SKILL.md` states that asymmetry for the
+    personas; the one repair it rules out is closing it by changing what this
+    prints.
     """
     try:
         return str(folder.resolve().relative_to(repo.resolve()))
@@ -350,6 +355,32 @@ def legacy_note(task: str, branch: str, answer: str) -> str:
         f"nothing ties it to '{branch}' — it predates the manifest's branch field and may "
         f"belong to a branch that has already merged; read {answer}/manifest.json before "
         "promoting it as this item's evidence."
+    )
+
+
+def ambiguous_note(task: str, branch: str, answers: tuple[str, ...]) -> str:
+    """The stderr caveat `list` prints for a rule-3 undecidable row.
+
+    Not shared with `resolve` the way `legacy_note` is, because the two verbs
+    are in different dispositions here and only here: `resolve` refuses (exit
+    1, an `error:` line a caller quotes as a refusal), while `list` answers
+    with an ordinary row (exit 0, a marker in the answer column). The token's
+    *meaning* is the same, so it is stated on both paths — a row-oriented
+    reader that only ever runs `list` would otherwise hold `[ambiguous]` with
+    no meaning stated anywhere on its path, which is `legacy_note`'s reason
+    verbatim. Kept to one line for the same reason, and carrying no recovery
+    text — not even a pointer at where it lives. The recoveries stay
+    single-sourced in `resolve`'s refusal, where a second copy could drift out
+    of step with the one `/finish` quotes; and this line is quoted verbatim
+    into a `/coach` assessment, which states what is, recommends exactly one
+    action, and must not carry a second instruction inside a signal.
+    """
+    return (
+        f"note: [{AMBIGUOUS}] no folder resolved for task '{task}' on branch '{branch}': "
+        f"{len(answers)} folders record that task and none of them records a branch, so "
+        f"nothing here says this branch captured any of it — {', '.join(answers)}. Each "
+        "predates the manifest's branch field and may belong to a branch that has already "
+        "merged."
     )
 
 
@@ -458,6 +489,9 @@ def run_query(verb: str, argv: list[str]) -> int:
             # reader parsing lines sees exactly what it saw before.
             if row.folder is not None and row.token == LEGACY:
                 print(legacy_note(task, args.branch, display_path(row.folder, repo)), file=sys.stderr)
+            elif row.token == AMBIGUOUS:
+                answers = tuple(display_path(candidate, repo) for candidate in row.candidates)
+                print(ambiguous_note(task, args.branch, answers), file=sys.stderr)
             print(f"{task}\t{answer_column(row, repo)}")
         return 0
 
@@ -479,8 +513,12 @@ def run_query(verb: str, argv: list[str]) -> int:
                 f"{listed}\n"
                 "Each predates the manifest's branch field and may well belong to a branch "
                 "that has already merged. If this branch verified the task, capture on this "
-                "branch. Adopt one of the folders above only after reading its manifest.json "
-                "and confirming it is this item's evidence.",
+                "branch. The only other repair is to edit one of those manifests — add this "
+                "branch to it, or give its task a distinct id — and only after reading its "
+                "manifest.json and confirming the folder is this item's evidence. Renaming "
+                "the folder repairs nothing: resolution keys on the manifest's branch and "
+                "task, never on a folder name, so a rename leaves both of these branch-less "
+                "and still colliding.",
                 file=sys.stderr,
             )
         else:
