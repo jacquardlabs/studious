@@ -51,12 +51,13 @@ WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
 # ---------- scopeDeltaPhase: pure-function executed fixture ----------
 
 
-def _scope_delta_phase(gate: str, attempts: int) -> str | None:
+def _scope_delta_phase(gate: str, attempts: int, has_audit_gate: bool | None = None) -> str | None:
     source = DRIVER.read_text()
     fn = _extract_function(source, "scopeDeltaPhase")
+    extra_arg = "" if has_audit_gate is None else f", {json.dumps(has_audit_gate)}"
     script = f"""
 {fn}
-console.log(JSON.stringify(scopeDeltaPhase({json.dumps(gate)}, {attempts})))
+console.log(JSON.stringify(scopeDeltaPhase({json.dumps(gate)}, {attempts}{extra_arg})))
 """
     return _run_node(script)
 
@@ -67,7 +68,9 @@ def test_audit_round_one_names_the_build_moment() -> None:
 
 def test_acceptance_round_one_names_no_moment() -> None:
     """Nothing commits between audit's last round and acceptance's first — round 1
-    would just re-measure whatever build/an audit fix already measured."""
+    would just re-measure whatever build/an audit fix already measured. This is
+    also the implicit default (`hasAuditGate` omitted) — every pre-#246 call site
+    and this exact assertion is unaffected by that parameter's addition."""
     assert _scope_delta_phase("acceptance", 0) is None
 
 
@@ -79,6 +82,31 @@ def test_audit_retries_name_fix_cycle_moments() -> None:
 def test_acceptance_retries_name_fix_cycle_moments() -> None:
     assert _scope_delta_phase("acceptance", 1) == "acceptance-fix-1"
     assert _scope_delta_phase("acceptance", 2) == "acceptance-fix-2"
+
+
+def test_acceptance_round_one_names_no_moment_when_audit_gate_is_explicitly_present() -> None:
+    assert _scope_delta_phase("acceptance", 0, True) is None
+
+
+def test_acceptance_round_one_names_the_build_moment_when_no_audit_gate_exists() -> None:
+    """Fix-and-retry finding 3: a profile that omits `audit` entirely has no round
+    that already claimed "build" — acceptance's own round 1 IS that round, so it
+    must name it rather than leaving it unmeasured (which would attribute every
+    file present since build to the first acceptance-fix cycle instead, inverting
+    overreach into apparent accretion)."""
+    assert _scope_delta_phase("acceptance", 0, False) == "build"
+
+
+def test_audit_round_one_names_build_regardless_of_has_audit_gate() -> None:
+    """`hasAuditGate` only changes acceptance's round-1 reasoning — audit round 1
+    always IS the build-exit round by definition, whatever the profile."""
+    assert _scope_delta_phase("audit", 0, False) == "build"
+    assert _scope_delta_phase("audit", 0, True) == "build"
+
+
+def test_acceptance_retries_are_unaffected_by_has_audit_gate() -> None:
+    assert _scope_delta_phase("acceptance", 1, False) == "acceptance-fix-1"
+    assert _scope_delta_phase("acceptance", 1, True) == "acceptance-fix-1"
 
 
 # ---------- computeScopeDelta: pure-function executed fixture ----------
@@ -433,11 +461,12 @@ def test_fixer_prompt_gained_a_scope_delta_phase_param_and_offers_amendment() ->
 def test_run_gate_threads_attempts_into_every_round_and_fixer_dispatch() -> None:
     source = _driver_text()
     fn = _extract_function(source, "runGate")
+    assert "const hasAuditGate = profileOf(story).includes('audit')" in fn
     assert "auditRound(story, initialNote, nextPhase, priorAuditResult, preMatchFlags, attempts)" in fn
-    assert "acceptanceRound(story, initialNote, nextPhase, attempts)" in fn
+    assert "acceptanceRound(story, initialNote, nextPhase, attempts, hasAuditGate)" in fn
     assert "fixerPrompt(story, gate, result.summary, scopeDeltaPhase(gate, attempts))" in fn
     assert "auditRound(story, 'Re-audit with fresh eyes — a fix landed since the last audit.', nextPhase, result, undefined, attempts)" in fn
-    assert "acceptanceRound(story, 'Re-check with fresh eyes — a fix landed since the last check.', nextPhase, attempts)" in fn
+    assert "acceptanceRound(story, 'Re-check with fresh eyes — a fix landed since the last check.', nextPhase, attempts, hasAuditGate)" in fn
 
 
 # ---------- end-to-end: run the real driver under the documented harness shape ----------
@@ -589,10 +618,50 @@ def test_audit_fix_cycle_moment_excludes_files_already_counted_at_build() -> Non
     )
 
 
-def test_acceptance_round_one_never_embeds_scope_delta_flags() -> None:
-    """Acceptance round 1 (attempts === 0) names no moment — the embedded
+def test_acceptance_round_one_never_embeds_scope_delta_flags_when_audit_ran_first() -> None:
+    """Acceptance round 1 (attempts === 0) names no moment WHEN an `audit` gate is
+    in this story's profile — build-exit was already measured at audit's own round
+    1, so acceptance round 1 would just re-measure the same commit. The embedded
     work-log command must read byte-identical to before this story: no
     --scope-delta-phase at all."""
+    story = "a"
+    epic = {
+        "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
+        "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit", "acceptance"]}},
+    }
+    rules = [
+        {"match": rf"^acceptance:scope:{story}$", "result": {"findings": json.dumps({
+            "files": ["a.py"], "designDoc": "", "declaredFiles": ["a.py"], "scopeDelta": [],
+        })}},
+        {"match": rf"^acceptance:premortem-fallback:{story}$", "result": {"findings": json.dumps({"status": "empty"})}},
+        {"match": rf"^acceptance:product-review:{story}$", "result": {"findings": "looks good"}},
+        {"match": rf"^acceptance:walkthrough:{story}$", "result": {"findings": "looks good"}},
+        {"match": rf"^acceptance:compile:{story}$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
+        {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
+        *_full_roster_pass_rules(story),
+        {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "a0", "summary": "ok"}},
+        *_FINALE_CLEAN_RULES,
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    compile_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"acceptance:compile:{story}"]
+    assert len(compile_prompts) == 1
+    assert "--scope-delta-phase" not in compile_prompts[0]
+    assert "--scope-delta-files" not in compile_prompts[0]
+    assert "--scope-delta-unmeasured" not in compile_prompts[0]
+    # The pre-existing embedded command must otherwise be untouched.
+    assert (
+        f'gate-ledger work-log --slug "epx--{story}" --step acceptance --outcome "<TOKEN>" --phase "merge"'
+        in compile_prompts[0]
+    )
+
+
+def test_acceptance_round_one_names_the_build_moment_when_no_audit_gate_runs() -> None:
+    """A profile that skips straight to `acceptance` (no `audit` gate at all) has
+    no round that ever claimed "build" — acceptance round 1 IS the round
+    dispatched right after the build worker's own commit, so it must name that
+    moment itself rather than leaving it silently unmeasured (#244 fix-and-retry
+    finding 3)."""
     story = "a"
     epic = {
         "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
@@ -613,14 +682,9 @@ def test_acceptance_round_one_never_embeds_scope_delta_flags() -> None:
     assert out["ok"], f"driver crashed: {out.get('error')}"
     compile_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"acceptance:compile:{story}"]
     assert len(compile_prompts) == 1
-    assert "--scope-delta-phase" not in compile_prompts[0]
-    assert "--scope-delta-files" not in compile_prompts[0]
-    assert "--scope-delta-unmeasured" not in compile_prompts[0]
-    # The pre-existing embedded command must otherwise be untouched.
-    assert (
-        f'gate-ledger work-log --slug "epx--{story}" --step acceptance --outcome "<TOKEN>" --phase "merge"'
-        in compile_prompts[0]
-    )
+    # files == declaredFiles here, so outside is empty — the moment is still
+    # named and written, just with no outside files, never omitted.
+    assert '--scope-delta-phase "build" --scope-delta-files \'\'' in compile_prompts[0]
 
 
 def test_acceptance_fix_cycle_moment_reaches_the_compile_prompt() -> None:
@@ -801,7 +865,7 @@ def test_report_a_measured_zero_moment_is_distinct_from_not_yet_measured() -> No
         "scopeDelta": [{"phase": "build", "unmeasured": False, "outsideFiles": []}],
         "amendments": [],
     })
-    assert out == "scope: declared 1, outside 0"
+    assert out == "scope: declared 1, outside 0; 1 moment measured"
 
 
 def test_report_by_moment_breaks_down_outside_files_per_phase() -> None:
@@ -813,7 +877,7 @@ def test_report_by_moment_breaks_down_outside_files_per_phase() -> None:
         ],
         "amendments": [],
     })
-    assert out == "scope: declared 1, outside 3 (2 at build, 1 at audit-fix-1): b.py, c.py, d.py"
+    assert out == "scope: declared 1, outside 3 (2 at build, 1 at audit-fix-1); 2 moments measured: b.py, c.py, d.py"
 
 
 def test_report_more_than_five_outside_files_truncates_with_a_remainder_count() -> None:
@@ -825,7 +889,7 @@ def test_report_more_than_five_outside_files_truncates_with_a_remainder_count() 
         }],
         "amendments": [],
     })
-    assert out == "scope: declared 0, outside 7 (7 at build): a.py, b.py, c.py, d.py, e.py +2 more"
+    assert out == "scope: declared 0, outside 7 (7 at build); 1 moment measured: a.py, b.py, c.py, d.py, e.py +2 more"
 
 
 def test_report_an_amendment_matching_a_counted_file_is_counted_as_amended() -> None:
@@ -834,7 +898,7 @@ def test_report_an_amendment_matching_a_counted_file_is_counted_as_amended() -> 
         "scopeDelta": [{"phase": "build", "unmeasured": False, "outsideFiles": ["b.py"]}],
         "amendments": [{"file": "b.py", "phase": "build", "reason": "shared parsing"}],
     })
-    assert out == "scope: declared 1, outside 1 (1 at build), 1 amended: b.py"
+    assert out == "scope: declared 1, outside 1 (1 at build), 1 amended; 1 moment measured: b.py"
 
 
 def test_report_an_amendment_referencing_no_counted_file_reads_as_orphaned() -> None:
@@ -846,7 +910,22 @@ def test_report_an_amendment_referencing_no_counted_file_reads_as_orphaned() -> 
         "scopeDelta": [{"phase": "build", "unmeasured": False, "outsideFiles": ["b.py"]}],
         "amendments": [{"file": "z.py", "phase": "build", "reason": "typo'd path"}],
     })
-    assert out == "scope: declared 1, outside 1 (1 at build), 1 amendment(s) reference no counted file: b.py"
+    assert out == "scope: declared 1, outside 1 (1 at build), 1 amendment references no counted file; 1 moment measured: b.py"
+
+
+def test_report_orphaned_amendment_count_above_one_uses_the_plural_verb_form() -> None:
+    """Verb agreement, not just the noun's `(s)`: two orphaned amendments read
+    'amendments reference', never 'amendments references' or the un-inflected
+    '(s)' marker literally."""
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [{"phase": "build", "unmeasured": False, "outsideFiles": ["b.py"]}],
+        "amendments": [
+            {"file": "y.py", "phase": "build", "reason": "typo'd path"},
+            {"file": "z.py", "phase": "build", "reason": "also typo'd"},
+        ],
+    })
+    assert out == "scope: declared 1, outside 1 (1 at build), 2 amendments reference no counted file; 1 moment measured: b.py"
 
 
 def test_report_an_unmeasured_moment_is_flagged_alongside_a_real_count() -> None:
@@ -858,7 +937,7 @@ def test_report_an_unmeasured_moment_is_flagged_alongside_a_real_count() -> None
         ],
         "amendments": [],
     })
-    assert out == "scope: declared 1, outside 1 (1 at build); 1 moment(s) unmeasured: b.py"
+    assert out == "scope: declared 1, outside 1 (1 at build); 1 moment measured, 1 unmeasured: b.py"
 
 
 def test_report_all_four_bracketed_clauses_compose_in_the_documented_order() -> None:
@@ -875,5 +954,83 @@ def test_report_all_four_bracketed_clauses_compose_in_the_documented_order() -> 
     })
     assert out == (
         "scope: declared 1, outside 2 (2 at build), 1 amended, "
-        "1 amendment(s) reference no counted file; 1 moment(s) unmeasured: b.py, z.py"
+        "1 amendment references no counted file; 1 moment measured, 1 unmeasured: b.py, z.py"
     )
+
+
+def test_report_moments_measured_is_the_denominator_a_dropped_flag_would_hide() -> None:
+    """The AC's own motivating failure mode: two clean moments and a third that
+    simply never got recorded (dropped/mistyped work-log flag) must not render
+    identically to two clean moments alone — the measured count is what makes the
+    difference visible instead of both reading as a flat 'outside 0'."""
+    two_recorded = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [
+            {"phase": "build", "unmeasured": False, "outsideFiles": []},
+            {"phase": "acceptance-fix-1", "unmeasured": False, "outsideFiles": []},
+        ],
+        "amendments": [],
+    })
+    three_recorded = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [
+            {"phase": "build", "unmeasured": False, "outsideFiles": []},
+            {"phase": "audit-fix-1", "unmeasured": False, "outsideFiles": []},
+            {"phase": "acceptance-fix-1", "unmeasured": False, "outsideFiles": []},
+        ],
+        "amendments": [],
+    })
+    assert two_recorded == "scope: declared 1, outside 0; 2 moments measured"
+    assert three_recorded == "scope: declared 1, outside 0; 3 moments measured"
+    assert two_recorded != three_recorded
+
+
+# ---------- closing report's literal shape block (#244 fix-and-retry finding 6) ----------
+#
+# The jq filter above computes the value; these lock the SEPARATE prose surface
+# (`commands/work-through.md`'s "End with exactly this shape" block) that a
+# compiling model actually copies from — a discrepancy between the two entries in
+# that block, or a failure-path rendering missing from it, is invisible to every
+# test above this point, since none of them touch the shape block at all.
+
+
+def _closing_shape_section() -> str:
+    text = WORK_THROUGH.read_text()
+    start = text.index("End with exactly this shape and nothing after it:")
+    end = text.index("\n## ", start)
+    return text[start:end]
+
+
+def _extract_closing_shape_fence() -> str:
+    match = re.search(r"```text\n(.*?)\n```", _closing_shape_section(), re.DOTALL)
+    assert match is not None, "closing-shape fenced block not found in commands/work-through.md"
+    return match.group(1)
+
+
+def test_closing_shape_fence_present() -> None:
+    assert _extract_closing_shape_fence(), "closing-shape fence extraction returned empty text"
+
+
+def test_closing_shape_scope_line_placeholder_appears_for_both_entry_kinds() -> None:
+    """Finding 6b: a `Needs you` entry and a `Landed this run` entry rendered the
+    scope line's bracketed clauses from two independently-maintained lists that
+    had already drifted out of sync (the orphaned-amendment bracket was missing
+    from one). One shared `<scope line>` placeholder used exactly twice — never
+    reintroducing two lists that can re-diverge silently — is the fix; this pins
+    the count so a future edit can't quietly go back to two."""
+    assert _extract_closing_shape_fence().count("<scope line>") == 2
+
+
+def test_closing_shape_failure_path_renderings_match_the_jq_filter_verbatim() -> None:
+    """Finding 6a: neither failure-path rendering (`unmeasured` / `not yet
+    measured`) appeared anywhere in the literal shape block at all, so a model
+    following it could suppress or misrender them — breaking the design doc's
+    "visible in the same summary" commitment. Both must appear in the prose
+    around the shape block, in the same words the jq filter itself produces,
+    not a paraphrase that could silently drift from what actually renders."""
+    section = _closing_shape_section()
+    jq_filter = _extract_scope_delta_jq_filter()
+    assert "scope: unmeasured (no declaration recorded)" in jq_filter
+    assert "scope: unmeasured (no declaration recorded)" in section
+    assert ", not yet measured (no moment recorded)" in jq_filter
+    assert ", not yet measured (no moment recorded)" in section

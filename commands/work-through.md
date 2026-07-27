@@ -285,19 +285,33 @@ blocks into every audit and premortem Task prompt you dispatch in this mode — 
 are the assembly point on this path exactly as your own read is on the script path.
 Log every step with
 `gate-ledger work-log --slug "<slug>--<story>" --step <phase> --outcome "<token>" --phase "<next phase>"`
-(the same epic-qualified slug as script mode — see Record keeping).
+(the same epic-qualified slug as script mode — see Record keeping). When `<phase>`
+is exactly `audit` or `acceptance` — the only two steps the script itself ever
+measures a scope-delta moment at — append `--scope-delta-phase "<phase>" --scope-delta-unmeasured`
+to that same call, zero new dispatch. Never append it for any other step (`design`,
+`design-review`, `merge`, `run-boundary`): the script never measures those either,
+so marking them unmeasured would manufacture moments the closing report has no
+business counting.
 
-**Scope-delta measurement does not run on this path in round one.** Its dispatches
-(the widened `routingScopeCheckPrompt`/`acceptanceScopeCheckPrompt` JSON,
-`computeScopeDelta`, `scopeDeltaWorkLogFlags`) live only in `workflows/epic-driver.js`
-— this fallback prose does not reimplement them, and no `--declared-files` or
-`--scope-delta-*` flag is ever part of the work-log call above. A story driven
-entirely by the script mode keeps accumulating `scopeDelta` entries as usual; a
-story that switches to this fallback mode mid-epic simply stops accumulating them
-from the switch onward, with no `unmeasured` entry marking the gap — the closing
-report's `scope:` line (below) renders whatever the script mode already recorded,
-silently short of any later moment. This is a stated round-one limitation of the
-driver-only design, not a claim that the two modes fully agree on everything they do.
+**Scope-delta measurement does not run on this path in round one** — no equivalent
+of the script's own per-moment naming (`workflows/epic-driver.js`'s `scopeDeltaPhase`:
+`build` for audit's first round, `<gate>-fix-<N>` for each retry). That logic lives
+only there; this fallback prose does not reimplement it, and no `--declared-files`
+flag is ever part of any call on this path (declaring files stays a `/design`-time,
+script-and-fallback-shared step at `work-set`, untouched by this section). What the
+`--scope-delta-phase`/`--scope-delta-unmeasured` pair above adds instead is
+deliberately partial: it marks the step itself (`<phase>`, literally `audit` or
+`acceptance` — never the script's own `build`/`<gate>-fix-<N>` moment name) as an
+unmeasured entry, so the closing report's `scope:` line renders a real
+`moment(s) unmeasured` count for it instead of silently reflecting nothing.
+`computeScopeDelta`'s own `files`/`declaredFiles` comparison and its `outsideFiles`
+count never run here — this is a marker that a moment went unmeasured, not a
+measurement. A story driven entirely by the script mode keeps accumulating real
+`scopeDelta` entries as usual; a story that switches to this fallback mode
+mid-epic starts recording unmeasured markers at its audit/acceptance steps from
+the switch onward instead — visible in the same summary, never a silent gap. This
+is a stated round-one limitation of the driver-only design, not a claim that the
+two modes fully agree on everything they do.
 
 Apply verdicts exactly as the script does:
 
@@ -453,6 +467,7 @@ For every `landedThisRun` entry and every `needsYou` entry that names an actual 
 
 ```bash
 gate-ledger work-get --slug "<slug>--<story>" | jq -r '
+  def plural(n; noun): "\(n) " + noun + (if n == 1 then "" else "s" end);
   (.declaredFiles // null) as $declared |
   (.scopeDelta // []) as $sd |
   (.amendments // []) as $am |
@@ -460,6 +475,7 @@ gate-ledger work-get --slug "<slug>--<story>" | jq -r '
   elif ($sd | length) == 0 then "scope: declared \($declared | length), not yet measured (no moment recorded)"
   else
     ([$sd[] | select(.unmeasured != true)] ) as $measured |
+    ($measured | length) as $measuredCount |
     ([$sd[] | select(.unmeasured == true) | .phase]) as $unmeasuredPhases |
     # "One file counts once" is enforced authoritatively by
     # workflows/epic-driver.js's computeScopeDelta, against every prior
@@ -476,8 +492,19 @@ gate-ledger work-get --slug "<slug>--<story>" | jq -r '
     ("scope: declared \($declared | length), outside \($outside | length)"
       + (if ($byMoment | length) > 0 then " (\($byMoment))" else "" end)
       + (if $amendedCount > 0 then ", \($amendedCount) amended" else "" end)
-      + (if $orphanedAmendments > 0 then ", \($orphanedAmendments) amendment(s) reference no counted file" else "" end)
-      + (if ($unmeasuredPhases | length) > 0 then "; \($unmeasuredPhases | length) moment(s) unmeasured" else "" end)
+      + (if $orphanedAmendments > 0 then
+          ", " + plural($orphanedAmendments; "amendment")
+          + (if $orphanedAmendments == 1 then " references " else " reference " end)
+          + "no counted file"
+        else "" end)
+      # Not bracketed, never omitted here: every moment recorded is either
+      # measured or unmeasured, so this clause always has at least one to
+      # report on — a moment that never got recorded at all is a different,
+      # already-distinct failure the two branches above this one render
+      # (unmeasured/not-yet-measured), never this one reading as a false
+      # all-clean "outside 0".
+      + ("; " + plural($measuredCount; "moment") + " measured"
+          + (if ($unmeasuredPhases | length) > 0 then ", \($unmeasuredPhases | length) unmeasured" else "" end))
       + (if ($outside | length) > 0 then ": " + (($outside[0:5]) | join(", "))
           + (if ($outside | length) > 5 then " +\(($outside | length) - 5) more" else "" end)
         else "" end))
@@ -511,6 +538,16 @@ this line names it: the trailing `amendment(s) reference no counted file` clause
 that signal, so a wrong or stale amendment reads as a visible discrepancy rather
 than a quietly lower `amended` number.
 
+The `; <N> moment(s) measured[, <M> unmeasured]` clause is the denominator: without
+it, a moment that was never recorded at all (a dropped or mistyped work-log flag,
+or the fallback driver's own documented gap above) renders identically to a moment
+that measured clean, both reading as the same `outside <N>` number with nothing to
+tell them apart — exactly the false-clean reading the AC's "never summed as zero"
+rule exists to prevent. It fires whenever the `else` branch above does (at least one
+`scopeDelta` entry recorded, measured or not) and is never itself bracketed or
+omitted; only its own trailing `, <M> unmeasured` addendum drops when every recorded
+moment was measured.
+
 End with exactly this shape and nothing after it:
 
 ```text
@@ -518,13 +555,21 @@ Epic: <slug> — <landed>/<total> landed, <parked> parked, <blocked> blocked on 
 Needs you:
   - <story>: <gate> returned <verdict> — <one clause: what's needed>
     (<phase>: <outcome> (<Nm>) → <phase>: <outcome> (<Nm>) → ...)
-    scope: declared <N>, outside <N> (<breakdown by moment>)[, <N> amended][, <N> amendment(s) reference no counted file][; <N> moment(s) unmeasured][: <file, file, ..., +N more>]
+    <scope line>
     gate-ledger work-get --slug "<slug>--<story>"
 Landed this run: <story> — <phase>: <outcome> (<Nm>) → <phase>: <outcome> (<Nm>) → ...
-  scope: declared <N>, outside <N> (<breakdown by moment>)[, <N> amended][; <N> moment(s) unmeasured][: <file, file, ..., +N more>]
+  <scope line>
   gate-ledger work-get --slug "<slug>--<story>"
 Run /work-through when you're ready, or resolve the queue first.
 ```
+
+`<scope line>` is never omitted and is always exactly one of the three renderings the
+jq above produces — identical composition for a `Needs you` entry and a `Landed this
+run` entry, never a shortened form for one and the full one for the other:
+
+- `scope: unmeasured (no declaration recorded)`
+- `scope: declared <N>, not yet measured (no moment recorded)`
+- `scope: declared <N>, outside <N> (<breakdown by moment>)[, <N> amended][, <N> amendment(s) reference/references no counted file]; <N> moment(s) measured[, <N> unmeasured][: <file, file, ..., +N more>]`
 
 `(<Nm>)` is a computed duration for a phase whose predecessor was real same-run work;
 a phase resumed across a run boundary (above) renders the
@@ -535,9 +580,12 @@ when nothing is parked. When the epic reaches `ready`, the last line becomes the
 `gh pr create` handoff; `stopped` states what ended it. A parked story is always also
 a valid `/work-on` feature — say so when the queue is non-empty; taking a story over
 by hand happens inside its worktree (the story branch is checked out there), or after
-`git worktree remove` on it. The bracketed `scope:` clauses above are each omitted
-individually when empty (no amendments, no unmeasured moments, zero outside files) —
-never a literal `[, 0 amended]` or empty bracket rendered to the user.
+`git worktree remove` on it. In the third rendering's bracketed `scope:` clauses,
+`amended`, the amendment-orphan clause, and the trailing outside-file list are each
+omitted individually when empty (no amendments, no orphaned amendments, zero outside
+files) — never a literal `[, 0 amended]` or empty bracket rendered to the user; the
+leading `; <N> moment(s) measured` clause is not bracketed and is never itself
+omitted in that rendering, per its own paragraph above.
 
 ## Record keeping
 

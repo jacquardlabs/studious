@@ -430,7 +430,10 @@ cmd_work_set() {
   # from "no declaration exists," so unlike every other optional field on
   # this verb, it is written whenever the flag is present at all (tracked by
   # `declared_given`, set in the arg-parsing loop above), not only when
-  # non-empty.
+  # non-empty. `| unique` matches the report side's own treatment of
+  # `outsideFiles` (commands/work-through.md's jq) — a repeated path in the
+  # declaration must not inflate `declared \(N)` against a set that "one file
+  # counts once" already keeps disjoint on the outside-files side.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
@@ -441,7 +444,7 @@ cmd_work_set() {
      | (if $src      != "" then .source       = $src              else . end)
      | (if $branch   != "" then .branch       = $branch           else . end)
      | (if $doc      != "" then .designDoc    = $doc              else . end)
-     | (if $declGiven == "1" then .declaredFiles = ($decl | csv_trim) else . end)
+     | (if $declGiven == "1" then .declaredFiles = ($decl | csv_trim | unique) else . end)
      | (if $phase    != "" then .phase        = $phase            else . end)' \
     --arg title "$title" --arg src "$src" --arg branch "$branch" \
     --arg doc "$doc" --arg decl "$declared" --arg declGiven "$declared_given" \
@@ -936,6 +939,22 @@ cmd_work_list() {
 }
 
 cmd_gc() {
+  # Scope-delta measurement (#244), pre-mortem register item 7 (REALIZED): a
+  # work file is the only copy of `declaredFiles`/`scopeDelta`/`amendments` —
+  # collecting it discards that story's measurement cohort for good. `--force`
+  # opts back into the old unconditional-collect behavior; without it, a work
+  # file that would otherwise be collected but still carries an unread
+  # `.scopeDelta` is kept instead, named in the output, so a batch `gc` run
+  # can't silently erase a cohort the same run it's needed for (success
+  # metric 1 wants 5-10 stories' worth, the same order of magnitude as the
+  # doctor's own "more than 10 work files" gc recommendation).
+  local force=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --force) force=1; shift ;;
+      *) echo "gate-ledger: gc: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
   if ! have jq || ! have git; then return 0; fi
   local dir; dir=$(ledger_dir)
   local f branch
@@ -964,15 +983,26 @@ cmd_gc() {
   # A work file with no branch yet (decide/design happen before one exists) is
   # kept unless its phase is terminal.
   local wdir; wdir=$(work_dir)
-  local phase
+  local phase sd_len
   for f in "$wdir"/*.json; do
     [ -e "$f" ] || continue
     branch=$(jq -r '.branch // empty' "$f" 2>/dev/null)
     phase=$(jq -r '.phase // empty' "$f" 2>/dev/null)
+    sd_len=$(jq -r '(.scopeDelta // []) | length' "$f" 2>/dev/null)
     if [ "$phase" = "done" ] || [ "$phase" = "stopped" ]; then
+      if [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ]; then
+        printf 'kept work file with unread scope-delta data: %s (phase %s, %s scope-delta moment(s) recorded) — read it first: gate-ledger work-get --slug "%s"; then gc --force to collect anyway\n' \
+          "$(basename "$f")" "$phase" "$sd_len" "$(basename "$f" .json)"
+        continue
+      fi
       rm -f "$f"
       printf 'removed finished work file: %s (phase %s)\n' "$(basename "$f")" "$phase"
     elif [ -n "$branch" ] && ! git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1; then
+      if [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ]; then
+        printf 'kept work file with unread scope-delta data: %s (branch %s gone, %s scope-delta moment(s) recorded) — read it first: gate-ledger work-get --slug "%s"; then gc --force to collect anyway\n' \
+          "$(basename "$f")" "$branch" "$sd_len" "$(basename "$f" .json)"
+        continue
+      fi
       rm -f "$f"
       printf 'removed stale work file: %s (branch %s no longer exists)\n' "$(basename "$f")" "$branch"
     fi

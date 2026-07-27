@@ -1122,7 +1122,7 @@ check "a non-build marker step's outcome stays free-form" "0" "$?"
 d40=$(sandbox)
 ( cd "$d40" && "$LEDGER" work-set --slug sd-story --design-doc "notes/sd-story.md" --declared-files "a.py, b.py ,a.py" )
 wf40="$d40/.studious/work/sd-story.json"
-check "declared-files stored as a trimmed, JSON array" '["a.py","b.py","a.py"]' "$(jq -c '.declaredFiles' "$wf40")"
+check "declared-files stored as a trimmed, deduped JSON array" '["a.py","b.py"]' "$(jq -c '.declaredFiles' "$wf40")"
 check "designDoc is untouched by the new flag" "notes/sd-story.md" "$(jq -r '.designDoc' "$wf40")"
 
 d41=$(sandbox)
@@ -1219,6 +1219,32 @@ check "gc keeps a branchless non-terminal work file" "yes" \
   "$([ -f "$d38/.studious/work/fresh-feature.json" ] && echo yes || echo no)"
 check "gc names the phase it collected on" "yes" \
   "$(printf '%s' "$out38" | grep -q 'removed finished work file.*phase done' && echo yes || echo no)"
+
+# --- gc keeps, rather than collects, a finished work file with unread scope-delta
+# data (#244, pre-mortem register item 7): the work file is the only copy of
+# declaredFiles/scopeDelta/amendments, so an unconditional collect discards a
+# story's measurement cohort for good. ---
+d46=$(sandbox)
+( cd "$d46" && "$LEDGER" work-set --slug sd-done --title "finished with scope-delta" --phase "done" ) >/dev/null 2>&1
+( cd "$d46" && "$LEDGER" work-log --slug sd-done --scope-delta-phase build --scope-delta-files "a.py" ) >/dev/null 2>&1
+wf46="$d46/.studious/work/sd-done.json"
+
+out46=$( cd "$d46" && "$LEDGER" gc 2>&1 )
+check "gc keeps a finished work file with unread scope-delta data" "yes" \
+  "$([ -f "$wf46" ] && echo yes || echo no)"
+check "gc names the kept file and its scope-delta moment count" "yes" \
+  "$(printf '%s' "$out46" | grep -q 'kept work file with unread scope-delta data: sd-done.json (phase done, 1 scope-delta moment' && echo yes || echo no)"
+
+( cd "$d46" && "$LEDGER" gc --force ) >/dev/null 2>&1
+check "gc --force collects it anyway" "no" \
+  "$([ -f "$wf46" ] && echo yes || echo no)"
+
+d47=$(sandbox)
+( cd "$d47" && "$LEDGER" work-set --slug sd-done-clean --title "finished, no scope-delta" --phase "done" ) >/dev/null 2>&1
+wf47="$d47/.studious/work/sd-done-clean.json"
+( cd "$d47" && "$LEDGER" gc ) >/dev/null 2>&1
+check "gc still collects a finished work file with no scope-delta data at all, force or not" "no" \
+  "$([ -f "$wf47" ] && echo yes || echo no)"
 
 # --- gc collects epic state only once the epic actually shipped ---
 # `ready` is the driver's finale status and means "ready for you to PR" — the
