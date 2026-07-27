@@ -281,3 +281,74 @@ if __name__ == "__main__":
     import sys
 
     sys.exit(unittest.main())
+
+
+class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
+    """#179/#224's read side, narrowed to path resolution.
+
+    The folder name gained a branch slug, so any reader that rebuilds
+    `<date>-<task>` from its shape now matches nothing. These pin only that
+    `/finish` asks the script and joins the path correctly -- the token
+    *reporting* contract (labels, quoted messages, stream separation) was
+    split out of this story and is tracked separately.
+    """
+
+    def setUp(self) -> None:
+        self.body = SKILL_MD.read_text(encoding="utf-8")
+        self.flat_body = _normalize_ws(self.body)
+
+    def assertPhraseIn(self, phrase: str) -> None:
+        self.assertIn(
+            _normalize_ws(phrase),
+            self.flat_body,
+            f"phrase not found (whitespace-normalized): {phrase!r}",
+        )
+
+    def test_the_evidence_folder_is_resolved_by_the_script_not_rebuilt(self) -> None:
+        self.assertIn("evidence-capture resolve --repo <worktree> --branch", self.body)
+        self.assertPhraseIn("never rebuild the path from its shape")
+        # The image-evidence URL is built from the folder the verb printed.
+        self.assertPhraseIn("`<the folder resolve printed>/<label>.<ext>`, that path verbatim")
+        # And the shape it replaces must not survive as an instruction.
+        self.assertNotIn("wrote for it: `docs/jig/evidence/<date>-<task>/`", self.body)
+
+    def test_the_branch_argument_names_the_command_that_produces_it(self) -> None:
+        # The writer stamps the manifest with `rev-parse --abbrev-ref HEAD`
+        # (literal `HEAD` fallback included), so a reader reaching for
+        # `git branch --show-current` resolves nothing on a detached checkout.
+        self.assertIn('--branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)"', self.body)
+        self.assertPhraseIn("not `git branch --show-current`")
+
+    def test_the_worktree_placeholder_is_defined_before_its_first_use(self) -> None:
+        # `--repo` defaults to `.`, so an undefined placeholder lets /finish
+        # resolve against whatever checkout the session's cwd sits in.
+        self.assertPhraseIn("`<worktree>` wherever it appears in this skill** is the checkout the build ran in")
+        self.assertIn("git rev-parse --show-toplevel", self.body)
+        definition = self.flat_body.index("`<worktree>` wherever it appears in this skill")
+        first_use = self.flat_body.index("evidence-capture resolve --repo <worktree>")
+        self.assertLess(definition, first_use, "`<worktree>` is used before it is defined")
+
+    def test_the_freshness_call_joins_the_worktree_onto_the_resolved_path(self) -> None:
+        # `resolve` prints repo-relative; `evidence-freshness` resolves
+        # `--evidence` against the process cwd and never joins its own
+        # `--repo`. An unjoined path exits 2 and stops /finish outright.
+        self.assertIn(
+            "scripts/evidence-freshness --repo <worktree> --evidence <worktree>/<folder>",
+            _normalize_ws(self.body),
+        )
+        self.assertPhraseIn("**joined onto `<worktree>/`**")
+        self.assertPhraseIn("resolves `--evidence` against the process's own cwd")
+
+    def test_the_two_uses_of_the_resolved_path_are_named_as_asymmetric(self) -> None:
+        # The join belongs to the freshness call only: the raw-URL
+        # construction appends the repo-relative form, so "fixing" the
+        # asymmetry in either direction breaks the other call site.
+        self.assertPhraseIn("The raw-URL construction in the image-evidence bullet below wants the bare")
+        self.assertPhraseIn('do not "fix" this by changing what `resolve` prints')
+
+    def test_the_manifest_sentence_describes_the_folder_resolve_printed(self) -> None:
+        # Its antecedent is the exit-0 resolved folder, and it has one home.
+        contents = _normalize_ws("carries a `manifest.json` (`commit_sha`, `commit_timestamp`, `branch`")
+        self.assertEqual(self.flat_body.count(contents), 1, "the manifest description has one home")
+        exit_zero_at = self.flat_body.index(_normalize_ws("It prints one folder path, repo-relative, on exit 0."))
+        self.assertLess(exit_zero_at, self.flat_body.index(contents))

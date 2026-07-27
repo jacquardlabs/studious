@@ -102,6 +102,38 @@ def working_tree_status(repo: Path) -> str:
     return run(["git", "-C", str(repo), "status", "--porcelain"]).stdout
 
 
+def current_branch(repo: Path) -> str:
+    """Return `repo`'s checked-out branch name, or the literal "HEAD" when
+    detached or unreadable.
+
+    Deliberately identical to `bin/gate-ledger`'s `branch_name()` — same
+    command, same "HEAD" fallback — so a folder captured on a detached HEAD
+    and a ledger file written on the same checkout agree on what to call it.
+    """
+    result = run(["git", "-C", str(repo), "rev-parse", "--abbrev-ref", "HEAD"])
+    branch = result.stdout.strip()
+    return branch if result.returncode == 0 and branch else "HEAD"
+
+
+def branch_slug(branch: str) -> str:
+    """Collapse a branch name to a path-safe token: every '/' becomes '-'.
+
+    This is `bin/gate-ledger:37`'s `branch_slug()` rule (bash
+    `printf '%s' "${b//\\//-}"`), reused rather than re-invented — the same
+    convention `.studious/evidence/<branch-slug>.jsonl` and the gate ledger's
+    own per-branch files already use. Two implementations in two languages is
+    the cost of the ledger being bash and this script being Python;
+    `tests/jig/test_evidence_capture.py`'s parity test runs both over the same
+    branch names so they cannot drift silently.
+
+    Its one residual is documented at `bin/gate-ledger:273` and inherited here
+    on purpose: `feat/foo` and `feat-foo` produce the same slug. That is why
+    the manifest records the branch *name* and resolution matches on the name,
+    never on the slug.
+    """
+    return branch.replace("/", "-")
+
+
 def last_commit_sha_and_epoch(repo: Path) -> tuple[str, float] | None:
     """Return (sha, commit-timestamp-as-epoch-seconds) for HEAD in `repo`, or None."""
     result = run(["git", "-C", str(repo), "log", "-1", "--format=%H%x09%ct"])
