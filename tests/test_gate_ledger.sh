@@ -1118,6 +1118,84 @@ check "a gate step's outcome stays free-form" "0" "$?"
 ( cd "$d37" && "$LEDGER" work-log --slug enum-work --step run-boundary --outcome DISPATCHED ) >/dev/null 2>&1
 check "a non-build marker step's outcome stays free-form" "0" "$?"
 
+# --- scope-delta measurement (#244): --declared-files on work-set ---
+d40=$(sandbox)
+( cd "$d40" && "$LEDGER" work-set --slug sd-story --design-doc "docs/design/sd-story.md" --declared-files "a.py, b.py ,a.py" )
+wf40="$d40/.studious/work/sd-story.json"
+check "declared-files stored as a trimmed, JSON array" '["a.py","b.py","a.py"]' "$(jq -c '.declaredFiles' "$wf40")"
+check "designDoc is untouched by the new flag" "docs/design/sd-story.md" "$(jq -r '.designDoc' "$wf40")"
+
+d41=$(sandbox)
+( cd "$d41" && "$LEDGER" work-set --slug sd-empty --declared-files "" )
+check "an explicit empty --declared-files records a real zero-file declaration, not absence" \
+  '[]' "$(jq -c '.declaredFiles' "$d41/.studious/work/sd-empty.json")"
+
+d42=$(sandbox)
+( cd "$d42" && "$LEDGER" work-set --slug sd-none --title "no declaration" )
+check "a story that never declares has no declaredFiles field at all (distinct from [])" \
+  "null" "$(jq -c '.declaredFiles' "$d42/.studious/work/sd-none.json")"
+
+# --- scope-delta measurement (#244): work-log --scope-delta-* / --amend-* ---
+d43=$(sandbox)
+( cd "$d43" && "$LEDGER" work-log --slug sd-moments --step audit --outcome PASS --scope-delta-phase build --scope-delta-files "x.py,y.py" )
+wf43="$d43/.studious/work/sd-moments.json"
+check "--outcome vocabulary is untouched by the new flags (history still records the step)" \
+  "PASS" "$(jq -r '.history[0].outcome' "$wf43")"
+check "the step never carries the scope-delta value (own field, not the outcome token)" \
+  '["x.py","y.py"]' "$(jq -c '.scopeDelta[0].outsideFiles' "$wf43")"
+check "a measured moment records unmeasured: false" "false" "$(jq -c '.scopeDelta[0].unmeasured' "$wf43")"
+
+( cd "$d43" && "$LEDGER" work-log --slug sd-moments --scope-delta-phase audit-fix-1 --scope-delta-unmeasured )
+check "--scope-delta-unmeasured records unmeasured: true with an empty file list, never absence" \
+  '{"unmeasured":true,"outsideFiles":[]}' \
+  "$(jq -c '.scopeDelta[1] | {unmeasured, outsideFiles}' "$wf43")"
+check "a scope-delta-only call (no --step) writes no new history entry" \
+  "1" "$(jq '.history | length' "$wf43")"
+
+( cd "$d43" && "$LEDGER" work-log --slug sd-moments --scope-delta-phase build --amend-file "x.py" --amend-reason "shared parsing with verify" )
+check "an amendment is stored, keyed by file and phase, with its own reason" \
+  '{"file":"x.py","phase":"build","reason":"shared parsing with verify"}' \
+  "$(jq -c '.amendments[0] | {file, phase, reason}' "$wf43")"
+check "an amendment never touches the outsideFiles it annotates (total unaffected)" \
+  '["x.py","y.py"]' "$(jq -c '.scopeDelta[0].outsideFiles' "$wf43")"
+check "an amendment appends no scopeDelta entry of its own (still exactly 2 moments)" \
+  "2" "$(jq '.scopeDelta | length' "$wf43")"
+
+# --- work-log: --step/--outcome combined with --step build's closed vocabulary,
+# alongside the new scope-delta flags in the SAME call — pre-mortem risk #4's own
+# detection hint (the outcome vocabulary check must never see, or be bypassed by,
+# a scope-delta value riding on the same call). ---
+d44=$(sandbox)
+( cd "$d44" && "$LEDGER" work-log --slug sd-build --step build --outcome BUILT \
+    --scope-delta-phase build --scope-delta-files "z.py" --amend-file "z.py" --amend-reason "unforeseen shared module" ) >/dev/null 2>&1
+rc44=$?
+check "--step build --outcome BUILT succeeds alongside scope-delta/amend flags" "0" "$rc44"
+wf44="$d44/.studious/work/sd-build.json"
+check "the build outcome itself is still exactly BUILT" "BUILT" "$(jq -r '.history[0].outcome' "$wf44")"
+check "the scope-delta write landed in the same call" '["z.py"]' "$(jq -c '.scopeDelta[0].outsideFiles' "$wf44")"
+check "the amendment write landed in the same call" "z.py" "$(jq -r '.amendments[0].file' "$wf44")"
+
+( cd "$d44" && "$LEDGER" work-log --slug sd-build --step build --outcome BOGUS \
+    --scope-delta-phase build --scope-delta-files "z.py" ) >/dev/null 2>&1
+rc44b=$?
+check "the build outcome vocabulary check still rejects an unrecognized token even with scope-delta flags present" "2" "$rc44b"
+check "the rejected call appended no second scope-delta entry" "1" "$(jq '.scopeDelta | length' "$wf44")"
+
+# --- work-log: validation of the new flags ---
+d45=$(sandbox)
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid --scope-delta-phase build --scope-delta-files "a.py" --scope-delta-unmeasured ) >/dev/null 2>&1
+check "--scope-delta-files and --scope-delta-unmeasured are mutually exclusive" "2" "$?"
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid --scope-delta-files "a.py" ) >/dev/null 2>&1
+check "--scope-delta-files without --scope-delta-phase is rejected" "2" "$?"
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid --scope-delta-phase build --amend-file "a.py" ) >/dev/null 2>&1
+check "--amend-file without --amend-reason is rejected" "2" "$?"
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid --amend-reason "why" ) >/dev/null 2>&1
+check "--amend-reason without --amend-file is rejected" "2" "$?"
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid --step build ) >/dev/null 2>&1
+check "--step without --outcome is rejected" "2" "$?"
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid ) >/dev/null 2>&1
+check "a work-log call with nothing to record at all is rejected" "2" "$?"
+
 # --- gc collects finished flow state, not only branch-orphaned state (#237) ---
 # The epic path deliberately keeps a story's branch after landing it, so the
 # branch-gone rule alone could never fire: 34 of 35 work files sat pinned at phase
