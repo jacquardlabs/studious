@@ -79,6 +79,16 @@ spent reading and reasoning).
 - **`low`** — mechanical, rule-based, or inventory work: `doc-auditor`, `review-readme`,
   `backlog-hygiene`.
 
+**`effort` is model-gated, and on `haiku` there is nothing to gate.** Claude Code's
+subagent frontmatter documents `effort`'s "available levels depend on the model", and
+Haiku 4.5 does not take the parameter at all. So the `effort: low` pins on `review-readme`
+and `backlog-hygiene` — both `model: haiku` — and the five `{model: 'haiku', effort:
+'low'}` dispatches in `workflows/epic-driver.js` are declarations of intent, not live
+dials: those six get haiku's own behavior regardless. They are kept rather than deleted
+because they record the stakes call and become live the moment either agent moves tier,
+but do not budget a turn-count saving from them, and do not read the `low` row above as
+covering them.
+
 `premortem-auditor` sits at `medium` despite being merge-blocking: it verifies a fixed
 register item by item and never free-hunts, so it is structured verification, not open-ended
 reasoning. `dependency-auditor` sits at `medium` by the same argument: it enumerates per
@@ -114,12 +124,24 @@ ships worse decisions.
 agent still pinned to it is billed at whatever the user happens to have selected: identical
 to the `opus` tier in an Opus session, 2× that in a Fable one. Worse, it means the same
 branch audited on two different days can be judged by two different models. The four agents
-above are pinned to it only because they gate a merge and a model drop needs the A/B harness
-first — they are not "the cheap tier" by design, they are the remaining defect. The five
+above are pinned to it only because they gate a merge and a model drop needs an A/B first —
+they are not "the cheap tier" by design, they are the remaining defect. The five
 `sonnet`/`haiku` agents above show the target shape: no merge gate behind an agent's output
 means no A/B is needed to drop its tier, since a weak result is visible and cheap for a human
 to catch. Do not add new `inherit` agents for that reason, and do not read `inherit`
 anywhere in this file as an endorsed default.
+
+**The A/B is `scripts/run_ab_eval.py`; the protocol is [`tests/ab/README.md`](tests/ab/README.md).**
+It runs each arm over the golden fixtures N times and scores every planted defect as
+reported, under-tiered, demoted to prose, or missed — a model drop is judged on *missed*,
+the silent false negative this gate exists to catch, which a finding count cannot separate
+from a demotion. `tests/ab/arms/model-drop-136.json` is the configured experiment, and the
+six fixtures now plant a defect in each of the four agents' lanes, so all four can be
+judged in one run — read the per-fixture rows rather than the aggregate.
+
+Two levers move independently, and an A/B should vary one: pinning an explicit model ID
+(`model: claude-opus-5`) removes the same-branch-judged-by-two-models defect without
+changing tier or cost, and is separable from the question of whether the tier can drop.
 
 ## What we won't merge
 

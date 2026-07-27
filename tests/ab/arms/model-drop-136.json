@@ -1,0 +1,23 @@
+[
+  {
+    "name": "baseline-inherit"
+  },
+  {
+    "name": "all-four-sonnet",
+    "models": {
+      "code-auditor": "sonnet",
+      "doc-auditor": "sonnet",
+      "test-auditor": "sonnet",
+      "frontend-reviewer": "sonnet"
+    }
+  },
+  {
+    "name": "all-four-haiku",
+    "models": {
+      "code-auditor": "haiku",
+      "doc-auditor": "haiku",
+      "test-auditor": "haiku",
+      "frontend-reviewer": "haiku"
+    }
+  }
+]

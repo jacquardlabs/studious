@@ -70,21 +70,45 @@ class ParsedReport:
 
 
 def extract_section(text: str, heading: str) -> str | None:
-    """Return the body of a markdown '### <heading>' section, up to the next heading."""
-    pattern = re.compile(
-        rf"^#{{1,6}}\s*{re.escape(heading)}\b.*?$\n(.*?)(?=^#{{1,6}}\s|\Z)",
-        re.MULTILINE | re.DOTALL | re.IGNORECASE,
+    """Return a markdown section's body, up to the next heading at the same or a shallower level.
+
+    Stopping at *any* subsequent heading is wrong and silently so. A real audit
+    report nests one `###` subheading per finding inside its `## Critical
+    findings` section, so an any-heading terminator returns the blank line
+    between the two — which reads as "this section is empty" and scores a
+    correctly-filed Critical as missing. Synthetic reports that list findings as
+    flat bullets never surfaced it.
+    """
+    start = re.compile(
+        rf"^(#{{1,6}})\s*{re.escape(heading)}\b.*$",
+        re.MULTILINE | re.IGNORECASE,
     )
-    match = pattern.search(text)
-    return match.group(1) if match else None
+    match = start.search(text)
+    if not match:
+        return None
+    level = len(match.group(1))
+    rest = text[match.end() :]
+    terminator = re.compile(rf"^#{{1,{level}}}\s", re.MULTILINE).search(rest)
+    return (rest[: terminator.start()] if terminator else rest).lstrip("\n")
 
 
-def count_bullet_findings(section: str | None) -> int:
+def count_findings(section: str | None) -> int:
+    """Count findings in a section body, across both shapes reports use.
+
+    `/gate-audit` emits one `###` subheading per finding with prose beneath it;
+    shorter reports use a flat bullet list. Count subheadings when any are
+    present — bullets under a subheading are that finding's supporting detail,
+    not separate findings — and fall back to bullets otherwise. Counting only
+    bullets scores a real report's findings section as empty.
+    """
     if not section:
         return 0
     stripped = section.strip()
     if not stripped or re.match(r"(?i)^(none|no critical|no important|n/a)\b", stripped):
         return 0
+    subheadings = re.findall(r"^#{1,6}\s+\S", section, re.MULTILINE)
+    if subheadings:
+        return len(subheadings)
     return len(re.findall(r"^\s*[-*]\s+\S", section, re.MULTILINE))
 
 
@@ -120,8 +144,8 @@ def parse_audit_report(text: str) -> ParsedReport:
     combined = "\n".join(section for section in (critical_section, important_section) if section)
     return ParsedReport(
         verdict=extract_verdict(text),
-        critical_count=count_bullet_findings(critical_section),
-        important_count=count_bullet_findings(important_section),
+        critical_count=count_findings(critical_section),
+        important_count=count_findings(important_section),
         categories_mentioned=detect_categories(combined),
     )
 
@@ -191,8 +215,14 @@ def _run_git(repo: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def setup_fixture_repo(fixture_dir: Path, workdir: Path) -> Path:
+def setup_fixture_repo(
+    fixture_dir: Path, workdir: Path, source_root: Path = REPO_ROOT
+) -> Path:
     """Build an ephemeral git repo: base/ as the fake origin/main, changeset/ overlaid as HEAD.
+
+    ``source_root`` is the plugin root whose commands/agents/skills get wired in.
+    It defaults to this repo; ``run_ab_eval`` passes a shadow root instead so an
+    arm can vary a prompt or a model pin without mutating the checked-in files.
 
     Returns the repo path (== workdir).
     """
@@ -215,11 +245,11 @@ def setup_fixture_repo(fixture_dir: Path, workdir: Path) -> Path:
     _run_git(workdir, "add", "-A")
     _run_git(workdir, "commit", "-q", "-m", "changeset under review")
 
-    _wire_plugin_config(workdir)
+    _wire_plugin_config(workdir, source_root)
     return workdir
 
 
-def _wire_plugin_config(workdir: Path) -> None:
+def _wire_plugin_config(workdir: Path, source_root: Path = REPO_ROOT) -> None:
     """Expose this repo's commands/agents/skills as project-level Claude Code config.
 
     Deliberately does NOT symlink reference/ into the fixture repo. Under the
@@ -235,14 +265,29 @@ def _wire_plugin_config(workdir: Path) -> None:
     """
     claude_dir = workdir / ".claude"
     for name in ("commands", "agents", "skills"):
-        src = REPO_ROOT / name
+        src = source_root / name
         if src.is_dir():
             (claude_dir).mkdir(parents=True, exist_ok=True)
             os.symlink(src, claude_dir / name)
 
 
-def run_claude_headless(cwd: Path, timeout_seconds: int = 900) -> str:
-    """Invoke `/gate-audit` headless and return the report text.
+def run_claude_headless(
+    cwd: Path, timeout_seconds: int = 900, plugin_root: Path = REPO_ROOT
+) -> str:
+    """Invoke `/gate-audit` headless and return the report text."""
+    text, _cost = run_claude_headless_json(cwd, timeout_seconds, plugin_root)
+    return text
+
+
+def run_claude_headless_json(
+    cwd: Path, timeout_seconds: int = 900, plugin_root: Path = REPO_ROOT
+) -> tuple[str, float | None]:
+    """Invoke `/gate-audit` headless; return (report text, cost in USD if reported).
+
+    ``plugin_root`` becomes ``CLAUDE_PLUGIN_ROOT``, which is what the fan-out
+    command resolves ``reference/`` against when it injects the shared prompt
+    contract. Pointing it at a shadow root is how an A/B arm swaps that
+    contract for a variant.
 
     Never raises for a failed/timed-out/missing `claude` invocation — the
     failure detail is returned as the "report" so it lands in the uploaded
@@ -251,7 +296,7 @@ def run_claude_headless(cwd: Path, timeout_seconds: int = 900) -> str:
     saved.
     """
     env = os.environ.copy()
-    env["CLAUDE_PLUGIN_ROOT"] = str(REPO_ROOT)
+    env["CLAUDE_PLUGIN_ROOT"] = str(plugin_root)
     command = [
         "claude",
         "-p",
@@ -271,21 +316,51 @@ def run_claude_headless(cwd: Path, timeout_seconds: int = 900) -> str:
             timeout=timeout_seconds,
         )
     except subprocess.TimeoutExpired as exc:
-        return f"[harness error] claude timed out after {timeout_seconds}s: {exc}"
+        return f"[harness error] claude timed out after {timeout_seconds}s: {exc}", None
     except FileNotFoundError as exc:
-        return f"[harness error] claude CLI not found: {exc}"
+        return f"[harness error] claude CLI not found: {exc}", None
 
     stdout = result.stdout.strip()
     if result.returncode != 0:
         return (
             f"[harness error] claude exited {result.returncode}\n"
             f"stderr:\n{result.stderr}\nstdout:\n{stdout}"
-        )
+        ), None
+    return parse_cli_json(stdout)
+
+
+def parse_cli_json(stdout: str) -> tuple[str, float | None]:
+    """Pull (final text, cost) out of `claude -p --output-format json` stdout.
+
+    Claude Code 2.1.x emits a JSON **array** of stream events whose last
+    ``type: "result"`` element carries the text and `total_cost_usd`; older
+    builds emitted a single object with a `result` key. Handle both, and fall
+    back to the raw stdout when neither shape matches — an unexpected payload
+    belongs in the artifact as a readable report, not as a crash that loses
+    every fixture still queued behind it.
+    """
     try:
         payload = json.loads(stdout)
     except json.JSONDecodeError:
-        return stdout
-    return str(payload.get("result", stdout))
+        return stdout, None
+
+    if isinstance(payload, list):
+        finals = [
+            event
+            for event in payload
+            if isinstance(event, dict) and event.get("type") == "result"
+        ]
+        if not finals:
+            return stdout, None
+        payload = finals[-1]
+
+    if not isinstance(payload, dict):
+        return stdout, None
+    return str(payload.get("result", stdout)), _as_cost(payload.get("total_cost_usd"))
+
+
+def _as_cost(value: object) -> float | None:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
 def main(argv: list[str] | None = None) -> int:

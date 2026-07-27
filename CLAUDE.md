@@ -167,7 +167,7 @@ These are enforced by convention, not tooling — follow the existing shape (det
 - **Commands are actions:** an action prefix + target — `gate-`, `review-`/`deep-review`, `extract-`, `backlog-`, `work-on`.
 - **Agents are a 1:1 reviewer or a role:** periodic project-scoped reviewers share their command's `review-*` name; changeset specialists are `<domain>-auditor` (rule/technical checks) or `<domain>-reviewer` (human-judgment checks).
 - **Skills are named for the intent they detect**, not the command they call. Keep `description` triggers conservative — list what they should NOT match so a gate never fires unwanted.
-- **Pin `model` by stakes:** `opus` for high-stakes reasoning/human judgment (security, architecture, product/UX). `inherit` for mechanical, rule-based, or inventory work. Never pin a bare tier like `sonnet` — use `inherit` so the agent tracks the session model.
+- **Pin `model` and `effort` by stakes**, per the split in `CONTRIBUTING.md` — `model` moves the per-token rate, `effort` moves the turn count, and they are set independently. `opus` for high-stakes reasoning and human judgment; `sonnet`/`haiku` for recommend-only work with no merge gate behind it. **`inherit` is a known defect, not a cheap tier** ([#136](https://github.com/jacquardlabs/studious/issues/136)): it resolves to the session model, so the same branch can be judged by two different models on two different days. Don't add new `inherit` agents, and don't drop a merge-blocking agent's tier without an A/B (`tests/ab/README.md`).
 
 ## Editing skills
 
