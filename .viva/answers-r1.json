@@ -1,0 +1,45 @@
+{
+  "answers": [
+    {
+      "id": "q1",
+      "choice": "Only what persists \u2014 settled decisions, parked reasons, the register, and the epic diff",
+      "note": ""
+    },
+    {
+      "id": "q2",
+      "choice": "/work-through's finale prints the handoff line at ready",
+      "note": ""
+    },
+    {
+      "id": "q3",
+      "choice": "New or changed product surfaces, plus settled decisions that contradict a context doc",
+      "note": ""
+    },
+    {
+      "id": "q4",
+      "choice": "Parked and dropped stories only \u2014 the set that always persists",
+      "note": ""
+    },
+    {
+      "id": "q5",
+      "choice": "Two blocks \u2014 proposed diffs, then a numbered follow-up batch",
+      "note": ""
+    },
+    {
+      "id": "q6",
+      "choice": "Warn that it already ran, then proceed \u2014 per-item confirmation catches duplicates",
+      "note": ""
+    },
+    {
+      "id": "q7",
+      "choice": "Offer to open the PR itself after explicit confirmation",
+      "note": ""
+    },
+    {
+      "id": "q8",
+      "choice": "Resolve it here, since this design creates the shared-surface collision",
+      "note": ""
+    }
+  ],
+  "submitted_early": false
+}

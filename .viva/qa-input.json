@@ -1,0 +1,39 @@
+{
+  "mode": "qa",
+  "context": "/close-epic round 2 — three forks opened by round 1's answers on PR-opening (q7) and resolving #174 (q8). Nothing here re-asks round 1.",
+  "questions": [
+    {
+      "id": "r2-q1",
+      "text": "Opening the PR contradicts three stated lines — work-through.md:24 'never open PRs', :321 'the PR is theirs', and work-on.md:29 'Never open the PR yourself'. How should that be reconciled?",
+      "hint": "[intent] The PreToolUse hook (hooks/gate-reminder.sh) still fires on gh pr create and asks for confirmation regardless, so this is about stated product posture, not about safety. /finish already opens PRs, but it is a skill — the recommend-only invariant binds commands.",
+      "choices": [
+        "Scope it — the read-only rule binds dispatched phases, and a human-invoked closeout is stated as outside it",
+        "Amend it — rewrite the three lines so /close-epic is the named PR-opening path at epic scale",
+        "Keep it — drop PR-opening from /close-epic after all"
+      ],
+      "recommended_choice": "Scope it — the read-only rule binds dispatched phases, and a human-invoked closeout is stated as outside it"
+    },
+    {
+      "id": "r2-q2",
+      "text": "What should /close-epic put in the body of the PR it opens?",
+      "hint": "[contract] The evidence table was cut from the kernel and delegated to /handback, so it is not automatically available here — only if the branch already has a handback manifest committed.",
+      "choices": [
+        "Epic goal, per-story verdict trail, and links to the issues just filed",
+        "The same, plus the /handback evidence manifest when the branch already has one",
+        "/finish's PR body shape, adapted to epic scale"
+      ],
+      "recommended_choice": "The same, plus the /handback evidence manifest when the branch already has one"
+    },
+    {
+      "id": "r2-q3",
+      "text": "Which disambiguation should this design pin for the PASS token collision (#174)?",
+      "hint": "[contract] Renaming is cleanest but touches 14 files — status-flip (15 hits), build/SKILL.md (21), DESIGN.md (5), plus 8 test files. Scoping by table costs almost nothing but leans on reader context, which is what failed.",
+      "choices": [
+        "Rename the build task status to VERIFIED, leaving PASS to mean a gate verdict only",
+        "Prefix both — task:PASS and gate:PASS",
+        "Scope by table — each token valid only inside its own table, stated once in DESIGN.md"
+      ],
+      "recommended_choice": "Rename the build task status to VERIFIED, leaving PASS to mean a gate verdict only"
+    }
+  ]
+}

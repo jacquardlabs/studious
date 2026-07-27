@@ -1,0 +1,20 @@
+{
+  "answers": [
+    {
+      "id": "r2-q1",
+      "choice": "Scope it \u2014 the read-only rule binds dispatched phases, and a human-invoked closeout is stated as outside it",
+      "note": ""
+    },
+    {
+      "id": "r2-q2",
+      "choice": "/finish's PR body shape, adapted to epic scale",
+      "note": ""
+    },
+    {
+      "id": "r2-q3",
+      "choice": "Rename the build task status to VERIFIED, leaving PASS to mean a gate verdict only",
+      "note": ""
+    }
+  ],
+  "submitted_early": false
+}

@@ -1,0 +1,55 @@
+{
+  "round": 1,
+  "submitted_early": true,
+  "sections": [
+    {
+      "id": "s1",
+      "verdict": "approved"
+    },
+    {
+      "id": "s2",
+      "verdict": "approved"
+    },
+    {
+      "id": "s3",
+      "verdict": "approved"
+    },
+    {
+      "id": "s4",
+      "verdict": "approved"
+    },
+    {
+      "id": "s5",
+      "verdict": "info",
+      "comments": [
+        {
+          "cid": "s5-c1",
+          "type": "info",
+          "note": "Can we use uvx  or pipx if it's installed to run it?",
+          "anchor": {
+            "text": "A cctx session-cost footer. cctx is not installed in this environment.",
+            "offset": -1
+          },
+          "open": true,
+          "settled": false
+        }
+      ]
+    },
+    {
+      "id": "s6",
+      "verdict": "approved"
+    },
+    {
+      "id": "s7",
+      "verdict": "approved"
+    },
+    {
+      "id": "s8",
+      "verdict": "approved"
+    },
+    {
+      "id": "s9",
+      "verdict": "pending"
+    }
+  ]
+}
