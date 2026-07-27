@@ -1,0 +1,11 @@
+[
+  {
+    "name": "baseline"
+  },
+  {
+    "name": "coverage-first",
+    "contract": {
+      "reference/prompt-contract.md": "../variants/prompt-contract-coverage-first.md"
+    }
+  }
+]

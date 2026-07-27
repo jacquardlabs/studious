@@ -114,12 +114,24 @@ ships worse decisions.
 agent still pinned to it is billed at whatever the user happens to have selected: identical
 to the `opus` tier in an Opus session, 2× that in a Fable one. Worse, it means the same
 branch audited on two different days can be judged by two different models. The four agents
-above are pinned to it only because they gate a merge and a model drop needs the A/B harness
-first — they are not "the cheap tier" by design, they are the remaining defect. The five
+above are pinned to it only because they gate a merge and a model drop needs an A/B first —
+they are not "the cheap tier" by design, they are the remaining defect. The five
 `sonnet`/`haiku` agents above show the target shape: no merge gate behind an agent's output
 means no A/B is needed to drop its tier, since a weak result is visible and cheap for a human
 to catch. Do not add new `inherit` agents for that reason, and do not read `inherit`
 anywhere in this file as an endorsed default.
+
+**The A/B is `scripts/run_ab_eval.py`; the protocol is [`tests/ab/README.md`](tests/ab/README.md).**
+It runs each arm over the golden fixtures N times and scores every planted defect as
+reported, under-tiered, demoted to prose, or missed — a model drop is judged on *missed*,
+the silent false negative this gate exists to catch, which a finding count cannot separate
+from a demotion. `tests/ab/arms/model-drop-136.json` is the configured experiment; note its
+stated limit, that the current fixtures plant nothing in `doc-auditor`'s or
+`frontend-reviewer`'s lane, so those two need a fixture before their drop can be judged.
+
+Two levers move independently, and an A/B should vary one: pinning an explicit model ID
+(`model: claude-opus-5`) removes the same-branch-judged-by-two-models defect without
+changing tier or cost, and is separable from the question of whether the tier can drop.
 
 ## What we won't merge
 

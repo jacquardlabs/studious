@@ -191,8 +191,14 @@ def _run_git(repo: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def setup_fixture_repo(fixture_dir: Path, workdir: Path) -> Path:
+def setup_fixture_repo(
+    fixture_dir: Path, workdir: Path, source_root: Path = REPO_ROOT
+) -> Path:
     """Build an ephemeral git repo: base/ as the fake origin/main, changeset/ overlaid as HEAD.
+
+    ``source_root`` is the plugin root whose commands/agents/skills get wired in.
+    It defaults to this repo; ``run_ab_eval`` passes a shadow root instead so an
+    arm can vary a prompt or a model pin without mutating the checked-in files.
 
     Returns the repo path (== workdir).
     """
@@ -215,11 +221,11 @@ def setup_fixture_repo(fixture_dir: Path, workdir: Path) -> Path:
     _run_git(workdir, "add", "-A")
     _run_git(workdir, "commit", "-q", "-m", "changeset under review")
 
-    _wire_plugin_config(workdir)
+    _wire_plugin_config(workdir, source_root)
     return workdir
 
 
-def _wire_plugin_config(workdir: Path) -> None:
+def _wire_plugin_config(workdir: Path, source_root: Path = REPO_ROOT) -> None:
     """Expose this repo's commands/agents/skills as project-level Claude Code config.
 
     Deliberately does NOT symlink reference/ into the fixture repo. Under the
@@ -235,14 +241,21 @@ def _wire_plugin_config(workdir: Path) -> None:
     """
     claude_dir = workdir / ".claude"
     for name in ("commands", "agents", "skills"):
-        src = REPO_ROOT / name
+        src = source_root / name
         if src.is_dir():
             (claude_dir).mkdir(parents=True, exist_ok=True)
             os.symlink(src, claude_dir / name)
 
 
-def run_claude_headless(cwd: Path, timeout_seconds: int = 900) -> str:
+def run_claude_headless(
+    cwd: Path, timeout_seconds: int = 900, plugin_root: Path = REPO_ROOT
+) -> str:
     """Invoke `/gate-audit` headless and return the report text.
+
+    ``plugin_root`` becomes ``CLAUDE_PLUGIN_ROOT``, which is what the fan-out
+    command resolves ``reference/`` against when it injects the shared prompt
+    contract. Pointing it at a shadow root is how an A/B arm swaps that
+    contract for a variant.
 
     Never raises for a failed/timed-out/missing `claude` invocation — the
     failure detail is returned as the "report" so it lands in the uploaded
@@ -251,7 +264,7 @@ def run_claude_headless(cwd: Path, timeout_seconds: int = 900) -> str:
     saved.
     """
     env = os.environ.copy()
-    env["CLAUDE_PLUGIN_ROOT"] = str(REPO_ROOT)
+    env["CLAUDE_PLUGIN_ROOT"] = str(plugin_root)
     command = [
         "claude",
         "-p",
