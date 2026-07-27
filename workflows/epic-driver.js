@@ -836,6 +836,13 @@ function computeScopeDelta(fields) {
   // character in any common project convention) against a future quoting
   // change or a different, unquoted sink (e.g. `designDoc` also flows into
   // plain prose in acceptanceProductReviewPrompt).
+  // Caveat, not a defect at this round's scope: git's default
+  // `core.quotePath=true` renders a non-ASCII path in `git diff --name-only`
+  // output as a quoted, backslash-escaped C-string (e.g. `"docs/r\303\251.md"`),
+  // which this denylist's own `"`/`\` rejection then correctly degrades to
+  // `unmeasured` (AC-correct — never a silent drop) rather than measuring it.
+  // Unicode paths therefore still degrade in practice; widening past that is
+  // unscoped here.
   const UNSAFE_PATH_CHARS = /[$`";\\,\x00-\x1f\x7f]/
   const isSafePath = p =>
     typeof p === 'string' &&
