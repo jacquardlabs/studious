@@ -1027,8 +1027,8 @@ cmd_gc() {
     sd_len=$(jq -r '(.scopeDelta // []) | map(select(.unmeasured != true)) | length' "$f" 2>/dev/null)
     if [ "$phase" = "done" ] || [ "$phase" = "stopped" ]; then
       if [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ] && ! scope_delta_retention_lapsed "$f"; then
-        printf 'kept: %s still holds %s measured scope-delta moment(s) — gc --force to collect now, or plain gc collects it after %s days\n' \
-          "$(basename "$f" .json)" "$sd_len" "$SCOPE_DELTA_RETENTION_DAYS"
+        printf 'kept: %s still holds %s measured scope-delta moment(s) — gc --force to collect now, or plain gc collects it 14 days after its last write\n' \
+          "$(basename "$f" .json)" "$sd_len"
         continue
       fi
       rm -f "$f"
@@ -1040,8 +1040,8 @@ cmd_gc() {
       fi
     elif [ -n "$branch" ] && ! git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1; then
       if [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ] && ! scope_delta_retention_lapsed "$f"; then
-        printf 'kept: %s still holds %s measured scope-delta moment(s) — gc --force to collect now, or plain gc collects it after %s days\n' \
-          "$(basename "$f" .json)" "$sd_len" "$SCOPE_DELTA_RETENTION_DAYS"
+        printf 'kept: %s still holds %s measured scope-delta moment(s) — gc --force to collect now, or plain gc collects it 14 days after its last write\n' \
+          "$(basename "$f" .json)" "$sd_len"
         continue
       fi
       rm -f "$f"

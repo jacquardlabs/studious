@@ -76,7 +76,7 @@ Report the counts, never the full list — this is a health check, not an invent
 - [OK|Important] CLAUDE.md: <populated | missing> — <consequence if not OK>
 
 **Flow state**
-- [OK|Important] <n active, k retained for scope-delta, m epics> — <"clean" | "`/work-on` will ask you to choose from n features; run `gate-ledger gc`" | "k retained for scope-delta — `gate-ledger gc --force` to collect now, or plain `gc` once their window lapses">
+- [OK|Important] <n active, k retained for scope-delta, m epics> — <"clean" | "`/work-on` will ask you to choose from n features" | "k retained for scope-delta — `gate-ledger gc --force` to collect now, or plain `gc` once their window lapses">
 
 ### Summary
 <N> critical, <N> important, <N> ok. This is a health check, not a gate — no verdict token, nothing recorded to the ledger.

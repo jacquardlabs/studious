@@ -641,3 +641,5 @@ itself. Never hand-edit or directly read the JSON files. Worktrees live under
 `.studious/worktrees/<slug>/` — gitignored, one per running story plus `__epic`,
 removed as stories land and at `ready`; `git worktree list` is the recovery tool when
 state and disk disagree.
+
+**Scope-delta retention and collection.** If your epic declares file sets via design-doc flags on `work-set` calls, do not run `gate-ledger gc` while the scope-delta cohort is still being assembled across multiple runs — `SCOPE_DELTA_RETENTION_DAYS=14` keys on each work file's last write, so a cohort spanning more than 14 days will lose its earliest files. Use `work-get --slug <slug>` to read the `scope:` lines before collecting, so you know which stories' counts are still fresh.
