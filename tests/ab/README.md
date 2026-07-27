@@ -74,7 +74,9 @@ what the golden harness asserts.
 uv run --no-project python scripts/run_ab_eval.py \
   --arms tests/ab/arms/calibration-wording.json --dry-run
 
-# Then run it. 2 arms x 4 fixtures x 3 trials = 24 headless /gate-audit runs.
+# Then run it. 2 arms x 6 fixtures x 3 trials = 36 headless /gate-audit runs
+# (model-drop-136.json is 3 arms = 54). frontend-effect-leak has a web surface,
+# so it dispatches 12 lanes rather than 9 — budget it as the expensive one.
 uv run --no-project python scripts/run_ab_eval.py \
   --arms tests/ab/arms/calibration-wording.json \
   --trials 3 \

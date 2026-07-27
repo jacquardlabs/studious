@@ -13,11 +13,11 @@ export function LivePrices({ symbol }: Props) {
   }, [symbol]);
 
   if (price === null) {
-    return <p>Loading {symbol}…</p>;
+    return <p aria-live="polite">Loading {symbol}…</p>;
   }
 
   return (
-    <p>
+    <p aria-live="polite">
       {symbol}: {price.toFixed(2)}
     </p>
   );
