@@ -2,10 +2,82 @@
 """jig's evidence-capture script (story build-scripts, issue #14).
 
 Writes a task's verification artifacts (from `verify` and/or
-`worktree-setup`) to `docs/jig/evidence/<date>-<task>/`, alongside a
-manifest recording a timestamp, the commit SHA the evidence was checked
-against, and which script produced each artifact — the paper trail
-`/gate-audit` and a human read afterward.
+`worktree-setup`) to `docs/jig/evidence/<date>-<task>-<branch-slug>/`,
+alongside a manifest recording a timestamp, the commit SHA the evidence was
+checked against, the branch it was captured on, and which script produced
+each artifact — the paper trail `/gate-audit` and a human read afterward.
+
+The branch slug is in the folder name because two independent branches
+building on the same day had no reason to invent different `--task` values,
+so they wrote genuinely different content to one path and collided as an
+add/add merge conflict once both targeted the same base (issue #179). The
+slug distinguishes branch *names*, not branches: two branches named the same
+thing in two repos still collide, and so do `feat/foo` and `feat-foo`, since
+`branch_slug()` collapses '/' to '-'. A detached checkout is a third:
+`_gitutil.current_branch` returns the literal "HEAD" there — deliberately, so
+the writer and a reader on the same checkout name the branch the same thing —
+so every detached capture slugs to "HEAD" and resolves for every other
+detached reader. It stays off the normal path because `worktree-setup` creates
+branches with `worktree add -b`. None of the three is fixable by a slug, and
+none is what #179 recorded.
+
+**Rolling the slug back is not the revert alone.** A reader that reconstructs
+`<date>-<task>` and matches it *exactly* simply misses a slug-bearing folder —
+the correct failure direction, a visible "not found". A reader that **globs**
+`<date>-<task>*` fails the other way: the field order below keeps a legacy name
+a prefix of a new one (this repo already carries `2026-07-17-2` beside
+`2026-07-17-2-retroactive-inspection`), so once two branches' folders sit in one
+tree that glob matches both and can emit the wrong branch's link — the silent
+wrong link the slug exists to prevent. A rollback therefore reverts the code
+*and* removes or renames the slug-bearing folders captured under it. Say that at
+rollback time rather than discovering it.
+
+Three modes — capture is the default and takes no verb word:
+
+    evidence-capture --task T --artifact P:L=F ...   capture
+    evidence-capture resolve --branch B --task T     print that task's folder
+    evidence-capture list --branch B                 print each task's answer
+
+`resolve` and `list` are the **one home** for the rule that says which folder
+belongs to which task. A reader (`/finish` today) calls them instead of
+rebuilding a folder name from a shape it would otherwise have to keep in
+sync — and instead of keying on task + date, which cannot tell two branches'
+identically-tasked folders apart once one has merged into the other's base.
+One rule, applied identically by both verbs:
+
+1. **A branch-bearing match wins.** Among manifests whose `branch` equals the
+   branch being resolved for and whose `task` is the requested one, the answer
+   is the newest by `captured_at`.
+2. **A legacy match is used only when it is the unique legacy match for that
+   task.** A manifest with no `branch` predates this rule. Two or more carrying
+   one task id have no tiebreak available — and that is not hypothetical: a
+   project that ran `/build` on two different days has repeated task ids across
+   dates by default.
+
+   A unique one *answers*, but it answers every branch alike: nothing in it
+   says the branch asking captured it. So the answer carries a third token,
+   `[legacy]`, on stderr — beside the ordinary exit 0 and the ordinary path on
+   stdout. One branch-less folder and two of them are the same epistemic state,
+   and a reader that hears a loud `[ambiguous]` refusal for the pair while the
+   single one resolves silently into a real-SHA link is being told the two are
+   different. They are not. A caller promotes a `[legacy]` answer with its
+   caveat attached, or not at all.
+3. **Zero matches, or several with no tiebreak, resolve to nothing.** Never a
+   guess: a visible "not found" beats an invisible wrong link. The two are
+   reported apart, each behind a literal bracketed token its message opens
+   with — `[no-match]` and `[ambiguous]` — so a reader can tell a designed
+   refusal from a broken lookup, and so a prompt selecting a label never has to
+   match on an English sentence that the next edit rewrites.
+
+   `[ambiguous]` is **not** a claim that the branch asked about has evidence. A
+   branch that captured nothing reaches it whenever two or more branch-less
+   manifests happen to share the requested task id — this repository's own
+   state, tasks `1`-`4` each carrying two. So the refusal names the branch it
+   could not tie anything to, enumerates the folders it could not pick between,
+   and says what they are: captures predating the `branch` field, any of which
+   may belong to a branch that has since merged. Adopting one is a human's
+   decision taken after reading its `manifest.json`, never this script's
+   suggestion.
 
 Freshness rule (this story's acceptance criteria: "timestamp >= last code
 commit"): an evidence folder can only exist if it was provably produced
@@ -24,9 +96,53 @@ defenses close that gap:
    an earlier, possibly stale or failed, attempt is caught even if the
    working tree happens to be clean for an unrelated reason.
 
-Exit codes: 0 evidence captured. 1 refused for a freshness reason (dirty
-tree, stale artifact, clock skew). 2 usage error (bad args, missing
-artifact, existing target directory without --force).
+Exit codes, per mode — one ladder, three honest readings of it:
+
+  capture  0 evidence captured. 1 refused for a freshness reason (dirty
+           tree, stale artifact, clock skew). 2 usage error (bad args,
+           missing artifact, an existing target directory without --force,
+           or a --force target that is non-empty and carries no
+           manifest.json).
+  resolve  0 the query was answered — the folder is on stdout. A `[legacy]`
+           note on stderr qualifies that answer as rule 2's: it is tied to no
+           branch, so it is not tied to this one either. stdout is unchanged by
+           the note, so a caller reading only the path is never broken by it,
+           and a caller selecting on tokens sees this one where it already
+           looks. 1 a well-formed query that resolved to nothing: no match, or
+           several legacy matches with no tiebreak. This is the refusal that
+           routes a reader to its own no-evidence path — to which of two, the
+           printed token says, since neither is "evidence not found" by
+           default. 2 usage error (missing --branch, malformed task id).
+  list     0 always, including the empty answer — a branch that has captured
+           nothing yet is an ordinary early-pipeline state, not an error. A
+           row qualified by `[legacy]` prints the *same* stderr note `resolve`
+           prints for that answer: the token is one fact, so its explanation
+           cannot live on one verb's path only. 2 usage error (missing
+           --branch).
+
+`resolve` and `list` report rule 3 differently while applying it identically:
+a per-task lookup that finds nothing is a failed lookup, but an inventory read
+of a branch that has captured nothing is a complete answer. The one refusal
+`list` still has to *say* is `[ambiguous]`, which it prints as that literal
+token in the answer column instead of a path. Dropping such a task from the
+inventory would make the inventory disagree with the per-task lookup about the
+task both were asked about — one rule, two verbs, two answers. A task with no
+bearing on the branch at all (`[no-match]`) is genuinely not in that branch's
+inventory and stays out.
+
+`list`'s answer column is one grammar covering all three: a path, optionally
+opened by a bracketed token. `[ambiguous]` stands alone because no path can
+honestly be named; `[legacy]` precedes the path it qualifies. A reader that
+splits the row on its tab still sees exactly two fields either way, and a
+caveat carried in the same column the path occupies cannot be dropped by a
+reader that only looked at the path.
+
+The token is the caveat's handle, not the caveat. Its meaning is this script's
+to state and no reader's to infer, so it has to be reachable from either verb's
+own stream: a row is the whole of what a `list`-only reader gets, and a meaning
+stated only on `resolve`'s path arrives there as a bare string in a stream.
+Both verbs therefore print one shared note (`legacy_note`) on stderr for the
+same answer, leaving stdout byte-identical in both.
 """
 from __future__ import annotations
 
@@ -38,11 +154,38 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _gitutil import git_repo_root, last_commit_sha_and_epoch, working_tree_status  # noqa: E402
+from _gitutil import (  # noqa: E402
+    branch_slug,
+    current_branch,
+    git_repo_root,
+    last_commit_sha_and_epoch,
+    working_tree_status,
+)
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+QUERY_VERBS = ("resolve", "list")
+
+# What a lookup says beyond the bare answer, as the literal token its message
+# carries. Printed, not merely returned: a prompt that has to tell one kind of
+# answer from another selects on this token, and an English sentence is not a
+# stable thing for a prompt to match on. Each is named for the *reader's* state
+# — nothing at all; folders that exist and cannot be tied to the branch asked
+# about; a folder that answers but is tied to no branch at all — deliberately
+# not for the rule that produced it, which lives in this module's docstring and
+# nowhere else.
+#
+# The first two accompany a refusal (exit 1). The third accompanies an *answer*
+# (exit 0, the path on stdout as always), because a lone branch-less folder and
+# two of them are the same epistemic state — and one refusing loudly while the
+# other resolved silently into a promoted link was the asymmetry this token
+# closes.
+NO_MATCH = "no-match"
+AMBIGUOUS = "ambiguous"
+LEGACY = "legacy"
 
 # Any identifier that flows into a destination path (the --task directory
 # name; an --artifact's PRODUCER and LABEL, which become the copied
@@ -87,10 +230,200 @@ def parse_artifact_spec(spec: str) -> tuple[str, str, Path]:
     return producer, label, Path(path_str)
 
 
+def load_manifests(evidence_root: Path) -> list[tuple[Path, dict]]:
+    """Every (folder, manifest) pair under `evidence_root`, in folder order.
+
+    A folder with no `manifest.json`, an unreadable one, or one that is not a
+    JSON object is skipped rather than raised on: evidence folders are
+    repository content, and a reader that crashes on one malformed file
+    answers no query at all.
+    """
+    if not evidence_root.is_dir():
+        return []
+    entries: list[tuple[Path, dict]] = []
+    for folder in sorted(evidence_root.iterdir()):
+        if not folder.is_dir():
+            continue
+        try:
+            manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(manifest, dict):
+            entries.append((folder, manifest))
+    return entries
+
+
+class Resolution(NamedTuple):
+    """A lookup's answer: a folder or nothing, the token qualifying it, and the near misses.
+
+    `token` is empty only for an answer that needs no qualifying — a match the
+    branch's own name is on. Every other outcome carries one, whether it refuses
+    (`[no-match]`, `[ambiguous]`) or answers with a caveat (`[legacy]`). A field
+    that could only ever hold a *failure* reason has no room for the third —
+    which is how a qualified answer came to read as an unqualified one.
+
+    `candidates` is carried rather than recomputed by the caller so the refusal
+    can enumerate the folders it is refusing over. A message that names none
+    leaves its reader nothing to inspect, and the only recovery it can honestly
+    offer is one that starts with reading those folders' manifests.
+    """
+
+    folder: Path | None
+    token: str
+    candidates: tuple[Path, ...] = ()
+
+
+def resolve_folder(entries: list[tuple[Path, dict]], branch: str, task: str) -> Resolution:
+    """Apply the resolution rule; return the folder, or the reason and candidates.
+
+    The rule itself is stated once, in this module's docstring. `branch` is
+    matched as a *name* against the manifest's own `branch` field — never as a
+    slug, which would collapse `feat/foo` and `feat-foo` back together.
+    """
+    branch_bearing = [
+        (folder, manifest)
+        for folder, manifest in entries
+        if manifest.get("branch") == branch and manifest.get("task") == task
+    ]
+    if branch_bearing:
+        newest = max(branch_bearing, key=lambda pair: (str(pair[1].get("captured_at") or ""), pair[0].name))
+        return Resolution(newest[0], "")
+
+    legacy = [
+        folder for folder, manifest in entries if not manifest.get("branch") and manifest.get("task") == task
+    ]
+    if len(legacy) == 1:
+        return Resolution(legacy[0], LEGACY)
+    return Resolution(None, AMBIGUOUS if legacy else NO_MATCH, tuple(legacy))
+
+
+def list_branch_tasks(entries: list[tuple[Path, dict]], branch: str) -> list[tuple[str, Resolution]]:
+    """Every task `branch` has an answer for, task-sorted, one row each.
+
+    An undecidable task is a row, not an omission — see this module's docstring
+    on why `list` still has to say `[ambiguous]` out loud. A task with no
+    bearing on this branch at all is absent from its inventory, which is the
+    honest answer rather than a suppressed one.
+    """
+    tasks = sorted({m["task"] for _, m in entries if isinstance(m.get("task"), str)})
+    rows = ((task, resolve_folder(entries, branch, task)) for task in tasks)
+    return [(task, row) for task, row in rows if row.folder is not None or row.token == AMBIGUOUS]
+
+
+def display_path(folder: Path, repo: Path) -> str:
+    """Repo-relative when the folder is inside the repo, absolute otherwise.
+
+    A repo-relative path is what both callers need, and they need it in two
+    shapes: `evidence-freshness` resolves `--evidence` against the process's
+    own cwd and never joins its `--repo`, so its caller joins `<worktree>/`
+    onto this path first — unjoined, it exits 2 with "no manifest.json found"
+    — while `/finish`'s raw GitHub URL appends exactly this bare form with no
+    prefix to strip. `skills/finish/SKILL.md` states that asymmetry for the
+    personas; the one repair it rules out is closing it by changing what this
+    prints.
+    """
+    try:
+        return str(folder.resolve().relative_to(repo.resolve()))
+    except ValueError:
+        return str(folder)
+
+
+def answer_column(row: Resolution, repo: Path) -> str:
+    """A `list` row's answer field: a path, a bracketed token, or a token then a path.
+
+    One column, one grammar, so a reader that splits the row on its tab sees
+    exactly two fields whichever outcome it got — and so a caveat cannot be
+    dropped by a reader that only looked at the path, the way it can when the
+    caveat lives in a column of its own.
+    """
+    if row.folder is None:
+        return f"[{row.token}]"
+    path = display_path(row.folder, repo)
+    return f"[{row.token}] {path}" if row.token else path
+
+
+def legacy_note(task: str, branch: str, answer: str) -> str:
+    """The one stderr caveat both query verbs print for a rule-2 answer.
+
+    Shared rather than printed by whichever verb happened to need it first: the
+    two verbs answer the same reader in the same state, and a note only one of
+    them says leaves the other's reader holding a token with no stated meaning
+    anywhere on its path. Kept to a single line so a row-oriented reader can
+    carry it beside the row it qualifies.
+    """
+    return (
+        f"note: [{LEGACY}] the folder resolved for task '{task}' records no branch, so "
+        f"nothing ties it to '{branch}' — it predates the manifest's branch field and may "
+        f"belong to a branch that has already merged; read {answer}/manifest.json before "
+        "promoting it as this item's evidence."
+    )
+
+
+def ambiguous_note(task: str, branch: str, answers: tuple[str, ...]) -> str:
+    """The stderr caveat `list` prints for a rule-3 undecidable row.
+
+    Not shared with `resolve` the way `legacy_note` is, because the two verbs
+    are in different dispositions here and only here: `resolve` refuses (exit
+    1, an `error:` line a caller quotes as a refusal), while `list` answers
+    with an ordinary row (exit 0, a marker in the answer column). The token's
+    *meaning* is the same, so it is stated on both paths — a row-oriented
+    reader that only ever runs `list` would otherwise hold `[ambiguous]` with
+    no meaning stated anywhere on its path, which is `legacy_note`'s reason
+    verbatim. Kept to one line for the same reason, and carrying no recovery
+    text — not even a pointer at where it lives. The recoveries stay
+    single-sourced in `resolve`'s refusal, where a second copy could drift out
+    of step with the original; and a line a reader may quote verbatim must not
+    carry a second instruction inside a signal.
+    """
+    return (
+        f"note: [{AMBIGUOUS}] no folder resolved for task '{task}' on branch '{branch}': "
+        f"{len(answers)} folders record that task and none of them records a branch, so "
+        f"nothing here says this branch captured any of it — {', '.join(answers)}. Each "
+        "predates the manifest's branch field and may belong to a branch that has already "
+        "merged."
+    )
+
+
+def clear_directory(target_dir: Path) -> int:
+    """Remove every entry inside `target_dir`; return how many were removed.
+
+    The count is returned rather than discarded so the caller can say what it
+    deleted. A clearing run is the only destructive path in this script, and
+    a run that reports only what it wrote leaves the destructive half of its
+    own work invisible in stdout.
+    """
+    entries = list(target_dir.iterdir())
+    for entry in entries:
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+    return len(entries)
+
+
+def usage_modes() -> str:
+    """The three-mode usage block, lifted from this module's own docstring.
+
+    `--help` and the docstring are the same statement to two readers who
+    never meet: a persona who runs `--help` after `/finish` reports a
+    `resolve` failure needs to find that verb documented. Deriving the block
+    from the docstring keeps that one statement in one place — a second
+    hand-maintained copy is exactly the drift that leaves `--help`
+    documenting only the capture surface while the docstring documents three.
+    """
+    lines = [line for line in (__doc__ or "").splitlines() if line.strip().startswith("evidence-capture ")]
+    return "\n".join(["Three modes — capture is the default and takes no verb word:", "", *lines])
+
+
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="evidence-capture",
-        description="Write a task's verification artifacts + a freshness-stamped manifest to docs/jig/evidence/.",
+        description=(
+            "Write a task's verification artifacts + a freshness-stamped manifest to "
+            "docs/jig/evidence/<date>-<task>-<branch-slug>/."
+        ),
+        epilog=usage_modes(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--task", required=True, help="task identifier (used in the evidence directory name)")
     parser.add_argument("--repo", default=".", help="path to the git repo the evidence is checked against")
@@ -110,12 +443,104 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="an artifact to capture, repeatable; PRODUCER names the script that produced it (e.g. verify)",
     )
     parser.add_argument(
-        "--force", action="store_true", help="overwrite an existing evidence directory for this date+task"
+        "--force",
+        action="store_true",
+        help="re-capture into an existing evidence directory, clearing its contents first",
     )
     return parser.parse_args(argv)
 
 
-def main(argv: list[str]) -> int:
+def parse_query_args(verb: str, argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog=f"evidence-capture {verb}",
+        description=(
+            "Print the evidence folder for a branch + task."
+            if verb == "resolve"
+            else "Print every task that has an evidence folder for a branch, one per line."
+        ),
+    )
+    parser.add_argument("--branch", required=True, help="branch name to resolve for (a name, never a slug)")
+    if verb == "resolve":
+        parser.add_argument("--task", required=True, help="task identifier to resolve")
+    parser.add_argument("--repo", default=".", help="path to the git repo the evidence lives in")
+    parser.add_argument(
+        "--evidence-root",
+        default=None,
+        help="root directory evidence folders live under (default: <repo>/docs/jig/evidence)",
+    )
+    return parser.parse_args(argv)
+
+
+def run_query(verb: str, argv: list[str]) -> int:
+    args = parse_query_args(verb, argv)
+
+    repo = git_repo_root(Path(args.repo))
+    if repo is None:
+        print(f"error: '{args.repo}' is not inside a git repository", file=sys.stderr)
+        return 2
+
+    evidence_root = Path(args.evidence_root) if args.evidence_root else repo / "docs" / "jig" / "evidence"
+    entries = load_manifests(evidence_root)
+
+    if verb == "list":
+        for task, row in list_branch_tasks(entries, args.branch):
+            # The row carries the token; the note carries what the token means.
+            # stdout is untouched by it — the row grammar is unchanged and a
+            # reader parsing lines sees exactly what it saw before.
+            if row.folder is not None and row.token == LEGACY:
+                print(legacy_note(task, args.branch, display_path(row.folder, repo)), file=sys.stderr)
+            elif row.token == AMBIGUOUS:
+                answers = tuple(display_path(candidate, repo) for candidate in row.candidates)
+                print(ambiguous_note(task, args.branch, answers), file=sys.stderr)
+            print(f"{task}\t{answer_column(row, repo)}")
+        return 0
+
+    try:
+        _check_safe_identifier(args.task, "--task")
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    row = resolve_folder(entries, args.branch, args.task)
+    if row.folder is None:
+        if row.token == AMBIGUOUS:
+            listed = "\n  ".join(display_path(candidate, repo) for candidate in row.candidates)
+            print(
+                f"error: [{AMBIGUOUS}] evidence for task '{args.task}' cannot be tied to "
+                f"branch '{args.branch}': {len(row.candidates)} folders under {evidence_root} "
+                "record that task and none of them records a branch, so nothing here says "
+                "this branch captured any of it —\n  "
+                f"{listed}\n"
+                "Each predates the manifest's branch field and may well belong to a branch "
+                "that has already merged. If this branch verified the task, capture on this "
+                "branch. The only other repair is to edit one of those manifests — add this "
+                "branch to it, or give its task a distinct id — and only after reading its "
+                "manifest.json and confirming the folder is this item's evidence. Renaming "
+                "the folder repairs nothing: resolution keys on the manifest's branch and "
+                "task, never on a folder name, so a rename leaves both of these branch-less "
+                "and still colliding.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"error: [{NO_MATCH}] no evidence found for task '{args.task}' on branch "
+                f"'{args.branch}' under {evidence_root}",
+                file=sys.stderr,
+            )
+        return 1
+
+    answer = display_path(row.folder, repo)
+    # An answer, qualified. Exit stays 0 and stdout stays the bare path, so a
+    # caller that only reads the path is unaffected; the caveat goes to stderr,
+    # where the two refusal tokens already are. Why both verbs print the same
+    # one is `legacy_note`'s own docstring, not this call site's.
+    if row.token == LEGACY:
+        print(legacy_note(args.task, args.branch, answer), file=sys.stderr)
+    print(answer)
+    return 0
+
+
+def run_capture(argv: list[str]) -> int:
     args = parse_args(argv)
 
     if not args.artifact:
@@ -188,17 +613,48 @@ def main(argv: list[str]) -> int:
         )
         return 1
 
+    cleared = 0
     date = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     evidence_root = Path(args.evidence_root) if args.evidence_root else repo / "docs" / "jig" / "evidence"
-    target_dir = evidence_root / f"{date}-{args.task}"
+    branch = current_branch(repo)
+    # Field order keeps the existing <date>-<task> prefix byte-stable, at the
+    # cost that a legacy name is now a prefix of a new one. Affordable only
+    # because nothing parses this name — the resolve verb reads manifests.
+    target_dir = evidence_root / f"{date}-{args.task}-{branch_slug(branch)}"
 
-    if target_dir.exists() and not args.force:
-        print(
-            f"error: evidence directory already exists: {target_dir}\n"
-            "Pass --force to overwrite, or remove it first if this is a stale capture.",
-            file=sys.stderr,
-        )
-        return 2
+    if target_dir.exists():
+        if not args.force:
+            print(
+                f"error: evidence directory already exists: {target_dir}\n"
+                "Pass --force to clear it and re-capture, or remove it first if this is a stale capture.",
+                file=sys.stderr,
+            )
+            return 2
+        if not target_dir.is_dir():
+            print(f"error: {target_dir} exists and is not a directory", file=sys.stderr)
+            return 2
+        # --force clears before copying, so the folder can never disagree with
+        # its own manifest (issue #224): previously a prior capture's
+        # differently-labelled artifact survived beside a rewritten manifest
+        # that no longer listed it, and `evidence-freshness` checks that every
+        # *listed* artifact is fresh, never that every *present* one is listed.
+        #
+        # Clearing is destructive, so it happens only where the directory is
+        # recognizable as this script's own output. An opt-in past the default
+        # refusal authorizes replacing evidence; it does not authorize deleting
+        # a directory the tool cannot identify as evidence at all — a shape
+        # reachable by accident, since a capture that crashed after copying but
+        # before writing its manifest leaves exactly that.
+        if any(target_dir.iterdir()) and not (target_dir / "manifest.json").is_file():
+            print(
+                f"error: refusing to clear {target_dir}: it is not empty and carries no "
+                "manifest.json, so it is not recognizable as an evidence directory (a capture "
+                "that crashed before writing its manifest leaves exactly this shape).\n"
+                f"Remove it and re-run: rm -rf {target_dir}",
+                file=sys.stderr,
+            )
+            return 2
+        cleared = clear_directory(target_dir)
 
     target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -211,6 +667,10 @@ def main(argv: list[str]) -> int:
     manifest = {
         "task": args.task,
         "date": date,
+        # The branch *name*, not its slug: resolution matches on the name, so
+        # `feat/foo` and `feat-foo` stay distinguishable to a reader even
+        # though they share a folder name.
+        "branch": branch,
         "commit_sha": commit_sha,
         "commit_timestamp": datetime.fromtimestamp(commit_epoch, tz=timezone.utc).isoformat(),
         "captured_at": datetime.now(timezone.utc).isoformat(),
@@ -218,8 +678,52 @@ def main(argv: list[str]) -> int:
     }
     (target_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
-    print(f"evidence-capture: wrote {len(manifest_artifacts)} artifact(s) + manifest.json to {target_dir}")
+    # A clearing run says so first: deletion is the half of --force a reader
+    # cannot see in the result, and "wrote N artifacts" alone reads identically
+    # whether the folder was empty or held someone else's capture.
+    #
+    # It also names what those deletions cost, because the *next* capture is
+    # where they surface: clearing committed evidence leaves uncommitted
+    # deletions, and the dirty-tree refusal above says "Commit the task's
+    # work first" — the wrong cause, since the task's work already is
+    # committed. That refusal is generic and serves three other callers, so it
+    # cannot know a --force run produced the dirt; this run is the only place
+    # that holds the fact. Qualified, not asserted flat: entries under a
+    # scratch --evidence-root, or a capture re-run before it was ever
+    # committed, leave nothing tracked to delete.
+    cleared_note = (
+        f"cleared {cleared} pre-existing entr{'y' if cleared == 1 else 'ies'} "
+        "(clearing committed evidence leaves uncommitted deletions — commit them before the next capture); "
+        if cleared
+        else ""
+    )
+    print(
+        f"evidence-capture: {cleared_note}wrote {len(manifest_artifacts)} artifact(s) "
+        f"+ manifest.json to {target_dir}"
+    )
     return 0
+
+
+def main(argv: list[str]) -> int:
+    """Dispatch on a bare first argument, defaulting to capture.
+
+    Every capture invocation starts with a flag (`--task` is required), so a
+    leading bare word is unambiguously a verb. An unrecognized one exits 2 by
+    name rather than falling through to the capture parser, which would report
+    it as an unrecognized *argument* and send the reader looking for a typo in
+    the wrong place.
+    """
+    if argv and not argv[0].startswith("-"):
+        verb = argv[0]
+        if verb not in QUERY_VERBS:
+            print(
+                f"error: unknown verb '{verb}'; expected one of {', '.join(QUERY_VERBS)}, "
+                "or capture arguments beginning with --task",
+                file=sys.stderr,
+            )
+            return 2
+        return run_query(verb, argv[1:])
+    return run_capture(argv)
 
 
 if __name__ == "__main__":

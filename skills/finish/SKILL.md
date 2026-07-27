@@ -28,19 +28,51 @@ it.
 
 ## Step 1 — PR evidence table
 
+**`<worktree>` wherever it appears in this skill** is the checkout the build ran
+in — the path `git rev-parse --show-toplevel` prints *there*. Resolve it once,
+here, and pass it explicitly to every command below that takes it. None of those
+flags may be left to default: `--repo` defaults to `.`, so a session whose own
+cwd is some other checkout would read that repository and report its state as
+this feature's — an evidence table assembled, plausibly, off the wrong branch.
+
 For each task in `PLAN.md` (now fully status-flipped), read its `Done
 means` items and the evidence folder `/build`'s own `evidence-capture` call
-wrote for it: `docs/jig/evidence/<date>-<task>/`, carrying a
-`manifest.json` (`commit_sha`, `commit_timestamp`, one entry per captured
-artifact) and the captured artifacts themselves — including the task's
+wrote for it. **Ask the script which folder that is — never rebuild the path
+from its shape**: the folder name now carries a branch slug, so a hand-rebuilt
+`docs/jig/evidence/<date>-<task>/` matches nothing.
+
+```
+scripts/evidence-capture resolve --repo <worktree> --branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" --task <task id>
+```
+
+`--branch` takes that exact command and not `git branch --show-current`: the
+capture stamped the manifest using `rev-parse --abbrev-ref HEAD`
+(`scripts/_gitutil.py`'s `current_branch`), literal `HEAD` fallback included, so
+on a detached checkout the reader and the writer still name the branch the same
+thing — where `--show-current` prints an empty string that matches no manifest.
+
+It prints one folder path, repo-relative, on exit 0. That folder carries a
+`manifest.json` (`commit_sha`, `commit_timestamp`, `branch`, one entry per
+captured artifact) and the captured artifacts themselves — including the task's
 `verify:results` artifact, whose own JSON carries each item's `id`, `kind`,
-`tier`, `status`, and `detail`.
+`tier`, `status`, and `detail`. A non-zero exit means this task has no folder
+to promote: say so on the row and never invent a link.
 
 **Freshness hold — run this before promoting anything.** Call
-`scripts/evidence-freshness --repo <worktree> --evidence <folder>` once per
-evidence folder involved (repeat `--evidence` per folder, or one call
-covering all of them). This re-validates each folder against its own
-recorded `manifest.json` — never against the branch's current `HEAD`.
+`scripts/evidence-freshness --repo <worktree> --evidence <worktree>/<folder>`
+once per evidence folder involved — each `<folder>` being a path `resolve`
+printed above, **joined onto `<worktree>/`** (repeat `--evidence` per folder,
+or one call covering all of them). The join is required and deliberately
+asymmetric with the other use of that same printed path below:
+`evidence-freshness` resolves `--evidence` against the process's own cwd and
+never joins its `--repo`, and no script in this repo may assume cwd is the
+worktree — so an unjoined path exits 2 with `no manifest.json found in
+'<path>'` and stops `/finish` before it assembles anything. The raw-URL
+construction in the image-evidence bullet below wants the bare repo-relative
+form instead, because that path is what the URL appends. Do not unify the
+two, and do not "fix" this by changing what `resolve` prints.
+`evidence-freshness` re-validates each folder against its own recorded
+`manifest.json` — never against the branch's current `HEAD`.
 Re-deriving freshness against current `HEAD` reproduces issue #44's bug
 shape one layer up: a producing step that commits *after* writing the
 artifact it's timestamping against makes a "must be >= current HEAD" check
@@ -83,12 +115,14 @@ Two evidence shapes, two treatments:
   new repository file.
 - **Image evidence** (a `probe` item whose artifact is a screenshot or
   other binary) stays exactly where `evidence-capture` already put it —
-  `docs/jig/evidence/<date>-<task>/<label>.<ext>` — and is referenced by
+  `<the folder resolve printed>/<label>.<ext>`, that path verbatim and
+  never one rebuilt by hand — and is referenced by
   its raw URL: `https://raw.githubusercontent.com/<owner>/<repo>/<sha>/<path>`,
   because `gh` cannot upload an image into a PR body. Resolve `<owner>/<repo>`
   from the repo's own `origin` remote. Anchor `<sha>` to the commit current
-  at the moment this step assembles the table (`git rev-parse HEAD` in the
-  worktree) — a real, immutable commit SHA, never the branch name, which
+  at the moment this step assembles the table (`git -C <worktree> rev-parse
+  HEAD` — the same explicit `<worktree>` every other command in this step
+  takes) — a real, immutable commit SHA, never the branch name, which
   floats and disappears once the branch is deleted. A squash-merged-then-
   deleted branch can eventually make that raw URL a GC candidate — a known,
   accepted trade-off of keeping evidence in place; don't try to close that

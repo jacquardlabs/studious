@@ -1,0 +1,17 @@
+# Direct dependency of the release job (.github/workflows/release.yml), which holds
+# RELEASE_TOKEN — a PAT carrying contents:write here plus a cross-repo workflow
+# dispatch against jacquardlabs/marketplace. Pinned exactly for the same reason
+# ci.yml pins markdownlint, eslint, ruff, and shellcheck: an unpinned install turns
+# an upstream release into a surprise, and in this job the surprise runs privileged.
+#
+# Bump this version deliberately, then regenerate the hashed closure beside it:
+#
+#   uv pip compile --generate-hashes --python-version 3.12 \
+#     --python-platform x86_64-unknown-linux-gnu \
+#     -o .github/workflows/release-requirements.txt \
+#     .github/workflows/release-requirements.in
+#
+# --python-version/--python-platform must match the job's runner (ubuntu-latest,
+# actions/setup-python 3.12); resolving on a developer's macOS instead produces a
+# closure pip rejects on the runner.
+python-semantic-release==10.6.1
