@@ -144,14 +144,30 @@ def last_commit_sha_and_epoch(repo: Path) -> tuple[str, float] | None:
 
 
 def resolve_revision_epoch(repo: Path, revision: str) -> float | None:
-    """Resolve a git revision (branch, tag, sha) to its commit timestamp, or None."""
-    result = run(["git", "-C", str(repo), "show", "-s", "--format=%ct", revision])
+    """Resolve a git revision (branch, tag, sha) to its commit timestamp, or None.
+
+    `--end-of-options`, not `--`: `revision` reaches here from `verify --since`,
+    and git reads a leading-dash positional as an option unless told otherwise
+    (`git show -s --format=%ct --output=FILE HEAD` writes FILE). `--` is the
+    wrong separator for a revision -- it marks what follows as a *pathspec*, so
+    `git show ... -- HEAD` matches a file named HEAD, finds none, and returns
+    empty. This function would then return None for every revision, silently.
+    """
+    result = run(["git", "-C", str(repo), "show", "-s", "--format=%ct", "--end-of-options", revision])
     if result.returncode != 0 or not result.stdout.strip():
         return None
     return float(result.stdout.strip())
 
 
 def branch_exists(repo: Path, branch: str) -> bool:
+    """Whether `branch` exists in `repo`.
+
+    Needs no `--end-of-options` guard: the positional is interpolated behind a
+    literal `refs/heads/` and so can never begin with a dash. `git rev-parse`
+    could not take the guard anyway -- it echoes `--end-of-options` as an
+    output line rather than consuming it, which is why the two helpers that do
+    need it are `show` and `merge-base`, not this one.
+    """
     return run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"]).returncode == 0
 
 
@@ -160,7 +176,12 @@ def is_ancestor(repo: Path, ancestor: str, descendant: str = "HEAD") -> bool:
     `repo`. False for an unresolvable/orphaned `ancestor` -- never raises,
     so a caller checking freshness against a since-rewritten commit gets a
     plain FAIL rather than an exception."""
-    return run(["git", "-C", str(repo), "merge-base", "--is-ancestor", ancestor, descendant]).returncode == 0
+    return (
+        run(
+            ["git", "-C", str(repo), "merge-base", "--is-ancestor", "--end-of-options", ancestor, descendant]
+        ).returncode
+        == 0
+    )
 
 
 def worktree_registered(repo: Path, path: Path) -> bool:
