@@ -2,6 +2,56 @@
 
 <!-- version list -->
 
+## v2.27.3 (2026-07-27)
+
+### Bug Fixes
+
+- Bound worker scope in both directions in the worker contract
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+- Bound worker scope in both directions, add the A/B eval harness
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+- Parse the section shape real audit reports actually emit
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+- Read the CLI's stream-event array, not the legacy result object
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+### Chores
+
+- Gitignore A/B run output ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+### Documentation
+
+- Align CLAUDE.md's model guidance with CONTRIBUTING and the code
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+- Record the §4 calibration A/B result — variant tested, rejected
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+### Testing
+
+- Add the A/B eval harness CONTRIBUTING already gates model drops on
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+- Isolate the two new fixtures to the lane each is meant to score
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+- Plant doc and frontend defects so #136 can judge all four inherit agents
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+
 ## v2.27.2 (2026-07-26)
 
 ### Documentation
