@@ -430,6 +430,66 @@ the driver's own trail/reason text exactly as it would render without this step 
 never a raw jq error, never "NaN," never a negative number, and never at the cost of
 any other story's line in the same report.
 
+### Scope-delta line (#244)
+
+A second, independent read of the same per-story work file — never entangled with the
+duration-chain computation above, which has its own degrade rule and its own tests.
+For every `landedThisRun` entry and every `needsYou` entry that names an actual story
+(same scoping as the duration chain above), compute:
+
+```bash
+gate-ledger work-get --slug "<slug>--<story>" | jq -r '
+  (.declaredFiles // null) as $declared |
+  (.scopeDelta // []) as $sd |
+  (.amendments // []) as $am |
+  if $declared == null then "scope: unmeasured (no declaration recorded)"
+  else
+    ([$sd[] | select(.unmeasured != true)] ) as $measured |
+    ([$sd[] | select(.unmeasured == true) | .phase]) as $unmeasuredPhases |
+    ([$measured[] | .outsideFiles[]?] | unique) as $outside |
+    ([$measured[] | {phase: .phase, n: (.outsideFiles | length)} | select(.n > 0)]
+      | map("\(.n) at \(.phase)") | join(", ")) as $byMoment |
+    ([$am[] | .file] | unique) as $amendedFiles |
+    ([$amendedFiles[] | select(. as $f | $outside | index($f) != null)] | length) as $amendedCount |
+    (($amendedFiles | length) - $amendedCount) as $orphanedAmendments |
+    ("scope: declared \($declared | length), outside \($outside | length)"
+      + (if ($byMoment | length) > 0 then " (\($byMoment))" else "" end)
+      + (if $amendedCount > 0 then ", \($amendedCount) amended" else "" end)
+      + (if $orphanedAmendments > 0 then ", \($orphanedAmendments) amendment(s) reference no counted file" else "" end)
+      + (if ($unmeasuredPhases | length) > 0 then "; \($unmeasuredPhases | length) moment(s) unmeasured" else "" end)
+      + (if ($outside | length) > 0 then ": " + (($outside[0:5]) | join(", "))
+          + (if ($outside | length) > 5 then " +\(($outside | length) - 5) more" else "" end)
+        else "" end))
+  end
+'
+```
+
+Render the result as one line under the story's headline (below the duration-chain
+parenthetical for a `needsYou` entry; below the trail for a `landedThisRun` entry),
+followed by the retrieval verb itself so the reader can pull the full declaration and
+any amendment reasons (neither is printed inline — the reason is a work-file-only
+detail, same as the declared set): `gate-ledger work-get --slug "<slug>--<story>"`.
+A story with no declaration renders `unmeasured`, never a bare omission and never a
+manufactured zero — the same failure-path rule the design doc states for a failed
+diff resolution. Degrade the same way the duration chain does: a failed read or a
+jq error renders nothing for this line rather than aborting the story's own report
+entry, and never affects any other story's line.
+
+This line carries no verdict effect — round one measures only (no park, no retry
+refusal, no threshold); it exists so the two motivating failure modes (a story that
+grew unnoticed, a story that stayed near its declaration) are visible in the same
+summary the human already reads, for both a parked story and a landed one.
+
+`amended` only ever counts an amendment whose `.file` matches some moment's own
+`outsideFiles` entry — an amendment can never subtract from `outside`, by
+construction (the two counts are computed from disjoint fields; the amendment
+never touches `scopeDelta`). An amendment naming a file that never appears in any
+moment's `outsideFiles` — declared already, or a path that doesn't match what git
+actually reported — drops silently out of that count with nothing to say so unless
+this line names it: the trailing `amendment(s) reference no counted file` clause is
+that signal, so a wrong or stale amendment reads as a visible discrepancy rather
+than a quietly lower `amended` number.
+
 End with exactly this shape and nothing after it:
 
 ```text
@@ -437,7 +497,11 @@ Epic: <slug> — <landed>/<total> landed, <parked> parked, <blocked> blocked on 
 Needs you:
   - <story>: <gate> returned <verdict> — <one clause: what's needed>
     (<phase>: <outcome> (<Nm>) → <phase>: <outcome> (<Nm>) → ...)
+    scope: declared <N>, outside <N> (<breakdown by moment>)[, <N> amended][, <N> amendment(s) reference no counted file][; <N> moment(s) unmeasured][: <file, file, ..., +N more>]
+    gate-ledger work-get --slug "<slug>--<story>"
 Landed this run: <story> — <phase>: <outcome> (<Nm>) → <phase>: <outcome> (<Nm>) → ...
+  scope: declared <N>, outside <N> (<breakdown by moment>)[, <N> amended][; <N> moment(s) unmeasured][: <file, file, ..., +N more>]
+  gate-ledger work-get --slug "<slug>--<story>"
 Run /work-through when you're ready, or resolve the queue first.
 ```
 
@@ -450,7 +514,9 @@ when nothing is parked. When the epic reaches `ready`, the last line becomes the
 `gh pr create` handoff; `stopped` states what ended it. A parked story is always also
 a valid `/work-on` feature — say so when the queue is non-empty; taking a story over
 by hand happens inside its worktree (the story branch is checked out there), or after
-`git worktree remove` on it.
+`git worktree remove` on it. The bracketed `scope:` clauses above are each omitted
+individually when empty (no amendments, no unmeasured moments, zero outside files) —
+never a literal `[, 0 amended]` or empty bracket rendered to the user.
 
 ## Record keeping
 

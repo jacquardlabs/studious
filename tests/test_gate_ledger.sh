@@ -1120,10 +1120,10 @@ check "a non-build marker step's outcome stays free-form" "0" "$?"
 
 # --- scope-delta measurement (#244): --declared-files on work-set ---
 d40=$(sandbox)
-( cd "$d40" && "$LEDGER" work-set --slug sd-story --design-doc "docs/design/sd-story.md" --declared-files "a.py, b.py ,a.py" )
+( cd "$d40" && "$LEDGER" work-set --slug sd-story --design-doc "notes/sd-story.md" --declared-files "a.py, b.py ,a.py" )
 wf40="$d40/.studious/work/sd-story.json"
 check "declared-files stored as a trimmed, JSON array" '["a.py","b.py","a.py"]' "$(jq -c '.declaredFiles' "$wf40")"
-check "designDoc is untouched by the new flag" "docs/design/sd-story.md" "$(jq -r '.designDoc' "$wf40")"
+check "designDoc is untouched by the new flag" "notes/sd-story.md" "$(jq -r '.designDoc' "$wf40")"
 
 d41=$(sandbox)
 ( cd "$d41" && "$LEDGER" work-set --slug sd-empty --declared-files "" )
