@@ -61,7 +61,6 @@ import argparse
 import re
 import sys
 from dataclasses import dataclass
-from itertools import pairwise
 from pathlib import Path
 
 # Mirrors reference/design-doc-contract.md's "Required sections" table, in
@@ -288,7 +287,10 @@ def _has_markdown_table(body: str) -> bool:
     lines = [ln.strip() for ln in body.splitlines() if ln.strip()]
     return any(
         a.startswith("|") and "-" in b and _TABLE_DELIM_RE.match(b)
-        for a, b in pairwise(lines)
+        # zip over the offset slice, not itertools.pairwise: the skills invoke
+        # these scripts bare (`scripts/design-lint ...`), so they run on whatever
+        # python3 a consuming project has, and pairwise needs 3.10 (#250).
+        for a, b in zip(lines, lines[1:])
     )
 
 
