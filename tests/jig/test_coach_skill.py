@@ -317,6 +317,26 @@ class TestCoachSkillBody(unittest.TestCase):
         self.assertPhraseIn("verbatim on that row's own evidence line (below), one note per qualified row")
         self.assertPhraseIn("never merged across rows and never carried up into the recommendation")
 
+    def test_the_documented_list_invocation_separates_the_streams(self) -> None:
+        """"Read that stream too" is unreachable from a bare command: one run
+        merges the rows and the notes, and this skill writes no file, so the
+        separation has to be in the invocation itself — the rows run and the
+        notes run, both pinned, since either one alone silently drops half the
+        signal."""
+        rows_run = '--branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" 2>/dev/null'
+        notes_run = '--branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" 2>&1 >/dev/null'
+        self.assertIn(f"scripts/evidence-capture list --repo <worktree> {rows_run}", self.body)
+        self.assertIn(f"scripts/evidence-capture list --repo <worktree> {notes_run}", self.body)
+        # Two runs is a stated divergence from `/finish`'s redirection, not
+        # drift: the read-only rule below forbids the scratch file.
+        self.assertPhraseIn("Two runs rather than `/finish`'s `2> <scratch-path>/resolve-note.txt` redirection")
+        self.assertPhraseIn("because this skill writes no file")
+        # And the notes are joined back to their rows by the task id the note
+        # itself names (`legacy_note` in scripts/evidence-capture), never by
+        # the order two independent runs happened to print in.
+        self.assertPhraseIn("Each note names its own task (`the folder resolved for task '<id>'`)")
+        self.assertPhraseIn("never position, since the two runs print independently")
+
     def test_an_ambiguous_row_on_an_unbuilt_task_is_about_the_id(self) -> None:
         """The verb enumerates every task id in every manifest in the tree, so
         on a fresh branch here tasks whose ids collide with inherited evidence

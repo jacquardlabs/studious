@@ -288,6 +288,18 @@ class TestFinishSkillBody(unittest.TestCase):
         first_use = self.flat_body.index("evidence-capture resolve --repo <worktree>")
         self.assertLess(definition, first_use, "`<worktree>` is used before it is defined")
 
+    def test_the_scratch_path_placeholder_is_defined_before_its_first_use(self) -> None:
+        """Same rule, second placeholder. The stream-separating redirection put
+        `<scratch-path>` inside the documented command, and a command naming a
+        directory the reader has not been told how to choose is the shape the
+        `<worktree>` finding already cost this skill a round over — a session
+        that guesses picks somewhere inside the worktree."""
+        definition = self.flat_body.index(
+            _normalize_ws("`<scratch-path>` is a fresh directory outside `<worktree>` (e.g. `mktemp -d`)")
+        )
+        first_use = self.flat_body.index("2> <scratch-path>/resolve-note.txt")
+        self.assertLess(definition, first_use, "`<scratch-path>` is used before it is defined")
+
     def test_an_ambiguous_row_promotes_nothing_and_claims_nothing(self) -> None:
         """The failure this closes: on any new branch, a hand-verified task
         whose id collides with two inherited branch-less folders refuses as
@@ -296,6 +308,19 @@ class TestFinishSkillBody(unittest.TestCase):
         self.assertPhraseIn("An `[ambiguous]` row promotes nothing and asserts nothing about this branch")
         self.assertPhraseIn("none of them is tied to the branch you asked about")
         self.assertPhraseIn("Never adopt one into the table — not by renaming it, not by linking it")
+
+    def test_the_manifest_sentence_describes_the_folder_resolve_printed(self) -> None:
+        """Its antecedent is the exit-0 resolved folder. Left trailing the
+        `[ambiguous]` paragraph, "that folder" reads as the candidate folders
+        that paragraph just forbade adopting — and those are exactly what this
+        step must not describe as the item's evidence."""
+        contents = _normalize_ws("carries a `manifest.json` (`commit_sha`, `commit_timestamp`, `branch`")
+        self.assertEqual(self.flat_body.count(contents), 1, "the manifest description has one home")
+        exit_zero_at = self.flat_body.index(_normalize_ws("It prints one folder path, repo-relative, on exit 0."))
+        ambiguous_at = self.flat_body.index(_normalize_ws("An `[ambiguous]` row promotes nothing"))
+        contents_at = self.flat_body.index(contents)
+        self.assertLess(exit_zero_at, contents_at, "the manifest description follows the exit-0 answer")
+        self.assertLess(contents_at, ambiguous_at, "the manifest description precedes the ambiguous rule")
 
     def test_the_two_labels_are_reconciled_where_a_missing_folder_is_named(self) -> None:
         """The "no folder at all" paragraph used to promise "evidence not
@@ -517,9 +542,43 @@ class TestFinishEvidenceReadContract(unittest.TestCase):
         self.assertPhraseIn("The folder path is the whole of stdout")
         self.assertPhraseIn("are on stderr")
 
+    def test_the_documented_resolve_invocation_separates_the_streams(self) -> None:
+        # Naming the hazard is not avoiding it. The prose above pins that the
+        # note is on stderr and the path on stdout, but the command a session
+        # actually copies is what decides whether they arrive apart -- and a
+        # bare invocation hands a merged pair whose first line is the note.
+        # So pin the invocation *shape*, not only the description of it.
+        lines = [
+            line
+            for line in self.body.splitlines()
+            if line.startswith("scripts/evidence-capture resolve")
+        ]
+        self.assertEqual(len(lines), 1, f"expected one documented resolve invocation, got {lines}")
+        invocation = lines[0]
+        self.assertIn("2>", invocation)
+        # ...to a file, not away: `2> /dev/null` also "separates" the streams
+        # and drops the token the table is required to carry.
+        self.assertNotIn("/dev/null", invocation)
+        self.assertIn("2> <scratch-path>/resolve-note.txt", invocation)
+        # And the note file is read as its own step, not left on disk.
+        self.assertPhraseIn("read stdout for the path, then read")
+        self.assertPhraseIn("`<scratch-path>/resolve-note.txt` for the token and its message")
+        self.assertPhraseIn("that redirection is not optional")
+        # One file, one run: `resolve` is per task, and 2> truncates.
+        self.assertPhraseIn("read it before resolving the next task")
+
     def test_a_batched_freshness_call_does_not_key_on_the_aggregate(self) -> None:
         # evidence-freshness returns one aggregate status for a batch, and a
         # mixed batch is the normal case, so keying the hold on it stops
         # closeout over folders that are individually fine.
         self.assertPhraseIn("the exit code is not the per-folder answer")
         self.assertPhraseIn("carry the disposition")
+
+    def test_a_batch_with_an_unreadable_folder_prints_no_disposition(self) -> None:
+        # evidence-freshness:151 returns 2 from inside the per-folder loop,
+        # before any [PASS]/[FAIL] line is printed -- so "read the per-folder
+        # lines" has nothing to read, and the batch says nothing about the
+        # folders it never reached.
+        self.assertPhraseIn("One case prints no such line to read")
+        self.assertPhraseIn("returns before any per-folder line is printed")
+        self.assertPhraseIn("Re-run the call one folder at a time to find which")

@@ -38,10 +38,14 @@ this feature's — an evidence table assembled, plausibly, off the wrong branch.
 For each task in `PLAN.md` (now fully status-flipped), read its `Done
 means` items and the evidence folder `/build`'s own `evidence-capture` call
 wrote for it. **Ask the script which folder that is — never rebuild the
-path from its shape:**
+path from its shape**, and send its stderr to a file so the two streams arrive
+apart. `<scratch-path>` is a fresh directory outside `<worktree>` (e.g.
+`mktemp -d`) — the same convention `/build` writes its own `results.json` to,
+and outside for the same reason: a note file written inside the worktree is an
+untracked file in the tree this step is about to open a PR from.
 
 ```
-scripts/evidence-capture resolve --repo <worktree> --branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" --task <task id>
+scripts/evidence-capture resolve --repo <worktree> --branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" --task <task id> 2> <scratch-path>/resolve-note.txt
 ```
 
 `--branch` takes that exact command and not `git branch --show-current`: the
@@ -50,7 +54,11 @@ capture stamped the manifest using `rev-parse --abbrev-ref HEAD`
 on a detached checkout the reader and the writer still name the branch the same
 thing — where `--show-current` prints an empty string that matches no manifest.
 
-It prints one folder path, repo-relative, on exit 0. Exit 1 means this task has
+It prints one folder path, repo-relative, on exit 0. That folder carries a
+`manifest.json` (`commit_sha`, `commit_timestamp`, `branch`, one entry per
+captured artifact) and the captured artifacts themselves — including the
+task's `verify:results` artifact, whose own JSON carries each item's `id`,
+`kind`, `tier`, `status`, and `detail`. Exit 1 means this task has
 no folder to promote — label the row by the bracketed token the script's message
 opens with, never by matching its English: `[no-match]` is "evidence not found
 for item N"; `[ambiguous]` is "evidence ambiguous for item N". Both are named in
@@ -64,6 +72,18 @@ prompt reading merged output takes the first line it sees as the path, and on a
 qualified answer that first line is the note, which the freshness call below
 then rejects as a folder with no `manifest.json`. That symptom has more than one
 cause, and this is one of them.
+
+**The invocation above already separates them, and that redirection is not
+optional.** `2> <scratch-path>/resolve-note.txt` leaves stdout holding the path
+and nothing else, and puts the note — when the verb printed one — in a file you
+read as a second, separate step: read stdout for the path, then read
+`<scratch-path>/resolve-note.txt` for the token and its message, and treat an
+empty file as "the verb qualified nothing". Each run truncates that file, so
+read it before resolving the next task: a loop that resolves every task first
+and reads the note once keeps only the last task's. Dropping the redirection merges the
+streams back together and reinstates the exact failure the paragraph above
+describes; redirecting to `/dev/null` instead is the other way to get it wrong,
+since it throws away a token this table is required to carry.
 
 **Exit 2 is not a third missing-folder state.** It means the verb could not run
 or could not understand what it was asked — a bad `--repo`, a malformed task id,
@@ -96,11 +116,7 @@ tied to the branch you asked about, so the honest row is that this branch
 captured no evidence for the item, naming those folders as the unresolved thing
 a human may want to look at. Never adopt one into the table — not by renaming it,
 not by linking it — and never re-label the row "not found", which would hide
-that the folders exist. The folder carries a
-`manifest.json` (`commit_sha`, `commit_timestamp`, `branch`, one entry per
-captured artifact) and the captured artifacts themselves — including the
-task's `verify:results` artifact, whose own JSON carries each item's `id`,
-`kind`, `tier`, `status`, and `detail`.
+that the folders exist.
 
 **Freshness hold — run this before promoting anything.** Call
 `scripts/evidence-freshness --repo <worktree> --evidence <worktree>/<folder>`
@@ -124,7 +140,12 @@ so any one stale folder makes it non-zero. A mixed batch is the normal case
 here — an older folder with no branch in its name fails the ancestor check by
 construction — so keying the hold on that aggregate stops closeout over folders
 that are individually fine. The per-folder `[FAIL]` lines carry the disposition; read
-them and hold only the items whose own folder failed. Calling once per folder
+them and hold only the items whose own folder failed. One case prints no such
+line to read: a batch containing a folder that is missing or unreadable —
+an unjoined path among them — exits 2 on that folder and returns before any
+per-folder line is printed, so the batch says nothing about any of its folders,
+including the ones it never reached. Re-run the call one folder at a time to
+find which. Calling once per folder
 sidesteps the question entirely and is the safer default when you are unsure.
 Re-deriving freshness against current `HEAD` reproduces issue #44's bug
 shape one layer up: a producing step that commits *after* writing the

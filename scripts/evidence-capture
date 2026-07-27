@@ -13,8 +13,13 @@ so they wrote genuinely different content to one path and collided as an
 add/add merge conflict once both targeted the same base (issue #179). The
 slug distinguishes branch *names*, not branches: two branches named the same
 thing in two repos still collide, and so do `feat/foo` and `feat-foo`, since
-`branch_slug()` collapses '/' to '-'. Neither is fixable by a slug, and
-neither is what #179 recorded.
+`branch_slug()` collapses '/' to '-'. A detached checkout is a third:
+`_gitutil.current_branch` returns the literal "HEAD" there — deliberately, so
+the writer and a reader on the same checkout name the branch the same thing —
+so every detached capture slugs to "HEAD" and resolves for every other
+detached reader. It stays off the normal path because `worktree-setup` creates
+branches with `worktree add -b`. None of the three is fixable by a slug, and
+none is what #179 recorded.
 
 **Rolling the slug back is not the revert alone.** A reader that reconstructs
 `<date>-<task>` and matches it *exactly* simply misses a slug-bearing folder —
@@ -382,7 +387,10 @@ def usage_modes() -> str:
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="evidence-capture",
-        description="Write a task's verification artifacts + a freshness-stamped manifest to docs/jig/evidence/.",
+        description=(
+            "Write a task's verification artifacts + a freshness-stamped manifest to "
+            "docs/jig/evidence/<date>-<task>-<branch-slug>/."
+        ),
         epilog=usage_modes(),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

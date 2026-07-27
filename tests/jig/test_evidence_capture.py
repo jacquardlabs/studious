@@ -912,6 +912,11 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
             self.assertIn("manifest.json", result.stderr)
             # One line, so a caller quoting it into a table row can.
             self.assertEqual(len(result.stderr.strip().splitlines()), 1)
+            # And it names its own task. `/coach` reads the two streams by
+            # running `list` twice (it may write no scratch file), so the id
+            # inside the note is the only key that joins a note back to its
+            # row — two independent runs share no ordering guarantee.
+            self.assertIn("the folder resolved for task 'task-1'", result.stderr)
 
     def test_a_branch_bearing_answer_carries_no_caveat_at_all(self) -> None:
         """The caveat must not leak onto the ordinary path. A token on every
@@ -1316,6 +1321,16 @@ class TestEvidenceCaptureVerbDispatch(unittest.TestCase):
         ):
             with self.subTest(line=line):
                 self.assertIn(line, result.stdout)
+
+    def test_help_states_the_folder_shape_it_writes(self) -> None:
+        """The shape is what a reader hunting for a capture actually needs,
+        and it changed under them: `<date>-<task>` gained a branch slug
+        (#179). The module docstring and `evidence-freshness` both state it;
+        `--help` said `docs/jig/evidence/.` and stopped, which reads as the
+        folder *itself* being the write location."""
+        result = run_script(["--help"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("docs/jig/evidence/<date>-<task>-<branch-slug>/", result.stdout)
 
 
 if __name__ == "__main__":
