@@ -70,8 +70,9 @@ worktree — so an unjoined path exits 2 with `no manifest.json found in
 '<path>'` and stops `/finish` before it assembles anything. The raw-URL
 construction in the image-evidence bullet below wants the bare repo-relative
 form instead, because that path is what the URL appends. Do not unify the
-two, and do not "fix" this by changing what `resolve` prints. This re-validates each folder against its own
-recorded `manifest.json` — never against the branch's current `HEAD`.
+two, and do not "fix" this by changing what `resolve` prints.
+`evidence-freshness` re-validates each folder against its own recorded
+`manifest.json` — never against the branch's current `HEAD`.
 Re-deriving freshness against current `HEAD` reproduces issue #44's bug
 shape one layer up: a producing step that commits *after* writing the
 artifact it's timestamping against makes a "must be >= current HEAD" check
