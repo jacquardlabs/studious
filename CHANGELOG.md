@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v2.27.5 (2026-07-27)
+
+### Bug Fixes
+
+- Anchor both driver scope probes to the worktree they were handed
+  ([#259](https://github.com/jacquardlabs/studious/pull/259),
+  [`b126658`](https://github.com/jacquardlabs/studious/commit/b12665831b6d8b6fb47d969feb178716099885dc))
+
+
 ## v2.27.4 (2026-07-27)
 
 ### Bug Fixes
