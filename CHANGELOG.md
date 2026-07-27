@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v2.27.6 (2026-07-27)
+
+### Bug Fixes
+
+- Declare and enforce the runtime version floor for shipped scripts
+  ([#263](https://github.com/jacquardlabs/studious/pull/263),
+  [`24819cd`](https://github.com/jacquardlabs/studious/commit/24819cd4be83a350a6412c97c9f98ffa481c45c4))
+
+### Testing
+
+- Cover _gitutil directly, and bound two unhardened script inputs
+  ([#265](https://github.com/jacquardlabs/studious/pull/265),
+  [`fd1154c`](https://github.com/jacquardlabs/studious/commit/fd1154ce4e7e83a78674bf32bfbaaaacfaa2b350))
+
+
 ## v2.27.5 (2026-07-27)
 
 ### Bug Fixes
