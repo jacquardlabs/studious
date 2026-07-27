@@ -38,10 +38,7 @@ already take):
    dispatch targets; a declined recommendation ends the session.
 6. Shortcuts are honored with skipped steps named; the coach does no work
    itself (read-only tools, no writes, no status flips, no verdicts, no
-   commits) — read-only meaning *effect*, so the build scripts' query verbs
-   are permitted where their write verbs are not, since Step 1 requires one
-   and forbids the glob that would replace it; every studious-absent
-   degradation is named, never silent.
+   commits); every studious-absent degradation is named, never silent.
 7. No `SKILL.md` is nested deeper than the directory's top level.
 """
 from __future__ import annotations
@@ -248,168 +245,6 @@ class TestCoachSkillBody(unittest.TestCase):
         self.assertIn("docs/jig/evidence/", self.body)
         self.assertIn("docs/jig/reports/", self.body)
 
-    def test_evidence_is_read_through_the_list_verb_never_a_glob(self) -> None:
-        """Issue #179's read side. `/coach` asks "which tasks captured
-        evidence" — a question with no task id in it — so it calls the `list`
-        arity rather than globbing folder names it would have to keep in sync
-        with `evidence-capture`'s own shape."""
-        self.assertIn("evidence-capture list --repo <worktree> --branch", self.body)
-        self.assertPhraseIn("never a glob over `docs/jig/evidence/`")
-        # `--repo` defaults to `.`, so omitting it silently reads whatever
-        # checkout the session's cwd sits in -- not the one the build ran in.
-        self.assertPhraseIn("`--repo` is not optional here")
-        # Risk 2: a row can be an inherited capture carrying no branch, so the
-        # signal must not promise provenance the verb cannot establish.
-        self.assertPhraseIn("not proof this branch produced it")
-
-    def test_the_worktree_placeholder_is_defined_before_the_table_uses_it(self) -> None:
-        """`<worktree>` appears in the table with no definition anywhere in the
-        skill, while every sibling row is cwd-relative — so a reader has no way
-        to know which of the two a given read takes."""
-        self.assertPhraseIn("**`<worktree>` in the table below** is the checkout the build ran in")
-        self.assertIn("git rev-parse --show-toplevel", self.body)
-        definition = self.flat_body.index("`<worktree>` in the table below")
-        first_use = self.flat_body.index("evidence-capture list --repo <worktree>")
-        self.assertLess(definition, first_use, "`<worktree>` is used before it is defined")
-
-    def test_the_worktree_guarantee_is_claimed_per_row_not_step_wide(self) -> None:
-        """It said "every read in this step is against that checkout, named
-        explicitly", which is false: only the rows passing a repo path to a
-        script name it, and the Globs, the root-relative `PLAN.md` read, and
-        `git log` are all cwd-relative. A guarantee that over-claims is worse
-        than none — it tells a reader not to check."""
-        self.assertPhraseIn("The rows that pass a repo path to a script name it explicitly")
-        self.assertPhraseIn("are relative to the session's own cwd, so the guarantee is per-row")
-        self.assertNotIn("Every read in this step is against that checkout", self.body)
-
-    def test_a_qualified_answer_row_keeps_its_token(self) -> None:
-        """The verb can answer *and* qualify the answer in one row. A reader
-        that only understands "path or marker" reports a qualified answer as a
-        plain capture, which is the same silent promotion the marker row exists
-        to prevent — so the row grammar is stated as token-then-path, and the
-        token's meaning is left where it is stated once."""
-        self.assertPhraseIn("The answer column is a path, optionally opened by a bracketed token")
-        self.assertPhraseIn("quote it as printed and never interpret it")
-        self.assertPhraseIn("A token *followed by* a path is a qualified answer rather than an absent one")
-        self.assertPhraseIn("never drop the token to make the row read cleanly")
-
-    def test_an_undecidable_task_is_reported_not_silently_absent(self) -> None:
-        """One rule, two navigators, one answer. The verb dropping the task
-        would have `/coach` say nothing about a task `/finish` calls ambiguous
-        — and the omission is invisible where a human asks "what do I have"."""
-        self.assertIn("`[ambiguous]`", self.body)
-        self.assertPhraseIn("Report it as unevidenced *and* name it")
-        self.assertPhraseIn('the same state `/finish` labels "evidence ambiguous"')
-        # And the row is routed to the verb's own note rather than to a
-        # sentence here. The skill glossing the token was this line's own rule
-        # broken one clause after stating it — `list` now says what
-        # `[ambiguous]` means on the stream the second run reads.
-        self.assertPhraseIn("carries a note of its own on that same stream")
-        self.assertNotIn("the verb could not tie any folder to this branch", self.flat_body)
-
-    def test_the_tokens_own_note_is_read_rather_than_glossed(self) -> None:
-        """"Never interpret it" is right — the meaning is the script's to state
-        — but on the `list` path every route to that meaning was closed: the
-        explanatory note was printed only by the sibling verb, `--help` shows
-        usage lines, and this skill may not gloss the token itself. The row
-        alone left the persona holding an undecodable string. The verb now
-        prints the note on this path too; the fix here is being told to read
-        it — for both note-bearing rows, since a count scoped to the qualified
-        ones would send the persona looking for nothing on an `[ambiguous]`
-        row that now has a note of its own."""
-        self.assertPhraseIn("on stderr, one line per row it has anything to say about")
-        self.assertPhraseIn("whether that row carries a path or only a token")
-        # And the destination, because a quoted message with nowhere stated to
-        # land is the defect `/finish` spent a round fixing on its own side:
-        # `list` prints one note per noted row, so an unbounded set of them
-        # routed into a single-cell signal is the same shape one layer over.
-        self.assertPhraseIn("verbatim on that row's own evidence line (below), one note per noted row")
-        self.assertPhraseIn("never merged across rows and never carried up into the recommendation")
-
-    def test_the_documented_list_invocation_separates_the_streams(self) -> None:
-        """"Read that stream too" is unreachable from a bare command: one run
-        merges the rows and the notes, and this skill writes no file, so the
-        separation has to be in the invocation itself — the rows run and the
-        notes run, both pinned, since either one alone silently drops half the
-        signal."""
-        rows_run = '--branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" 2>/dev/null'
-        notes_run = '--branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" 2>&1 >/dev/null'
-        self.assertIn(f"scripts/evidence-capture list --repo <worktree> {rows_run}", self.body)
-        self.assertIn(f"scripts/evidence-capture list --repo <worktree> {notes_run}", self.body)
-        # Two runs is a stated divergence from `/finish`'s redirection, not
-        # drift: the read-only rule below forbids the scratch file.
-        self.assertPhraseIn("Two runs rather than `/finish`'s `2> <scratch-path>/resolve-note.txt` redirection")
-        self.assertPhraseIn("because this skill writes no file")
-        # And the notes are joined back to their rows by the task id the note
-        # itself names (`legacy_note` and `ambiguous_note` in
-        # scripts/evidence-capture), never by the order two independent runs
-        # happened to print in. Both phrasings are named: an enumeration that
-        # stops at the first leaves the second note shape with no documented
-        # join key, which is this defect one note later.
-        self.assertPhraseIn("Each note names its own task (`the folder resolved for task '<id>'`")
-        self.assertPhraseIn("`no folder resolved for task '<id>'` where it carries only a token)")
-        self.assertPhraseIn("never position, since the two runs print independently")
-
-    def test_an_ambiguous_row_on_an_unbuilt_task_is_about_the_id(self) -> None:
-        """The verb enumerates every task id in every manifest in the tree, so
-        on a fresh branch here tasks whose ids collide with inherited evidence
-        report `[ambiguous]` before either is built. Naming that an ambiguity
-        turns an ordinary todo into a reported evidence problem — and the status
-        row above already says which it is."""
-        self.assertPhraseIn("On a task the **Task statuses** row above shows as not yet terminal")
-        self.assertPhraseIn("inherited from earlier work sharing the number")
-        self.assertPhraseIn("rather than reporting an ordinary todo as an evidence problem")
-
-    def test_an_id_no_plan_mentions_is_also_about_the_id(self) -> None:
-        """gate-acceptance round 6, the other half of the same clause. The
-        not-yet-terminal reading was scoped to tasks with a status row, but
-        the verb enumerates every task id in every manifest in the tree —
-        so an id no `### Task` block names has no status row at all, is
-        therefore neither terminal nor non-terminal, and the coach had no
-        antecedent for it. On this repo that is a standing pair of rows
-        reported as live evidence problems on every invocation."""
-        self.assertPhraseIn("An id with no status row at all takes the same reading")
-        self.assertPhraseIn("no `### Task` block in this branch's `PLAN.md` names that id")
-        self.assertPhraseIn("say the id belongs to no task here")
-
-    def test_a_qualified_path_on_an_unplanned_id_is_not_this_branchs_evidence(self) -> None:
-        """The second hole in the same clause: a row that is a token followed
-        by a *path* on a non-terminal task is the same inherited-id state and
-        names a real folder, so it reads as "this task has evidence" for work
-        nobody started. Closing only the bare-token half leaves this open."""
-        self.assertPhraseIn("where such a row sits on either kind of non-terminal task")
-        self.assertPhraseIn("never let it read as this branch having evidence")
-
-    def test_an_unrunnable_evidence_verb_is_a_named_gap_never_a_glob(self) -> None:
-        """`evidence-capture` was the one external dependency in Step 1 with no
-        named-gap path, while its fallback — a glob — is banned in the same row.
-        The sibling `gate-ledger` dependency gets degradation prose twice, and
-        this row now mirrors its shape: name the gap, mark the signal unread,
-        never substitute the banned fallback, never omit the line."""
-        self.assertPhraseIn("If the verb cannot be run at all")
-        self.assertPhraseIn("mark this signal unread")
-        self.assertPhraseIn("Never fall back to a glob, and never drop the line")
-
-    def test_the_branch_argument_names_the_command_that_produces_it(self) -> None:
-        """`<the branch you are on>` is not a command, and the two obvious
-        candidates disagree: the writer stamps `rev-parse --abbrev-ref HEAD`
-        with a literal `HEAD` fallback, where `git branch --show-current`
-        prints nothing on a detached checkout."""
-        self.assertIn('--branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)"', self.body)
-        self.assertPhraseIn("`git branch --show-current` prints an empty string")
-        self.assertNotIn("<the branch you are on>", self.body)
-
-    def test_the_resolution_rule_is_not_restated_in_this_prose(self) -> None:
-        """Pre-mortem risk 4, the coach half: the tiebreak has one home — the
-        script both readers call. Pin the absence of its vocabulary."""
-        for token in ("captured_at", "branch-bearing", "legacy", "newest"):
-            self.assertNotIn(
-                token,
-                self.body,
-                f"{SKILL_MD} restates the resolution tiebreak ({token!r}); it belongs only "
-                "in scripts/evidence-capture, which both readers call",
-            )
-
     def test_gate_verdicts_are_read_from_gate_ledger_when_readable(self) -> None:
         # The probe stays — whether the ledger is readable is a real question.
         # What it establishes changed (studious #150): a missing binary once
@@ -538,37 +373,19 @@ class TestCoachSkillBody(unittest.TestCase):
 
     def test_coach_does_no_work_itself(self) -> None:
         # The tool list grew the work-file read verbs when the two navigators were
-        # put on one store (#214), and the evidence query verbs when Step 1 was
-        # put on the script (#179). It must stay read-only in the same breath:
-        # the reads named, the three store writes explicitly refused.
+        # put on one store (#214). It must stay read-only in the same breath: the
+        # four reads named, the three writes explicitly refused.
         self.assertPhraseIn(
             "read-only, always: Read/Glob/Grep, `git log`, `git status`, `command -v`, "
-            "`gate-ledger`'s four *read* verbs — `gate-get`, `status`, `work-list`, "
-            "`work-get` — and the build scripts' *query* verbs, which print an answer "
-            "and write nothing: `evidence-capture list` and `evidence-capture resolve`"
+            "and `gate-ledger`'s four *read* verbs — `gate-get`, `status`, `work-list`, "
+            "`work-get`"
         )
         self.assertPhraseIn("Never `work-set`, never `work-log`, never `record`")
         self.assertPhraseIn("never writes or edits a file")
         self.assertPhraseIn(
             "never flips a status, never records a verdict, never runs a gate, "
-            "a lint, a test, or a write-effecting build script — a capture, a status "
-            "flip, a report write — and never commits"
+            "a lint, a test, or a build script, and never commits"
         )
-
-    def test_the_read_only_rule_permits_the_verb_step_1_requires(self) -> None:
-        """The two halves used to contradict each other outright: this section
-        banned running "a build script" while Step 1's evidence row *required*
-        `scripts/evidence-capture list` and forbade the glob fallback in the
-        same breath — so a compliant reader reached the evidence signal by no
-        path at all. Both halves were pinned, so it could not self-correct.
-        Read-only is a claim about effect, not about which executable."""
-        self.assertPhraseIn("Read-only is about effect, not about which executable.")
-        self.assertPhraseIn(
-            "A blanket ban on the executable would leave that signal reachable by no path at all"
-        )
-        # The unqualified prohibition is what made the contradiction, so pin its
-        # absence rather than only the presence of the narrowed one.
-        self.assertNotIn("or a build script, and never commits", self.body)
 
     def test_unreadable_ledger_routes_to_the_gate_never_past_it(self) -> None:
         # Was "degrades gracefully without studious", where every gate-touching

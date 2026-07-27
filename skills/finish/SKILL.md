@@ -37,15 +37,12 @@ this feature's — an evidence table assembled, plausibly, off the wrong branch.
 
 For each task in `PLAN.md` (now fully status-flipped), read its `Done
 means` items and the evidence folder `/build`'s own `evidence-capture` call
-wrote for it. **Ask the script which folder that is — never rebuild the
-path from its shape**, and send its stderr to a file so the two streams arrive
-apart. `<scratch-path>` is a fresh directory outside `<worktree>` (e.g.
-`mktemp -d`) — the same convention `/build` writes its own `results.json` to,
-and outside for the same reason: a note file written inside the worktree is an
-untracked file in the tree this step is about to open a PR from.
+wrote for it. **Ask the script which folder that is — never rebuild the path
+from its shape**: the folder name now carries a branch slug, so a hand-rebuilt
+`docs/jig/evidence/<date>-<task>/` matches nothing.
 
 ```
-scripts/evidence-capture resolve --repo <worktree> --branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" --task <task id> 2> <scratch-path>/resolve-note.txt
+scripts/evidence-capture resolve --repo <worktree> --branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" --task <task id>
 ```
 
 `--branch` takes that exact command and not `git branch --show-current`: the
@@ -56,67 +53,10 @@ thing — where `--show-current` prints an empty string that matches no manifest
 
 It prints one folder path, repo-relative, on exit 0. That folder carries a
 `manifest.json` (`commit_sha`, `commit_timestamp`, `branch`, one entry per
-captured artifact) and the captured artifacts themselves — including the
-task's `verify:results` artifact, whose own JSON carries each item's `id`,
-`kind`, `tier`, `status`, and `detail`. Exit 1 means this task has
-no folder to promote — label the row by the bracketed token the script's message
-opens with, never by matching its English: `[no-match]` is "evidence not found
-for item N"; `[ambiguous]` is "evidence ambiguous for item N". Both are named in
-the PR body, neither is fabricated, and the two are not the same state — a
-reviewer told "not found" about evidence that exists but is undecidable goes
-looking for the wrong thing.
-
-**Which stream carries what.** The folder path is the whole of stdout; every
-bracketed token and its message are on stderr. Read the two separately — a
-prompt reading merged output takes the first line it sees as the path, and on a
-qualified answer that first line is the note, which the freshness call below
-then rejects as a folder with no `manifest.json`. That symptom has more than one
-cause, and this is one of them.
-
-**The invocation above already separates them, and that redirection is not
-optional.** `2> <scratch-path>/resolve-note.txt` leaves stdout holding the path
-and nothing else, and puts the note — when the verb printed one — in a file you
-read as a second, separate step: read stdout for the path, then read
-`<scratch-path>/resolve-note.txt` for the token and its message, and treat an
-empty file as "the verb qualified nothing". Each run truncates that file, so
-read it before resolving the next task: a loop that resolves every task first
-and reads the note once keeps only the last task's. Dropping the redirection merges the
-streams back together and reinstates the exact failure the paragraph above
-describes; redirecting to `/dev/null` instead is the other way to get it wrong,
-since it throws away a token this table is required to carry.
-
-**Exit 2 is not a third missing-folder state.** It means the verb could not run
-or could not understand what it was asked — a bad `--repo`, a malformed task id,
-or the script not found, which is reachable here because the invocation above is
-cwd-relative and the step two lines up says the cwd is not guaranteed to be the
-worktree. Its message carries no bracketed token, so a reader following "label
-the row by the token" falls through to `[no-match]` and writes "evidence not
-found for item N" about a branch whose evidence was never read — the fabricated
-claim this step exists to prevent. Do not label the row: name the gap and mark
-that item's evidence unread ("couldn't run `evidence-capture resolve`; evidence
-unread for item N"), the same shape `/coach` takes when the verb won't run.
-There are still exactly two missing-folder labels; this is not one of them.
-
-**Where the script's own words go, since a cell is one line and the message is
-not.** The row's cell carries the token, and the link when there is one; the
-message itself is quoted verbatim into that item's collapsible `<details>` block
-— the same per-item block **Assembling the table** below already uses for text
-evidence. Never spill it across the cells and never drop it: the table stays one
-row per item, and the reason stays attached to the row it belongs to. This holds
-for **every** bracketed token the script prints, including one printed
-*alongside* a folder path on exit 0 — carry that token into the row beside the
-link and its message into the `<details>` block, exactly as with a refusal, and
-add nothing of your own about what the token means. The script says that, once.
-A token the table quietly discards because the lookup "succeeded" is the wrong
-link this step exists to prevent, arriving with a green checkmark.
-
-**An `[ambiguous]` row promotes nothing and asserts nothing about this branch.**
-The message enumerates the folders it could not pick between and none of them is
-tied to the branch you asked about, so the honest row is that this branch
-captured no evidence for the item, naming those folders as the unresolved thing
-a human may want to look at. Never adopt one into the table — not by renaming it,
-not by linking it — and never re-label the row "not found", which would hide
-that the folders exist.
+captured artifact) and the captured artifacts themselves — including the task's
+`verify:results` artifact, whose own JSON carries each item's `id`, `kind`,
+`tier`, `status`, and `detail`. A non-zero exit means this task has no folder
+to promote: say so on the row and never invent a link.
 
 **Freshness hold — run this before promoting anything.** Call
 `scripts/evidence-freshness --repo <worktree> --evidence <worktree>/<folder>`
@@ -130,23 +70,8 @@ worktree — so an unjoined path exits 2 with `no manifest.json found in
 '<path>'` and stops `/finish` before it assembles anything. The raw-URL
 construction in the image-evidence bullet below wants the bare repo-relative
 form instead, because that path is what the URL appends. Do not unify the
-two, and do not "fix" this by changing what `resolve` prints. This
-re-validates each folder against its own
+two, and do not "fix" this by changing what `resolve` prints. This re-validates each folder against its own
 recorded `manifest.json` — never against the branch's current `HEAD`.
-
-**On a batched call, the exit code is not the per-folder answer.** One call
-covering several folders returns a single aggregate status for the whole batch,
-so any one stale folder makes it non-zero. A mixed batch is the normal case
-here — an older folder with no branch in its name fails the ancestor check by
-construction — so keying the hold on that aggregate stops closeout over folders
-that are individually fine. The per-folder `[FAIL]` lines carry the disposition; read
-them and hold only the items whose own folder failed. One case prints no such
-line to read: a batch containing a folder that is missing or unreadable —
-an unjoined path among them — exits 2 on that folder and returns before any
-per-folder line is printed, so the batch says nothing about any of its folders,
-including the ones it never reached. Re-run the call one folder at a time to
-find which. Calling once per folder
-sidesteps the question entirely and is the safer default when you are unsure.
 Re-deriving freshness against current `HEAD` reproduces issue #44's bug
 shape one layer up: a producing step that commits *after* writing the
 artifact it's timestamping against makes a "must be >= current HEAD" check
@@ -162,11 +87,7 @@ purely mechanical things:
    `commit_timestamp` (catches an artifact silently touched or replaced
    after capture).
 
-**A folder that fails either check is not promoted silently**, and which of two
-dispositions it takes turns on whether the answer arrived qualified. An
-*unqualified* answer — a bare path, no bracketed token beside it — is a folder
-this branch's own capture produced, so a failure on it is a fact about this
-branch's own evidence and the run does not continue past it. Stop before
+**A folder that fails either check is not promoted silently.** Stop before
 assembling the PR body. Report the exact task and reason (stale/orphaned)
 by name. The human's resume action is re-running the task's evidence
 capture (via `/build` or by hand) and re-invoking `/finish`. Do not call
@@ -174,54 +95,15 @@ capture (via `/build` or by hand) and re-invoking `/finish`. Do not call
 or re-capture evidence (see Out of scope in the design doc this skill
 implements).
 
-**A token-qualified answer that fails the ancestor check is a named row, not a
-halt.** The verb printed that token because it declines to vouch that this
-branch captured the folder; the hold then confirms exactly that, so the row
-says what a refusal says and takes the treatment a refusal already gets —
-closeout continues. The cell carries the token as printed and **no link**, the
-hold having declined that path; the verb's own message and the hold's own
-reason both go verbatim into the row's `<details>` block, the same destination
-every other message in this step lands in. One such folder stopping the run
-while two of them become a row would make closeout turn on a count, in the one
-state the script itself reports as identical either way.
-
-**A folder this branch did not capture is the expected way that first check
-fails, and re-capturing is what clears it — where there is anything to
-re-capture.** The ancestor check is against *this* branch's `HEAD`, so a folder
-captured on some other branch — one since squash-merged, whose recorded commit
-no longer exists anywhere in this history — fails it every time. That is the
-hold working, not damage to this branch. For an item `/build` verified, the
-recovery resolves it rather than looping: the re-capture writes a *new* folder
-on this branch, with its own manifest and a commit that is in this branch's
-history, and that new folder is what the next `resolve` prints. For an item
-that reached `PASS` by hand — the item that most often produces one of these
-rows — there is no capture to re-run, so the named row *is* the outcome, and
-offering re-capture there points the human at a command nothing on this branch
-can satisfy. Say which of the two you are looking at: a folder this branch
-captured that has since gone stale, or one it never captured at all. A human
-told "stale/orphaned" about a folder their branch never produced goes looking
-for damage that isn't there.
-
-**Any `Done means` item the resolve verb refused on** — a task that reached
-`PASS` by a path other than `/build`'s own loop (e.g. a hand-verified fix), so
-this branch captured nothing for it — is named explicitly in the PR body, never
-silently omitted, never fabricated. Which of the two labels it gets is the
-token's call and not this line's — the same item can refuse either way in two
-projects, and only the script knows which. "evidence not found for item N" is the
-`[no-match]` wording; the `[ambiguous]` wording above covers the other. Both say
-the branch has nothing to promote.
+**Any `Done means` item with no corresponding evidence folder at all** (a
+task that reached `PASS` by a path other than `/build`'s own loop, e.g. a
+hand-verified fix) is named explicitly in the PR body as "evidence not
+found for item N" — never silently omitted, never fabricated.
 
 **Assembling the table.** One row per item: item text (from `PLAN.md`'s own
 numbered `Done means` line) → verification method (the item's own tier —
 `script` / `test-backed` / `probe`) → evidence link → pass (the item's own
-`status` from `verify:results`, transcribed, never re-judged). **Every row
-opens its own collapsible `<details>` block — created even when there is no
-evidence to quote into it.** An item the script refused on has no folder, so no
-`verify:results`, so no `detail` to quote; an image item's artifact is not text
-either. Both still get the block, because that is where the script's own
-message goes (above), and a message with nowhere to land is a message dropped.
-The block belongs to the row; the two shapes below are only what fills it when
-there is something to fill it with.
+`status` from `verify:results`, transcribed, never re-judged).
 
 Two evidence shapes, two treatments:
 

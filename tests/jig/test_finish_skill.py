@@ -16,21 +16,11 @@ sibling skill):
    `_vocabulary.py`), not hand-copied.
 3. Step 1's freshness hold is floored on each evidence folder's own
    manifest, never the branch's current HEAD (pre-mortem risk #1), uses
-   the ancestor check (risk #2), stops the run by name rather than
-   promoting a failed folder silently, and names the case that fails the
-   ancestor check by construction — a folder this branch never captured,
-   whose producing branch was squash-merged — together with the recovery
-   that clears it rather than loops.
-4. Step 1 defines `<worktree>` before its first use, names the two evidence
-   shapes (inline `<details>` text, raw-URL images pinned to a commit SHA,
-   never the branch name), labels a refused lookup from the token the script
-   prints rather than its English, routes the script's own multi-line message
-   into that item's `<details>` block rather than a one-line cell, carries
-   *any* bracketed token the script prints — including one printed alongside a
-   path on exit 0 — and says the same thing in both places a missing folder is
-   named: an `[ambiguous]` row promotes nothing and claims nothing about this
-   branch, since on a new branch it is exactly what a task with no evidence
-   *here* refuses as.
+   the ancestor check (risk #2), and stops the run by name rather than
+   promoting a failed folder silently.
+4. Step 1 names the two evidence shapes (inline `<details>` text, raw-URL
+   images pinned to a commit SHA, never the branch name) and the "evidence
+   not found for item N" contract for a missing folder.
 5. Step 2's cctx-absent path is explicit and names the install pointer;
    the installed path never passes `--apply` outside an explicit,
    in-turn human confirmation (pre-mortem risk #3).
@@ -174,223 +164,15 @@ class TestFinishSkillBody(unittest.TestCase):
         self.assertPhraseIn("Stop before assembling the PR body")
         self.assertPhraseIn("Report the exact task and reason (stale/orphaned) by name")
 
-    def test_the_hold_names_the_folder_this_branch_never_captured(self) -> None:
-        """An inherited capture fails the ancestor check by construction: the
-        branch that produced it was squash-merged and the commit its manifest
-        names is gone (every committed manifest in this repo is already in
-        that state). Since a resolved answer can be one of those folders, the
-        hold fires on a path `resolve` just printed — and unless the prose
-        says so, the persona reads a structural refusal as damage to this
-        branch and has no stated reason to believe re-capturing ends it."""
-        self.assertPhraseIn("A folder this branch did not capture is the expected way that first check fails")
-        self.assertPhraseIn("squash-merged, whose recorded commit no longer exists anywhere in this history")
-        self.assertPhraseIn("that new folder is what the next `resolve` prints")
-
-    def test_the_halt_is_scoped_to_an_answer_the_verb_did_not_qualify(self) -> None:
-        """The stop belongs to evidence this branch owns. An unqualified answer
-        is one this branch's own capture produced, so a freshness failure on it
-        is a fact about this branch; a qualified one is not, and the blanket
-        halt is what carried the asymmetry below."""
-        self.assertPhraseIn("An *unqualified* answer — a bare path, no bracketed token beside it")
-        self.assertPhraseIn("the run does not continue past it")
-
-    def test_a_token_qualified_folder_that_fails_the_hold_is_a_row_not_a_halt(self) -> None:
-        """The script made one branch-less folder and two of them report as the
-        same state; one layer up, the halt undid it. `resolve` answers exit 0
-        with a token, so the freshness hold runs on it — and a squash-merged
-        origin's commit is not an ancestor, so it fails by construction (all 11
-        committed manifests in this repo are in that state). Halting there stops
-        closeout for the single folder, while the pair — which exits 1 and never
-        reaches the hold — becomes a named row and lets closeout proceed. Same
-        epistemic state, opposite outcome, one layer above where it was closed.
-        """
-        self.assertPhraseIn(
-            "A token-qualified answer that fails the ancestor check is a named row, not a halt"
-        )
-        self.assertPhraseIn("carries the token as printed and **no link**")
-        self.assertPhraseIn("would make closeout turn on a count")
-
-    def test_re_capture_is_offered_only_where_there_is_something_to_re_capture(self) -> None:
-        """The recovery the hold names has to be one the item can perform. An
-        item that reached `PASS` by hand captured nothing and has no capture to
-        re-run — and it is exactly the item that produces a token-qualified row,
-        so the unqualified "re-capture and re-invoke" pointed the commonest case
-        at a command nothing on the branch could satisfy."""
-        self.assertPhraseIn("re-capturing is what clears it — where there is anything to re-capture")
-        self.assertPhraseIn("there is no capture to re-run, so the named row *is* the outcome")
-
     def test_finish_never_backfills_missing_evidence(self) -> None:
         self.assertPhraseIn("Do not call `evidence-capture` yourself to backfill a gap")
         self.assertPhraseIn("evidence not found for item N")
-
-    def test_the_freshness_call_joins_the_worktree_onto_the_resolved_path(self) -> None:
-        """`resolve` prints a repo-relative path; `evidence-freshness`
-        resolves `--evidence` against the process cwd and never joins its own
-        `--repo`. Passing the printed path through unchanged works only when
-        cwd happens to be the worktree, which sibling scripts in this repo are
-        forbidden to assume -- and the failure is not silent, it exits 2 and
-        stops `/finish` before the PR body exists."""
-        self.assertIn(
-            "scripts/evidence-freshness --repo <worktree> --evidence <worktree>/<folder>",
-            _normalize_ws(self.body),
-        )
-        self.assertPhraseIn("**joined onto `<worktree>/`**")
-        self.assertPhraseIn("resolves `--evidence` against the process's own cwd")
-
-    def test_the_two_uses_of_the_resolved_path_are_named_as_asymmetric(self) -> None:
-        """The join belongs to the freshness call only: the raw-URL
-        construction appends the repo-relative form, so "fixing" the
-        asymmetry in either direction breaks the other call site."""
-        self.assertPhraseIn("The raw-URL construction in the image-evidence bullet below wants the bare")
-        self.assertPhraseIn('do not "fix" this by changing what `resolve` prints')
-
-    def test_an_ambiguous_resolve_gets_its_own_label(self) -> None:
-        """Both `resolve` refusals exit 1, but they are different states: no
-        evidence at all versus evidence that exists and cannot be picked
-        between. One shared label reads to a reviewer as the first."""
-        self.assertPhraseIn("evidence ambiguous for item N")
-        self.assertPhraseIn("the two are not the same state")
-
-    def test_the_row_label_comes_from_the_token_not_the_english(self) -> None:
-        """The script prints `[no-match]` / `[ambiguous]` precisely so a prompt
-        never has to match on a sentence the next prose edit rewrites."""
-        self.assertPhraseIn("label the row by the bracketed token the script's message opens with")
-        self.assertPhraseIn('`[no-match]` is "evidence not found for item N"')
-        self.assertPhraseIn('`[ambiguous]` is "evidence ambiguous for item N"')
-
-    def test_the_quoted_message_has_a_named_destination(self) -> None:
-        """"Quote the script's own message" named no destination, and the
-        message is a multi-line block routed into a table specced as one row
-        per item. The per-item `<details>` block already exists for text
-        evidence; the fix is to name it, not to invent a second home."""
-        self.assertPhraseIn("Where the script's own words go, since a cell is one line and the message is not.")
-        self.assertPhraseIn("quoted verbatim into that item's collapsible `<details>` block")
-        self.assertPhraseIn("Never spill it across the cells and never drop it")
-
-    def test_a_token_printed_alongside_an_answer_is_carried_too(self) -> None:
-        """The script qualifies some exit-0 answers with a token of their own.
-        A reader that selects on tokens only when the lookup *failed* promotes
-        a qualified answer as an unqualified one — a real-SHA raw URL in the PR
-        body, arrived at from a state the script explicitly caveated."""
-        self.assertPhraseIn("including one printed *alongside* a folder path on exit 0")
-        self.assertPhraseIn("carry that token into the row beside the link")
-        self.assertPhraseIn("add nothing of your own about what the token means")
-
-    def test_the_worktree_placeholder_is_defined_before_its_first_use(self) -> None:
-        """`<worktree>` steers four commands in this skill and was defined in
-        none of them. Because `--repo` defaults to `.`, an undefined
-        placeholder lets `/finish` resolve against whatever checkout the
-        session's cwd sits in and report another repo's state as this
-        feature's — the same defect its sibling `/coach` already fixed."""
-        self.assertPhraseIn("`<worktree>` wherever it appears in this skill** is the checkout the build ran in")
-        self.assertIn("git rev-parse --show-toplevel", self.body)
-        definition = self.flat_body.index("`<worktree>` wherever it appears in this skill")
-        first_use = self.flat_body.index("evidence-capture resolve --repo <worktree>")
-        self.assertLess(definition, first_use, "`<worktree>` is used before it is defined")
-
-    def test_the_scratch_path_placeholder_is_defined_before_its_first_use(self) -> None:
-        """Same rule, second placeholder. The stream-separating redirection put
-        `<scratch-path>` inside the documented command, and a command naming a
-        directory the reader has not been told how to choose is the shape the
-        `<worktree>` finding already cost this skill a round over — a session
-        that guesses picks somewhere inside the worktree."""
-        definition = self.flat_body.index(
-            _normalize_ws("`<scratch-path>` is a fresh directory outside `<worktree>` (e.g. `mktemp -d`)")
-        )
-        first_use = self.flat_body.index("2> <scratch-path>/resolve-note.txt")
-        self.assertLess(definition, first_use, "`<scratch-path>` is used before it is defined")
-
-    def test_an_ambiguous_row_promotes_nothing_and_claims_nothing(self) -> None:
-        """The failure this closes: on any new branch, a hand-verified task
-        whose id collides with two inherited branch-less folders refuses as
-        `[ambiguous]`, and a row that reads "evidence exists, undecidable"
-        asserts something about a branch that captured none of it."""
-        self.assertPhraseIn("An `[ambiguous]` row promotes nothing and asserts nothing about this branch")
-        self.assertPhraseIn("none of them is tied to the branch you asked about")
-        self.assertPhraseIn("Never adopt one into the table — not by renaming it, not by linking it")
-
-    def test_the_manifest_sentence_describes_the_folder_resolve_printed(self) -> None:
-        """Its antecedent is the exit-0 resolved folder. Left trailing the
-        `[ambiguous]` paragraph, "that folder" reads as the candidate folders
-        that paragraph just forbade adopting — and those are exactly what this
-        step must not describe as the item's evidence."""
-        contents = _normalize_ws("carries a `manifest.json` (`commit_sha`, `commit_timestamp`, `branch`")
-        self.assertEqual(self.flat_body.count(contents), 1, "the manifest description has one home")
-        exit_zero_at = self.flat_body.index(_normalize_ws("It prints one folder path, repo-relative, on exit 0."))
-        ambiguous_at = self.flat_body.index(_normalize_ws("An `[ambiguous]` row promotes nothing"))
-        contents_at = self.flat_body.index(contents)
-        self.assertLess(exit_zero_at, contents_at, "the manifest description follows the exit-0 answer")
-        self.assertLess(contents_at, ambiguous_at, "the manifest description precedes the ambiguous rule")
-
-    def test_the_two_labels_are_reconciled_where_a_missing_folder_is_named(self) -> None:
-        """The "no folder at all" paragraph used to promise "evidence not
-        found" unconditionally, which contradicts the label rule above for
-        every project carrying duplicate branch-less task ids — this one
-        included. Both surfaces now defer to the token."""
-        self.assertPhraseIn("Which of the two labels it gets is the token's call and not this line's")
-        self.assertPhraseIn("Both say the branch has nothing to promote")
-
-    def test_the_branch_argument_names_the_command_that_produces_it(self) -> None:
-        """`<the branch you are on>` is not a command. The writer uses
-        `rev-parse --abbrev-ref HEAD` with a literal `HEAD` fallback, so a
-        reader reaching for `git branch --show-current` resolves nothing on a
-        detached checkout."""
-        self.assertIn('--branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)"', self.body)
-        self.assertPhraseIn("not `git branch --show-current`")
-        self.assertNotIn("<the branch you are on>", self.body)
-
-    # -- Step 1: the evidence folder comes from the resolve verb ------------
-
-    def test_the_evidence_folder_is_resolved_by_the_script_not_rebuilt(self) -> None:
-        """Issues #179/#224's read side: the folder name gained a branch slug,
-        and a reader that rebuilds the path from its shape breaks on every
-        future change to that shape. Both call sites ask the script."""
-        self.assertIn("evidence-capture resolve --repo <worktree> --branch", self.body)
-        self.assertPhraseIn("never rebuild the path from its shape")
-        # The image-evidence URL is built from the folder the verb printed.
-        self.assertPhraseIn("`<the folder resolve printed>/<label>.<ext>`, that path verbatim")
-
-    def test_the_resolution_rule_is_not_restated_in_this_prose(self) -> None:
-        """Pre-mortem risk 4: the tiebreak has exactly one home — the script.
-        Nothing mechanically stops a later edit from re-explaining it here,
-        which is how a rule acquires a second uncoordinated copy, so pin the
-        *absence* of its vocabulary rather than only the presence of the call.
-        """
-        for token in ("captured_at", "branch-bearing", "legacy", "newest"):
-            self.assertNotIn(
-                token,
-                self.body,
-                f"{SKILL_MD} restates the resolution tiebreak ({token!r}); it belongs only "
-                "in scripts/evidence-capture, which both readers call",
-            )
 
     def test_two_evidence_shapes_are_named(self) -> None:
         self.assertPhraseIn("quoted **inline**, in a collapsible `<details>` block per item")
         self.assertPhraseIn("referenced by its raw URL")
         self.assertIn("raw.githubusercontent.com", self.body)
         self.assertPhraseIn("never the branch name")
-
-    def test_the_details_block_exists_for_a_row_with_nothing_to_quote(self) -> None:
-        """The token's message is routed into "that item's collapsible
-        `<details>` block", but the block below was established only for a
-        `script`/`test-backed` item quoting a `detail` from `verify:results`.
-        A refused item has no folder, hence no `verify:results`, hence no
-        `detail` — so the named destination did not exist for exactly the
-        rows that need one. The block is a property of the row, not of
-        having evidence."""
-        self.assertPhraseIn(
-            "Every row opens its own collapsible `<details>` block — created "
-            "even when there is no evidence to quote into it"
-        )
-        self.assertPhraseIn("a message with nowhere to land is a message dropped")
-
-    def test_the_raw_url_sha_is_read_from_the_worktree_explicitly(self) -> None:
-        """Step 1 forbids leaving any of these flags to default, then read the
-        anchor SHA with a bare `git rev-parse HEAD` — the one command in the
-        step not passed `<worktree>`, and so the one that reads whatever
-        checkout the session's cwd sits in."""
-        self.assertPhraseIn("`git -C <worktree> rev-parse HEAD`")
-        self.assertNotIn("`git rev-parse HEAD`", self.flat_body)
 
     # -- Step 2: cctx footer ------------------------------------------------
 
@@ -501,13 +283,14 @@ if __name__ == "__main__":
     sys.exit(unittest.main())
 
 
-class TestFinishEvidenceReadContract(unittest.TestCase):
-    """gate-acceptance round 6: exit-2 handling and the stdout/stderr split.
+class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
+    """#179/#224's read side, narrowed to path resolution.
 
-    Both are about /finish reading `evidence-capture resolve` correctly. A
-    misread here does not fail loudly -- it writes a confident wrong claim
-    into the PR body, which is the one output this skill says it never
-    fabricates.
+    The folder name gained a branch slug, so any reader that rebuilds
+    `<date>-<task>` from its shape now matches nothing. These pin only that
+    `/finish` asks the script and joins the path correctly -- the token
+    *reporting* contract (labels, quoted messages, stream separation) was
+    split out of this story and is tracked separately.
     """
 
     def setUp(self) -> None:
@@ -521,64 +304,51 @@ class TestFinishEvidenceReadContract(unittest.TestCase):
             f"phrase not found (whitespace-normalized): {phrase!r}",
         )
 
-    def test_exit_two_is_unread_not_a_missing_folder_label(self) -> None:
-        # `resolve` can exit 2 (bad --repo, malformed task id, script not
-        # found -- reachable because the invocation is cwd-relative and the
-        # step two lines up says cwd is not guaranteed to be the worktree).
-        # Exit-2 messages carry no bracketed token, so "label the row by the
-        # token" falls through to [no-match] and reports "evidence not found"
-        # about a branch whose evidence was never read.
-        self.assertPhraseIn("Exit 2 is not a third missing-folder state")
-        self.assertPhraseIn("evidence unread for item N")
-        # The count of missing-folder labels must stay at two -- a third
-        # would collide with the two-labels reconciliation pin above.
-        self.assertPhraseIn("There are still exactly two missing-folder labels")
+    def test_the_evidence_folder_is_resolved_by_the_script_not_rebuilt(self) -> None:
+        self.assertIn("evidence-capture resolve --repo <worktree> --branch", self.body)
+        self.assertPhraseIn("never rebuild the path from its shape")
+        # The image-evidence URL is built from the folder the verb printed.
+        self.assertPhraseIn("`<the folder resolve printed>/<label>.<ext>`, that path verbatim")
+        # And the shape it replaces must not survive as an instruction.
+        self.assertNotIn("wrote for it: `docs/jig/evidence/<date>-<task>/`", self.body)
 
-    def test_the_two_streams_are_named_separately(self) -> None:
-        # On a qualified answer the note goes to stderr before the path goes
-        # to stdout; a reader taking merged output's first line as the path
-        # hands the note to evidence-freshness, which rejects it as a folder
-        # with no manifest.json -- a symptom with more than one cause.
-        self.assertPhraseIn("The folder path is the whole of stdout")
-        self.assertPhraseIn("are on stderr")
+    def test_the_branch_argument_names_the_command_that_produces_it(self) -> None:
+        # The writer stamps the manifest with `rev-parse --abbrev-ref HEAD`
+        # (literal `HEAD` fallback included), so a reader reaching for
+        # `git branch --show-current` resolves nothing on a detached checkout.
+        self.assertIn('--branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)"', self.body)
+        self.assertPhraseIn("not `git branch --show-current`")
 
-    def test_the_documented_resolve_invocation_separates_the_streams(self) -> None:
-        # Naming the hazard is not avoiding it. The prose above pins that the
-        # note is on stderr and the path on stdout, but the command a session
-        # actually copies is what decides whether they arrive apart -- and a
-        # bare invocation hands a merged pair whose first line is the note.
-        # So pin the invocation *shape*, not only the description of it.
-        lines = [
-            line
-            for line in self.body.splitlines()
-            if line.startswith("scripts/evidence-capture resolve")
-        ]
-        self.assertEqual(len(lines), 1, f"expected one documented resolve invocation, got {lines}")
-        invocation = lines[0]
-        self.assertIn("2>", invocation)
-        # ...to a file, not away: `2> /dev/null` also "separates" the streams
-        # and drops the token the table is required to carry.
-        self.assertNotIn("/dev/null", invocation)
-        self.assertIn("2> <scratch-path>/resolve-note.txt", invocation)
-        # And the note file is read as its own step, not left on disk.
-        self.assertPhraseIn("read stdout for the path, then read")
-        self.assertPhraseIn("`<scratch-path>/resolve-note.txt` for the token and its message")
-        self.assertPhraseIn("that redirection is not optional")
-        # One file, one run: `resolve` is per task, and 2> truncates.
-        self.assertPhraseIn("read it before resolving the next task")
+    def test_the_worktree_placeholder_is_defined_before_its_first_use(self) -> None:
+        # `--repo` defaults to `.`, so an undefined placeholder lets /finish
+        # resolve against whatever checkout the session's cwd sits in.
+        self.assertPhraseIn("`<worktree>` wherever it appears in this skill** is the checkout the build ran in")
+        self.assertIn("git rev-parse --show-toplevel", self.body)
+        definition = self.flat_body.index("`<worktree>` wherever it appears in this skill")
+        first_use = self.flat_body.index("evidence-capture resolve --repo <worktree>")
+        self.assertLess(definition, first_use, "`<worktree>` is used before it is defined")
 
-    def test_a_batched_freshness_call_does_not_key_on_the_aggregate(self) -> None:
-        # evidence-freshness returns one aggregate status for a batch, and a
-        # mixed batch is the normal case, so keying the hold on it stops
-        # closeout over folders that are individually fine.
-        self.assertPhraseIn("the exit code is not the per-folder answer")
-        self.assertPhraseIn("carry the disposition")
+    def test_the_freshness_call_joins_the_worktree_onto_the_resolved_path(self) -> None:
+        # `resolve` prints repo-relative; `evidence-freshness` resolves
+        # `--evidence` against the process cwd and never joins its own
+        # `--repo`. An unjoined path exits 2 and stops /finish outright.
+        self.assertIn(
+            "scripts/evidence-freshness --repo <worktree> --evidence <worktree>/<folder>",
+            _normalize_ws(self.body),
+        )
+        self.assertPhraseIn("**joined onto `<worktree>/`**")
+        self.assertPhraseIn("resolves `--evidence` against the process's own cwd")
 
-    def test_a_batch_with_an_unreadable_folder_prints_no_disposition(self) -> None:
-        # evidence-freshness:151 returns 2 from inside the per-folder loop,
-        # before any [PASS]/[FAIL] line is printed -- so "read the per-folder
-        # lines" has nothing to read, and the batch says nothing about the
-        # folders it never reached.
-        self.assertPhraseIn("One case prints no such line to read")
-        self.assertPhraseIn("returns before any per-folder line is printed")
-        self.assertPhraseIn("Re-run the call one folder at a time to find which")
+    def test_the_two_uses_of_the_resolved_path_are_named_as_asymmetric(self) -> None:
+        # The join belongs to the freshness call only: the raw-URL
+        # construction appends the repo-relative form, so "fixing" the
+        # asymmetry in either direction breaks the other call site.
+        self.assertPhraseIn("The raw-URL construction in the image-evidence bullet below wants the bare")
+        self.assertPhraseIn('do not "fix" this by changing what `resolve` prints')
+
+    def test_the_manifest_sentence_describes_the_folder_resolve_printed(self) -> None:
+        # Its antecedent is the exit-0 resolved folder, and it has one home.
+        contents = _normalize_ws("carries a `manifest.json` (`commit_sha`, `commit_timestamp`, `branch`")
+        self.assertEqual(self.flat_body.count(contents), 1, "the manifest description has one home")
+        exit_zero_at = self.flat_body.index(_normalize_ws("It prints one folder path, repo-relative, on exit 0."))
+        self.assertLess(exit_zero_at, self.flat_body.index(contents))
