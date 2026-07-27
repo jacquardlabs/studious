@@ -16,11 +16,26 @@ executed standalone in a plain Node process; the scheduler-level behavior (which
 literal `gate-ledger work-log` flags actually reach a compile/worker/fixer prompt) is
 proven by running the real, unmodified driver source under
 `test_driver_crash_hardening.py`'s documented harness shape.
+
+The closing report's own `### Scope-delta line (#244)` section in
+`commands/work-through.md` embeds a second, independent `jq` filter (never
+reimplemented here) — covered the same way `test_acceptance_retry_visibility.py`
+covers that command's duration-chain filter: extracted verbatim from its fenced
+block and run against constructed fixtures via `jq` directly.
+
+Audit round 1 (FIX AND RE-AUDIT, Confirmed Critical — command injection via
+unescaped, model-relayed file paths interpolated into a prompt-embedded shell
+command): the boundary-validation fixtures below (`computeScopeDelta`) and the
+single-quote-escaping fixtures (`scopeDeltaWorkLogFlags`) are this round's fix,
+locked as regressions.
 """
 
 from __future__ import annotations
 
 import json
+import re
+import subprocess
+from pathlib import Path
 
 from test_driver_crash_hardening import (
     AUDITOR_SHORT_NAMES,
@@ -29,6 +44,9 @@ from test_driver_crash_hardening import (
     _run_driver,
     _run_node,
 )
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
 
 # ---------- scopeDeltaPhase: pure-function executed fixture ----------
 
@@ -191,6 +209,75 @@ def test_a_measured_zero_moment_is_distinct_from_unmeasured() -> None:
     assert result == {"unmeasured": False, "outsideFiles": []}
 
 
+# ---------- computeScopeDelta: boundary validation (audit round 1 Critical) ----------
+#
+# `files`/`declaredFiles`/`designDoc` all arrive from a haiku agent's JSON.parse'd
+# relay of `git diff --name-only` output (routingScopeCheckPrompt/
+# acceptanceScopeCheckPrompt) — untrusted, since git permits a double quote, `$`, a
+# backtick, `;`, a comma, and a newline inside a path, and the outside-files result
+# is later interpolated (scopeDeltaWorkLogFlags) into a `gate-ledger work-log`
+# command a DIFFERENT dispatched agent is instructed to run verbatim with Bash
+# (CWE-78/CWE-88). Each fixture below degrades the WHOLE moment to `unmeasured`,
+# never a per-file drop, which would silently understate the count.
+
+
+def test_a_shell_metacharacter_in_files_degrades_the_whole_moment() -> None:
+    unsafe_paths = [
+        'a".sh',                 # breaks out of the double-quoted --phase/--outcome args
+        "$(rm -rf /).txt",       # command substitution, survives inside double quotes
+        "`id`.txt",              # backtick command substitution
+        "a;rm -rf /.txt",        # command chaining
+        "a,b.txt",                # no escape exists for a comma in the CSV payload
+        "a\nb.txt",              # newline
+        "/etc/passwd",           # absolute path
+        "../../etc/passwd",      # path traversal
+        "-rf.txt",                # parses as a flag, not a path
+    ]
+    for unsafe in unsafe_paths:
+        result = _compute_scope_delta(
+            {"files": ["a.py", unsafe], "declaredFiles": ["a.py"], "designDoc": "", "scopeDeltaHistory": []}
+        )
+        assert result == {"unmeasured": True, "outsideFiles": []}, f"{unsafe!r} did not degrade to unmeasured"
+
+
+def test_a_shell_metacharacter_in_declared_files_also_degrades() -> None:
+    result = _compute_scope_delta(
+        {"files": ["a.py"], "declaredFiles": ["$(whoami).py"], "designDoc": "", "scopeDeltaHistory": []}
+    )
+    assert result == {"unmeasured": True, "outsideFiles": []}
+
+
+def test_a_shell_metacharacter_in_design_doc_also_degrades() -> None:
+    result = _compute_scope_delta(
+        {"files": ["a.py"], "declaredFiles": ["a.py"], "designDoc": "docs/`id`.md", "scopeDeltaHistory": []}
+    )
+    assert result == {"unmeasured": True, "outsideFiles": []}
+
+
+def test_an_overlong_path_degrades_rather_than_being_truncated() -> None:
+    result = _compute_scope_delta(
+        {"files": ["a.py", "b" * 400 + ".py"], "declaredFiles": ["a.py"], "designDoc": "", "scopeDeltaHistory": []}
+    )
+    assert result == {"unmeasured": True, "outsideFiles": []}
+
+
+def test_ordinary_paths_with_dots_dashes_and_underscores_still_measure() -> None:
+    """The boundary validation is an allowlist, not a denylist — it must not reject
+    the ordinary path shapes this repo's own files actually have."""
+    result = _compute_scope_delta(
+        {
+            "files": ["a.py", "src/sub-dir/file_name.test.js", ".github/workflows/ci.yml"],
+            "declaredFiles": ["a.py"],
+            "designDoc": "",
+            "scopeDeltaHistory": [],
+        }
+    )
+    assert result == {
+        "unmeasured": False,
+        "outsideFiles": ["src/sub-dir/file_name.test.js", ".github/workflows/ci.yml"],
+    }
+
+
 # ---------- scopeDeltaWorkLogFlags: pure-function executed fixture ----------
 
 
@@ -214,13 +301,24 @@ def test_unmeasured_renders_the_unmeasured_flag_not_files() -> None:
 
 
 def test_measured_renders_the_files_flag_with_a_csv_join() -> None:
+    """Single-quoted (defense in depth, second layer): the real hardening is
+    computeScopeDelta's own boundary validation, which already degrades a moment
+    carrying an unsafe path to `unmeasured` before this function ever runs on it."""
     flags = _work_log_flags("audit-fix-1", {"unmeasured": False, "outsideFiles": ["a.py", "b.py"]})
-    assert flags == ' --scope-delta-phase "audit-fix-1" --scope-delta-files "a.py,b.py"'
+    assert flags == " --scope-delta-phase \"audit-fix-1\" --scope-delta-files 'a.py,b.py'"
 
 
 def test_measured_zero_renders_an_empty_files_flag_not_unmeasured() -> None:
     flags = _work_log_flags("build", {"unmeasured": False, "outsideFiles": []})
-    assert flags == ' --scope-delta-phase "build" --scope-delta-files ""'
+    assert flags == " --scope-delta-phase \"build\" --scope-delta-files ''"
+
+
+def test_an_embedded_single_quote_is_escaped_shell_safe() -> None:
+    """Belt-and-suspenders: even a value that somehow reached this function
+    unvalidated is escaped with the standard `'\\''` shell idiom, not just wrapped
+    in quotes that a literal `'` inside the value would break out of."""
+    flags = _work_log_flags("build", {"unmeasured": False, "outsideFiles": ["a'b.py"]})
+    assert flags == ' --scope-delta-phase "build" --scope-delta-files ' + "'a'\\''b.py'"
 
 
 # ---------- structural: the scope-check dispatches were actually widened ----------
@@ -358,7 +456,7 @@ def test_build_exit_moment_reaches_the_audit_compile_prompt() -> None:
     assert out["ok"], f"driver crashed: {out.get('error')}"
     compile_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"audit:compile:{story}"]
     assert len(compile_prompts) == 1
-    assert '--scope-delta-phase "build" --scope-delta-files "b.py,c.py"' in compile_prompts[0]
+    assert "--scope-delta-phase \"build\" --scope-delta-files 'b.py,c.py'" in compile_prompts[0]
     assert out["result"]["landed"] == 1
 
 
@@ -453,8 +551,8 @@ def test_audit_fix_cycle_moment_excludes_files_already_counted_at_build() -> Non
     assert out["ok"], f"driver crashed: {out.get('error')}"
     compile_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"audit:compile:{story}"]
     assert len(compile_prompts) == 1
-    assert '--scope-delta-phase "audit-fix-1" --scope-delta-files "c.py"' in compile_prompts[0]
-    outside_files_recorded = compile_prompts[0].split('--scope-delta-files "')[1].split('"')[0].split(",")
+    assert "--scope-delta-phase \"audit-fix-1\" --scope-delta-files 'c.py'" in compile_prompts[0]
+    outside_files_recorded = compile_prompts[0].split("--scope-delta-files '")[1].split("'")[0].split(",")
     assert "b.py" not in outside_files_recorded, (
         "b.py was already counted at the build moment and must not be recounted at audit-fix-1"
     )
@@ -517,7 +615,7 @@ def test_acceptance_fix_cycle_moment_reaches_the_compile_prompt() -> None:
     assert out["ok"], f"driver crashed: {out.get('error')}"
     compile_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"acceptance:compile:{story}"]
     assert len(compile_prompts) == 1
-    assert '--scope-delta-phase "acceptance-fix-1" --scope-delta-files "b.py"' in compile_prompts[0]
+    assert "--scope-delta-phase \"acceptance-fix-1\" --scope-delta-files 'b.py'" in compile_prompts[0]
 
 
 def test_finale_routing_scope_check_prompt_never_asks_for_declared_files() -> None:
@@ -599,3 +697,152 @@ def test_fixer_prompt_names_the_correct_fix_cycle_phase() -> None:
     fix_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"fix:audit:{story}"]
     assert len(fix_prompts) >= 1
     assert '--scope-delta-phase "audit-fix-1"' in fix_prompts[0]
+
+
+# ---------- work-through.md's own Scope-delta line jq report (#244) ----------
+#
+# `commands/work-through.md`'s closing report embeds a SECOND jq filter (never
+# reimplemented here, following test_acceptance_retry_visibility.py's own
+# `_extract_jq_filter`/`_run_jq` precedent for locking prose-embedded logic
+# against silent drift) that turns a work file's `.declaredFiles`/`.scopeDelta`/
+# `.amendments` into the one-line `scope: ...` summary a human reads. It shares
+# its opening `gate-ledger work-get ... | jq -r '` line with the file's OTHER
+# (pre-existing, unrelated) duration-chain filter, so extraction is scoped to
+# just the `### Scope-delta line (#244)` section, never the whole file.
+
+
+def _scope_delta_section() -> str:
+    text = WORK_THROUGH.read_text()
+    start = text.index("### Scope-delta line (#244)")
+    end = text.index("End with exactly this shape and nothing after it:")
+    return text[start:end]
+
+
+def _extract_scope_delta_jq_filter() -> str:
+    match = re.search(
+        r"```bash\ngate-ledger work-get --slug \"<slug>--<story>\" \| jq -r '\n(.*?)\n'\n```",
+        _scope_delta_section(),
+        re.DOTALL,
+    )
+    assert match is not None, (
+        "scope-delta jq pipeline fenced block not found in commands/work-through.md — "
+        "did its shape change?"
+    )
+    return match.group(1)
+
+
+def _run_scope_delta_jq(payload: dict) -> str:
+    result = subprocess.run(
+        ["jq", "-r", _extract_scope_delta_jq_filter()],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        f"jq exited {result.returncode} on well-formed input; stderr: {result.stderr}"
+    )
+    return result.stdout.strip()
+
+
+def test_scope_delta_jq_pipeline_fenced_block_present() -> None:
+    assert _extract_scope_delta_jq_filter(), "scope-delta jq filter extraction returned empty text"
+
+
+def test_report_no_declaration_renders_unmeasured() -> None:
+    out = _run_scope_delta_jq({"declaredFiles": None, "scopeDelta": [], "amendments": []})
+    assert out == "scope: unmeasured (no declaration recorded)"
+
+
+def test_report_declared_but_no_moment_recorded_is_not_a_manufactured_zero() -> None:
+    """Operability Important finding: a declaration with an empty `.scopeDelta`
+    (most commonly a story parked before any moment's write ever happened) must
+    never render `outside 0` — that reads as a clean pass when nothing was
+    actually measured, against the AC's 'never summed as zero.'"""
+    out = _run_scope_delta_jq({"declaredFiles": ["a.py", "b.py", "c.py"], "scopeDelta": [], "amendments": []})
+    assert out == "scope: declared 3, not yet measured (no moment recorded)"
+
+
+def test_report_a_measured_zero_moment_is_distinct_from_not_yet_measured() -> None:
+    """A recorded moment whose own outsideFiles is empty is a real measurement of
+    zero — distinct from no moment ever having been recorded at all."""
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [{"phase": "build", "unmeasured": False, "outsideFiles": []}],
+        "amendments": [],
+    })
+    assert out == "scope: declared 1, outside 0"
+
+
+def test_report_by_moment_breaks_down_outside_files_per_phase() -> None:
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [
+            {"phase": "build", "unmeasured": False, "outsideFiles": ["b.py", "c.py"]},
+            {"phase": "audit-fix-1", "unmeasured": False, "outsideFiles": ["d.py"]},
+        ],
+        "amendments": [],
+    })
+    assert out == "scope: declared 1, outside 3 (2 at build, 1 at audit-fix-1): b.py, c.py, d.py"
+
+
+def test_report_more_than_five_outside_files_truncates_with_a_remainder_count() -> None:
+    out = _run_scope_delta_jq({
+        "declaredFiles": [],
+        "scopeDelta": [{
+            "phase": "build", "unmeasured": False,
+            "outsideFiles": ["a.py", "b.py", "c.py", "d.py", "e.py", "f.py", "g.py"],
+        }],
+        "amendments": [],
+    })
+    assert out == "scope: declared 0, outside 7 (7 at build): a.py, b.py, c.py, d.py, e.py +2 more"
+
+
+def test_report_an_amendment_matching_a_counted_file_is_counted_as_amended() -> None:
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [{"phase": "build", "unmeasured": False, "outsideFiles": ["b.py"]}],
+        "amendments": [{"file": "b.py", "phase": "build", "reason": "shared parsing"}],
+    })
+    assert out == "scope: declared 1, outside 1 (1 at build), 1 amended: b.py"
+
+
+def test_report_an_amendment_referencing_no_counted_file_reads_as_orphaned() -> None:
+    """An amendment naming a file that never appears in any moment's
+    `outsideFiles` — declared already, or a stale/mistyped path — must not simply
+    drop out of the `amended` count silently; the orphaned clause is that signal."""
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [{"phase": "build", "unmeasured": False, "outsideFiles": ["b.py"]}],
+        "amendments": [{"file": "z.py", "phase": "build", "reason": "typo'd path"}],
+    })
+    assert out == "scope: declared 1, outside 1 (1 at build), 1 amendment(s) reference no counted file: b.py"
+
+
+def test_report_an_unmeasured_moment_is_flagged_alongside_a_real_count() -> None:
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [
+            {"phase": "build", "unmeasured": False, "outsideFiles": ["b.py"]},
+            {"phase": "audit-fix-1", "unmeasured": True, "outsideFiles": []},
+        ],
+        "amendments": [],
+    })
+    assert out == "scope: declared 1, outside 1 (1 at build); 1 moment(s) unmeasured: b.py"
+
+
+def test_report_all_four_bracketed_clauses_compose_in_the_documented_order() -> None:
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [
+            {"phase": "build", "unmeasured": False, "outsideFiles": ["b.py", "z.py"]},
+            {"phase": "audit-fix-1", "unmeasured": True, "outsideFiles": []},
+        ],
+        "amendments": [
+            {"file": "b.py", "phase": "build", "reason": "shared"},
+            {"file": "not-counted.py", "phase": "build", "reason": "stale"},
+        ],
+    })
+    assert out == (
+        "scope: declared 1, outside 2 (2 at build), 1 amended, "
+        "1 amendment(s) reference no counted file; 1 moment(s) unmeasured: b.py, z.py"
+    )

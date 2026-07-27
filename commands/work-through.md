@@ -270,21 +270,35 @@ second-guess its scheduling; anything it parked is the user's, not yours to retr
 
 ### Fallback driver — use only when the Workflow tool is unavailable
 
-Semantics are identical to the script's (defined once in the design doc; the two modes
-are interchangeable mid-epic): walk each runnable story's next phase with dispatched
-agents — runnable = every dependency `landed` ∧ not `parked`/`dropped` ∧ under the
-epic's cap — dispatching independent stories in parallel (one message, multiple Task
-calls). Workers follow `reference/worker-contract.md`; gate agents run the gate
-command workflows and record their own verdicts from inside the story worktree.
-Design-review and acceptance need no extra step — the single dispatched agent reads
-its gate command and self-injects exactly as it would from the script path. Audit is
-different here too: read `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md`
-yourself (same anchored resolution, Glob fallback if it doesn't substitute) and stamp
-its five blocks into every audit and premortem Task prompt you dispatch in this
-mode — you are the assembly point on this path exactly as your own read is on the
-script path. Log every step with
+Semantics are identical to the script's (defined once in the design doc) for
+everything except scope-delta measurement (#244): walk each runnable story's next
+phase with dispatched agents — runnable = every dependency `landed` ∧ not
+`parked`/`dropped` ∧ under the epic's cap — dispatching independent stories in
+parallel (one message, multiple Task calls). Workers follow
+`reference/worker-contract.md`; gate agents run the gate command workflows and
+record their own verdicts from inside the story worktree. Design-review and
+acceptance need no extra step — the single dispatched agent reads its gate command
+and self-injects exactly as it would from the script path. Audit is different here
+too: read `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md` yourself (same
+anchored resolution, Glob fallback if it doesn't substitute) and stamp its five
+blocks into every audit and premortem Task prompt you dispatch in this mode — you
+are the assembly point on this path exactly as your own read is on the script path.
+Log every step with
 `gate-ledger work-log --slug "<slug>--<story>" --step <phase> --outcome "<token>" --phase "<next phase>"`
 (the same epic-qualified slug as script mode — see Record keeping).
+
+**Scope-delta measurement does not run on this path in round one.** Its dispatches
+(the widened `routingScopeCheckPrompt`/`acceptanceScopeCheckPrompt` JSON,
+`computeScopeDelta`, `scopeDeltaWorkLogFlags`) live only in `workflows/epic-driver.js`
+— this fallback prose does not reimplement them, and no `--declared-files` or
+`--scope-delta-*` flag is ever part of the work-log call above. A story driven
+entirely by the script mode keeps accumulating `scopeDelta` entries as usual; a
+story that switches to this fallback mode mid-epic simply stops accumulating them
+from the switch onward, with no `unmeasured` entry marking the gap — the closing
+report's `scope:` line (below) renders whatever the script mode already recorded,
+silently short of any later moment. This is a stated round-one limitation of the
+driver-only design, not a claim that the two modes fully agree on everything they do.
+
 Apply verdicts exactly as the script does:
 
 - **Proceed** → the story's next profiled phase; when the **final profiled gate**
@@ -443,9 +457,16 @@ gate-ledger work-get --slug "<slug>--<story>" | jq -r '
   (.scopeDelta // []) as $sd |
   (.amendments // []) as $am |
   if $declared == null then "scope: unmeasured (no declaration recorded)"
+  elif ($sd | length) == 0 then "scope: declared \($declared | length), not yet measured (no moment recorded)"
   else
     ([$sd[] | select(.unmeasured != true)] ) as $measured |
     ([$sd[] | select(.unmeasured == true) | .phase]) as $unmeasuredPhases |
+    # "One file counts once" is enforced authoritatively by
+    # workflows/epic-driver.js's computeScopeDelta, against every prior
+    # moment's own already-written history — `| unique` here is a display-side
+    # idempotency guard over data that function already made disjoint, not a
+    # second place this rule is decided. If this total and the driver's own
+    # per-moment writes ever disagree, trust the driver.
     ([$measured[] | .outsideFiles[]?] | unique) as $outside |
     ([$measured[] | {phase: .phase, n: (.outsideFiles | length)} | select(.n > 0)]
       | map("\(.n) at \(.phase)") | join(", ")) as $byMoment |

@@ -460,6 +460,47 @@ cmd_work_set() {
   return "$rc"
 }
 
+validate_work_log_args() { # step outcome sdPhase sdFilesGiven sdUnmeasured amendFile amendReason ->
+  # cmd_work_log's own six argument-combination rules, extracted so the verb's
+  # body reads as one parse loop, one validation pass, one jq write — not six
+  # sequential branches ahead of the write they gate. Pure: reads only its own
+  # positional args, echoes at most one error to stderr, and returns non-zero
+  # on the FIRST rule a caller's flag combination violates. `slug` is checked
+  # by the caller before this runs (it gates work_file_init below, not the
+  # flag-combination rules this function owns).
+  local step="$1" outcome="$2" sd_phase="$3" sd_files_given="$4" sd_unmeasured="$5" \
+        amend_file="$6" amend_reason="$7"
+  # --step/--outcome are paired (both or neither) — the flow-position history
+  # entry they write is optional on this verb only because scope-delta
+  # measurement (#244) needs a work-log call that records nothing but a
+  # moment's outside-file count or a fixer's amendment, with no step of its
+  # own to log (a fixer never had one — it only ever bumped a retry counter
+  # via epic-story-set). At least one of a step/outcome pair, a scope-delta
+  # write, or an amendment must be present; a call that would do nothing is
+  # a caller error, not a silent no-op.
+  if { [ -n "$step" ] && [ -z "$outcome" ]; } || { [ -z "$step" ] && [ -n "$outcome" ]; }; then
+    echo "gate-ledger: --step and --outcome must be given together" >&2
+    return 1
+  fi
+  if { [ -n "$amend_file" ] && [ -z "$amend_reason" ]; } || { [ -z "$amend_file" ] && [ -n "$amend_reason" ]; }; then
+    echo "gate-ledger: --amend-file and --amend-reason must be given together" >&2
+    return 1
+  fi
+  if [ "$sd_files_given" -eq 1 ] && [ "$sd_unmeasured" -eq 1 ]; then
+    echo "gate-ledger: --scope-delta-files and --scope-delta-unmeasured are mutually exclusive" >&2
+    return 1
+  fi
+  if { [ "$sd_files_given" -eq 1 ] || [ "$sd_unmeasured" -eq 1 ] || [ -n "$amend_file" ]; } && [ -z "$sd_phase" ]; then
+    echo "gate-ledger: --scope-delta-phase required with --scope-delta-files, --scope-delta-unmeasured, or --amend-file" >&2
+    return 1
+  fi
+  if [ -z "$step" ] && [ "$sd_files_given" -eq 0 ] && [ "$sd_unmeasured" -eq 0 ] && [ -z "$amend_file" ]; then
+    echo "gate-ledger: nothing to record — give --step/--outcome, --scope-delta-phase (with --scope-delta-files or --scope-delta-unmeasured), or --amend-file/--amend-reason" >&2
+    return 1
+  fi
+  return 0
+}
+
 cmd_work_log() {
   local slug="" step="" outcome="" phase="" \
         sd_phase="" sd_files="" sd_files_given=0 sd_unmeasured=0 \
@@ -482,34 +523,8 @@ cmd_work_log() {
     echo "gate-ledger: --slug required" >&2
     return 2
   fi
-  # --step/--outcome are paired (both or neither) — the flow-position history
-  # entry they write is optional on this verb only because scope-delta
-  # measurement (#244) needs a work-log call that records nothing but a
-  # moment's outside-file count or a fixer's amendment, with no step of its
-  # own to log (a fixer never had one — it only ever bumped a retry counter
-  # via epic-story-set). At least one of a step/outcome pair, a scope-delta
-  # write, or an amendment must be present; a call that would do nothing is
-  # a caller error, not a silent no-op.
-  if { [ -n "$step" ] && [ -z "$outcome" ]; } || { [ -z "$step" ] && [ -n "$outcome" ]; }; then
-    echo "gate-ledger: --step and --outcome must be given together" >&2
-    return 2
-  fi
-  if { [ -n "$amend_file" ] && [ -z "$amend_reason" ]; } || { [ -z "$amend_file" ] && [ -n "$amend_reason" ]; }; then
-    echo "gate-ledger: --amend-file and --amend-reason must be given together" >&2
-    return 2
-  fi
-  if [ "$sd_files_given" -eq 1 ] && [ "$sd_unmeasured" -eq 1 ]; then
-    echo "gate-ledger: --scope-delta-files and --scope-delta-unmeasured are mutually exclusive" >&2
-    return 2
-  fi
-  if { [ "$sd_files_given" -eq 1 ] || [ "$sd_unmeasured" -eq 1 ] || [ -n "$amend_file" ]; } && [ -z "$sd_phase" ]; then
-    echo "gate-ledger: --scope-delta-phase required with --scope-delta-files, --scope-delta-unmeasured, or --amend-file" >&2
-    return 2
-  fi
-  if [ -z "$step" ] && [ "$sd_files_given" -eq 0 ] && [ "$sd_unmeasured" -eq 0 ] && [ -z "$amend_file" ]; then
-    echo "gate-ledger: nothing to record — give --step/--outcome, --scope-delta-phase (with --scope-delta-files or --scope-delta-unmeasured), or --amend-file/--amend-reason" >&2
-    return 2
-  fi
+  validate_work_log_args "$step" "$outcome" "$sd_phase" "$sd_files_given" "$sd_unmeasured" \
+    "$amend_file" "$amend_reason" || return 2
   # Per-step outcome vocabulary. Only a step whose *reader* branches on the token is
   # constrained here; gate steps carry verdicts owned by reference/gate-vocabulary.md
   # and stay free-form, as do markers like run-boundary. `build` is constrained because

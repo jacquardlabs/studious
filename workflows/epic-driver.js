@@ -355,7 +355,7 @@ function acceptanceFanIn(story, productBlock, walkthroughBlock, premortemBlock, 
   const premortemRubricNote = premortemBlock
     ? ' A pre-mortem register verification report is included below (Part 2\'s equivalent) — map its REALIZED findings to this gate\'s verdict using the same BLOCKER/SHOULD FIX vocabulary Part 4 already applies to the other two reports; it is not a fourth, separate rubric.'
     : ''
-  return `You are compiling Studious's acceptance gate verdict for this story. Read commands/gate-acceptance.md's Part 4 from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply ITS verdict rubric to the${reportCountWord} reports below — you judge compilation only, you do not re-review.${premortemRubricNote} A lane marked UNREVIEWED (its agent died, or the mechanical scope-check that resolves its file list and design doc died or returned unparseable output) means you cannot certify a SHIP: the verdict is at best HOLD.\n\nChangeset: ${dir}, diff base ${base}.\n\nProduct review:\n${productBlock}\n\nImplementation walkthrough:\n${walkthroughBlock}${premortemSection}\n\nRecord the verdict from inside ${dir}: cd "${dir}" && gate-ledger record --gate acceptance --verdict "<TOKEN>" && gate-ledger work-log --slug "${workSlug(story)}" --step acceptance --outcome "<TOKEN>" --phase "${nextPhase}"${scopeDeltaFlags || ''}\n\nReturn: verdict (SHIP | FIX AND RE-CHECK | HOLD), sha, summary (for non-SHIP verdicts, the findings a fixer needs — specific enough to go directly into the engineering chain as fix tasks).`
+  return `You are compiling Studious's acceptance gate verdict for this story. Read commands/gate-acceptance.md's Part 4 from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply ITS verdict rubric to the${reportCountWord} reports below — you judge compilation only, you do not re-review.${premortemRubricNote} A lane marked UNREVIEWED (its agent died, or the mechanical scope-check that resolves its file list and design doc died or returned unparseable output) means you cannot certify a SHIP: the verdict is at best HOLD.\n\nChangeset: ${dir}, diff base ${base}.\n\nProduct review:\n${productBlock}\n\nImplementation walkthrough:\n${walkthroughBlock}${premortemSection}\n\nRecord the verdict from inside ${dir} (any --scope-delta-* flags already appended to the work-log command below are pre-computed by the driver, not yours to compute — type them exactly as rendered, never recompute, paraphrase, or drop them): cd "${dir}" && gate-ledger record --gate acceptance --verdict "<TOKEN>" && gate-ledger work-log --slug "${workSlug(story)}" --step acceptance --outcome "<TOKEN>" --phase "${nextPhase}"${scopeDeltaFlags || ''}\n\nReturn: verdict (SHIP | FIX AND RE-CHECK | HOLD), sha, summary (for non-SHIP verdicts, the findings a fixer needs — specific enough to go directly into the engineering chain as fix tasks).`
 }
 
 // Orchestrates the three-dispatch fan-out above: a mechanical scope-check, then
@@ -808,9 +808,43 @@ function computeScopeDelta(fields) {
   if (!Array.isArray(files) || !Array.isArray(declaredFiles)) {
     return { unmeasured: true, outsideFiles: [] }
   }
+  // Boundary validation (CWE-78/CWE-88), fixed at the boundary per CLAUDE.md's
+  // "fix data at the boundary, not at the point of use": `files`/`declaredFiles`/
+  // `designDoc` all arrive from a haiku agent's JSON.parse'd relay of `git diff
+  // --name-only` output — untrusted, since git permits `"`, `$`, a backtick, `;`,
+  // a comma, and a newline inside a path, and this value is later interpolated
+  // (scopeDeltaWorkLogFlags) into a `gate-ledger work-log` command a DIFFERENT
+  // dispatched agent is instructed to run verbatim with Bash. Reject, never
+  // strip: `shellSafe()` (used elsewhere in this file for prose like titles)
+  // would silently rewrite the path, which breaks "one file counts once" against
+  // `alreadySeen`'s exact-string dedupe on the very next round. The allowlist
+  // also excludes a bare comma, which corrupts the CSV `--scope-delta-files`
+  // payload independent of injection — there is no escape for it there. Any one
+  // unsafe entry degrades the WHOLE moment to `unmeasured`, never a per-file
+  // drop, which would silently understate the count the acceptance criteria
+  // forbid summing as zero.
+  const isSafePath = p =>
+    typeof p === 'string' &&
+    p.length > 0 &&
+    p.length <= 300 &&
+    /^[A-Za-z0-9._][A-Za-z0-9._/-]*$/.test(p) &&
+    !p.split('/').includes('..')
+  if (!files.every(isSafePath) || !declaredFiles.every(isSafePath) || (designDoc && !isSafePath(designDoc))) {
+    return { unmeasured: true, outsideFiles: [] }
+  }
   const excluded = new Set(declaredFiles)
   if (designDoc) excluded.add(designDoc)
   const isPremortemRegister = f => /^docs\/studious\/premortems\/[^/]+\.md$/.test(f)
+  // "One file counts once" is enforced HERE, authoritatively, against every
+  // moment recorded so far — `alreadySeen` below is the one and only place a
+  // file is dropped from a later moment's count. commands/work-through.md's own
+  // report jq ALSO applies `| unique` when it flattens `outsideFiles` across
+  // moments for its `$outside`/`$outside | length` totals, but that is a
+  // display-side dedupe over data this function already made disjoint — a
+  // second, cheap idempotency guard on already-correct data, not a second
+  // authority to keep in sync. If the two ever disagree, this function is
+  // right and the jq's total is reading stale/malformed history, not the
+  // reverse.
   const alreadySeen = new Set(
     (Array.isArray(scopeDeltaHistory) ? scopeDeltaHistory : [])
       .filter(e => e && !e.unmeasured && Array.isArray(e.outsideFiles))
@@ -828,10 +862,35 @@ function computeScopeDelta(fields) {
 // typed). Returns '' when this round has no moment to record at all
 // (`scopeDeltaPhase` returned null, e.g. acceptance round 1) — the call site
 // then adds nothing, byte-identical to before this story.
+//
+// Known limitation, not a bug: this write has no read-back within the round
+// that makes it — the driver hands a dispatched agent an already-filled
+// command and trusts it was typed, the same trust every other `gate-ledger`
+// write in this file already runs on (mergePrompt's `--phase done`, every
+// gate's own `record`/`work-log` call). A dropped or mistyped flag loses that
+// one moment's attribution silently, with no `unmeasured` entry written in
+// its place, and this design (see the doc's own "adds no dispatches of its
+// own") deliberately doesn't add a verification dispatch to catch it. It is
+// detectable, not self-correcting: the NEXT round's own scope-check dispatch
+// (routingScopeCheckPrompt/acceptanceScopeCheckPrompt) reads `.scopeDelta`
+// back from the ledger as `scopeDeltaHistory`, so a missing moment shows up
+// as a gap in the run summary's per-moment breakdown for a reader to notice —
+// it just isn't retried or flagged automatically the way `unmeasured: true`
+// is when the scope-check dispatch itself fails.
 function scopeDeltaWorkLogFlags(phase, delta) {
   if (!phase) return ''
+  // Defense in depth, second layer: the real hardening is computeScopeDelta's
+  // own boundary validation above, which already degrades this whole call to
+  // `unmeasured` before any unsafe, model-relayed path can reach here. `phase`
+  // is driver-computed from scopeDeltaPhase's closed vocabulary (`build` or
+  // `<gate>-fix-<N>`, never model input) and needs no hardening, so it stays
+  // double-quoted, unchanged. `outsideFiles` is the one value that genuinely
+  // traces back to an untrusted relay, so it gets single-quoted with `'\''`
+  // escaping — belt-and-suspenders for a value already validated, not a
+  // substitute for that validation.
+  const shellQuote = s => `'${String(s).replace(/'/g, "'\\''")}'`
   if (delta.unmeasured) return ` --scope-delta-phase "${phase}" --scope-delta-unmeasured`
-  return ` --scope-delta-phase "${phase}" --scope-delta-files "${delta.outsideFiles.join(',')}"`
+  return ` --scope-delta-phase "${phase}" --scope-delta-files ${shellQuote(delta.outsideFiles.join(','))}`
 }
 
 // Label every auditor lane even when its agent died — filter-then-map shifts
@@ -916,7 +975,11 @@ function workerPrompt(story, phaseName, nextPhase) {
   // The build worker may amend the declaration — one line of why, appended to
   // its own existing work-log call — when it meets a file the design could not
   // have known about. Never required, never subtracts the file from any count.
-  const build = `Implement the story's recorded design doc (gate-ledger work-get --slug "${workSlug(story)}" → .designDoc, path relative to the worktree) in the story worktree, following CLAUDE.md conventions, with tests per the project's norms. The route that ships with this plugin is /plan then /build, picking up from that design doc; Superpowers' plan/execute workflow is an alternative if installed; hand-implementing is a third. The worker contract is normative whichever you use. Commit to the story branch, then report your terminal status from reference/worker-contract.md's Status reporting enum — BUILT when the story is implemented and committed: gate-ledger work-log --slug "${workSlug(story)}" --step build --outcome BUILT --phase ${nextPhase} — if you touched a file the recorded declaration (that same work-get call's .declaredFiles) did not foresee, you may amend it by appending to this same command: --scope-delta-phase "build" --amend-file "<path>" --amend-reason "<one-line why>"`
+  // `--amend-file`/`--amend-reason` are singular flags (bin/gate-ledger), so N
+  // unforeseen files need N separate work-log invocations, each appending one
+  // amendment — `.amendments` is append-only, so repeating the call is exactly
+  // as valid as making it once.
+  const build = `Implement the story's recorded design doc (gate-ledger work-get --slug "${workSlug(story)}" → .designDoc, path relative to the worktree) in the story worktree, following CLAUDE.md conventions, with tests per the project's norms. The route that ships with this plugin is /plan then /build, picking up from that design doc; Superpowers' plan/execute workflow is an alternative if installed; hand-implementing is a third. The worker contract is normative whichever you use. Commit to the story branch, then report your terminal status from reference/worker-contract.md's Status reporting enum — BUILT when the story is implemented and committed: gate-ledger work-log --slug "${workSlug(story)}" --step build --outcome BUILT --phase ${nextPhase} — if you touched a file the recorded declaration (that same work-get call's .declaredFiles) did not foresee, you may amend it by appending to this same command: --scope-delta-phase "build" --amend-file "<path>" --amend-reason "<one-line why>" — touched more than one unforeseen file? Repeat this same work-log call once per file, each with its own --amend-file/--amend-reason pair; the flags take exactly one file each, never a list.`
   return `${ctx(story)}\n\nYour phase: ${phaseName}.\n${phaseName === 'design' ? design : build}\n\n${contract}\n\nReturn (this is data for an orchestrator, not a human): status, sha (story branch short HEAD), summary, evidence.`
 }
 // gate-independence: end worker-dispatch
@@ -935,7 +998,7 @@ function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut, sco
   const routedOutSummaryInstruction = routedOutList.length
     ? `In your Summary section, include one plain line per routed-out lane in this exact form: "<lane>: routed out — not applicable to this changeset (<reason>)" — e.g. "${routedOutList[0].auditor.split(':')[1]}: routed out — not applicable to this changeset (${routedOutList[0].reason})". This must be visible in the report a human reads, the same way /gate-audit's own skip notes are, not only reflected in your internal reasoning.\n\n`
     : ''
-  return `You are compiling Studious's audit gate verdict. Read reference/audit-compilation.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply its compilation rules to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-AUDIT.\n\nA lane marked "carried forward" (delta-scoped re-audit, #130) is NOT the same as UNAUDITED: it was not re-dispatched this round because the prior round's own compiled verdict already proved it had no Confirmed Critical. Treat its one-line carried-forward status as a clean, confirmed-clean fact for that lane — never as a gap that blocks the verdict, and never invent or replay any Important/Track findings for it beyond that line. A lane marked "routed out" (first-round changeset routing, #138) is a THIRD, distinct state from both: it was never dispatched because it does not apply to this changeset at all — treat it as neutral, neither a gap nor a clean claim, and never conflate it with carried forward or AGENT DIED. A block labeled "fix-delta-cross-lane-pass" is a single, cheap, cross-lane spot-check over the small diff since the prior round, not a twelfth specialist auditor — map its findings into the report's severity tiers exactly like any other lane's, tagged by whichever lane's vocabulary they resemble, and put them through the same Critical-challenge step as every other finding.\n\nOut of scope for this verdict: gate-audit.md's own text describes a pre-mortem-verification lane (auditor 13) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover this round's routed lane set (${laneNames}); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those routed lanes otherwise support.${routedOutNote}\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\n${routedOutSummaryInstruction}If, and only if, your verdict is FIX AND RE-AUDIT: also determine blockingLanes — the short name(s) (e.g. "security-auditor", not "studious:security-auditor") of every lane among {${laneNames}} whose report contained a Critical finding that survived your challenge as Confirmed and helped drive this verdict. Omit blockingLanes entirely (do not return an empty array) if your verdict is PASS or NEEDS DISCUSSION, or if ANY lane above is marked AGENT DIED this round — a died lane's true status is unknown, so the next round must default to a full re-audit rather than narrow off an unreliable list.\n\nRecord the verdict from inside ${dir} (substitute <TOKEN> with your verdict; only when you computed blockingLanes above, also append --blocking-lanes "<comma-separated lane names>" to this same command — omit that flag entirely otherwise, per the omission rule above): cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"${scopeDeltaFlags || ''}` : ''}\n\nReturn: verdict (PASS | FIX AND RE-AUDIT | NEEDS DISCUSSION), sha, summary, blockingLanes (only when you computed one, per the rule above — omit the field entirely otherwise).`
+  return `You are compiling Studious's audit gate verdict. Read reference/audit-compilation.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply its compilation rules to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-AUDIT.\n\nA lane marked "carried forward" (delta-scoped re-audit, #130) is NOT the same as UNAUDITED: it was not re-dispatched this round because the prior round's own compiled verdict already proved it had no Confirmed Critical. Treat its one-line carried-forward status as a clean, confirmed-clean fact for that lane — never as a gap that blocks the verdict, and never invent or replay any Important/Track findings for it beyond that line. A lane marked "routed out" (first-round changeset routing, #138) is a THIRD, distinct state from both: it was never dispatched because it does not apply to this changeset at all — treat it as neutral, neither a gap nor a clean claim, and never conflate it with carried forward or AGENT DIED. A block labeled "fix-delta-cross-lane-pass" is a single, cheap, cross-lane spot-check over the small diff since the prior round, not a twelfth specialist auditor — map its findings into the report's severity tiers exactly like any other lane's, tagged by whichever lane's vocabulary they resemble, and put them through the same Critical-challenge step as every other finding.\n\nOut of scope for this verdict: gate-audit.md's own text describes a pre-mortem-verification lane (auditor 13) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover this round's routed lane set (${laneNames}); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those routed lanes otherwise support.${routedOutNote}\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\n${routedOutSummaryInstruction}If, and only if, your verdict is FIX AND RE-AUDIT: also determine blockingLanes — the short name(s) (e.g. "security-auditor", not "studious:security-auditor") of every lane among {${laneNames}} whose report contained a Critical finding that survived your challenge as Confirmed and helped drive this verdict. Omit blockingLanes entirely (do not return an empty array) if your verdict is PASS or NEEDS DISCUSSION, or if ANY lane above is marked AGENT DIED this round — a died lane's true status is unknown, so the next round must default to a full re-audit rather than narrow off an unreliable list.\n\nRecord the verdict from inside ${dir} (substitute <TOKEN> with your verdict; only when you computed blockingLanes above, also append --blocking-lanes "<comma-separated lane names>" to this same command — omit that flag entirely otherwise, per the omission rule above; any --scope-delta-* flags already appended to the work-log command below are pre-computed by the driver, not yours to compute — type them exactly as rendered, never recompute, paraphrase, or drop them): cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"${scopeDeltaFlags || ''}` : ''}\n\nReturn: verdict (PASS | FIX AND RE-AUDIT | NEEDS DISCUSSION), sha, summary, blockingLanes (only when you computed one, per the rule above — omit the field entirely otherwise).`
 }
 
 // `scopeDeltaPhaseName` (scope-delta measurement, #244): the moment THIS fixer's
@@ -949,7 +1012,7 @@ function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut, sco
 // may not choose to make.
 function fixerPrompt(story, gate, findings, scopeDeltaPhaseName) {
   const amendLine = scopeDeltaPhaseName
-    ? ` If you touched a file the story's declared file set (gate-ledger work-get --slug "${workSlug(story)}" → .declaredFiles) did not foresee, you may amend it — one line of why, never required, and it never subtracts the file from any count: gate-ledger work-log --slug "${workSlug(story)}" --scope-delta-phase "${scopeDeltaPhaseName}" --amend-file "<path>" --amend-reason "<one-line why>"`
+    ? ` If you touched a file the story's declared file set (gate-ledger work-get --slug "${workSlug(story)}" → .declaredFiles) did not foresee, you may amend it — one line of why, never required, and it never subtracts the file from any count: gate-ledger work-log --slug "${workSlug(story)}" --scope-delta-phase "${scopeDeltaPhaseName}" --amend-file "<path>" --amend-reason "<one-line why>" — touched more than one unforeseen file? Repeat this same command once per file; --amend-file/--amend-reason each take exactly one file, never a list.`
     : ''
   return `${ctx(story)}\n\nThe ${gate} gate returned a fix-and-retry verdict on this story. Address these findings in the story worktree — findings only, no scope creep — with tests where the fix is behavioral, and commit:\n\n${findings}\n\nYou are the fixer, not the gate: do NOT run or re-run any gate, and do not record verdicts. Record only the fix attempt: gate-ledger epic-story-set --epic "${slug}" --slug "${story}" --bump-retry ${gate}${amendLine}\n\nReturn: status, sha, summary, evidence (commands run with output).`
 }
