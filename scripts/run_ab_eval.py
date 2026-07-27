@@ -58,7 +58,7 @@ from run_gate_audit_fixtures import (
     discover_fixtures,
     extract_section,
     parse_audit_report,
-    run_claude_headless,
+    run_claude_headless_json,
     setup_fixture_repo,
 )
 
@@ -291,10 +291,16 @@ class TrialResult:
     trial: int
     verdict: str | None
     outcomes: Mapping[str, str]
+    cost_usd: float | None = None
 
 
 def score_trial(
-    arm: str, fixture: str, trial: int, report_text: str, planted: Sequence[PlantedDefect]
+    arm: str,
+    fixture: str,
+    trial: int,
+    report_text: str,
+    planted: Sequence[PlantedDefect],
+    cost_usd: float | None = None,
 ) -> TrialResult:
     parsed = parse_audit_report(report_text)
     return TrialResult(
@@ -303,6 +309,7 @@ def score_trial(
         trial=trial,
         verdict=parsed.verdict,
         outcomes={defect.id: classify_defect(report_text, defect) for defect in planted},
+        cost_usd=cost_usd,
     )
 
 
@@ -370,6 +377,17 @@ def render_report(results: Sequence[TrialResult], arms: Sequence[Arm], trials: i
             lines.append(f"    {name:<24} {breakdown}")
         lines.append("")
 
+    costed = [r.cost_usd for r in results if r.cost_usd is not None]
+    if costed:
+        lines.append("Cost")
+        lines.append("")
+        for name in arm_names:
+            arm_costs = [r.cost_usd for r in results if r.arm == name and r.cost_usd is not None]
+            if arm_costs:
+                lines.append(f"    {name:<24} ${sum(arm_costs):.2f} over {len(arm_costs)} run(s)")
+        lines.append(f"    {'TOTAL':<24} ${sum(costed):.2f} over {len(costed)} run(s)")
+        lines.append("")
+
     lines.append(
         "Counts, not conclusions. Every arm samples a stochastic system: read a gap\n"
         "as signal only when it is large against the trial count, and re-run before\n"
@@ -393,14 +411,18 @@ def run_arm_on_fixture(
             overrides = arm_overrides(arm, tmp_path / "staging")
             shadow = build_shadow_root(tmp_path / "plugin-root", overrides)
             repo = setup_fixture_repo(fixture_dir, tmp_path / "repo", source_root=shadow)
-            report_text = run_claude_headless(
+            report_text, cost_usd = run_claude_headless_json(
                 repo, timeout_seconds=timeout_seconds, plugin_root=shadow
             )
         if artifacts_dir:
             artifacts_dir.mkdir(parents=True, exist_ok=True)
             name = f"{fixture_dir.name}.{arm.name}.trial{trial}.txt"
             (artifacts_dir / name).write_text(report_text)
-        results.append(score_trial(arm.name, fixture_dir.name, trial, report_text, planted))
+        results.append(
+            score_trial(
+                arm.name, fixture_dir.name, trial, report_text, planted, cost_usd
+            )
+        )
     return results
 
 

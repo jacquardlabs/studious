@@ -1,8 +1,11 @@
+import json
+
 from run_gate_audit_fixtures import (
     Expectation,
     evaluate,
     extract_verdict,
     parse_audit_report,
+    parse_cli_json,
 )
 
 PASS_REPORT = """\
@@ -162,3 +165,65 @@ def test_evaluate_clean_report_against_clean_expectation() -> None:
         verdict_any_of=("PASS",), max_critical_findings=0, max_important_findings=0
     )
     assert evaluate(parsed, expected) == []
+
+
+# --- `claude -p --output-format json` payload shapes -----------------------
+#
+# Regression tests for a live crash: Claude Code 2.1.220 emits a JSON *array*
+# of stream events, and the harness assumed the single-object shape, so
+# `payload.get` raised AttributeError on a list and lost every fixture queued
+# behind it.
+
+
+def test_parse_cli_json_reads_the_stream_event_array() -> None:
+    stdout = json.dumps(
+        [
+            {"type": "system", "subtype": "init", "session_id": "abc"},
+            {"type": "assistant", "message": {"role": "assistant"}},
+            {"type": "result", "subtype": "success", "result": PASS_REPORT,
+             "total_cost_usd": 1.23, "is_error": False},
+        ]
+    )
+    text, cost = parse_cli_json(stdout)
+    assert text == PASS_REPORT
+    assert cost == 1.23
+
+
+def test_parse_cli_json_takes_the_last_result_event() -> None:
+    stdout = json.dumps(
+        [
+            {"type": "result", "result": "first", "total_cost_usd": 0.5},
+            {"type": "result", "result": "second", "total_cost_usd": 0.75},
+        ]
+    )
+    assert parse_cli_json(stdout) == ("second", 0.75)
+
+
+def test_parse_cli_json_reads_the_legacy_object_shape() -> None:
+    stdout = json.dumps({"result": FIX_REPORT, "total_cost_usd": 0.4})
+    assert parse_cli_json(stdout) == (FIX_REPORT, 0.4)
+
+
+def test_parse_cli_json_falls_back_to_raw_text_when_not_json() -> None:
+    # A harness-error string must survive to the artifact rather than crash.
+    text, cost = parse_cli_json("[harness error] claude CLI not found")
+    assert text == "[harness error] claude CLI not found"
+    assert cost is None
+
+
+def test_parse_cli_json_falls_back_when_the_array_has_no_result_event() -> None:
+    stdout = json.dumps([{"type": "system", "subtype": "init"}])
+    text, cost = parse_cli_json(stdout)
+    assert text == stdout
+    assert cost is None
+
+
+def test_parse_cli_json_tolerates_a_missing_cost() -> None:
+    stdout = json.dumps([{"type": "result", "result": PASS_REPORT}])
+    assert parse_cli_json(stdout) == (PASS_REPORT, None)
+
+
+def test_parse_cli_json_rejects_a_bool_as_a_cost() -> None:
+    # bool is an int subclass; `True` must not become a $1.00 line item.
+    stdout = json.dumps([{"type": "result", "result": "x", "total_cost_usd": True}])
+    assert parse_cli_json(stdout)[1] is None

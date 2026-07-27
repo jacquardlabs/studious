@@ -250,7 +250,15 @@ def _wire_plugin_config(workdir: Path, source_root: Path = REPO_ROOT) -> None:
 def run_claude_headless(
     cwd: Path, timeout_seconds: int = 900, plugin_root: Path = REPO_ROOT
 ) -> str:
-    """Invoke `/gate-audit` headless and return the report text.
+    """Invoke `/gate-audit` headless and return the report text."""
+    text, _cost = run_claude_headless_json(cwd, timeout_seconds, plugin_root)
+    return text
+
+
+def run_claude_headless_json(
+    cwd: Path, timeout_seconds: int = 900, plugin_root: Path = REPO_ROOT
+) -> tuple[str, float | None]:
+    """Invoke `/gate-audit` headless; return (report text, cost in USD if reported).
 
     ``plugin_root`` becomes ``CLAUDE_PLUGIN_ROOT``, which is what the fan-out
     command resolves ``reference/`` against when it injects the shared prompt
@@ -284,21 +292,51 @@ def run_claude_headless(
             timeout=timeout_seconds,
         )
     except subprocess.TimeoutExpired as exc:
-        return f"[harness error] claude timed out after {timeout_seconds}s: {exc}"
+        return f"[harness error] claude timed out after {timeout_seconds}s: {exc}", None
     except FileNotFoundError as exc:
-        return f"[harness error] claude CLI not found: {exc}"
+        return f"[harness error] claude CLI not found: {exc}", None
 
     stdout = result.stdout.strip()
     if result.returncode != 0:
         return (
             f"[harness error] claude exited {result.returncode}\n"
             f"stderr:\n{result.stderr}\nstdout:\n{stdout}"
-        )
+        ), None
+    return parse_cli_json(stdout)
+
+
+def parse_cli_json(stdout: str) -> tuple[str, float | None]:
+    """Pull (final text, cost) out of `claude -p --output-format json` stdout.
+
+    Claude Code 2.1.x emits a JSON **array** of stream events whose last
+    ``type: "result"`` element carries the text and `total_cost_usd`; older
+    builds emitted a single object with a `result` key. Handle both, and fall
+    back to the raw stdout when neither shape matches — an unexpected payload
+    belongs in the artifact as a readable report, not as a crash that loses
+    every fixture still queued behind it.
+    """
     try:
         payload = json.loads(stdout)
     except json.JSONDecodeError:
-        return stdout
-    return str(payload.get("result", stdout))
+        return stdout, None
+
+    if isinstance(payload, list):
+        finals = [
+            event
+            for event in payload
+            if isinstance(event, dict) and event.get("type") == "result"
+        ]
+        if not finals:
+            return stdout, None
+        payload = finals[-1]
+
+    if not isinstance(payload, dict):
+        return stdout, None
+    return str(payload.get("result", stdout)), _as_cost(payload.get("total_cost_usd"))
+
+
+def _as_cost(value: object) -> float | None:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
 def main(argv: list[str] | None = None) -> int:
