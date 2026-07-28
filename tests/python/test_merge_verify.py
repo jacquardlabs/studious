@@ -163,6 +163,29 @@ def test_unknown_verify_still_lands_rather_than_stranding_a_real_landing() -> No
         assert result["landed"] == 1
 
 
+def test_divergent_reason_names_the_epic_branch_not_the_story_branch() -> None:
+    """Epic acceptance finding C (m6-wave1): the operator-facing remediation
+    clause on a divergent verify must name the epic integration branch
+    (`epic/<slug>`) — the branch `merge --no-ff` actually merges into — not
+    the story branch reconstructed from `workSlug()`.
+
+    Before the fix, `'epic/' + workSlug(story)` was byte-identical to
+    `storyBranch(story)`: `workSlug` returns `${slug}--${story}` and
+    `storyBranch` returns `epic/${slug}--${story}`, so `'epic/' +
+    workSlug(story)` === `storyBranch(story)`. The remediation told the
+    operator to check whether the story branch contains the story branch —
+    `git merge-base --is-ancestor X X` trivially exits 0, so the check
+    silently "succeeded" and pointed away from the real divergence."""
+    out = _run_with_verify_rule(_findings({"ledgerLanded": False, "isAncestor": True}))
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    entry = {e["story"]: e for e in out["result"]["needsYou"]}["epx--a"]
+    assert "epic/epx" in entry["reason"], f"reason does not name the epic branch: {entry['reason']!r}"
+    assert "epic/epx--a" not in entry["reason"], (
+        f"reason still names the story branch (byte-identical to the workSlug-built path the "
+        f"bug used): {entry['reason']!r}"
+    )
+
+
 # ---------- operator visibility (the finding's "at minimum" clause) ----------
 
 

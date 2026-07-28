@@ -82,12 +82,17 @@ spent reading and reasoning).
 **`effort` is model-gated, and on `haiku` there is nothing to gate.** Claude Code's
 subagent frontmatter documents `effort`'s "available levels depend on the model", and
 Haiku 4.5 does not take the parameter at all. So the `effort: low` pins on `review-readme`
-and `backlog-hygiene` — both `model: haiku` — and the seven `{model: 'haiku', effort:
+and `backlog-hygiene` — both `model: haiku` — and the six `{model: 'haiku', effort:
 'low'}` dispatches in `workflows/epic-driver.js` are declarations of intent, not live
-dials: all nine items (those two agents plus the seven dispatches) get haiku's own
+dials: all eight items (those two agents plus the six dispatches) get haiku's own
 behavior regardless. They are kept rather than deleted because they record the stakes
 call and become live the moment either agent moves tier, but do not budget a turn-count
-saving from them, and do not read the `low` row above as covering them.
+saving from them, and do not read the `low` row above as covering them. (A seventh
+driver dispatch — the routing-scope probe, `workflows/epic-driver.js`'s
+`resolveRoutingMatchFlags` — carries `effort: 'medium'` on the same `haiku` model for the
+same reason: still inert, still a declaration of intent, not a live dial, however far
+above `low` it's set — see that function's own comment for why it is pinned there
+anyway.)
 
 `premortem-auditor` sits at `medium` despite being merge-blocking: it verifies a fixed
 register item by item and never free-hunts, so it is structured verification, not open-ended

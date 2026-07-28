@@ -1561,65 +1561,71 @@ async function resolveRoutingMatchFlags(dir, base, label, phaseLabel, contract) 
     // own dispatch to isolate the content-judged one would cost a second call per
     // round — breaking this story's own "zero extra dispatches" acceptance
     // criterion to fix a non-blocking finding. This is a recorded, accepted
-    // residual, not an oversight: what mitigates it is `effort: 'medium'` (below,
-    // moved up from `low` so the judgment isn't made at the cheapest setting
-    // available), the "when ambiguous, resolve true" bias in the prompt itself
-    // (a false negative needs the model to be confidently, incorrectly certain a
-    // runtime-surface change is NOT one), the `injectionAttempt` discard, and now
-    // `isValidDiffPath` above. What stays open: a reply that steers operabilityMatch
-    // AND never admits it via injectionAttempt — the same residual the diffPath fix
+    // residual, not an oversight: what mitigates it is the "when ambiguous,
+    // resolve true" bias in the prompt itself (a false negative needs the model
+    // to be confidently, incorrectly certain a runtime-surface change is NOT
+    // one), the `injectionAttempt` discard, and `isValidDiffPath` above — three
+    // mitigations. What stays open: a reply that steers operabilityMatch AND
+    // never admits it via injectionAttempt — the same residual the diffPath fix
     // above accepts for content-substitution.
     //
-    // Round 3 (#271 fix cycle, SHOULD FIX): the net saving this raised effort buys
-    // is real but conditional, and this repo's own history is the measurement, not
-    // an estimate. `operabilityMatch` only reaches judgment below the 400-line
-    // `diffPath` cutoff (routingScopeCheckPrompt's own "under 400" branch, above)
-    // — at or above it, `diffPath` comes back empty and `operabilityMatch` is
-    // forced `true` unconditionally (no model judgment runs at all), which
-    // resolveAuditRoster (below) treats as "dispatch operability-auditor," so the
-    // raised effort is spent with zero chance of a saving. A tip-of-branch diff
-    // is the WRONG unit to measure this against — it conflates every round's
-    // cumulative diff into one number and understates how many rounds were
-    // actually small. The right unit is the diff at the exact sha each recorded
-    // audit round actually ran against; this epic's own gate-ledger events
-    // (`.studious/epics/m6-wave1.events.jsonl`, local/gitignored, not something a
-    // future reader can re-derive from git history alone — recorded here as the
-    // fixer's own measurement, run 2026-07-28) name those shas directly:
-    // ledger-scope-fix PASSed its only round at e847df5 (205 lines vs
-    // merge-base — under the cutoff, judgment reached); driver-model-pins PASSed
-    // its only round at f130eb2 (201 lines — also reached); this story's own
-    // three rounds were f893434 (288 lines — reached), 78ddf36 (725 — forced
-    // true), f3f802a (1089 — forced true). Five recorded rounds so far, three
-    // (60%) reached real judgment, two (both this story's own retries, needed by
-    // the prior fix cycle's security findings, not by this mechanism) did not.
-    // So the honest read isn't "this never saves anything" — most of this
-    // epic's own rounds so far had the opportunity — it's narrower: a story
-    // that needs multiple fix-and-retry rounds tends to grow past the cutoff on
-    // its later rounds as fix commits accumulate, and this story is itself the
-    // worked example (288 -> 725 -> 1089). What isn't measured, and can't be
-    // from a fixer's sandbox with no live dispatch access: how the haiku probe
-    // actually resolved operabilityMatch on the three rounds that DID reach
-    // judgment — the routing decision itself emits no telemetry, only the final
-    // verdict per gate does, which is why the three rounds above are known to
-    // have reached judgment but not what they concluded. #132 (emit dispatch
-    // telemetry per gate-audit auditor) is the open issue that would close that
-    // gap; this comment records what's mechanically known now, not more.
+    // Epic acceptance fix cycle (m6-wave1, SHOULD FIX): `effort: 'medium'` below
+    // is NOT a fourth mitigation, though an earlier version of this comment
+    // billed it as one ("moved up from `low` so the judgment isn't made at the
+    // cheapest setting available") and defended that framing at length across
+    // two more paragraphs since removed. CONTRIBUTING.md's "Model and effort
+    // assignments" section — deliberately researched, ee24064/#251 — is
+    // unambiguous: Haiku 4.5 does not take the `effort` parameter at all, so
+    // every `{model: 'haiku', ...}` dispatch behaves identically no matter what
+    // `effort` is set to, this one included. Raising it from `low` to `medium`
+    // changed nothing about how carefully the judgment actually gets made — it
+    // is a declaration of intent, exactly like the six `{model: 'haiku', effort:
+    // 'low'}` driver dispatches CONTRIBUTING.md documents as inert, just set to
+    // a value above theirs. The honest count is three mitigations, not four.
+    // The only lever that would actually reduce this residual further is
+    // moving this dispatch off `haiku` onto a model that takes `effort`
+    // (`sonnet`) — which the paragraph above already rejects, on cost grounds,
+    // precisely because this dispatch runs every round at both story and
+    // finale altitude on a cost-mechanism epic. That rejection stands: this
+    // comment records the residual honestly instead of reopening it, and a
+    // future change to this dispatch's model tier should be its own deliberate,
+    // measured decision (see CONTRIBUTING.md's A/B protocol for a tier drop;
+    // the same discipline applies in reverse to a tier raise) — not a side
+    // effect of correcting what this comment used to claim.
     //
-    // Acceptance fix cycle (OBSERVATION, product lane): is this bump load-bearing
-    // or merely cautious? Load-bearing — not revertable absent a measurement,
-    // which is exactly what the paragraph above is. `effort: 'low'` makes the
-    // SAME judgment call (operabilityMatch, a content-judged flag gating up to
-    // 6/11 audit lanes) at the cheapest setting this dispatch has; reverting
-    // to it would not remove a safety margin someone was merely being careful
-    // with, it would spend the run's cheapest reasoning budget on a call this
-    // dispatch's own doc above already measured as reached (not forced true) on
-    // 60% of recorded rounds so far — the exact rounds where the effort bump is
-    // the only thing distinguishing a considered judgment from a coin flip. Paid
-    // every round at both story and finale altitude (this function's only two
-    // call sites, resolveRoutingMatchFlags), not once per epic — which is why a
-    // revert would be a durable behavior change, not a one-time cleanup, and why
-    // it stays pinned pending the measurement in #132, not reverted on this
-    // OBSERVATION alone.
+    // Epic acceptance fix cycle (m6-wave1, cost measurement): the correction
+    // above is about `effort`, not about whether this dispatch's routing
+    // judgment is worth measuring — it still is, and this repo's own history
+    // is the measurement, not an estimate. `operabilityMatch` only reaches
+    // judgment below the 400-line `diffPath` cutoff (routingScopeCheckPrompt's
+    // own "under 400" branch, above) — at or above it, `diffPath` comes back
+    // empty and `operabilityMatch` is forced `true` unconditionally (no model
+    // judgment runs at all), which resolveAuditRoster (below) treats as
+    // "dispatch operability-auditor" regardless. A tip-of-branch diff is the
+    // WRONG unit to measure this against — it conflates every round's
+    // cumulative diff into one number and understates how many rounds were
+    // actually small. The right unit is the diff at the exact sha each
+    // recorded audit round actually ran against; this epic's own gate-ledger
+    // events (`.studious/epics/m6-wave1.events.jsonl`, local/gitignored, not
+    // something a future reader can re-derive from git history alone —
+    // recorded here as the fixer's own measurement, run 2026-07-28) name those
+    // shas directly: ledger-scope-fix PASSed its only round at e847df5 (205
+    // lines vs merge-base — under the cutoff, judgment reached);
+    // driver-model-pins PASSed its only round at f130eb2 (201 lines — also
+    // reached); this story's own three rounds were f893434 (288 lines —
+    // reached), 78ddf36 (725 — forced true), f3f802a (1089 — forced true).
+    // Five recorded rounds so far, three (60%) reached real judgment — a
+    // reach rate, not a saving: what `operabilityMatch` actually concluded on
+    // those three rounds is unmeasured, because the routing decision itself
+    // emits no telemetry, only the final verdict per gate does. So the honest
+    // read isn't "this routing probe never does anything" — most of this
+    // epic's own rounds so far had the opportunity to reach judgment — it's
+    // narrower: a story that needs multiple fix-and-retry rounds tends to grow
+    // past the cutoff on its later rounds as fix commits accumulate, and this
+    // story is itself the worked example (288 -> 725 -> 1089). #132 (emit
+    // dispatch telemetry per gate-audit auditor) is the open issue that would
+    // close the conclusion gap; this comment records what's mechanically
+    // known now, not more.
     r = await agent(routingScopeCheckPrompt(dir, base, contract), { label, phase: phaseLabel, schema: REPORT, model: 'haiku', effort: 'medium' })
   } catch (err) {
     // Round 4 (acceptance fix cycle, Critical): requireContract/injectionDefensePreamble
@@ -1942,7 +1948,7 @@ async function runStory(story) {
     // this file already use.
     const verify = await verifyMergeLanded(story)
     if (verify.status === 'divergent') {
-      const reason = verify.reason + '; check whether epic/' + workSlug(story) + ' actually contains the story branch and correct the recorded status before re-running.'
+      const reason = verify.reason + '; check whether epic/' + slug + ' actually contains the story branch and correct the recorded status before re-running.'
       // Round 6 fix-and-recheck regression, caught re-running this file's own tests:
       // routing through park() (below) persists the reason to gate-ledger, but park()
       // itself never calls log() — the divergent branch's own operator-visible log
