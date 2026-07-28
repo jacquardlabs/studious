@@ -99,6 +99,8 @@ const localRules = {
       messages: {
         unpinned:
           'agent() dispatch has no explicit `model` or `agentType` option. Pin one, or justify why not with a suppression comment (see rule description).',
+        bareExemption:
+          'eslint-disable-next-line local/no-unpinned-agent-dispatch has no reason after `--`. A bare disable is exactly the silent default this rule exists to prevent — record the rationale (see rule description).',
       },
     },
     create(context) {
@@ -112,6 +114,7 @@ const localRules = {
           // no-fail-open-boolean's own posture above.
           if (!opts || opts.type !== 'ObjectExpression') {
             context.report({ node, messageId: 'unpinned' })
+            checkExemptionRationale(context, node)
             return
           }
           const pinned = opts.properties.some(p => {
@@ -121,11 +124,42 @@ const localRules = {
           })
           if (!pinned) {
             context.report({ node, messageId: 'unpinned' })
+            checkExemptionRationale(context, node)
           }
         },
       }
     },
   },
+}
+
+// A `// eslint-disable-next-line local/no-unpinned-agent-dispatch` comment
+// suppresses the `unpinned` report above regardless of its own text, so a
+// bare disable with no `-- why` passes today — the four legitimate
+// exemptions in workflows/epic-driver.js all carry a reason, but nothing
+// enforced that they must, which is the exact silent default this rule
+// exists to prevent. This walks back to the disable comment directly above
+// the flagged call and, if it names this rule with no non-empty text after
+// `--`, reports again. That second report is anchored to the COMMENT's own
+// line rather than the call's line, so eslint-disable-next-line's
+// suppression window — which covers only the line immediately following the
+// comment — cannot swallow it too.
+function checkExemptionRationale(context, node) {
+  const targetLine = node.loc.start.line
+  const comment = context.sourceCode
+    .getAllComments()
+    .find(c => c.type === 'Line' && c.loc.start.line === targetLine - 1)
+  if (!comment) return
+  const match = comment.value.trim().match(/^eslint-disable-next-line\s+(.*)$/)
+  if (!match) return
+  const rest = match[1]
+  const dashIndex = rest.indexOf('--')
+  const ruleList = dashIndex === -1 ? rest : rest.slice(0, dashIndex)
+  const names = ruleList.split(',').map(s => s.trim())
+  if (!names.includes('local/no-unpinned-agent-dispatch')) return
+  const why = dashIndex === -1 ? '' : rest.slice(dashIndex + 2).trim()
+  if (!why) {
+    context.report({ loc: comment.loc, messageId: 'bareExemption' })
+  }
 }
 
 export default [

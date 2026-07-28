@@ -150,6 +150,20 @@ const r = await agent('do it', { label: 'x', phase: 'y' })
 return { r }
 EOF
 
+expect_fail "a bare suppression with no reason after -- is itself flagged" "has no reason after" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+// eslint-disable-next-line local/no-unpinned-agent-dispatch
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_fail "a suppression with a dash marker but blank text after it is itself flagged" "has no reason after" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+// eslint-disable-next-line local/no-unpinned-agent-dispatch --
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
 # --- suppression directives are still checked for staleness ---
 expect_fail "a stale suppression (rule wouldn't have fired) is itself flagged" "Unused eslint-disable directive" <<'EOF'
 export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }

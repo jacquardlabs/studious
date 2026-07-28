@@ -453,7 +453,7 @@ async function acceptanceRound(story, note, nextPhase) {
       ? Promise.resolve(null)
       : agent(acceptanceProductReviewPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: dir, files, designDoc, contract: CONTRACT }),
           { agentType: 'studious:product-reviewer', label: `acceptance:product-review:${story}`, phase: `story:${story}`, schema: REPORT }),
-    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#270): this dispatch self-performs @agent-product-reviewer's IMPLEMENTATION checklist directly rather than routing through that registered agentType (see acceptanceWalkthroughPrompt's own comment), so there is no agentType carrying a pin, and no tier has yet been chosen for this judgment call — record the gap rather than default it.
+    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#270): this dispatch self-performs @agent-product-reviewer's IMPLEMENTATION checklist directly rather than routing through that registered agentType, so there is no agentType carrying a pin, and no tier has yet been chosen for this judgment call — record the gap rather than default it.
     () => agent(acceptanceWalkthroughPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: dir, base, contract: CONTRACT }),
         { label: `acceptance:walkthrough:${story}`, phase: `story:${story}`, schema: REPORT }),
   ]
@@ -1055,7 +1055,13 @@ async function auditRound(story, note, nextPhase, priorResult, preMatchFlags) {
     // prompt builder's own comment) — the same tier acceptancePremortemFallbackPrompt's
     // dispatch above already pilots for a comparably-scoped mechanical-but-not-trivial
     // read. Not yet measured against haiku or opus for this specific pass; a
-    // deliberate first data point, not a permanent tier decision.
+    // deliberate first data point, not a permanent tier decision. This does not
+    // conflict with #136's "don't drop a merge-blocking agent's tier without an
+    // A/B" cited at the fixer exemptions below: that rule guards against silently
+    // lowering an already-working, previously-measured tier. This dispatch had no
+    // tier at all before #270 — it inherited the session model, #136's actual
+    // defect — so establishing a first pin here, even an unmeasured one, is the
+    // fix the rule calls for, not the thing it warns against.
     thunks.push(() =>
       agent(fixDeltaDispatchPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: storyWorktree(story), priorSha: scope.priorSha, contract: CONTRACT }),
         { label: `audit:fix-delta:${story}`, phase: `story:${story}`, schema: REPORT, model: 'sonnet', effort: 'medium' }))
@@ -1308,10 +1314,23 @@ async function runStory(story) {
   let merge
   let mergeCrashed = null
   try {
-    // Pinned to haiku (#270): a merge is mechanical git (git merge --no-ff, an
-    // abort on any conflict that isn't mechanically obvious) with no judgment
-    // call to make — the same "cheapest tier buys nothing more" reasoning as
-    // ledgerScopeCheckPrompt/routingScopeCheckPrompt/parkPrompt above.
+    // Pinned to haiku (#270): git merge --no-ff itself is pure mechanics, but
+    // mergePrompt's "resolve only if the resolution is mechanically obvious,
+    // otherwise abort" (see mergePrompt above) IS a judgment threshold, not a
+    // mechanical check — and unlike the fixer/worker dispatches this changeset
+    // pins or exempts, whose output is a report or a story-branch commit a
+    // later lane re-reads and re-judges, this one's output — a merge --no-ff —
+    // lands directly onto the epic integration branch with nothing downstream
+    // to re-check it, so a wrong tier call here costs more than it does
+    // elsewhere in this file. Haiku is adequate anyway
+    // because the threshold is asymmetric by design: the prompt's default
+    // under any doubt is abort, not resolve, so a weaker model's most likely
+    // failure mode is an unnecessary park — safe, a human resolves it, no
+    // different from any other conflict — rather than a wrongly-resolved
+    // merge, which is the actually risky outcome. That is a different
+    // justification than ledgerScopeCheckPrompt/routingScopeCheckPrompt/
+    // parkPrompt above, none of which has a judgment threshold to get wrong
+    // at all.
     merge = await agent(mergePrompt(story), { label: `merge:${story}`, phase: `story:${story}`, schema: MERGE_RESULT, model: 'haiku', effort: 'low' })
   } catch (err) {
     mergeCrashed = err
