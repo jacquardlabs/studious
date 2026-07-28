@@ -199,7 +199,7 @@ function attempt(name, fn) {{
 }}
 attempt('audit', () => auditDispatchPrompt({{ ctxBlock: 'CTX-BLOCK', note: 'NOTE', slug: 'epic-slug', storyWorktreePath: '/worktree/story-a', contract }}))
 attempt('finale', () => finaleAuditDispatchPrompt({{ note: 'NOTE', repoRoot: '/repo', epicWorktreePath: '/worktree/__epic', slug: 'epic-slug', defaultBranch: 'main', epicGoal: 'goal text', contract }}))
-attempt('premortem', () => premortemDispatchPrompt({{ repoRoot: '/repo', premortemPath: 'docs/premortem.md', slug: 'epic-slug', epicWorktreePath: '/worktree/__epic', contract }}))
+attempt('premortem', () => premortemDispatchPrompt({{ repoRoot: '/repo', premortemPath: 'docs/premortem.md', slug: 'epic-slug', epicWorktreePath: '/worktree/__epic', note: 'NOTE', contract }}))
 attempt('fixDelta', () => fixDeltaDispatchPrompt({{ ctxBlock: 'CTX-BLOCK', note: 'NOTE', storyWorktreePath: '/worktree/story-a', priorSha: 'abc123', contract }}))
 attempt('finaleFixDelta', () => finaleFixDeltaDispatchPrompt({{ note: 'NOTE', repoRoot: '/repo', epicWorktreePath: '/worktree/__epic', slug: 'epic-slug', defaultBranch: 'main', priorSha: 'abc123', contract }}))
 console.log(JSON.stringify(results))
