@@ -178,8 +178,13 @@ def test_ledger_scope_check_forbids_the_error_key_on_a_successful_empty_read():
 def _run_ledger_audit_prior(agent_findings: dict | None, *, agent_throws: bool = False) -> dict:
     """Executes the real `ledgerAuditPrior` (plus the `ledgerScopeCheckPrompt` it
     calls, extracted verbatim like every other fixture in this file) under Node,
-    with `agent` stubbed to return canned findings instead of really dispatching.
-    Reports whether the returned promise rejected, and its message or resolved value.
+    with `agent` stubbed to return canned findings instead of really dispatching, and
+    `log` stubbed to capture its lines (the driver harness always supplies a real
+    `log`; see `test_driver_crash_hardening.py`'s own `function log() {}` stub — this
+    one records instead of discarding, so the degrade-to-null path's "fail loudly via
+    log()" half is actually observable, not just asserted by code inspection).
+    Reports whether the returned promise rejected, its message or resolved value, and
+    every line `log()` was called with.
     """
     source = DRIVER.read_text()
     ledger_scope_fn = _extract_function(source, "ledgerScopeCheckPrompt")
@@ -194,28 +199,105 @@ def _run_ledger_audit_prior(agent_findings: dict | None, *, agent_throws: bool =
 {ledger_prior_fn}
 const GATES = {{ audit: {{ retry: 'FIX AND RE-AUDIT' }} }}
 const REPORT = {{ type: 'object', properties: {{ findings: {{ type: 'string' }} }}, required: ['findings'] }}
+const LOGS = []
+function log(line) {{ LOGS.push(line) }}
 {agent_body}
 ledgerAuditPrior({json.dumps(PROBE_DIR)}, 'label', 'phase')
-  .then(value => {{ console.log(JSON.stringify({{ threw: false, value }})) }})
-  .catch(err => {{ console.log(JSON.stringify({{ threw: true, message: err.message }})) }})
+  .then(value => {{ console.log(JSON.stringify({{ threw: false, value, logs: LOGS }})) }})
+  .catch(err => {{ console.log(JSON.stringify({{ threw: true, message: err.message, parkGate: err.parkGate || null, logs: LOGS }})) }})
 """
     return _run_node(script)
 
 
-def test_ledger_audit_prior_throws_loudly_on_a_reported_read_error():
-    """A read that honestly reports an error (wrong cwd, a failed cd, an unresolvable
-    branch) must fail loudly, not fold into `hasNarrowableVerdict:false` and silently
-    downgrade a narrowed retry to a full round (#261's core acceptance criterion).
+def test_ledger_audit_prior_throws_loudly_on_a_broken_worktree():
+    """A read that honestly reports the worktree itself as unusable (`errorKind`
+    `"worktree-broken"` — a failed cd, or the worktree not resolving at all) must
+    fail loudly, not fold into `hasNarrowableVerdict:false` and silently downgrade a
+    narrowed retry to a full round (#261's core acceptance criterion). This is the
+    one `errorKind` where a park is honest: the real audit dispatch, which also runs
+    inside this same worktree, could not have run there either.
     """
-    result = _run_ledger_audit_prior({"hasNarrowableVerdict": False, "error": "cd failed: no such directory"})
+    result = _run_ledger_audit_prior(
+        {"hasNarrowableVerdict": False, "error": "cd failed: no such directory", "errorKind": "worktree-broken"}
+    )
     assert result["threw"], (
-        f"ledgerAuditPrior swallowed a reported command error into a silent "
+        f"ledgerAuditPrior swallowed a reported worktree-broken error into a silent "
         f"hasNarrowableVerdict:false instead of failing loudly: {result}"
     )
     assert PROBE_DIR in result["message"], (
         "the thrown error should name the worktree whose read failed, for diagnosis: "
         f"{result}"
     )
+    assert result["parkGate"] == "ledger-scope-check", (
+        "a throw from this mechanical pre-check must park under its own gate name, "
+        "not 'audit' — the audit dispatch this throw pre-empts never ran "
+        f"(fix-and-recheck finding 3): {result}"
+    )
+
+
+@pytest.mark.parametrize(
+    "error_text,error_kind",
+    [
+        ("gate-ledger: command not found", "check-unavailable"),
+        ("branch lookup printed the literal string HEAD", "check-unavailable"),
+        ("branch lookup exited non-zero for an unrelated reason", "check-unavailable"),
+        ("some future error this prompt has no name for yet", "a-kind-the-driver-does-not-recognize"),
+        ("an old agent that predates the errorKind field", None),
+    ],
+    ids=["gate-ledger-off-path", "detached-head", "unresolvable-branch", "unrecognized-kind", "missing-kind"],
+)
+def test_ledger_audit_prior_degrades_loudly_instead_of_parking_on_non_worktree_errors(error_text, error_kind):
+    """Every reported error OTHER than `"worktree-broken"` is this narrowing check's
+    own limitation, not proof the story is unworkable (fix-and-recheck findings 1 and
+    2): gate-ledger missing from PATH, a detached HEAD mid-rebase, an otherwise-
+    unresolvable branch, an `errorKind` this driver doesn't recognize, and a report
+    that omits `errorKind` entirely (an agent that hasn't adopted it) all take the
+    same path — log it and degrade to null, a full unnarrowed round, never a park.
+    Loud is not the same as fatal: a `log()` call still fires, satisfying "fail
+    loudly" without treating "this check couldn't tell" as "nothing here can run".
+    """
+    findings = {"hasNarrowableVerdict": False, "error": error_text}
+    if error_kind is not None:
+        findings["errorKind"] = error_kind
+    result = _run_ledger_audit_prior(findings)
+    assert not result["threw"], (
+        f"a non-worktree-broken error must degrade to null, not throw and park: {result}"
+    )
+    assert result["value"] is None
+    assert result["logs"], (
+        f"a reported error that degrades instead of throwing must still log loudly, "
+        f"never disappear silently: {result}"
+    )
+    assert any(PROBE_DIR in line and error_text in line for line in result["logs"]), (
+        f"the log line should name both the worktree and what was reported, for "
+        f"diagnosis: {result}"
+    )
+
+
+def test_ledger_audit_prior_never_throws_on_a_narrowable_verdict_even_with_a_stray_error_key():
+    """The BLOCKER fix-and-recheck reproduced: a fully valid `hasNarrowableVerdict:true`
+    report carrying a stray `error` key (an over-helpful agent's commentary on an
+    otherwise-successful read) must return the narrowed verdict, not throw and
+    permanently park the story. `hasNarrowableVerdict` is checked before `error`
+    is ever looked at.
+    """
+    result = _run_ledger_audit_prior(
+        {
+            "hasNarrowableVerdict": True,
+            "sha": "abc1234",
+            "blockingLanes": ["security"],
+            "error": "just a note, everything succeeded",
+        }
+    )
+    assert not result["threw"], (
+        f"a valid narrowable verdict was discarded over a stray 'error' key instead of "
+        f"winning outright: {result}"
+    )
+    assert result["value"] == {
+        "verdict": "FIX AND RE-AUDIT",
+        "sha": "abc1234",
+        "blockingLanes": ["security"],
+    }, result
 
 
 def test_ledger_audit_prior_still_returns_null_for_a_genuinely_empty_ledger():
@@ -226,6 +308,7 @@ def test_ledger_audit_prior_still_returns_null_for_a_genuinely_empty_ledger():
     result = _run_ledger_audit_prior({"hasNarrowableVerdict": False})
     assert not result["threw"], f"a genuine non-narrowable verdict must not throw: {result}"
     assert result["value"] is None
+    assert not result["logs"], f"a genuinely empty, error-free read must not log anything: {result}"
 
 
 def test_ledger_audit_prior_still_fails_closed_on_a_died_dispatch():
