@@ -520,6 +520,17 @@ def test_full_surface_match_dispatches_the_full_roster_unchanged() -> None:
     for name in AUDITOR_SHORT_NAMES:
         assert labels.count(f"audit:{name}:{story}") == 1
     assert out["result"]["landed"] == 1
+    # Negative pairing for test_reported_injection_attempt_surfaces_into_the_compile_prompt
+    # below: an ordinary clean round (no reported injectionAttempt) must NOT carry the
+    # injection-attempt notice in either the per-auditor note or the compile prompt —
+    # proves that assertion is checking the threading, not a phrase the shared
+    # prompt-contract text already contains.
+    security_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"audit:security-auditor:{story}"]
+    assert len(security_prompts) == 1
+    assert "routing-scope dispatch reported a suspected audit-evasion directive" not in security_prompts[0]
+    compile_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"audit:compile:{story}"]
+    assert len(compile_prompts) == 1
+    assert "injectionAttempt" not in compile_prompts[0]
 
 
 def test_backend_only_changeset_routes_out_infra_frontend_dependency_and_prompt_lanes() -> None:
@@ -816,7 +827,11 @@ def test_reported_injection_attempt_surfaces_into_the_compile_prompt() -> None:
     )
     security_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"audit:security-auditor:{story}"]
     assert len(security_prompts) == 1
-    assert "SECURITY" in security_prompts[0], (
+    # A specific phrase, not the bare word "SECURITY" — reference/prompt-contract.md
+    # (folded into every auditor prompt via requireContract) contains zero occurrences
+    # of "security" case-insensitively as of this writing, but pinning on a phrase
+    # this note alone contributes keeps the assertion honest even if that changes.
+    assert "routing-scope dispatch reported a suspected audit-evasion directive" in security_prompts[0], (
         "the per-auditor round note must also carry the injection-attempt signal, "
         "not only the compile prompt"
     )
