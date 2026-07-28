@@ -1277,6 +1277,18 @@ check "gc keeps a finished work file with a measured scope-delta cohort" "yes" \
 check "gc names the kept file and its scope-delta moment count" "yes" \
   "$(printf '%s' "$out46" | grep -q 'kept: sd-done still holds 1 measured scope-delta moment' && echo yes || echo no)"
 
+# --- Acceptance round 9 (fix-and-retry): the "kept:" message's day-count must
+# be driven by SCOPE_DELTA_RETENTION_DAYS, not a hardcoded literal — round 7's
+# fix for the "reads as a clock starting now" finding regressed this by
+# hardcoding "14" in the message text instead of interpolating the constant
+# it had replaced. Both kept: sites (terminal-phase path and branch-gone
+# path) must use the same %s-interpolated form, so turning the constant turns
+# the message everywhere it appears. ---
+check "both kept: message sites interpolate SCOPE_DELTA_RETENTION_DAYS rather than hardcoding its value" "2" \
+  "$(grep -c 'collects it %s days after its last write' "$LEDGER")"
+check "neither kept: message site hardcodes a bare day count" "0" \
+  "$(grep -c 'collects it 14 days after its last write' "$LEDGER")"
+
 out46f=$( cd "$d46" && "$LEDGER" gc --force 2>&1 )
 check "gc --force collects it anyway" "no" \
   "$([ -f "$wf46" ] && echo yes || echo no)"

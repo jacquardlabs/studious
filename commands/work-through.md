@@ -504,13 +504,20 @@ gate-ledger work-get --slug "<slug>--<story>" | jq -r '
     # duplicated stored entry within one moment can't inflate that moment's
     # number while $outside's total (already deduplicated) looks unaffected.
     ([$measured[] | .outsideFiles[]?] | unique) as $outside |
-    ([$measured[] | {phase: .phase, n: ((.outsideFiles // []) | unique | length)} | select(.n > 0)]
-      | map("\(.n) at \(.phase)") | join(", ")) as $byMoment |
+    ([$measured[] | {phase: .phase, n: ((.outsideFiles // []) | unique | length)} | select(.n > 0)]) as $byMomentRaw |
+    ($byMomentRaw | map(.n) | add // 0) as $byMomentSum |
+    ($byMomentRaw | map("\(.n) at \(.phase)") | join(", ")) as $byMoment |
     ([$am[] | .file] | unique) as $amendedFiles |
     ([$amendedFiles[] | select(. as $f | $outside | index($f) != null)] | length) as $amendedCount |
     (($amendedFiles | length) - $amendedCount) as $orphanedAmendments |
     ("scope: declared \($declared | length), outside \($outside | length)"
-      + (if ($byMoment | length) > 0 then " (\($byMoment))" else "" end)
+      + (if ($byMoment | length) > 0 then
+          " (\($byMoment)"
+          + (if $byMomentSum != ($outside | length) then
+              " — \($byMomentSum) counted across moments, \($outside | length) distinct; a file recurred in more than one moment"
+            else "" end)
+          + ")"
+        else "" end)
       + (if $amendedCount > 0 then ", \($amendedCount) amended" else "" end)
       + (if $orphanedAmendments > 0 then
           ", " + plural($orphanedAmendments; "amendment")

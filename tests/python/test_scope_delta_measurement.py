@@ -986,6 +986,31 @@ def test_report_by_moment_count_deduplicates_a_duplicated_stored_entry() -> None
     assert out == "scope: declared 1, outside 2 (2 at build); 1 moment measured: b.py, c.py"
 
 
+def test_report_by_moment_flags_a_file_recurring_across_moments() -> None:
+    """Acceptance round 9: `$outside` dedupes across every moment (a file first
+    seen at build and touched again at audit-fix-1 counts once toward the
+    headline total), but `$byMoment` only dedupes within each moment, so the
+    same recurring file is counted again in the second moment's own `n`. Their
+    sum can then exceed the headline total — two irreconcilable numbers next
+    to each other. The preferred fix names the discrepancy explicitly rather
+    than letting a reader reconcile it by hand, per the comment three lines
+    above this filter: computeScopeDelta is the authoritative deduper and the
+    display-side `unique` only guards against a duplicated stored entry, not a
+    genuine cross-moment recurrence."""
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [
+            {"phase": "build", "unmeasured": False, "outsideFiles": ["b.py", "c.py"]},
+            {"phase": "audit-fix-1", "unmeasured": False, "outsideFiles": ["b.py", "d.py"]},
+        ],
+        "amendments": [],
+    })
+    assert out == (
+        "scope: declared 1, outside 3 (2 at build, 2 at audit-fix-1 — 4 counted across moments, "
+        "3 distinct; a file recurred in more than one moment); 2 moments measured: b.py, c.py, d.py"
+    )
+
+
 def test_report_more_than_five_outside_files_truncates_with_a_remainder_count() -> None:
     out = _run_scope_delta_jq({
         "declaredFiles": [],
