@@ -324,6 +324,67 @@ SIBLING_LANDS_RULES = [
 ]
 
 
+def test_ledger_scope_check_throw_parks_under_its_own_gate_name_not_audit() -> None:
+    """#261 fix-and-recheck finding (3), executed end to end rather than asserted:
+    `ledgerAuditPrior`'s throw for a broken worktree happens inside the
+    `Promise.all([ledgerAuditPrior(...), resolveRoutingMatchFlags(...)])` at the top
+    of `runGate`'s audit branch — BEFORE the audit dispatch itself ever runs. Without
+    `err.parkGate` surviving that `Promise.all` and being read by `crashParkArgs`, an
+    operator scanning `needsYou` would see this story BLOCKED at "audit", even though
+    the audit gate never ran. `attempts: 1` on story a's audit retries is what forces
+    `runGate` down the `attempts > 0` branch that dispatches `ledgerAuditPrior` at all
+    (see the resumed-run comment above `ledgerAuditPrior`'s declaration).
+    """
+    epic = {
+        "slug": "epx",
+        "title": "Test epic",
+        "goal": "prove ledger-scope-check parks under its own name",
+        "concurrency": 2,
+        "stories": {
+            "a": {
+                "title": "Story A", "criteria": "a criteria", "gates": ["audit"],
+                "retries": {"audit": 1},
+            },
+            "b": {"title": "Story B", "criteria": "b criteria", "gates": ["acceptance"]},
+        },
+    }
+    rules = [
+        {"match": r"^audit:ledger-scope:a$", "result": {"findings": json.dumps({
+            "hasNarrowableVerdict": False,
+            "error": "cd failed: no such directory",
+            "errorKind": "worktree-broken",
+        })}},
+        {"match": r"^audit:routing-scope:a$", "result": {"findings": json.dumps({
+            "infraMatch": False, "frontendMatch": False, "depMatch": False,
+            "promptMatch": False, "diffPath": "",
+        })}},
+        *SIBLING_LANDS_RULES,
+    ]
+    out = _run_driver(epic, rules, phases={"a": "audit"})
+    assert out["ok"], f"driver crashed end-to-end instead of surviving: {out.get('error')}"
+    result = out["result"]
+
+    needs_you = {e["story"]: e for e in result["needsYou"]}
+    assert "epx--a" in needs_you, f"story a was not parked: {result['needsYou']}"
+    entry = needs_you["epx--a"]
+    assert entry["gate"] == "ledger-scope-check", (
+        f"a throw from the ledger-scope pre-check must park under its own gate name, "
+        f"not the audit gate that never ran: {entry}"
+    )
+    assert entry["verdict"] == "BLOCKED"
+    assert "cd failed: no such directory" in entry["reason"]
+    assert "audit:compile:a" not in [c["label"] for c in out["calls"]], (
+        "auditRound's own compile step must never have been dispatched — the pre-check "
+        "threw before auditRound ever ran, and this asserts that honestly rather than "
+        "just trusting the park"
+    )
+
+    landed_stories = {e["story"] for e in result["landedThisRun"]}
+    assert landed_stories == {"epx--b"}, f"sibling story b did not land: {result}"
+    assert result["landed"] == 1
+    assert result["total"] == 2
+
+
 def test_worker_throw_parks_that_story_blocked_and_sibling_lands() -> None:
     epic = _two_story_epic(story_a_gates=["build", "acceptance"])
     rules = [
