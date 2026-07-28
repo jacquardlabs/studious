@@ -29,11 +29,13 @@ const harnessShape = {
   supportsAutofix: false,
 }
 
-// Two of the three defect-class rules are plain AST-shape matches, expressed
+// Two of the four defect-class rules are plain AST-shape matches, expressed
 // with core ESLint's `no-restricted-syntax` selector escape hatch (see
-// `rules` below). The third — fail-open null handling — needs to check
-// whether a flag is ever referenced in negated form anywhere in its scope,
-// which a selector can't express, so it's a small hand-written local rule.
+// `rules` below). The other two — fail-open null handling and unpinned
+// agent() dispatch — each need to check something a selector can't express
+// (whether a flag is ever referenced in negated form anywhere in its scope;
+// whether a suppression comment on the preceding line carries a non-empty
+// rationale), so they're small hand-written local rules.
 const localRules = {
   'no-fail-open-boolean': {
     meta: {
@@ -84,16 +86,22 @@ const localRules = {
   // #270: `inherit` is a known defect (#136), not a cheap tier — an agent() dispatch
   // with no explicit model silently takes on the session model, so the same call can
   // be judged by two different models on two different days. Every dispatch must
-  // either pin one (`model`), route through a registered agentType that already
-  // carries its own pin, or carry a `// eslint-disable-next-line
-  // local/no-unpinned-agent-dispatch -- <why>` comment recording that the gap is a
-  // deliberate, not-yet-made decision — never a silent default.
+  // either pin one (`model`), route through a registered agentType, or carry a
+  // `// eslint-disable-next-line local/no-unpinned-agent-dispatch -- <why>` comment
+  // recording that the gap is a deliberate, not-yet-made decision — never a silent
+  // default. Routing through an agentType only pins the model if that agent's own
+  // frontmatter does — 4 of the 11 in workflows/epic-driver.js's AUDITORS array
+  // (code-auditor, doc-auditor, test-auditor, frontend-reviewer) are `model: inherit`
+  // today (see the comment beside AUDITORS), so this rule cannot statically verify
+  // those four are pinned; it can only verify the dispatch names a registered agent
+  // and leaves the agent's own pin to #136's A/B, which is explicitly out of scope
+  // here.
   'no-unpinned-agent-dispatch': {
     meta: {
       type: 'problem',
       docs: {
         description:
-          'Every agent() dispatch must carry an explicit `model` or `agentType` option in its options object, or a `// eslint-disable-next-line local/no-unpinned-agent-dispatch -- <why>` justification. An unpinned dispatch silently inherits the session model (#136) rather than a deliberately chosen one.',
+          'Every agent() dispatch must carry an explicit `model` or `agentType` option in its options object, or a `// eslint-disable-next-line local/no-unpinned-agent-dispatch -- <why>` justification. An unpinned dispatch silently inherits the session model (#136) rather than a deliberately chosen one. Note: `agentType` only satisfies this statically — it does not guarantee the referenced agent itself is pinned. 4 of the 11 agents in workflows/epic-driver.js\'s AUDITORS array (code-auditor, doc-auditor, test-auditor, frontend-reviewer) are `model: inherit`; fixing that is #136\'s A/B, not this rule\'s job.',
       },
       schema: [],
       messages: {
@@ -101,9 +109,16 @@ const localRules = {
           'agent() dispatch has no explicit `model` or `agentType` option. Pin one, or justify why not with a suppression comment (see rule description).',
         bareExemption:
           'eslint-disable-next-line local/no-unpinned-agent-dispatch has no reason after `--`. A bare disable is exactly the silent default this rule exists to prevent — record the rationale (see rule description).',
+        bareFileExemption:
+          'A file-level eslint-disable comment (bare, or naming local/no-unpinned-agent-dispatch) covers an unpinned agent() dispatch in this file with no reason after `--`. Record the rationale (see rule description), the same as a disable-next-line exemption must.',
       },
     },
     create(context) {
+      // Tracks whether this file actually contains an unpinned dispatch, so the
+      // file-level check below (which can't cheaply tell "no such comment" from
+      // "comment present but nothing needed it") only fires when something in
+      // this file actually depends on the suppression it found.
+      let sawUnpinned = false
       return {
         CallExpression(node) {
           if (node.callee.type !== 'Identifier' || node.callee.name !== 'agent') return
@@ -113,6 +128,7 @@ const localRules = {
           // silently pass on a shape this rule can't read, matching
           // no-fail-open-boolean's own posture above.
           if (!opts || opts.type !== 'ObjectExpression') {
+            sawUnpinned = true
             context.report({ node, messageId: 'unpinned' })
             checkExemptionRationale(context, node)
             return
@@ -123,42 +139,95 @@ const localRules = {
             return keyName === 'model' || keyName === 'agentType'
           })
           if (!pinned) {
+            sawUnpinned = true
             context.report({ node, messageId: 'unpinned' })
             checkExemptionRationale(context, node)
           }
+        },
+        'Program:exit'() {
+          if (sawUnpinned) checkFileLevelDisableExemption(context)
         },
       }
     },
   },
 }
 
-// A `// eslint-disable-next-line local/no-unpinned-agent-dispatch` comment
-// suppresses the `unpinned` report above regardless of its own text, so a
-// bare disable with no `-- why` passes today — the four legitimate
-// exemptions in workflows/epic-driver.js all carry a reason, but nothing
-// enforced that they must, which is the exact silent default this rule
-// exists to prevent. This walks back to the disable comment directly above
-// the flagged call and, if it names this rule with no non-empty text after
-// `--`, reports again. That second report is anchored to the COMMENT's own
-// line rather than the call's line, so eslint-disable-next-line's
-// suppression window — which covers only the line immediately following the
-// comment — cannot swallow it too.
+// Shared by both exemption checks below. `directiveName` is
+// 'eslint-disable-next-line' or 'eslint-disable'; `value` is a comment's
+// trimmed text. Returns null if `value` isn't that directive at all (covers
+// e.g. 'eslint-disable-next-line' not matching a plain 'eslint-disable'
+// comment, and vice versa — the `(?:\s+...)?` anchor to `$` means a
+// same-named-but-longer directive like '-next-line' can't be mistaken for
+// its shorter prefix). Otherwise `{ coversRule, why }`: coversRule is true
+// when the directive names no rules at all (an ESLint bare disable applies
+// to everything) or explicitly names local/no-unpinned-agent-dispatch.
+function parseDisableDirective(value, directiveName) {
+  const match = new RegExp(`^${directiveName}(?:\\s+([\\s\\S]*))?$`).exec(value)
+  if (!match) return null
+  const rest = match[1] || ''
+  const dashIndex = rest.indexOf('--')
+  const ruleList = (dashIndex === -1 ? rest : rest.slice(0, dashIndex)).trim()
+  const why = (dashIndex === -1 ? '' : rest.slice(dashIndex + 2)).trim()
+  const names = ruleList === '' ? [] : ruleList.split(',').map(s => s.trim())
+  return { coversRule: names.length === 0 || names.includes('local/no-unpinned-agent-dispatch'), why }
+}
+
+// A `// eslint-disable-next-line local/no-unpinned-agent-dispatch` comment (or a
+// bare `// eslint-disable-next-line` with no rule list, which covers every rule)
+// suppresses the `unpinned` report above regardless of its own text, so a bare
+// disable with no `-- why` would otherwise pass silently — the exact default this
+// rule exists to prevent. This walks back to the disable comment directly above
+// the flagged call and, if it covers this rule with no non-empty text after `--`,
+// reports again. That second report is anchored to the COMMENT's own line rather
+// than the call's line, so eslint-disable-next-line's suppression window — which
+// covers only the line immediately following the comment — cannot swallow it too.
 function checkExemptionRationale(context, node) {
   const targetLine = node.loc.start.line
   const comment = context.sourceCode
     .getAllComments()
     .find(c => c.type === 'Line' && c.loc.start.line === targetLine - 1)
   if (!comment) return
-  const match = comment.value.trim().match(/^eslint-disable-next-line\s+(.*)$/)
-  if (!match) return
-  const rest = match[1]
-  const dashIndex = rest.indexOf('--')
-  const ruleList = dashIndex === -1 ? rest : rest.slice(0, dashIndex)
-  const names = ruleList.split(',').map(s => s.trim())
-  if (!names.includes('local/no-unpinned-agent-dispatch')) return
-  const why = dashIndex === -1 ? '' : rest.slice(dashIndex + 2).trim()
-  if (!why) {
+  const parsed = parseDisableDirective(comment.value.trim(), 'eslint-disable-next-line')
+  if (parsed && parsed.coversRule && !parsed.why) {
     context.report({ loc: comment.loc, messageId: 'bareExemption' })
+  }
+}
+
+// A file-level `/* eslint-disable */` (bare, or naming this rule) suppresses every
+// `unpinned` report for the rest of the file, same as the disable-next-line case
+// above — but unlike that case, no report from THIS rule anchored on or after the
+// disable comment's own line can survive it (verified empirically: even an
+// unconditional report placed exactly on the disable comment's own line is
+// swallowed, because ESLint filters by (ruleId, line) after every rule has run,
+// not by which report call produced the message). The one place immune to this is
+// earlier in the file than the disable comment can legally be: the harnessShape
+// processor above requires the file's literal first character to be `export`
+// (`text.replace(/^export\s+/, '')`), so nothing can precede that first statement
+// without breaking the strip-and-wrap parse entirely — anchoring there survives
+// every disable-comment placement a real file can have.
+function checkFileLevelDisableExemption(context) {
+  // harnessShape.preprocess (top of this file) wraps the original source as
+  // `(async function () {\n${stripped}\n})()` — always exactly one synthetic
+  // line before the original file's own line 1. So wrapped-source line 2 is
+  // always original line 1, in every file this config lints, regardless of
+  // that file's own content. Not context.sourceCode.ast.body[0]: that's the
+  // single top-level ExpressionStatement wrapping the whole IIFE, which
+  // starts at wrapped line 1 (the synthetic `(async function () {` itself),
+  // not at the real content one line below it.
+  const firstStatementLine = 2
+  const comments = context.sourceCode.getAllComments()
+  const disable = comments.find(c => {
+    if (c.type !== 'Block') return false
+    const parsed = parseDisableDirective(c.value.trim(), 'eslint-disable')
+    return parsed && parsed.coversRule
+  })
+  if (!disable) return
+  const parsed = parseDisableDirective(disable.value.trim(), 'eslint-disable')
+  if (!parsed.why) {
+    context.report({
+      loc: { start: { line: firstStatementLine, column: 0 }, end: { line: firstStatementLine, column: 1 } },
+      messageId: 'bareFileExemption',
+    })
   }
 }
 

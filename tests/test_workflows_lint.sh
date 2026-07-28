@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Regression tests for eslint.config.mjs (workflows/**/*.js). Proves the
-# config catches the three historically-real defect classes that motivated it —
-# index-misalignment on dead agents, unshift-ordering, fail-open null handling —
-# on reconstructed bad patterns, stays quiet on their fixed equivalents, and
-# lints the real workflows/epic-driver.js clean (documented suppressions and
-# all). Requires network (npx fetches the pinned eslint release; see
-# .github/workflows/ci.yml for the same pin).
+# config catches the four historically-real defect classes that motivated it —
+# index-misalignment on dead agents, unshift-ordering, fail-open null handling,
+# unpinned agent() dispatch — on reconstructed bad patterns, stays quiet on
+# their fixed equivalents, and lints the real workflows/epic-driver.js clean
+# (documented suppressions and all). Requires network (npx fetches the pinned
+# eslint release; see .github/workflows/ci.yml for the same pin).
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -160,6 +160,53 @@ EOF
 expect_fail "a suppression with a dash marker but blank text after it is itself flagged" "has no reason after" <<'EOF'
 export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
 // eslint-disable-next-line local/no-unpinned-agent-dispatch --
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+# --- a bare disable-next-line (no rule list at all) covers every rule, ours
+# included, and is just as silent a default as one that names our rule with
+# no reason ---
+expect_fail "a bare eslint-disable-next-line with no rule list at all is itself flagged" "has no reason after" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+// eslint-disable-next-line
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_pass "a bare eslint-disable-next-line with a reason after -- is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+// eslint-disable-next-line -- deliberately unpinned: pending an A/B, not a default
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+# --- a file-level eslint-disable covers every later line, ours included, and
+# is checked for a rationale the same way (#270 fix-and-recheck finding 3) ---
+expect_fail "a file-level bare eslint-disable with no reason is itself flagged" "A file-level eslint-disable" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+/* eslint-disable */
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_pass "a file-level bare eslint-disable with a reason is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+/* eslint-disable -- deliberately unpinned: pending an A/B, not a default */
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_fail "a file-level eslint-disable naming our rule with no reason is itself flagged" "A file-level eslint-disable" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+/* eslint-disable local/no-unpinned-agent-dispatch */
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_fail "a file-level eslint-disable naming an unrelated rule doesn't suppress a real unpinned dispatch" "no explicit \`model\` or \`agentType\` option" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+/* eslint-disable local/no-fail-open-boolean */
 const r = await agent('do it', { label: 'x', phase: 'y' })
 return { r }
 EOF

@@ -81,6 +81,14 @@ const GATES = {
 }
 const WORKER_PHASES = ['design', 'build']
 const MAX_FIX_CYCLES = 2
+// Each entry below is dispatched by `agentType` (see resolveAuditRoster's callers),
+// which eslint.config.mjs's no-unpinned-agent-dispatch rule accepts as satisfying the
+// "pin a model" requirement — but that only checks that the dispatch names a
+// registered agent, not that the agent itself is pinned. 4 of these 11 are
+// `model: inherit` today (agents/*.md:5): code-auditor, doc-auditor, test-auditor,
+// frontend-reviewer. Those four audit lanes still silently take on the session
+// model (#136) despite lint reporting the dispatch clean. Fixing that is #136's A/B
+// (model tier per auditor), not something this changeset does.
 const AUDITORS = [
   'studious:security-auditor', 'studious:code-auditor', 'studious:doc-auditor',
   'studious:architecture-auditor', 'studious:test-auditor', 'studious:infra-auditor',
