@@ -133,6 +133,30 @@ console.log(JSON.stringify(crashParkArgs('build', 'a bare string throw')))
     assert "a bare string throw" in result["reason"]
 
 
+def test_crash_park_args_does_not_say_agent_threw_for_a_parkgate_classification() -> None:
+    """Gate-acceptance round 3 (fix-and-recheck MINOR): a `parkGate`-carrying error
+    (ledgerAuditPrior's own worktree-broken throw — its probe returned normally and
+    the driver rejected the content) is a deliberate code-level classification, not a
+    literal `agent()` dispatch crash. "agent() threw during X" misdirects the first
+    step of operator diagnosis toward the wrong failure class. Only a parkGate-less
+    error (a genuine `agent()` throw, covered by the two tests above) gets that
+    phrasing."""
+    source = DRIVER.read_text()
+    fn = _extract_function(source, "crashParkArgs")
+    script = f"""
+{fn}
+const err = new Error('could not read the gate ledger: cd failed')
+err.parkGate = 'ledger-scope-check'
+console.log(JSON.stringify(crashParkArgs('audit', err)))
+"""
+    result = _run_node(script)
+    assert result["gate"] == "ledger-scope-check", result
+    assert "agent() threw" not in result["reason"], (
+        f"a parkGate classification is not a dispatch crash: {result}"
+    )
+    assert result["reason"].startswith("ledger-scope-check failed:"), result
+
+
 def _stalled_finale_entry(gate: str, result_js: str, retry_token: str) -> dict | None:
     source = DRIVER.read_text()
     fn = _extract_function(source, "stalledFinaleEntry")
@@ -335,6 +359,68 @@ SIBLING_LANDS_RULES = [
     # message crashParkArgs produced, not something a park-recording agent
     # supplied — the fallback `(parked && parked.summary) || reason` path.
 ]
+
+
+def test_ledger_scope_check_throw_parks_under_its_own_gate_name_not_audit() -> None:
+    """#261 fix-and-recheck finding (3), executed end to end rather than asserted:
+    `ledgerAuditPrior`'s throw for a broken worktree happens inside the
+    `Promise.all([ledgerAuditPrior(...), resolveRoutingMatchFlags(...)])` at the top
+    of `runGate`'s audit branch — BEFORE the audit dispatch itself ever runs. Without
+    `err.parkGate` surviving that `Promise.all` and being read by `crashParkArgs`, an
+    operator scanning `needsYou` would see this story BLOCKED at "audit", even though
+    the audit gate never ran. `attempts: 1` on story a's audit retries is what forces
+    `runGate` down the `attempts > 0` branch that dispatches `ledgerAuditPrior` at all
+    (see the resumed-run comment above `ledgerAuditPrior`'s declaration).
+    """
+    epic = {
+        "slug": "epx",
+        "title": "Test epic",
+        "goal": "prove ledger-scope-check parks under its own name",
+        "concurrency": 2,
+        "stories": {
+            "a": {
+                "title": "Story A", "criteria": "a criteria", "gates": ["audit"],
+                "retries": {"audit": 1},
+            },
+            "b": {"title": "Story B", "criteria": "b criteria", "gates": ["acceptance"]},
+        },
+    }
+    rules = [
+        {"match": r"^audit:ledger-scope:a$", "result": {"findings": json.dumps({
+            "hasNarrowableVerdict": False,
+            "resolvedBranch": "",
+            "error": "cd failed: no such directory",
+            "errorKind": "worktree-broken",
+        })}},
+        {"match": r"^audit:routing-scope:a$", "result": {"findings": json.dumps({
+            "infraMatch": False, "frontendMatch": False, "depMatch": False,
+            "promptMatch": False, "diffPath": "",
+        })}},
+        *SIBLING_LANDS_RULES,
+    ]
+    out = _run_driver(epic, rules, phases={"a": "audit"})
+    assert out["ok"], f"driver crashed end-to-end instead of surviving: {out.get('error')}"
+    result = out["result"]
+
+    needs_you = {e["story"]: e for e in result["needsYou"]}
+    assert "epx--a" in needs_you, f"story a was not parked: {result['needsYou']}"
+    entry = needs_you["epx--a"]
+    assert entry["gate"] == "ledger-scope-check", (
+        f"a throw from the ledger-scope pre-check must park under its own gate name, "
+        f"not the audit gate that never ran: {entry}"
+    )
+    assert entry["verdict"] == "BLOCKED"
+    assert "cd failed: no such directory" in entry["reason"]
+    assert "audit:compile:a" not in [c["label"] for c in out["calls"]], (
+        "auditRound's own compile step must never have been dispatched — the pre-check "
+        "threw before auditRound ever ran, and this asserts that honestly rather than "
+        "just trusting the park"
+    )
+
+    landed_stories = {e["story"] for e in result["landedThisRun"]}
+    assert landed_stories == {"epx--b"}, f"sibling story b did not land: {result}"
+    assert result["landed"] == 1
+    assert result["total"] == 2
 
 
 def test_worker_throw_parks_that_story_blocked_and_sibling_lands() -> None:

@@ -278,8 +278,72 @@ function finaleFixDeltaDispatchPrompt(fields) {
 // from the ledger both dispatch surfaces already write to — reusing the REPORT schema
 // (findings: string) rather than adding a new one, since the answer is just a compact
 // JSON line inside that string.
+//
+// #261, the same cwd bug #243 fixed for the two git-only probes below: a dispatched
+// haiku/low agent runs in its own working directory, not `dir`, and `gate-ledger
+// gate-get` with no `--branch` resolves the branch via cwd (`git rev-parse
+// --abbrev-ref HEAD`) — so a wrong-cwd read silently reads the AMBIENT checkout's
+// branch instead of this worktree's. Its ledger file is very often just missing
+// (`cmd_gate_get` exits 0 with empty output when the file doesn't exist), which this
+// prompt's own "empty output means no ledger" rule then reports as a confident, false
+// `hasNarrowableVerdict:false` — indistinguishable downstream from a genuine "nothing
+// to narrow", silently paying for a full re-audit round instead of a narrowed one.
+// `gate-ledger` has no `-C` of its own (unlike git, one line below), so the fix is
+// two-layered: `git -C "${dir}"` resolves the branch explicitly (never left to
+// cwd-dependent inference) and hands it to `--branch`, AND the read itself runs inside
+// `(cd "${dir}" && ...)`. That `cd` does NOT anchor the ledger *file* to this worktree
+// specifically — bin/gate-ledger's `repo_root()` resolves via `git rev-parse
+// --git-common-dir`, which every linked worktree of one repo shares, so all of them
+// already point at the identical `.studious/gates` regardless of which one cwd sits in
+// (a prior round of this comment claimed otherwise; corrected 2026-07-28,
+// gate-acceptance round 2 non-blocking finding 3). What the `cd` actually guards is cwd
+// landing outside this repo entirely (an unrelated repo, or none), where `repo_root()`
+// fails outright and `ledger_dir()` silently degrades to a cwd-relative
+// `.studious/gates` instead of erroring — still worth defending against, just not for
+// the reason originally stated.
+//
+// `ledgerAuditPrior` below checks its own `hasNarrowableVerdict:true` case FIRST,
+// before ever looking at a reported error, so a valid narrowing is never discarded over
+// a stray "error" key an over-helpful agent attached alongside it (fix-and-recheck,
+// gate-acceptance round 1). Past that, only an `errorKind` of `"worktree-broken"` — the
+// `cd` in the parenthesized read itself failing, or the initial `git -C` failing
+// because `${dir}` isn't a resolvable worktree at all — throws; that is the one case
+// where the real audit dispatch (which also runs inside `${dir}`) could not have run
+// either, so a park is honest. Every other reported error (`"check-unavailable"`:
+// gate-ledger missing from PATH, a detached HEAD mid-rebase, an otherwise-unresolvable
+// branch name — plus anything unclassified) is this narrowing check's own limitation,
+// not proof the story is unworkable, and degrades loudly via `log()` to a full
+// unnarrowed round instead of parking. Loud is not the same as fatal — that is still
+// the fail-loudly half of this fix, just scoped to the case where loud honestly means
+// "unrunnable."
+//
+// Gate-acceptance round 2 (fix-and-recheck) found the AC's own literal failure mode
+// still untested: an agent that disregards the `-C`/`cd` anchoring above (the #243
+// pattern surviving despite the prose) still runs SOME rev-parse and SOME gate-get — in
+// the AMBIENT checkout, not `dir` — and reports a well-formed, error-free
+// `{"hasNarrowableVerdict":false}` with no "error" key at all, indistinguishable from a
+// genuine "nothing to narrow". `ledgerScopeCheckPrompt` now also requires
+// `resolvedBranch` — the literal output of the FIRST, unambiguous `git -C "${dir}"
+// rev-parse` command — in every returned outcome, and `ledgerAuditPrior` compares it
+// against this story's own `storyBranch()` BEFORE ever checking `hasNarrowableVerdict`:
+// a mismatched-branch report that happened to carry `hasNarrowableVerdict:true` would
+// apply some OTHER story's `blockingLanes`, actively harmful rather than merely wasted.
+// A mismatch degrades via `log()` exactly like `check-unavailable` above — it does NOT
+// throw: the mismatch proves the PROBE agent stood in the wrong directory, not that
+// `dir` itself is unusable, so the real audit dispatch (a separate call, with its own
+// directory instructions) still runs there normally; throwing would assert something
+// false and permanently park a healthy story. The same `resolvedBranch` also
+// discharges the model's other attribution problem (SHOULD FIX 2): whenever it comes
+// back matching (or the legitimate detached-HEAD case), `dir` is provably a resolvable
+// worktree, so a self-reported `errorKind:"worktree-broken"` for the *second*
+// command's failure is misattribution (the model cannot always tell whether the `cd`
+// or `gate-ledger` itself failed, e.g. off PATH) — `ledgerAuditPrior` overrides that
+// guess down to `check-unavailable` rather than trusting it, so a misclassification can
+// no longer permanently park the story. Only a `resolvedBranch` that is itself empty
+// (the first, unambiguous command failing) leaves `"worktree-broken"` trustworthy — the
+// one remaining park, strictly narrower than before this round.
 function ledgerScopeCheckPrompt(dir) {
-  return `This is a mechanical fact-check, not a judgment call — report exactly what the commands show, never interpret or editorialize. From ${dir}, run: gate-ledger gate-get\n\nParse its JSON output (empty output means no ledger recorded for this branch). Return your findings as EXACTLY one line of compact JSON, nothing else:\n- If .gates.audit is absent, or .gates.audit.verdict is not exactly "FIX AND RE-AUDIT", or .gates.audit.blockingLanes is absent, empty, or not an array of strings: return {"hasNarrowableVerdict":false}\n- Otherwise also run: git -C "${dir}" merge-base --is-ancestor "<.gates.audit.sha>" HEAD — if that command's exit code is non-zero (or the sha can't be resolved at all), return {"hasNarrowableVerdict":false}\n- Otherwise return {"hasNarrowableVerdict":true,"sha":"<.gates.audit.sha>","blockingLanes":<.gates.audit.blockingLanes, verbatim, unreordered, unfiltered>}`
+  return `This is a mechanical fact-check, not a judgment call — report exactly what the commands show, never interpret or editorialize. gate-ledger has no -C flag of its own, so run this exactly as written, including the parentheses, to anchor both the branch lookup and the ledger read to ${dir} rather than to wherever this agent's shell happens to already be standing: first run git -C "${dir}" rev-parse --abbrev-ref HEAD to get this worktree's current branch, then run (cd "${dir}" && gate-ledger gate-get --branch "<that branch>").\n\nWhatever the git -C "${dir}" rev-parse command printed (or an empty string "" if it errored or printed nothing at all) is this check's resolvedBranch — a plain fact, not a judgment call. Include it verbatim under a top-level "resolvedBranch" key in EVERY JSON object you return below, including every error outcome and the hasNarrowableVerdict:true case — never omit it; the instruction further below about leaving keys off refers only to the "error"/"errorKind" keys, never to this one.\n\nTwo outcomes mean ${dir} itself is not a usable worktree: the git -C "${dir}" rev-parse command having errored because ${dir} cannot be resolved as a worktree at all, or the parenthesized command's own cd having errored for the same reason. Either one means a real audit dispatch (which also has to run inside ${dir}) could not run there either, so return {"hasNarrowableVerdict":false,"resolvedBranch":"<as above>","error":"<what happened, in your own words>","errorKind":"worktree-broken"}.\n\nEvery other way this can go wrong is a limitation of this check, not proof the worktree is unusable: the branch lookup having errored or printed nothing for any reason other than an unresolvable ${dir}, the branch lookup printing the literal string "HEAD" (a detached checkout — plausible mid-rebase, not a broken worktree), or the parenthesized gate-get command having errored for a reason other than its own cd (including gate-ledger not being on PATH). For any of these, return {"hasNarrowableVerdict":false,"resolvedBranch":"<as above>","error":"<what happened, in your own words>","errorKind":"check-unavailable"} — never fold a command error into "no ledger recorded" either way. Otherwise parse gate-get's JSON output (a genuinely empty output — the command succeeded and printed nothing — legitimately means no ledger recorded for this branch). Return your findings as EXACTLY one line of compact JSON, nothing else:\n- If .gates.audit is absent, or .gates.audit.verdict is not exactly "FIX AND RE-AUDIT", or .gates.audit.blockingLanes is absent, empty, or not an array of strings: return {"hasNarrowableVerdict":false,"resolvedBranch":"<as above>"}\n- Otherwise also run: git -C "${dir}" merge-base --is-ancestor "<.gates.audit.sha>" HEAD — if that command's exit code is non-zero (or the sha can't be resolved at all), return {"hasNarrowableVerdict":false,"resolvedBranch":"<as above>"}\n- Otherwise return {"hasNarrowableVerdict":true,"resolvedBranch":"<as above>","sha":"<.gates.audit.sha>","blockingLanes":<.gates.audit.blockingLanes, verbatim, unreordered, unfiltered>}\nInclude "error"/"errorKind" ONLY when a command actually failed as described above — a genuinely empty ledger, an absent .gates.audit, a non-matching verdict, a failed merge-base check, and a valid hasNarrowableVerdict:true are all normal, error-free outcomes, so leave those two keys off entirely in each of them. "resolvedBranch" is a separate, always-required key, present in every outcome above whether it is error-free or not.`
 }
 
 // First-round changeset routing (#138): four of its five flags are a mechanical
@@ -1119,6 +1183,26 @@ const mergeSem = makeSemaphore(1)
 const outcome = {}            // story → 'landed' | 'parked' | 'dropped' | 'blocked'
 const parkedThisRun = []      // {story, gate, verdict, reason}
 const landedThisRun = []      // {story, trail}
+// Acceptance fix cycle (SHOULD FIX): counts ledgerAuditPrior's three degrade paths
+// (branch mismatch, unconfirmed/missing resolvedBranch, check-unavailable error) —
+// every case where a narrowed retry was possible in principle but couldn't be
+// trusted, never the plain "nothing recorded to narrow" case, which isn't a
+// degradation. Without this, #261's round-3 tightening (a confirmed resolvedBranch
+// is now required before narrowing) has no visible cost signal: a haiku/low agent
+// omitting the now-mandatory key pays a full unnarrowed round where it previously
+// narrowed, and nothing in the compiled report lets an operator tell whether that
+// net-saved or net-cost this epic.
+//
+// Acceptance fix cycle (OPERABILITY GAP, not yet actioned): this counter makes the
+// cost visible but states no threshold for acting on it. A starting point, not a
+// tuned value: if degraded narrowings exceed roughly a third of narrowing attempts
+// across the first several resumed runs after this counter starts accumulating real
+// data, that is grounds to revert the confirmed-resolvedBranch requirement back to
+// the mismatch-only guard it replaced — trading some of the #261-pattern risk back
+// for the narrowing this epic's own cost goal depends on. No revert should happen on
+// this comment alone; it names the tradeoff so a future reader with real data can
+// decide it, rather than reasoning from scratch.
+let degradedNarrowings = 0
 const doneResolvers = {}
 const donePromises = {}
 for (const s of Object.keys(stories)) donePromises[s] = new Promise(r => (doneResolvers[s] = r))
@@ -1273,7 +1357,7 @@ async function auditRound(story, note, nextPhase, priorResult, preMatchFlags) {
 // no-dispatch signal (retries are already in the epic ledger `stories[story].retries`),
 // so a true first-ever round never pays this dispatch — only a genuinely resumed one
 // does.
-async function ledgerAuditPrior(dir, label, phaseLabel) {
+async function ledgerAuditPrior(dir, expectedBranch, label, phaseLabel) {
   let r = null
   try {
     // Mechanical fact-check (two shell commands, one JSON line back): pinned to the
@@ -1288,8 +1372,91 @@ async function ledgerAuditPrior(dir, label, phaseLabel) {
   if (!r || !r.findings) return null
   let parsed
   try { parsed = JSON.parse(r.findings) } catch { return null }
-  if (!parsed || !parsed.hasNarrowableVerdict) return null
-  return { verdict: GATES.audit.retry, sha: parsed.sha, blockingLanes: parsed.blockingLanes }
+  if (!parsed) return null
+
+  // Gate-acceptance round 2 (fix-and-recheck, SHOULD FIX 1): `resolvedBranch` is the
+  // literal output of the FIRST, unambiguous command in ledgerScopeCheckPrompt — an
+  // agent that disregards the `-C`/`cd` anchoring still runs SOME rev-parse and SOME
+  // gate-get, in the ambient checkout, and can still report a well-formed,
+  // error-free `hasNarrowableVerdict:false` about the WRONG branch. Comparing it
+  // against this story's own branch catches that mechanically, with zero model
+  // judgment involved. Checked BEFORE hasNarrowableVerdict below (not after): a
+  // mismatched-branch report that happened to carry hasNarrowableVerdict:true would
+  // apply some OTHER story's blockingLanes to this one's re-audit — actively harmful,
+  // not merely a wasted round. "HEAD" (a detached checkout) is not a mismatch; the
+  // prompt already carves that out as its own check-unavailable case below.
+  const resolvedBranch = typeof parsed.resolvedBranch === 'string' ? parsed.resolvedBranch : ''
+  if (resolvedBranch && resolvedBranch !== 'HEAD' && resolvedBranch !== expectedBranch) {
+    degradedNarrowings++
+    log(`epic-driver: ledger-scope-check for ${dir} resolved branch "${resolvedBranch}" instead of this story's own "${expectedBranch}" — the check read the wrong worktree (a #261-pattern cwd read), degrading to a full unnarrowed audit round instead of trusting its verdict`)
+    return null
+  }
+
+  // Gate-acceptance round 3 (fix-and-recheck, SHOULD FIX): the mismatch guard above
+  // is truthy-gated (`resolvedBranch && ...`), so it silently skips verification when
+  // resolvedBranch is empty — and that covers TWO different situations the prior fix
+  // conflated: an agent that hasn't adopted the field (never sent one) and an agent
+  // that ran the rev-parse and got nothing back (sent an explicitly empty one). Both
+  // collapse to the same `''` here, and neither is proof this check ran in the right
+  // worktree — so trusting hasNarrowableVerdict:true on an unconfirmed resolvedBranch
+  // is exactly the #261-pattern risk the mismatch guard above exists to catch, just
+  // with the branch name missing instead of wrong. Require a confirmed match (this
+  // story's own branch) before ever trusting a narrowed verdict; anything else
+  // degrades to a full unnarrowed round, same as a known mismatch. Deliberately NOT
+  // extended with the 'HEAD' carve-out the mismatch guard above and the
+  // check-unavailable path below both use (acceptance fix cycle, MINOR): a compliant
+  // agent can never send hasNarrowableVerdict:true alongside resolvedBranch:"HEAD" —
+  // ledgerScopeCheckPrompt routes a literal "HEAD" read to
+  // hasNarrowableVerdict:false/errorKind:"check-unavailable" by contract — so this
+  // combination reaching here at all means a non-compliant agent, exactly the case
+  // this guard exists to catch. Trusting 'HEAD' here would wave through the one
+  // narrowing this whole mechanism is supposed to block.
+  if (parsed.hasNarrowableVerdict) {
+    if (resolvedBranch === expectedBranch) {
+      return { verdict: GATES.audit.retry, sha: parsed.sha, blockingLanes: parsed.blockingLanes }
+    }
+    degradedNarrowings++
+    log(`epic-driver: ledger-scope-check for ${dir} reported hasNarrowableVerdict:true but resolvedBranch was ${resolvedBranch ? `"${resolvedBranch}"` : 'missing'} — cannot confirm the read happened in this story's own worktree, degrading to a full unnarrowed audit round rather than trusting an unconfirmed narrowing`)
+    return null
+  }
+  if (parsed.error) {
+    // Only "worktree-broken" means the worktree itself is unusable — the same
+    // directory the real audit dispatch also targets — so a park here is honest (the
+    // audit couldn't have run there either). This throw is not the died-dispatch case
+    // caught above (which stays a deliberate fail-closed-to-null degrade): runGate's
+    // caller (runStory) already catches any thrown exception per phase and parks that
+    // one story BLOCKED with the reason attached, rather than aborting the epic or the
+    // sibling stories in flight. `err.parkGate` names the gate that actually failed
+    // (this scope-check, not the audit that never ran) — crashParkArgs below reads it.
+    //
+    // Gate-acceptance round 2 (fix-and-recheck, SHOULD FIX 2): a resolvedBranch that
+    // DID come back above (matching this story, or the legitimate detached-HEAD case)
+    // already proves `dir` resolves as a worktree — the exact fact "worktree-broken"
+    // exists to report. An agent that still self-reports that errorKind here is
+    // misattributing an ambiguous shell error (it cannot always tell whether the `cd`
+    // in the parenthesized gate-get failed, or `gate-ledger` itself did, e.g. off
+    // PATH) — override that guess down to "check-unavailable" rather than trusting
+    // it, so a misattribution can no longer permanently park a healthy story. Only a
+    // resolvedBranch that is itself empty (the first, unambiguous command failing, or
+    // an agent that hasn't adopted the field) leaves "worktree-broken" trustworthy.
+    const errorKind = resolvedBranch ? 'check-unavailable' : parsed.errorKind
+    if (errorKind === 'worktree-broken') {
+      const err = new Error(`epic-driver: ledger-scope-check for ${dir} could not read the gate ledger (a broken worktree, not a genuine empty ledger): ${parsed.error}`)
+      err.parkGate = 'ledger-scope-check'
+      throw err
+    }
+    // Every other reported error ("check-unavailable" — gate-ledger off PATH, a
+    // detached HEAD, an otherwise-unresolvable branch — and anything unclassified) is
+    // this narrowing check's own limitation, not proof the story is unworkable: log it
+    // loudly and degrade to a full unnarrowed round, exactly like any other
+    // ambiguous/missing case. Loud is not the same as fatal — this still satisfies
+    // "fail loudly rather than silently returning hasNarrowableVerdict:false", just
+    // without conflating "this check couldn't tell" with "nothing here can run".
+    degradedNarrowings++
+    log(`epic-driver: ledger-scope-check for ${dir} could not fully resolve (${errorKind || 'unclassified'}): ${parsed.error} — degrading to a full unnarrowed audit round instead of parking`)
+    return null
+  }
+  return null
 }
 
 // gate-audit round 2 (security Critical, #271 fix cycle): round 1's fix coerced a
@@ -1329,13 +1496,16 @@ function isValidDiffPath(path) {
 // low-effort dispatch). A died or unparseable dispatch degrades to null, which
 // resolveAuditRoster already treats as "route everything in" — fails open to more
 // auditing, never less — and which diffBlock() treats as "add no diff block," fails
-// open to self-discovery, mirroring ledgerAuditPrior's own try/catch-to-null
-// convention immediately above. A missing `contract` degrades the same way, one step
-// later than it looks: `routingScopeCheckPrompt` calls `requireContract` itself and
-// throws before returning a prompt, caught here and returned as null — which routes
-// every lane IN, so this dispatch reads as fail-open on a missing contract. It isn't
-// actually unguarded: every one of those now-dispatched auditors builds its own
-// prompt through `auditDispatchPrompt`/`finaleAuditDispatchPrompt`, each with its own
+// open to self-discovery, matching ledgerAuditPrior's own dispatch-death catch
+// immediately above (though that function additionally throws in one narrower case
+// now — an honestly-reported broken worktree, #261 — that this dispatch has no
+// equivalent of: a died or unparseable routing-scope read always degrades to null).
+// A missing `contract` degrades the same way, one step later than it looks:
+// `routingScopeCheckPrompt` calls `requireContract` itself and throws before
+// returning a prompt, caught here and returned as null — which routes every lane
+// IN, so this dispatch reads as fail-open on a missing contract. It isn't actually
+// unguarded: every one of those now-dispatched auditors builds its own prompt
+// through `auditDispatchPrompt`/`finaleAuditDispatchPrompt`, each with its own
 // `requireContract` call against the same missing value, and each raises in turn —
 // the same "no auditor ever runs unguarded" guarantee as always, just discovered one
 // dispatch later instead of at this one.
@@ -1484,7 +1654,7 @@ async function runGate(story, gate, nextPhase) {
     // flags are this same round's resolution, handed into auditRound below via
     // `preMatchFlags`; every later round in the retry loop still resolves its own.
     const [prior, flags] = await Promise.all([
-      ledgerAuditPrior(storyWorktree(story), `audit:ledger-scope:${story}`, `story:${story}`),
+      ledgerAuditPrior(storyWorktree(story), storyBranch(story), `audit:ledger-scope:${story}`, `story:${story}`),
       resolveRoutingMatchFlags(storyWorktree(story), `epic/${slug}`, `audit:routing-scope:${story}`, `story:${story}`, CONTRACT),
     ])
     priorAuditResult = prior
@@ -1546,11 +1716,26 @@ async function park(story, gate, verdict, reason) {
 // CONFLICT) — a throw always reads BLOCKED here, uniformly across all three
 // dispatch categories, so it can never escape runStory() and reject the
 // Promise.all in "run" below, which would abort every sibling story still in
-// flight. No closures over module state (phaseName/err only) so it can be
-// extracted and executed standalone, the same way the contract-injection
-// story's builders are (tests/python/test_contract_injection.py).
+// flight. Reads phaseName/err only, plus one optional override the err itself
+// may carry (`err.parkGate`, #261): `phaseName` here is always the profiled
+// gate the caller was inside when the throw happened (e.g. "audit"), but a
+// throw from ledgerAuditPrior's own mechanical pre-check happens BEFORE that
+// gate's own dispatch ever runs — without the override, an operator scanning
+// needsYou would see a story BLOCKED at "audit" when the audit itself never
+// ran. No closures over module state so it can still be extracted and
+// executed standalone, the same way the contract-injection story's builders
+// are (tests/python/test_contract_injection.py).
 function crashParkArgs(phaseName, err) {
-  return { gate: phaseName, verdict: 'BLOCKED', reason: `agent() threw during ${phaseName}: ${(err && err.message) || err}` }
+  const gate = (err && err.parkGate) || phaseName
+  // Gate-acceptance round 3 (fix-and-recheck, MINOR): a `parkGate`-carrying error is
+  // the ledger-scope-check's own deliberate classification (its probe returned
+  // normally; the driver rejected the content as worktree-broken) — not a literal
+  // `agent()` call throwing. "agent() threw during X" misdirects the first step of
+  // operator diagnosis toward a dispatch failure that didn't happen. Only a
+  // parkGate-less error (a genuine agent() crash, caught elsewhere in this file)
+  // gets that phrasing.
+  const prefix = (err && err.parkGate) ? `${gate} failed` : `agent() threw during ${gate}`
+  return { gate, verdict: 'BLOCKED', reason: `${prefix}: ${(err && err.message) || err}` }
 }
 
 async function runStory(story) {
@@ -1907,5 +2092,6 @@ return {
   dropped: droppedCount,
   blocked: allSettled.filter(o => o === 'blocked').length,
   total: allSettled.length,
+  degradedNarrowings,
   finale,
 }
