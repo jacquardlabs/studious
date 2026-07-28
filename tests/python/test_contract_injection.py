@@ -89,6 +89,14 @@ CONTRACT_ARG_SUBSTRING = "contract: CONTRACT"
 # finale premortem dispatch, acceptanceRound (product-review dispatch, perf item 10),
 # acceptanceRound (walkthrough dispatch, perf item 10), acceptanceRound (per-story
 # premortem dispatch, acceptance-dispatch-fix Bug 1, 2026-07-23).
+#
+# routingScopeCheckPrompt (#271 fix cycle) is a deliberate exclusion, not an
+# omission this count should grow to cover: it takes `contract` as a positional
+# param (matching its existing dir/base/... shape, never the fields-object
+# convention the builders above use) and carries only §1 of the contract, sliced
+# via `injectionDefensePreamble`, not the full CONTRACT text — see the comment
+# above that function and `test_audit_first_round_routing.py`'s own contract-
+# injection tests for that dispatch's coverage instead.
 EXPECTED_CONTRACT_ARG_COUNT = 8
 
 # The driver's pure, explicitly-parameterized prompt-assembly functions (see

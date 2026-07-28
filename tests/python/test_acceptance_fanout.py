@@ -348,8 +348,11 @@ def test_compile_prompt_names_the_unreviewed_lane_by_name() -> None:
 
 def test_scope_check_is_pinned_to_haiku_low_effort() -> None:
     """The mechanical scope-check dispatch follows this file's own established
-    posture for fact-checks (ledgerAuditPrior, resolveRoutingMatchFlags): haiku,
-    low effort — never the session model."""
+    posture for fact-checks (ledgerAuditPrior): haiku, low effort — never the
+    session model. resolveRoutingMatchFlags shares the haiku pin but moved to
+    `effort: 'medium'` in the #271 fix cycle, once operabilityMatch made it a
+    content judgment rather than a purely mechanical one — see
+    test_audit_first_round_routing.py for that dispatch's own coverage."""
     source = DRIVER.read_text()
     anchor = "acceptanceScopeCheckPrompt(dir, base, workSlug(story))"
     assert anchor in source, "acceptanceRound no longer dispatches the scope-check as documented"
