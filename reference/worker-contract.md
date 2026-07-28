@@ -79,3 +79,22 @@ step's token is owned by `reference/gate-vocabulary.md`.
 - **Blocked beats improvised.** A worker missing something it needs (an unreadable
   design doc, criteria that contradict the codebase) reports the blockage in its
   return instead of guessing — parking is cheap, unwinding an improvised build is not.
+- **The acceptance criteria bound the work in both directions.** Work no criterion asks
+  for does not belong in this story, however obvious the improvement — a gate judges the
+  diff against a design doc that never described it, so unrequested work reads as
+  unexplained work and costs the story a cycle. A worker that spots adjacent work worth
+  doing names it in its return for the epic to schedule. Narrowing is the same defect
+  facing the other way: a criterion dropped because it turned out to be harder than the
+  rest is a scope decision, and scope decisions are not a worker's to make silently.
+- **Report the terminal status the work actually reached.** `BUILT` means every
+  acceptance criterion is met and committed. Work that stopped part-way returns `PAUSED`
+  with what remains, and a design that cannot be built as written returns `ESCALATED` —
+  neither is `BUILT` with the gap explained in the summary. The gates read the token
+  first; a `BUILT` that isn't spends a full audit round discovering what the return
+  could have said.
+
+These two are the contract floor, binding on every executor. `/build`'s own executors
+get the same discipline in a sharper, checkable form from
+`skills/task-execution-discipline/SKILL.md`, which scores scope against a checkpoint
+block's explicit `Not here` field and blocks a completion claim without fresh evidence;
+a worker built on anything else still owes the floor above.

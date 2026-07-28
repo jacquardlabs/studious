@@ -16,3 +16,6 @@ __pycache__/
 /PLAN.md
 docs/design/
 docs/jig/demonstrations/
+
+# A/B eval run output — regenerate with scripts/run_ab_eval.py (tests/ab/README.md)
+ab-results/

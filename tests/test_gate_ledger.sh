@@ -600,6 +600,86 @@ check "epic-reconcile from a linked worktree still sees the story's own branch h
   "$(git -C "$d47" rev-parse --short epic/anchor-epic--s1)" \
   "$(printf '%s' "$out" | jq -r '.stories.s1.storyBranchHeadSha')"
 
+# --- worktree-path: the single owner of .studious/worktrees/<epic>/{__epic,<story>}
+# (#166). Everything that used to compose this layout by hand — epic-driver.js
+# (via work-through.md and the args boundary), work-through.md's own worktree
+# add/remove steps, and epic-reconcile's designDocExists lookup — asks here. ---
+d48=$(sandbox)
+check "worktree-path with no --story resolves the __epic integration worktree" \
+  "$d48/.studious/worktrees/wp-epic/__epic" \
+  "$(cd "$d48" && "$LEDGER" worktree-path --slug wp-epic)"
+check "worktree-path --story resolves that story's worktree" \
+  "$d48/.studious/worktrees/wp-epic/s1" \
+  "$(cd "$d48" && "$LEDGER" worktree-path --slug wp-epic --story s1)"
+check "worktree-path answers for an epic with no recorded state at all" \
+  "$d48/.studious/worktrees/never-recorded/__epic" \
+  "$(cd "$d48" && "$LEDGER" worktree-path --slug never-recorded)"
+check "worktree-path slugifies its --slug at the boundary like every sibling verb" \
+  "$(cd "$d48" && "$LEDGER" worktree-path --slug wp-epic)" \
+  "$(cd "$d48" && "$LEDGER" worktree-path --slug "WP Epic")"
+check "worktree-path slugifies its --story at the boundary too" \
+  "$(cd "$d48" && "$LEDGER" worktree-path --slug wp-epic --story story-one)" \
+  "$(cd "$d48" && "$LEDGER" worktree-path --slug wp-epic --story "Story One")"
+
+err=$(cd "$d48" && "$LEDGER" worktree-path 2>&1 1>/dev/null; echo "rc=$?")
+contains "worktree-path requires --slug" "--slug required" "$err"
+contains "worktree-path exits 2 without --slug" "rc=2" "$err"
+err=$(cd "$d48" && "$LEDGER" worktree-path --slug wp-epic --story s1 --json 2>&1 1>/dev/null; echo "rc=$?")
+contains "worktree-path refuses --story together with --json" "mutually exclusive" "$err"
+contains "worktree-path exits 2 on --story with --json" "rc=2" "$err"
+
+# --json: the whole layout for one epic, the form work-through.md hands the
+# driver (which has no exec access of its own and so cannot ask for paths).
+( cd "$d48" && "$LEDGER" epic-set --slug wp-epic --title "WP Epic" --status running )
+( cd "$d48" && "$LEDGER" epic-story-set --epic wp-epic --slug s1 --title "S1" )
+( cd "$d48" && "$LEDGER" epic-story-set --epic wp-epic --slug s2 --title "S2" )
+out=$(cd "$d48" && "$LEDGER" worktree-path --slug wp-epic --json)
+check "worktree-path --json names the __epic worktree" "$d48/.studious/worktrees/wp-epic/__epic" \
+  "$(printf '%s' "$out" | jq -r '.epic')"
+check "worktree-path --json carries every recorded story" "s1 s2" \
+  "$(printf '%s' "$out" | jq -r '.stories | keys | join(" ")')"
+check "worktree-path --json agrees with the single-path form for a story" \
+  "$(cd "$d48" && "$LEDGER" worktree-path --slug wp-epic --story s1)" \
+  "$(printf '%s' "$out" | jq -r '.stories.s1')"
+check "worktree-path --json prints nothing for an epic that was never recorded" "" \
+  "$(cd "$d48" && "$LEDGER" worktree-path --slug no-such-epic --json)"
+
+d49=$(sandbox)
+mkdir -p "$d49/.studious/epics"
+echo "not json" > "$d49/.studious/epics/wp-corrupt.json"
+err=$(cd "$d49" && "$LEDGER" worktree-path --slug wp-corrupt --json 2>&1 1>/dev/null; echo "rc=$?")
+contains "worktree-path --json fails closed on a corrupted epic file" \
+  "corrupted epic file for 'wp-corrupt'" "$err"
+contains "worktree-path --json exits non-zero on a corrupted epic file" "rc=1" "$err"
+
+# worktree-path anchors to the MAIN working tree like every other verb (#98):
+# a story worker running inside its own linked checkout must name its siblings'
+# checkouts exactly as the driver does, not relative to where it happens to stand.
+d50=$(sandbox)
+( cd "$d50" && "$LEDGER" epic-set --slug anchor-wp --title "Anchor WP" --status running )
+( cd "$d50" && "$LEDGER" epic-story-set --epic anchor-wp --slug s1 --title "S1" )
+( cd "$d50" && git worktree add -q "$d50/.studious/worktrees/anchor-wp/s1" -b epic/anchor-wp--s1 )
+wp_linked="$d50/.studious/worktrees/anchor-wp/s1"
+# Compared against the PHYSICALLY resolved main root: repo_root() reads a linked
+# worktree's gitdir, which git stores fully resolved, so on macOS the answer comes
+# back under /private/var where the main root's own answer says /var. Same
+# directory, different spelling — pre-existing, shared by all five stores, and not
+# what this test is about.
+wp_main_phys=$(cd "$d50" && pwd -P)
+check "worktree-path from a linked worktree still resolves against the MAIN root" \
+  "$wp_main_phys/.studious/worktrees/anchor-wp/__epic" \
+  "$(cd "$wp_linked" && "$LEDGER" worktree-path --slug anchor-wp)"
+check "worktree-path --json from a linked worktree still resolves against the MAIN root" \
+  "$wp_main_phys/.studious/worktrees/anchor-wp/s1" \
+  "$(cd "$wp_linked" && "$LEDGER" worktree-path --slug anchor-wp --json | jq -r '.stories.s1')"
+# The failure this actually guards: a CWD-relative implementation would answer with
+# a path nested inside the caller's own checkout, fragmenting the layout per worktree.
+case "$(cd "$wp_linked" && "$LEDGER" worktree-path --slug anchor-wp --story s2)" in
+  "$wp_linked"/*) wp_nested=yes ;;
+  *)              wp_nested=no ;;
+esac
+check "worktree-path never nests its answer inside the caller's own checkout" "no" "$wp_nested"
+
 # --- state anchors to the main working tree across linked worktrees ---
 d17=$(sandbox)
 ( cd "$d17" && git worktree add -q "$d17/.studious/worktrees/e/s" -b epic/e--s )

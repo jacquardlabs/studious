@@ -102,6 +102,38 @@ def working_tree_status(repo: Path) -> str:
     return run(["git", "-C", str(repo), "status", "--porcelain"]).stdout
 
 
+def current_branch(repo: Path) -> str:
+    """Return `repo`'s checked-out branch name, or the literal "HEAD" when
+    detached or unreadable.
+
+    Deliberately identical to `bin/gate-ledger`'s `branch_name()` — same
+    command, same "HEAD" fallback — so a folder captured on a detached HEAD
+    and a ledger file written on the same checkout agree on what to call it.
+    """
+    result = run(["git", "-C", str(repo), "rev-parse", "--abbrev-ref", "HEAD"])
+    branch = result.stdout.strip()
+    return branch if result.returncode == 0 and branch else "HEAD"
+
+
+def branch_slug(branch: str) -> str:
+    """Collapse a branch name to a path-safe token: every '/' becomes '-'.
+
+    This is `bin/gate-ledger:37`'s `branch_slug()` rule (bash
+    `printf '%s' "${b//\\//-}"`), reused rather than re-invented — the same
+    convention `.studious/evidence/<branch-slug>.jsonl` and the gate ledger's
+    own per-branch files already use. Two implementations in two languages is
+    the cost of the ledger being bash and this script being Python;
+    `tests/jig/test_evidence_capture.py`'s parity test runs both over the same
+    branch names so they cannot drift silently.
+
+    Its one residual is documented at `bin/gate-ledger:273` and inherited here
+    on purpose: `feat/foo` and `feat-foo` produce the same slug. That is why
+    the manifest records the branch *name* and resolution matches on the name,
+    never on the slug.
+    """
+    return branch.replace("/", "-")
+
+
 def last_commit_sha_and_epoch(repo: Path) -> tuple[str, float] | None:
     """Return (sha, commit-timestamp-as-epoch-seconds) for HEAD in `repo`, or None."""
     result = run(["git", "-C", str(repo), "log", "-1", "--format=%H%x09%ct"])
@@ -112,14 +144,30 @@ def last_commit_sha_and_epoch(repo: Path) -> tuple[str, float] | None:
 
 
 def resolve_revision_epoch(repo: Path, revision: str) -> float | None:
-    """Resolve a git revision (branch, tag, sha) to its commit timestamp, or None."""
-    result = run(["git", "-C", str(repo), "show", "-s", "--format=%ct", revision])
+    """Resolve a git revision (branch, tag, sha) to its commit timestamp, or None.
+
+    `--end-of-options`, not `--`: `revision` reaches here from `verify --since`,
+    and git reads a leading-dash positional as an option unless told otherwise
+    (`git show -s --format=%ct --output=FILE HEAD` writes FILE). `--` is the
+    wrong separator for a revision -- it marks what follows as a *pathspec*, so
+    `git show ... -- HEAD` matches a file named HEAD, finds none, and returns
+    empty. This function would then return None for every revision, silently.
+    """
+    result = run(["git", "-C", str(repo), "show", "-s", "--format=%ct", "--end-of-options", revision])
     if result.returncode != 0 or not result.stdout.strip():
         return None
     return float(result.stdout.strip())
 
 
 def branch_exists(repo: Path, branch: str) -> bool:
+    """Whether `branch` exists in `repo`.
+
+    Needs no `--end-of-options` guard: the positional is interpolated behind a
+    literal `refs/heads/` and so can never begin with a dash. `git rev-parse`
+    could not take the guard anyway -- it echoes `--end-of-options` as an
+    output line rather than consuming it, which is why the two helpers that do
+    need it are `show` and `merge-base`, not this one.
+    """
     return run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"]).returncode == 0
 
 
@@ -128,7 +176,12 @@ def is_ancestor(repo: Path, ancestor: str, descendant: str = "HEAD") -> bool:
     `repo`. False for an unresolvable/orphaned `ancestor` -- never raises,
     so a caller checking freshness against a since-rewritten commit gets a
     plain FAIL rather than an exception."""
-    return run(["git", "-C", str(repo), "merge-base", "--is-ancestor", ancestor, descendant]).returncode == 0
+    return (
+        run(
+            ["git", "-C", str(repo), "merge-base", "--is-ancestor", "--end-of-options", ancestor, descendant]
+        ).returncode
+        == 0
+    )
 
 
 def worktree_registered(repo: Path, path: Path) -> bool:

@@ -44,6 +44,11 @@
 # All five stores are anchored to the MAIN working tree (see repo_root), so
 # agents running in linked worktrees (e.g. /work-through story worktrees)
 # share one .studious/ store instead of fragmenting it per worktree.
+#
+# Alongside the five stores, .studious/worktrees/<epic-slug>/ holds /work-through's
+# checkouts — `__epic` for the integration worktree, one directory per in-flight
+# story. This script owns that layout (worktree_path); everyone else asks for a
+# path via the `worktree-path` verb rather than composing one.
 # Degrades silently when git or jq is unavailable.
 set -uo pipefail
 
@@ -108,6 +113,33 @@ evidence_dir() {
   else
     printf '.studious/evidence'
   fi
+}
+
+worktree_path() { # <repo-root> <epic-slug> [<story-slug>] -> that worktree's absolute path
+  # THE owner of /work-through's worktree layout: `.studious/worktrees/<epic>/`
+  # holds one checkout per in-flight story plus `__epic`, the integration
+  # checkout the stories merge into. Everything that needs one of these paths
+  # goes through here — cmd_epic_reconcile's designDocExists lookup below, the
+  # `worktree-path` verb, and (via that verb, across the args boundary)
+  # workflows/epic-driver.js and commands/work-through.md — so the layout has
+  # one definition to change instead of four to keep in step (#166).
+  #
+  # Pure string composition: no git, no epic file, no filesystem check. Callers
+  # resolving a path for a worktree that may not exist yet — `git worktree add`
+  # in work-through.md's step 5 runs before any of this exists on disk — depend
+  # on that.
+  #
+  # `__epic` cannot collide with a story: slugify()'s `tr -cs 'a-z0-9' '-'`
+  # rewrites every non-alphanumeric character, so an underscore survives nowhere
+  # in a story key — `__epic` itself would slugify to `epic`. The sentinel and
+  # the story keys share a namespace safely.
+  #
+  # Neither slug is normalized here. Slugify happens at the verb boundary
+  # (cmd_worktree_path), exactly as it does for every sibling verb; the two
+  # in-process callers pass keys read straight out of the stored epic file,
+  # which epic-set and epic-story-set already slugified on the way in.
+  local root="$1" epic_slug="$2" story="${3:-__epic}"
+  printf '%s/.studious/worktrees/%s/%s' "$root" "$epic_slug" "$story"
 }
 
 slugify() {
@@ -846,6 +878,167 @@ cmd_epic_story_set() {
   return "$rc"
 }
 
+cmd_worktree_path() { # --slug E [--story S | --json] -> one path, or the epic's whole layout as JSON
+  # The read side of worktree_path() above — what makes it the layout's owner
+  # for callers that aren't this script.
+  #
+  #   --slug E             the epic's `__epic` integration checkout
+  #   --slug E --story S   story S's checkout
+  #   --slug E --json      {"epic": "…", "stories": {"<story>": "…", …}} over
+  #                        every story recorded in the epic file
+  #
+  # The --json form has exactly one caller, and it needs the whole map rather
+  # than one path per call for a structural reason: workflows/epic-driver.js
+  # runs on the Workflow substrate with no filesystem or exec access, so it can
+  # never invoke this verb itself. commands/work-through.md calls it once and
+  # hands the result to the driver as args.worktrees. The layout crosses that
+  # boundary as data — the only way the driver can reference the owner instead
+  # of re-deriving the layout a fourth time (#166).
+  #
+  # The two plain forms compose a path without consulting the epic file, so
+  # they answer for a worktree that doesn't exist yet — work-through.md's step 5
+  # runs `git worktree add` at a path this verb resolved before there was an
+  # epic file to read.
+  local slug="" story="" as_json=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --slug)  slug="$2"; shift 2 ;;
+      --story) story="$2"; shift 2 ;;
+      --json)  as_json=1; shift ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug required" >&2
+    return 2
+  fi
+  if [ -n "$as_json" ] && [ -n "$story" ]; then
+    echo "gate-ledger: worktree-path: --story and --json are mutually exclusive" >&2
+    return 2
+  fi
+
+  slug=$(slugify "$slug")
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug reduced to nothing after slugify" >&2
+    return 2
+  fi
+
+  # Same root-anchoring every other store uses: a story worker running in a
+  # linked worktree still resolves paths against the MAIN working tree, so it
+  # names its siblings' checkouts the way the driver does.
+  local root; root=$(repo_root) || root="$PWD"
+
+  if [ -z "$as_json" ]; then
+    if [ -n "$story" ]; then
+      story=$(slugify "$story")
+      if [ -z "$story" ]; then
+        echo "gate-ledger: --story reduced to nothing after slugify" >&2
+        return 2
+      fi
+      worktree_path "$root" "$slug" "$story"
+    else
+      worktree_path "$root" "$slug"
+    fi
+    printf '\n'
+    return 0
+  fi
+
+  if ! have jq; then return 0; fi
+  local epic_json; epic_json=$(cmd_epic_get --slug "$slug")
+  [ -n "$epic_json" ] || return 0  # no epic recorded — mirror epic-get's own "nothing" behavior
+  if ! printf '%s' "$epic_json" | jq empty 2>/dev/null; then
+    echo "gate-ledger: worktree-path: corrupted epic file for '$slug'" >&2
+    return 1
+  fi
+
+  local stories_json="{}" s
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+    stories_json=$(jq -n --argjson stories "$stories_json" --arg s "$s" \
+      --arg path "$(worktree_path "$root" "$slug" "$s")" '$stories + {($s): $path}')
+  done <<< "$(printf '%s' "$epic_json" | jq -r '.stories | keys[]')"
+
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  jq -n --arg epic "$(worktree_path "$root" "$slug")" --argjson stories "$stories_json" \
+    '{epic: $epic, stories: $stories}'
+}
+
+reconcile_story() { # <epic-slug> <story-slug> <epic-json> <repo-root> -> that story's object for .stories[<story>]
+  # One story's reconciled record: its work file, its gate verdicts at the story
+  # branch's HEAD, and the two mechanical checks epic-reconcile adds on top
+  # (designDocExists, landedButUnmerged). Extracted from cmd_epic_reconcile's
+  # loop body (#165) so the per-story shape has one place to grow a field; the
+  # caller owns iteration and accumulation, this owns exactly one story.
+  #
+  # Every input arrives as an argument — nothing is read out of the caller's
+  # scope — so this reads as a function of its inputs rather than of whatever
+  # `local` the loop happens to be standing in.
+  #
+  # Returns 1, printing its diagnostic to stderr and nothing to stdout, when a
+  # stored file this story depends on is corrupted. The caller MUST propagate
+  # that: swallowing it emits a partial payload under a zero exit code.
+  local slug="$1" s="$2" epic_json="$3" root="$4"
+  local work_json gate_json story_status design_doc story_sha wt_base design_exists landed_unmerged
+
+  work_json=$(cmd_work_get --slug "$slug--$s")
+  if [ -n "$work_json" ] && ! printf '%s' "$work_json" | jq empty 2>/dev/null; then
+    echo "gate-ledger: epic-reconcile: corrupted work file for story '$s' (epic '$slug')" >&2
+    return 1
+  fi
+
+  gate_json=$(cmd_gate_get --branch "epic/$slug--$s")
+  if [ -n "$gate_json" ] && ! printf '%s' "$gate_json" | jq empty 2>/dev/null; then
+    echo "gate-ledger: epic-reconcile: corrupted gate ledger for story '$s' (epic '$slug')" >&2
+    return 1
+  fi
+
+  story_status=$(printf '%s' "$epic_json" | jq -r --arg s "$s" '.stories[$s].status // ""')
+  story_sha=$(git rev-parse --short "refs/heads/epic/$slug--$s" 2>/dev/null || echo "")
+
+  # designDocExists: null when no designDoc is recorded, or when the
+  # worktree it would live in is already gone (degrade, don't crash or
+  # false-flag — see the design doc's open question on this).
+  design_doc=""
+  [ -n "$work_json" ] && design_doc=$(printf '%s' "$work_json" | jq -r '.designDoc // ""')
+  if [ -z "$design_doc" ]; then
+    design_exists="null"
+  else
+    # A landed story's own worktree is removed at merge, so its doc is looked up
+    # in the integration worktree instead — both paths from worktree_path(), the
+    # one owner of this layout.
+    if [ "$story_status" = "landed" ]; then
+      wt_base=$(worktree_path "$root" "$slug")
+    else
+      wt_base=$(worktree_path "$root" "$slug" "$s")
+    fi
+    if [ ! -d "$wt_base" ]; then
+      design_exists="null"
+    elif [ -f "$wt_base/$design_doc" ]; then
+      design_exists="true"
+    else
+      design_exists="false"
+    fi
+  fi
+
+  # landedButUnmerged: only meaningful for a story recorded `landed`.
+  # merge-base --is-ancestor collapses "never merged", "branch doesn't
+  # exist", and "not an ancestor yet" to the same non-zero exit — exactly
+  # "not verified merged," which is the fail-closed answer this wants.
+  landed_unmerged="false"
+  if [ "$story_status" = "landed" ] && ! git merge-base --is-ancestor \
+      "refs/heads/epic/$slug--$s" "refs/heads/epic/$slug" 2>/dev/null; then
+    landed_unmerged="true"
+  fi
+
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  jq -n \
+    --argjson work "${work_json:-null}" --argjson gate "${gate_json:-null}" \
+    --arg sha "$story_sha" --argjson designExists "$design_exists" --argjson landedUnmerged "$landed_unmerged" \
+    '{work: $work, gate: $gate, storyBranchHeadSha: $sha,
+      designDocExists: $designExists, landedButUnmerged: $landedUnmerged}'
+}
+
 cmd_epic_reconcile() { # --slug E -> one JSON payload replacing work-through's ~15-20 sequential reads
   # Composes cmd_epic_get / cmd_work_get / cmd_gate_get as in-process bash calls
   # (reuse, not re-derivation of their path/slug logic — see the design doc),
@@ -887,64 +1080,17 @@ cmd_epic_reconcile() { # --slug E -> one JSON payload replacing work-through's ~
   local story_slugs; story_slugs=$(printf '%s' "$epic_json" | jq -r '.stories | keys[]')
 
   local stories_json="{}"
-  local s work_json gate_json story_status design_doc story_sha wt_base design_exists landed_unmerged
+  local s story_obj
   while IFS= read -r s; do
     [ -n "$s" ] || continue
-
-    work_json=$(cmd_work_get --slug "$slug--$s")
-    if [ -n "$work_json" ] && ! printf '%s' "$work_json" | jq empty 2>/dev/null; then
-      echo "gate-ledger: epic-reconcile: corrupted work file for story '$s' (epic '$slug')" >&2
-      return 1
-    fi
-
-    gate_json=$(cmd_gate_get --branch "epic/$slug--$s")
-    if [ -n "$gate_json" ] && ! printf '%s' "$gate_json" | jq empty 2>/dev/null; then
-      echo "gate-ledger: epic-reconcile: corrupted gate ledger for story '$s' (epic '$slug')" >&2
-      return 1
-    fi
-
-    story_status=$(printf '%s' "$epic_json" | jq -r --arg s "$s" '.stories[$s].status // ""')
-    story_sha=$(git rev-parse --short "refs/heads/epic/$slug--$s" 2>/dev/null || echo "")
-
-    # designDocExists: null when no designDoc is recorded, or when the
-    # worktree it would live in is already gone (degrade, don't crash or
-    # false-flag — see the design doc's open question on this).
-    design_doc=""
-    [ -n "$work_json" ] && design_doc=$(printf '%s' "$work_json" | jq -r '.designDoc // ""')
-    if [ -z "$design_doc" ]; then
-      design_exists="null"
-    else
-      if [ "$story_status" = "landed" ]; then
-        wt_base="$root/.studious/worktrees/$slug/__epic"
-      else
-        wt_base="$root/.studious/worktrees/$slug/$s"
-      fi
-      if [ ! -d "$wt_base" ]; then
-        design_exists="null"
-      elif [ -f "$wt_base/$design_doc" ]; then
-        design_exists="true"
-      else
-        design_exists="false"
-      fi
-    fi
-
-    # landedButUnmerged: only meaningful for a story recorded `landed`.
-    # merge-base --is-ancestor collapses "never merged", "branch doesn't
-    # exist", and "not an ancestor yet" to the same non-zero exit — exactly
-    # "not verified merged," which is the fail-closed answer this wants.
-    landed_unmerged="false"
-    if [ "$story_status" = "landed" ] && ! git merge-base --is-ancestor \
-        "refs/heads/epic/$slug--$s" "refs/heads/epic/$slug" 2>/dev/null; then
-      landed_unmerged="true"
-    fi
-
+    # Assignment first, status test second: `local x=$(…)` would mask the
+    # helper's exit code, turning a corrupted stored file into a silent partial
+    # payload. The helper prints its own diagnostic to stderr before failing.
+    story_obj=$(reconcile_story "$slug" "$s" "$epic_json" "$root") || return 1
     # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
     stories_json=$(jq -n \
-      --argjson stories "$stories_json" --arg s "$s" \
-      --argjson work "${work_json:-null}" --argjson gate "${gate_json:-null}" \
-      --arg sha "$story_sha" --argjson designExists "$design_exists" --argjson landedUnmerged "$landed_unmerged" \
-      '$stories + {($s): {work: $work, gate: $gate, storyBranchHeadSha: $sha,
-                           designDocExists: $designExists, landedButUnmerged: $landedUnmerged}}')
+      --argjson stories "$stories_json" --arg s "$s" --argjson story "$story_obj" \
+      '$stories + {($s): $story}')
   done <<< "$story_slugs"
 
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
@@ -1253,8 +1399,9 @@ case "${1:-}" in
   epic-story-set)  shift; cmd_epic_story_set "$@" ;;
   epic-reconcile)  shift; cmd_epic_reconcile "$@" ;;
   epic-list)       shift; cmd_epic_list "$@" ;;
+  worktree-path)   shift; cmd_worktree_path "$@" ;;
   evidence-append) shift; cmd_evidence_append "$@" ;;
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
 esac

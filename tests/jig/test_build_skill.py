@@ -83,6 +83,7 @@ import unittest
 from pathlib import Path
 
 from _frontmatter import FRONTMATTER
+from _text import normalize_ws
 from _vocabulary import derive_build_vocabulary
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -156,20 +157,15 @@ class TestBuildVocabularyDerivation(unittest.TestCase):
         )
 
 
-def _normalize_ws(text: str) -> str:
-    """Collapse whitespace runs (including line-wrap newlines) to a single
-    space, so a multi-word phrase check doesn't break on where prose
-    happens to be hand-wrapped."""
-    return re.sub(r"\s+", " ", text)
 
 
 class TestBuildSkillBody(unittest.TestCase):
     def setUp(self) -> None:
         self.body = SKILL_MD.read_text(encoding="utf-8")
-        self.flat_body = _normalize_ws(self.body)
+        self.flat_body = normalize_ws(self.body)
 
     def assertPhraseIn(self, phrase: str) -> None:
-        self.assertIn(_normalize_ws(phrase), self.flat_body, f"phrase not found (whitespace-normalized): {phrase!r}")
+        self.assertIn(normalize_ws(phrase), self.flat_body, f"phrase not found (whitespace-normalized): {phrase!r}")
 
     def test_body_uses_build_level_vocabulary(self) -> None:
         missing = [term for term in BUILD_VOCABULARY if term not in self.body]
@@ -271,8 +267,8 @@ class TestBuildSkillBody(unittest.TestCase):
 
         # Immediately beside the existing dispatch-timestamp capture -- not
         # merely present somewhere in the body.
-        flat_timestamp_phrase = _normalize_ws("Capture this attempt's dispatch timestamp")
-        flat_model_phrase = _normalize_ws("Name this attempt's dispatch model")
+        flat_timestamp_phrase = normalize_ws("Capture this attempt's dispatch timestamp")
+        flat_model_phrase = normalize_ws("Name this attempt's dispatch model")
         timestamp_idx = self.flat_body.index(flat_timestamp_phrase)
         model_idx = self.flat_body.index(flat_model_phrase)
         self.assertLess(
@@ -295,8 +291,8 @@ class TestBuildSkillBody(unittest.TestCase):
 
         # Immediately beside the existing inherited-case phrase -- not
         # merely present somewhere else in the body.
-        flat_inherited_phrase = _normalize_ws("state it plainly as `inherited: <model>`")
-        flat_unavailable_phrase = _normalize_ws(
+        flat_inherited_phrase = normalize_ws("state it plainly as `inherited: <model>`")
+        flat_unavailable_phrase = normalize_ws(
             "If the model genuinely can't be determined at all, state it "
             "plainly as `unavailable`"
         )
@@ -397,10 +393,10 @@ class TestBuildSkillBody(unittest.TestCase):
 
         # Assembled before the existing evidence-capture call, not after --
         # Done means item 1's "before the existing evidence-capture call".
-        flat_assemble_phrase = _normalize_ws(
+        flat_assemble_phrase = normalize_ws(
             "Assemble the replay bundle at a scratch path"
         )
-        flat_evidence_call_phrase = _normalize_ws(
+        flat_evidence_call_phrase = normalize_ws(
             "Call `scripts/evidence-capture --task <id> --repo <worktree> "
             "--artifact verify:results=<scratch-path>/results.json"
         )

@@ -31,6 +31,7 @@ import unittest
 from pathlib import Path
 
 from _vocabulary import (
+    _derive_vocabulary,
     derive_build_vocabulary,
     derive_coach_vocabulary,
     derive_design_vocabulary,
@@ -410,6 +411,65 @@ class TestDeriveCoachVocabulary(unittest.TestCase):
             missing,
             "a deliberate DESIGN.md token rename should have been caught "
             "as a missing term once SKILL.md wasn't updated to match",
+        )
+
+
+# A synthetic table, not the real DESIGN.md: order and dedup are properties of
+# the parsing path, and pinning them against live prose would make this fail on
+# an unrelated Vocabulary edit. `mid` is deliberately in two rows.
+_ORDERING_FIXTURE = """## Vocabulary
+
+| Concept | Canonical display |
+| --- | --- |
+| alpha | `zeta`, `mid` |
+| beta | `mid`, `aardvark` |
+| gamma | `excluded` |
+"""
+
+
+class TestDeriveVocabularySharedPath(unittest.TestCase):
+    """The one parsing path the six `derive_*_vocabulary` functions share (#197).
+
+    The per-skill tests above all assert membership, so nothing held the two
+    properties the shared helper actually promises: that tokens come back in the
+    order `DESIGN.md`'s table declares them, and that a token appearing in two
+    selected rows collapses to its first position. Both were previously carried
+    by six copies of a `seen.setdefault` loop; a membership-only suite would not
+    have noticed them changing.
+    """
+
+    DESIGN = _ORDERING_FIXTURE
+
+    def test_tokens_come_back_in_table_order_not_sorted(self) -> None:
+        self.assertEqual(
+            _derive_vocabulary(self.DESIGN, frozenset({"alpha"})),
+            ("zeta", "mid"),
+        )
+
+    def test_a_token_in_two_selected_rows_collapses_to_its_first_position(self) -> None:
+        self.assertEqual(
+            _derive_vocabulary(self.DESIGN, frozenset({"alpha", "beta"})),
+            ("zeta", "mid", "aardvark"),
+        )
+
+    def test_unselected_concepts_contribute_nothing(self) -> None:
+        self.assertNotIn(
+            "excluded", _derive_vocabulary(self.DESIGN, frozenset({"alpha", "beta"}))
+        )
+
+    def test_extra_is_appended_after_the_table_tokens(self) -> None:
+        self.assertEqual(
+            _derive_vocabulary(self.DESIGN, frozenset({"alpha"}), ("tail",)),
+            ("zeta", "mid", "tail"),
+        )
+
+    def test_extra_dedupes_against_the_table_tokens_it_follows(self) -> None:
+        """`derive_jig_vocabulary` passes checkpoint fields that can also appear
+        in the Vocabulary table; the old chained-tuple loop collapsed those, so
+        the shared path has to as well."""
+        self.assertEqual(
+            _derive_vocabulary(self.DESIGN, frozenset({"alpha"}), ("mid", "tail")),
+            ("zeta", "mid", "tail"),
         )
 
 

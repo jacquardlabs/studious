@@ -2,6 +2,182 @@
 
 <!-- version list -->
 
+## v2.27.6 (2026-07-27)
+
+### Bug Fixes
+
+- Declare and enforce the runtime version floor for shipped scripts
+  ([#263](https://github.com/jacquardlabs/studious/pull/263),
+  [`24819cd`](https://github.com/jacquardlabs/studious/commit/24819cd4be83a350a6412c97c9f98ffa481c45c4))
+
+### Testing
+
+- Cover _gitutil directly, and bound two unhardened script inputs
+  ([#265](https://github.com/jacquardlabs/studious/pull/265),
+  [`fd1154c`](https://github.com/jacquardlabs/studious/commit/fd1154ce4e7e83a78674bf32bfbaaaacfaa2b350))
+
+
+## v2.27.5 (2026-07-27)
+
+### Bug Fixes
+
+- Anchor both driver scope probes to the worktree they were handed
+  ([#259](https://github.com/jacquardlabs/studious/pull/259),
+  [`b126658`](https://github.com/jacquardlabs/studious/commit/b12665831b6d8b6fb47d969feb178716099885dc))
+
+
+## v2.27.4 (2026-07-27)
+
+### Bug Fixes
+
+- Clear --force re-captures and slug the evidence path by branch
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Join the worktree onto resolved evidence paths, and document all three verbs
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Let a caveated evidence answer be a row, and say what its token means
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Make each documented evidence invocation separate the streams it names
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Name the freshness stop a branch inherits, and give every row a block
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Name the reader contract each evidence reader depends on
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Name the uncommitted deletions --force leaves behind
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Say what an ambiguous evidence lookup actually means, in one token
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Say when an evidence answer is nobody's, and let the coach ask
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Ship M11's correctness and bug tail ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- State [ambiguous] on the list path, and name a recovery that works
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+### Continuous Integration
+
+- Pin every install in the job holding RELEASE_TOKEN
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+### Documentation
+
+- Drop the reader-contract claims the narrowing left in the script's prose
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Move jig's pre-merge review record out of studious's trend directories
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Name evidence-freshness as the subject of the re-validation sentence
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Name the repair direction on the pre-mortem's two reader-surface items
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Re-record the evidence-path-integrity pre-mortem after the narrowing
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Record the evidence-path-integrity pre-mortem register
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Record the m11-correctness-tail epic pre-mortem register
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+### Refactoring
+
+- Decompose acceptanceRound and single-source the premortem vocabulary
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Extract reconcile_story and give the worktree layout one owner
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Route every worktree path through gate-ledger's worktree-path verb
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+- Split the reader reporting contract out of #224/#179
+  ([#258](https://github.com/jacquardlabs/studious/pull/258),
+  [`5c8a014`](https://github.com/jacquardlabs/studious/commit/5c8a014885c97c8b64e39ac2c1b2e782929e75d6))
+
+
+## v2.27.3 (2026-07-27)
+
+### Bug Fixes
+
+- Bound worker scope in both directions in the worker contract
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+- Bound worker scope in both directions, add the A/B eval harness
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+- Parse the section shape real audit reports actually emit
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+- Read the CLI's stream-event array, not the legacy result object
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+### Chores
+
+- Gitignore A/B run output ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+### Documentation
+
+- Align CLAUDE.md's model guidance with CONTRIBUTING and the code
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+- Record the §4 calibration A/B result — variant tested, rejected
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+### Testing
+
+- Add the A/B eval harness CONTRIBUTING already gates model drops on
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+- Isolate the two new fixtures to the lane each is meant to score
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+- Plant doc and frontend defects so #136 can judge all four inherit agents
+  ([#251](https://github.com/jacquardlabs/studious/pull/251),
+  [`ee24064`](https://github.com/jacquardlabs/studious/commit/ee24064d1aea3809c8631eebfeb4fae0217920bc))
+
+
 ## v2.27.2 (2026-07-26)
 
 ### Documentation

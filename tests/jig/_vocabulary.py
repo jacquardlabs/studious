@@ -18,6 +18,8 @@ discover`.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
+from itertools import chain
 
 _BACKTICK = re.compile(r"`([^`]+)`")
 _CELL_SPLIT = re.compile(r"(?<!\\)\|")
@@ -90,14 +92,14 @@ def _section(markdown: str, heading: str) -> str:
 def _table_rows(section: str) -> list[list[str]]:
     """Parse a GFM table's `| a | b |` lines into stripped cell lists,
     respecting `\\|` as an escaped literal pipe rather than a delimiter."""
-    rows = []
-    for line in section.splitlines():
-        line = line.strip()
-        if not line.startswith("|"):
-            continue
-        inner = line[1:-1] if line.endswith("|") else line[1:]
-        rows.append([cell.strip() for cell in _CELL_SPLIT.split(inner)])
-    return rows
+    return [
+        [
+            cell.strip()
+            for cell in _CELL_SPLIT.split(line[1:-1] if line.endswith("|") else line[1:])
+        ]
+        for line in (raw.strip() for raw in section.splitlines())
+        if line.startswith("|")
+    ]
 
 
 def _backtick_tokens(cell: str) -> list[str]:
@@ -142,6 +144,25 @@ def _executor_checkpoint_fields(design_md: str) -> list[str]:
     return tokens[tokens.index("Do") + 1 :]
 
 
+def _derive_vocabulary(
+    design_md: str, concepts: frozenset[str], extra: Iterable[str] = ()
+) -> tuple[str, ...]:
+    """Canonical-display tokens for `concepts`, in table order, deduplicated,
+    followed by `extra`.
+
+    The one parsing path behind every `derive_*_vocabulary` below; those differ
+    only in which Vocabulary rows they read, and `derive_jig_vocabulary` in
+    appending the checkpoint-block fields. Deriving from `design_md`'s text
+    rather than a hand-maintained tuple is what makes a token DESIGN.md renames
+    fail whichever SKILL.md was not updated to match, instead of silently
+    passing -- so the dedup has to preserve first-seen order, which is the order
+    the table declares.
+    """
+    return tuple(
+        dict.fromkeys(chain(_vocabulary_table_tokens(design_md, concepts), extra))
+    )
+
+
 def derive_jig_vocabulary(design_md: str) -> tuple[str, ...]:
     """jig's own checkpoint-block vocabulary (DESIGN.md: Vocabulary,
     Formatting), derived from `design_md`'s text rather than an
@@ -149,13 +170,11 @@ def derive_jig_vocabulary(design_md: str) -> tuple[str, ...]:
     changes what this returns, and a SKILL.md that wasn't updated to match
     fails the check instead of silently passing.
     """
-    seen: dict[str, None] = {}
-    for token in (
-        *_vocabulary_table_tokens(design_md),
-        *_executor_checkpoint_fields(design_md),
-    ):
-        seen.setdefault(token, None)
-    return tuple(seen)
+    return _derive_vocabulary(
+        design_md,
+        RELEVANT_VOCABULARY_CONCEPTS,
+        _executor_checkpoint_fields(design_md),
+    )
 
 
 def derive_build_vocabulary(design_md: str) -> tuple[str, ...]:
@@ -166,10 +185,7 @@ def derive_build_vocabulary(design_md: str) -> tuple[str, ...]:
     scoped to what `skills/build/SKILL.md` (not the executor-facing
     discipline skill) discusses.
     """
-    seen: dict[str, None] = {}
-    for token in _vocabulary_table_tokens(design_md, BUILD_VOCABULARY_CONCEPTS):
-        seen.setdefault(token, None)
-    return tuple(seen)
+    return _derive_vocabulary(design_md, BUILD_VOCABULARY_CONCEPTS)
 
 
 def derive_finish_vocabulary(design_md: str) -> tuple[str, ...]:
@@ -179,10 +195,7 @@ def derive_finish_vocabulary(design_md: str) -> tuple[str, ...]:
     tuple -- same rationale as `derive_jig_vocabulary`, scoped to what
     `skills/finish/SKILL.md` discusses.
     """
-    seen: dict[str, None] = {}
-    for token in _vocabulary_table_tokens(design_md, FINISH_VOCABULARY_CONCEPTS):
-        seen.setdefault(token, None)
-    return tuple(seen)
+    return _derive_vocabulary(design_md, FINISH_VOCABULARY_CONCEPTS)
 
 
 def derive_plan_vocabulary(design_md: str) -> tuple[str, ...]:
@@ -194,10 +207,7 @@ def derive_plan_vocabulary(design_md: str) -> tuple[str, ...]:
     hand-maintained tuple -- same rationale as `derive_jig_vocabulary`,
     scoped to what `skills/plan/SKILL.md` discusses.
     """
-    seen: dict[str, None] = {}
-    for token in _vocabulary_table_tokens(design_md, PLAN_VOCABULARY_CONCEPTS):
-        seen.setdefault(token, None)
-    return tuple(seen)
+    return _derive_vocabulary(design_md, PLAN_VOCABULARY_CONCEPTS)
 
 
 def derive_design_vocabulary(design_md: str) -> tuple[str, ...]:
@@ -207,10 +217,7 @@ def derive_design_vocabulary(design_md: str) -> tuple[str, ...]:
     hand-maintained tuple -- same rationale as `derive_jig_vocabulary`,
     scoped to what `skills/design/SKILL.md` discusses.
     """
-    seen: dict[str, None] = {}
-    for token in _vocabulary_table_tokens(design_md, DESIGN_VOCABULARY_CONCEPTS):
-        seen.setdefault(token, None)
-    return tuple(seen)
+    return _derive_vocabulary(design_md, DESIGN_VOCABULARY_CONCEPTS)
 
 
 def derive_coach_vocabulary(design_md: str) -> tuple[str, ...]:
@@ -221,7 +228,4 @@ def derive_coach_vocabulary(design_md: str) -> tuple[str, ...]:
     same rationale as `derive_jig_vocabulary`, scoped to what
     `skills/coach/SKILL.md` discusses.
     """
-    seen: dict[str, None] = {}
-    for token in _vocabulary_table_tokens(design_md, COACH_VOCABULARY_CONCEPTS):
-        seen.setdefault(token, None)
-    return tuple(seen)
+    return _derive_vocabulary(design_md, COACH_VOCABULARY_CONCEPTS)

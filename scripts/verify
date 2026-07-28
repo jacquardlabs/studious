@@ -120,6 +120,22 @@ from _planparse import COMMAND_TIERS, TIER_BODY_RE, VALID_TIERS, Item, parse_ite
 
 VALID_KINDS = frozenset({"cap", "hold"})
 
+# Ceiling on a probe artifact read before its `pattern` is matched (#223).
+# The pattern is caller-supplied from the probe spec and `re` has no match
+# timeout, so an unbounded read hands a catastrophic-backtracking pattern an
+# unbounded input -- and `verify`'s whole job is to be the thing that cannot
+# be talked out of a verdict, which a silent hang defeats more thoroughly
+# than a wrong answer would. Refuse loudly above this instead.
+#
+# 8 MiB is far above any real probe artifact (build logs, coverage summaries,
+# generated manifests) and far below the size at which reading is itself the
+# problem. Residual, deliberately accepted: a pathological pattern can still
+# backtrack badly on a *small* input. Bounding that needs either a match
+# timeout (`regex`, a third-party dependency these scripts cannot take --
+# they ship to consuming projects and run on stock `python3`) or SIGALRM,
+# which is main-thread-only and `--parallel` runs items in a ThreadPoolExecutor.
+MAX_PROBE_ARTIFACT_BYTES = 8 * 1024 * 1024
+
 # --task names a task by its heading number: a bare "3" or the "Task 3"
 # label form, matching TASK_HEADING_RE's own capture. Never by title --
 # titles need the ambiguity rules plan-lint's load-bearing derivation
@@ -331,6 +347,12 @@ def check_probe_item(item: dict, since_ts: float) -> ItemResult:
             f"artifact is stale — its mtime predates --since: {artifact}",
         )
     pattern = item.get("pattern")
+    if pattern and artifact.stat().st_size > MAX_PROBE_ARTIFACT_BYTES:
+        return ItemResult(
+            item["id"], item["kind"], item["tier"], "FAIL",
+            f"artifact is too large to pattern-match safely "
+            f"({artifact.stat().st_size} bytes > {MAX_PROBE_ARTIFACT_BYTES} limit): {artifact}",
+        )
     if pattern and not re.search(pattern, artifact.read_text(encoding="utf-8", errors="replace")):
         return ItemResult(
             item["id"], item["kind"], item["tier"], "FAIL",

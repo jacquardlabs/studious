@@ -49,6 +49,9 @@ node --test tests/js/*.js
 # Build-script lint and tests (ruff pinned; stdlib unittest, not pytest)
 uv run --no-project --with ruff==0.16.0 ruff check scripts tests/jig
 uv run --no-project python3 -m unittest discover -s tests/jig -v
+
+# Runtime version floor for the shipped scripts (vermin pinned; scripts/ only)
+uv run --no-project --with vermin==1.8.0 vermin --no-tips -t=3.9- scripts/
 ```
 
 Releases are automated via semantic-release (`pyproject.toml`); the version lives in `.claude-plugin/plugin.json` and is bumped by CI on merge to `main` — never edit it by hand.
@@ -147,9 +150,18 @@ gone when the finding was written.
 Applies to `scripts/` and both test trees. These override Studious's built-in idiom
 rubric for this repo.
 
-- **Target 3.11+.** `uv` for all tooling. Type hints required. Prefer comprehensions,
-  generator expressions, and stdlib (`functools`, `itertools`, `collections`) over
-  explicit loops.
+- **Target 3.11+ for development and CI.** `uv` for all tooling. Type hints required.
+  Prefer comprehensions, generator expressions, and stdlib (`functools`, `itertools`,
+  `collections`) over explicit loops.
+- **`scripts/` has a lower floor: 3.9, enforced by vermin in CI.** Those scripts ship to
+  consuming projects and the build skills invoke them bare — `skills/design/SKILL.md`
+  Step 5 runs `scripts/design-lint --doc <path> --repo <worktree>`, naming no interpreter
+  — so they execute on whatever `python3` that project has, which on stock macOS is 3.9.6.
+  This is the one place the 3.11+ target does not reach; `tests/`, `workflows/`, and
+  everything else keeps it. #250 is why the floor is declared rather than assumed:
+  `design-lint` imported `itertools.pairwise` (3.10) and the traceback read as a
+  malformed design doc rather than a wrong interpreter. Raise the floor deliberately if
+  a consuming-project baseline moves — don't drift into it one import at a time.
 - **Ruff, pinned** in `.github/workflows/ci.yml`. `pyproject.toml`'s `[tool.ruff.lint]`
   extends the pinned version's defaults with `B`, `C4`, `PERF`, `PIE`, `RUF`, `SIM`.
   The default set grows between releases — bump the pin deliberately and fix what the
@@ -167,7 +179,7 @@ These are enforced by convention, not tooling — follow the existing shape (det
 - **Commands are actions:** an action prefix + target — `gate-`, `review-`/`deep-review`, `extract-`, `backlog-`, `work-on`.
 - **Agents are a 1:1 reviewer or a role:** periodic project-scoped reviewers share their command's `review-*` name; changeset specialists are `<domain>-auditor` (rule/technical checks) or `<domain>-reviewer` (human-judgment checks).
 - **Skills are named for the intent they detect**, not the command they call. Keep `description` triggers conservative — list what they should NOT match so a gate never fires unwanted.
-- **Pin `model` by stakes:** `opus` for high-stakes reasoning/human judgment (security, architecture, product/UX). `inherit` for mechanical, rule-based, or inventory work. Never pin a bare tier like `sonnet` — use `inherit` so the agent tracks the session model.
+- **Pin `model` and `effort` by stakes**, per the split in `CONTRIBUTING.md` — `model` moves the per-token rate, `effort` moves the turn count, and they are set independently. `opus` for high-stakes reasoning and human judgment; `sonnet`/`haiku` for recommend-only work with no merge gate behind it. **`inherit` is a known defect, not a cheap tier** ([#136](https://github.com/jacquardlabs/studious/issues/136)): it resolves to the session model, so the same branch can be judged by two different models on two different days. Don't add new `inherit` agents, and don't drop a merge-blocking agent's tier without an A/B (`tests/ab/README.md`).
 
 ## Editing skills
 

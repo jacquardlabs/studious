@@ -35,7 +35,6 @@ Run with:
 """
 from __future__ import annotations
 
-import re
 import subprocess
 import sys
 import tempfile
@@ -44,13 +43,7 @@ from pathlib import Path
 
 from _orphancheck import orphan_spawning_command, process_is_gone, wait_for_marker
 from _tempgit import init_repo
-
-
-def _normalize_ws(text: str) -> str:
-    """Collapse whitespace runs (including line-wrap newlines) to a single
-    space, so a multi-word phrase check doesn't break on where a docstring
-    happens to be hand-wrapped."""
-    return re.sub(r"\s+", " ", text)
+from _text import normalize_ws
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "worktree-setup"
@@ -247,7 +240,7 @@ class TestWorktreeSetupTrustBoundaryDocumented(unittest.TestCase):
         self.assertIn(
             "Commands in a plan are executed verbatim via the shell; only "
             "run /build on plans you would run by hand",
-            _normalize_ws(text),
+            normalize_ws(text),
         )
         self.assertIn("shell=True", text)
         self.assertIn("issue #48", text)
