@@ -207,8 +207,26 @@ function finaleFixDeltaDispatchPrompt(fields) {
 // from the ledger both dispatch surfaces already write to — reusing the REPORT schema
 // (findings: string) rather than adding a new one, since the answer is just a compact
 // JSON line inside that string.
+//
+// #261, the same cwd bug #243 fixed for the two git-only probes below: a dispatched
+// haiku/low agent runs in its own working directory, not `dir`, and `gate-ledger
+// gate-get` with no `--branch` resolves the branch via cwd (`git rev-parse
+// --abbrev-ref HEAD`) — so a wrong-cwd read silently reads the AMBIENT checkout's
+// branch instead of this worktree's. Its ledger file is very often just missing
+// (`cmd_gate_get` exits 0 with empty output when the file doesn't exist), which this
+// prompt's own "empty output means no ledger" rule then reports as a confident, false
+// `hasNarrowableVerdict:false` — indistinguishable downstream from a genuine "nothing
+// to narrow", silently paying for a full re-audit round instead of a narrowed one.
+// `gate-ledger` has no `-C` of its own (unlike git, one line below), so the fix is
+// two-layered: `git -C "${dir}"` resolves the branch explicitly (never left to
+// cwd-dependent inference) and hands it to `--branch`, AND the read itself runs inside
+// `(cd "${dir}" && ...)` so the ledger *file's* directory resolution is anchored too,
+// not just the branch name. `ledgerAuditPrior` below throws when this prompt reports
+// an explicit command error, rather than folding it into the same
+// `hasNarrowableVerdict:false` a genuinely empty ledger returns — the fail-loudly half
+// of this fix.
 function ledgerScopeCheckPrompt(dir) {
-  return `This is a mechanical fact-check, not a judgment call — report exactly what the commands show, never interpret or editorialize. From ${dir}, run: gate-ledger gate-get\n\nParse its JSON output (empty output means no ledger recorded for this branch). Return your findings as EXACTLY one line of compact JSON, nothing else:\n- If .gates.audit is absent, or .gates.audit.verdict is not exactly "FIX AND RE-AUDIT", or .gates.audit.blockingLanes is absent, empty, or not an array of strings: return {"hasNarrowableVerdict":false}\n- Otherwise also run: git -C "${dir}" merge-base --is-ancestor "<.gates.audit.sha>" HEAD — if that command's exit code is non-zero (or the sha can't be resolved at all), return {"hasNarrowableVerdict":false}\n- Otherwise return {"hasNarrowableVerdict":true,"sha":"<.gates.audit.sha>","blockingLanes":<.gates.audit.blockingLanes, verbatim, unreordered, unfiltered>}`
+  return `This is a mechanical fact-check, not a judgment call — report exactly what the commands show, never interpret or editorialize. gate-ledger has no -C flag of its own, so run this exactly as written, including the parentheses, to anchor both the branch lookup and the ledger read to ${dir} rather than to wherever this agent's shell happens to already be standing: first run git -C "${dir}" rev-parse --abbrev-ref HEAD to get this worktree's current branch, then run (cd "${dir}" && gate-ledger gate-get --branch "<that branch>").\n\nIf the branch lookup errored, printed nothing, or printed the literal string "HEAD" (a detached checkout, which cannot be the right branch here), or if the parenthesized gate-get command itself errored (a non-zero exit, including a failed cd): return {"hasNarrowableVerdict":false,"error":"<what happened, in your own words>"} — never fold a command error into "no ledger recorded". Otherwise parse gate-get's JSON output (a genuinely empty output — the command succeeded and printed nothing — legitimately means no ledger recorded for this branch). Return your findings as EXACTLY one line of compact JSON, nothing else:\n- If .gates.audit is absent, or .gates.audit.verdict is not exactly "FIX AND RE-AUDIT", or .gates.audit.blockingLanes is absent, empty, or not an array of strings: return {"hasNarrowableVerdict":false}\n- Otherwise also run: git -C "${dir}" merge-base --is-ancestor "<.gates.audit.sha>" HEAD — if that command's exit code is non-zero (or the sha can't be resolved at all), return {"hasNarrowableVerdict":false}\n- Otherwise return {"hasNarrowableVerdict":true,"sha":"<.gates.audit.sha>","blockingLanes":<.gates.audit.blockingLanes, verbatim, unreordered, unfiltered>}\nInclude the "error" key ONLY when a command actually failed as described above. Never add it to annotate or explain a successful read — a genuinely empty ledger, an absent .gates.audit, a non-matching verdict, and a failed merge-base check are all normal outcomes and return the bare {"hasNarrowableVerdict":false} with no "error" key at all.`
 }
 
 // First-round changeset routing (#138): a mechanical fact-check, not a judgment
@@ -1099,6 +1117,17 @@ async function ledgerAuditPrior(dir, label, phaseLabel) {
   if (!r || !r.findings) return null
   let parsed
   try { parsed = JSON.parse(r.findings) } catch { return null }
+  // #261: a well-formed report that honestly says its anchored gate-get read itself
+  // errored (wrong cwd, a failed cd, an unresolvable branch) is a DIFFERENT signal
+  // than a genuinely empty ledger — folding both into the same `return null` here
+  // would silently downgrade a narrowed retry to a full round with no diagnosable
+  // trace. This throw is not the died-dispatch case caught above (which stays a
+  // deliberate fail-closed-to-null degrade): runGate's caller (runStory) already
+  // catches any thrown exception per phase and parks that one story BLOCKED with the
+  // reason attached, rather than aborting the epic or the sibling stories in flight.
+  if (parsed && parsed.error) {
+    throw new Error(`epic-driver: ledger-scope-check for ${dir} could not read the gate ledger (wrong cwd or a failed command), not a genuine empty ledger: ${parsed.error}`)
+  }
   if (!parsed || !parsed.hasNarrowableVerdict) return null
   return { verdict: GATES.audit.retry, sha: parsed.sha, blockingLanes: parsed.blockingLanes }
 }

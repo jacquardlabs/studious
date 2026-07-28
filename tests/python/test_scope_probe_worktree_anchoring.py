@@ -21,6 +21,17 @@ that guard — which is why the fix has to be in the prompt, not the caller.
 Following this repo's established precedent (`test_contract_injection.py`,
 `test_audit_first_round_routing.py`): the pure prompt builders are extracted verbatim from
 `workflows/epic-driver.js` and executed standalone in a plain Node process.
+
+Extended for issue #261: `ledgerScopeCheckPrompt` has the exact same cwd-dependent shape
+("From ${dir}, run: gate-ledger gate-get") but for a `gate-ledger` invocation rather than a
+`git` one — `gate-ledger` has no `-C` flag of its own, so anchoring it takes an explicit
+`--branch` (computed via `git -C "${dir}"`, the same technique the merge-base check one
+line below it already uses) plus a scoped `(cd "${dir}" && ...)` around the read itself,
+since `gate-ledger`'s ledger-file lookup is *also* cwd-anchored, not just its branch
+inference. It joins `SCOPE_PROBES` below and inherits all four generic checks; its own
+error-signalling half (`ledgerAuditPrior` failing loudly instead of degrading to
+`hasNarrowableVerdict:false`) gets dedicated executed-fixture tests further down, since
+that half is a caller-side behavior no prompt-text assertion can observe.
 """
 
 from __future__ import annotations
@@ -34,6 +45,7 @@ from test_driver_crash_hardening import (
     _extract_function,
     _run_node,
 )
+from test_epic_driver_decomposition import _extract_async_function
 
 # A dir that is not the ambient checkout, so a prompt that leaks cwd-dependence is visible.
 PROBE_DIR = "/tmp/probe-worktree"
@@ -65,6 +77,7 @@ process.stdout.write(JSON.stringify({{ prompt: {fn_name}({", ".join(args)}) }}))
 SCOPE_PROBES = [
     ("acceptanceScopeCheckPrompt", [json.dumps(PROBE_DIR), json.dumps(PROBE_BASE), json.dumps(PROBE_SLUG)]),
     ("routingScopeCheckPrompt", [json.dumps(PROBE_DIR), json.dumps(PROBE_BASE)]),
+    ("ledgerScopeCheckPrompt", [json.dumps(PROBE_DIR)]),
 ]
 
 
@@ -109,3 +122,116 @@ def test_the_probes_still_anchor_to_the_directory_they_were_handed():
         assert f'git -C "{PROBE_DIR}"' in prompt, (
             f"{fn_name} carries a -C that does not interpolate the dir it was passed."
         )
+
+
+# ---------- #261: ledgerScopeCheckPrompt's own anchor, gate-ledger has no -C ----------
+
+
+def test_ledger_scope_check_never_calls_gate_get_without_an_explicit_branch():
+    """`gate-ledger gate-get` with no `--branch` resolves the branch via cwd
+    (`git rev-parse --abbrev-ref HEAD`) — exactly the cwd-dependence #243 fixed for
+    git commands. `--branch` must be computed via the anchored `git -C` lookup and
+    passed explicitly, never left to gate-ledger's own cwd inference.
+    """
+    prompt = _build_prompt("ledgerScopeCheckPrompt", [json.dumps(PROBE_DIR)])
+    assert "gate-ledger gate-get --branch" in prompt, (
+        "ledgerScopeCheckPrompt calls `gate-ledger gate-get` without an explicit "
+        "--branch — its branch would be resolved from the agent's own cwd, not the "
+        f"worktree it was handed ({PROBE_DIR})."
+    )
+
+
+def test_ledger_scope_check_scopes_the_gate_get_read_with_a_cd():
+    """`gate-ledger`'s ledger-*directory* lookup is also cwd-anchored (`repo_root()`
+    walks up from cwd), not just its branch inference — `--branch` alone fixes one
+    half of the bug. The read itself must run inside `(cd "${dir}" && ...)`.
+    """
+    prompt = _build_prompt("ledgerScopeCheckPrompt", [json.dumps(PROBE_DIR)])
+    assert f'(cd "{PROBE_DIR}" && gate-ledger gate-get' in prompt, (
+        f"ledgerScopeCheckPrompt does not scope its gate-get read to {PROBE_DIR} with "
+        "a cd — gate-ledger has no -C of its own, so this is the only way to anchor "
+        "its ledger-file lookup, as distinct from its branch lookup."
+    )
+
+
+def test_ledger_scope_check_forbids_the_error_key_on_a_successful_empty_read():
+    """`ledgerAuditPrior` treats a truthy `.error` as a fail-loud signal (below), and
+    that key is free text a haiku/low agent supplies — the prompt must tell it not to
+    add "error" as commentary on an otherwise normal outcome (a genuinely empty
+    ledger, an absent `.gates.audit`, a non-matching verdict, a failed merge-base
+    check), or an over-helpful agent turns every legitimate non-narrowable verdict
+    into a parked story. "Never trust prompt compliance alone" cuts both ways here:
+    this assertion can't prove an agent won't do it, only that the prompt says not to.
+    """
+    prompt = _build_prompt("ledgerScopeCheckPrompt", [json.dumps(PROBE_DIR)])
+    assert "ONLY when a command actually failed" in prompt, (
+        "ledgerScopeCheckPrompt does not tell the agent to withhold the \"error\" key "
+        "on a successful-but-empty read — an over-helpful agent could attach it as "
+        "commentary and turn every legitimate hasNarrowableVerdict:false into a "
+        "fail-loud park (#261)."
+    )
+
+
+# ---------- #261: ledgerAuditPrior fails loudly on a reported read error ----------
+
+
+def _run_ledger_audit_prior(agent_findings: dict | None, *, agent_throws: bool = False) -> dict:
+    """Executes the real `ledgerAuditPrior` (plus the `ledgerScopeCheckPrompt` it
+    calls, extracted verbatim like every other fixture in this file) under Node,
+    with `agent` stubbed to return canned findings instead of really dispatching.
+    Reports whether the returned promise rejected, and its message or resolved value.
+    """
+    source = DRIVER.read_text()
+    ledger_scope_fn = _extract_function(source, "ledgerScopeCheckPrompt")
+    ledger_prior_fn = _extract_async_function(source, "ledgerAuditPrior")
+    if agent_throws:
+        agent_body = "async function agent() { throw new Error('dispatch died') }"
+    else:
+        findings_json = json.dumps(json.dumps(agent_findings)) if agent_findings is not None else "undefined"
+        agent_body = f"async function agent() {{ return {{ findings: {findings_json} }} }}"
+    script = f"""
+{ledger_scope_fn}
+{ledger_prior_fn}
+const GATES = {{ audit: {{ retry: 'FIX AND RE-AUDIT' }} }}
+const REPORT = {{ type: 'object', properties: {{ findings: {{ type: 'string' }} }}, required: ['findings'] }}
+{agent_body}
+ledgerAuditPrior({json.dumps(PROBE_DIR)}, 'label', 'phase')
+  .then(value => {{ console.log(JSON.stringify({{ threw: false, value }})) }})
+  .catch(err => {{ console.log(JSON.stringify({{ threw: true, message: err.message }})) }})
+"""
+    return _run_node(script)
+
+
+def test_ledger_audit_prior_throws_loudly_on_a_reported_read_error():
+    """A read that honestly reports an error (wrong cwd, a failed cd, an unresolvable
+    branch) must fail loudly, not fold into `hasNarrowableVerdict:false` and silently
+    downgrade a narrowed retry to a full round (#261's core acceptance criterion).
+    """
+    result = _run_ledger_audit_prior({"hasNarrowableVerdict": False, "error": "cd failed: no such directory"})
+    assert result["threw"], (
+        f"ledgerAuditPrior swallowed a reported command error into a silent "
+        f"hasNarrowableVerdict:false instead of failing loudly: {result}"
+    )
+    assert PROBE_DIR in result["message"], (
+        "the thrown error should name the worktree whose read failed, for diagnosis: "
+        f"{result}"
+    )
+
+
+def test_ledger_audit_prior_still_returns_null_for_a_genuinely_empty_ledger():
+    """Regression: a well-formed, error-free `hasNarrowableVerdict:false` (the
+    legitimate "nothing to narrow" case) must still degrade quietly to null — only a
+    reported error is loud, not every non-narrowable verdict.
+    """
+    result = _run_ledger_audit_prior({"hasNarrowableVerdict": False})
+    assert not result["threw"], f"a genuine non-narrowable verdict must not throw: {result}"
+    assert result["value"] is None
+
+
+def test_ledger_audit_prior_still_fails_closed_on_a_died_dispatch():
+    """Regression: the dispatch itself dying (agent() throwing) is a different,
+    already-established fail-closed-to-null case — untouched by this fix, and must
+    stay that way (a died mechanical fact-check must never crash the story)."""
+    result = _run_ledger_audit_prior(None, agent_throws=True)
+    assert not result["threw"], f"a died dispatch must degrade quietly, not throw: {result}"
+    assert result["value"] is None
