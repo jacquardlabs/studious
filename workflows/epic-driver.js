@@ -1410,9 +1410,8 @@ async function runStory(story) {
     // this file already use.
     const verify = await verifyMergeLanded(story)
     if (verify.status === 'divergent') {
-      log(`${story}: merge agent reported merged, but an independent read-back disagrees — parking instead of landing (${verify.reason})`)
-      parkedThisRun.push({ story: workSlug(story), gate: 'merge', verdict: 'VERIFY MISMATCH', reason: verify.reason })
-      return settle(story, 'parked')
+      const reason = verify.reason + '; check whether epic/' + workSlug(story) + ' actually contains the story branch and correct the recorded status before re-running.'
+      return park(story, 'merge', 'VERIFY MISMATCH', reason)
     }
     if (verify.status === 'unknown') {
       log(`${story}: merge landed, but the independent read-back could not confirm it (${verify.reason}) — landing anyway; gate-ledger epic-reconcile's landedButUnmerged check is the resume-time backstop if this was actually wrong`)
