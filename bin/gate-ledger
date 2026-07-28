@@ -762,7 +762,7 @@ cmd_epic_get() {
 }
 
 cmd_epic_story_set() {
-  local epic="" slug="" title="" src="" criteria="" decisions="" deps="" gates_csv="" status="" reason="" worktree="" bump="" reset=""
+  local epic="" slug="" title="" src="" criteria="" decisions="" carried="" deps="" gates_csv="" status="" reason="" worktree="" bump="" reset=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --epic)        epic="$2"; shift 2 ;;
@@ -771,6 +771,7 @@ cmd_epic_story_set() {
       --source)      src="$2"; shift 2 ;;
       --criteria)    criteria="$2"; shift 2 ;;
       --decisions)   decisions="$2"; shift 2 ;;
+      --carried-findings) carried="$2"; shift 2 ;;
       --deps)        deps="$2"; shift 2 ;;
       --gates)       gates_csv="$2"; shift 2 ;;
       --status)      status="$2"; shift 2 ;;
@@ -813,6 +814,7 @@ cmd_epic_story_set() {
        | (if $src      != "" then .source   = $src      else . end)
        | (if $criteria != "" then .criteria = $criteria else . end)
        | (if $decisions != "" then .decisions = $decisions else . end)
+       | (if $carried  != "" then .carriedFindings = $carried else . end)
        | (if $deps     != "" then .deps     = ($deps  | csv_trim) else . end)
        | (if $gates    != "" then .gates    = ($gates | csv_trim) else . end)
        | (if $status   != "" then .status   = $status   else . end)
@@ -821,7 +823,7 @@ cmd_epic_story_set() {
        | (if $bump     != "" then .retries[$bump]  = ((.retries[$bump]  // 0) + 1) else . end)
        | (if $reset    != "" then .retries[$reset] = 0 else . end))' \
     --arg s "$slug" --arg title "$title" --arg src "$src" --arg criteria "$criteria" \
-    --arg decisions "$decisions" \
+    --arg decisions "$decisions" --arg carried "$carried" \
     --arg deps "$deps" --arg gates "$gates_csv" --arg status "$status" --arg reason "$reason" \
     --arg wt "$worktree" --arg bump "$bump" --arg reset "$reset" --arg t "$(now_iso)"
   rc=$?
@@ -1254,5 +1256,5 @@ case "${1:-}" in
   evidence-append) shift; cmd_evidence_append "$@" ;;
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
 esac
