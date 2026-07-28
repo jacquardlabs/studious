@@ -454,7 +454,7 @@ End with exactly this shape and nothing after it:
 
 ```text
 Epic: <slug> — <landed>/<total> landed, <parked> parked, <blocked> blocked on them.
-Degraded narrowings: <degradedNarrowings> — a ledger-scope-check couldn't confirm it read the right worktree and paid a full unnarrowed round instead.
+Degraded narrowings: <degradedNarrowings> — this many ledger-scope-check rounds this run couldn't be trusted (a resolved-branch mismatch, an unconfirmed narrowing, or the check itself unavailable) and paid a full unnarrowed round instead. Which story and which of the three, story by story, is in the run's log lines, not this count.
 Needs you:
   - <story>: <gate> returned <verdict> — <one clause: what's needed>
     (<phase>: <outcome> (<Nm>) → <phase>: <outcome> (<Nm>) → ...)
@@ -486,7 +486,11 @@ by hand usually happens inside its worktree (the story branch is checked out the
 or after `git worktree remove` on it — except a `ledger-scope-check` park (above):
 the worktree itself didn't resolve, so neither remedy applies. Run
 `git worktree list` to see what actually exists, then `git worktree add` to recreate
-the missing one at the path `gate-ledger worktree-path` names.
+the missing one at the path `gate-ledger worktree-path --slug "<slug>" --story
+"<story>"` names — both flags required, bare `gate-ledger worktree-path` exits 2. The
+report's own "Needs you" entry prints the epic-qualified name `<slug>--<story>`; split
+it on `--` to get the two values (e.g. `m6-wave1--ledger-scope-fix` → `--slug
+m6-wave1 --story ledger-scope-fix`).
 
 ## Record keeping
 

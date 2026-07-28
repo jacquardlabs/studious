@@ -1012,6 +1012,16 @@ const landedThisRun = []      // {story, trail}
 // omitting the now-mandatory key pays a full unnarrowed round where it previously
 // narrowed, and nothing in the compiled report lets an operator tell whether that
 // net-saved or net-cost this epic.
+//
+// Acceptance fix cycle (OPERABILITY GAP, not yet actioned): this counter makes the
+// cost visible but states no threshold for acting on it. A starting point, not a
+// tuned value: if degraded narrowings exceed roughly a third of narrowing attempts
+// across the first several resumed runs after this counter starts accumulating real
+// data, that is grounds to revert the confirmed-resolvedBranch requirement back to
+// the mismatch-only guard it replaced — trading some of the #261-pattern risk back
+// for the narrowing this epic's own cost goal depends on. No revert should happen on
+// this comment alone; it names the tradeoff so a future reader with real data can
+// decide it, rather than reasoning from scratch.
 let degradedNarrowings = 0
 const doneResolvers = {}
 const donePromises = {}
