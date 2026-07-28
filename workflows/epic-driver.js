@@ -925,6 +925,21 @@ function mergePrompt(story) {
   return `${ctx(story)}\n\nThis story passed its final profiled gate. Merge it into the epic integration branch, working ONLY in the epic worktree ${epicWorktree} (create it if missing, from inside ${repoRoot}: git worktree add "${epicWorktree}" "epic/${slug}"):\n\ncd "${epicWorktree}" && git merge --no-ff "${storyBranch(story)}"\n\nOn conflict you get ONE fix attempt: resolve only if the resolution is mechanically obvious from the two sides; otherwise git merge --abort. After a successful merge, record BOTH the story's epic status and its work-file terminal phase — the second is what lets the work file be collected later, since this step deliberately keeps the branch and nothing else ever closes the file out (#237): gate-ledger epic-story-set --epic "${slug}" --slug "${story}" --status landed && gate-ledger work-log --slug "${workSlug(story)}" --step merge --outcome LANDED --phase done && git -C "${repoRoot}" worktree remove "${storyWorktree(story)}" (keep the branch). After an aborted merge: gate-ledger epic-story-set --epic "${slug}" --slug "${story}" --status parked --reason "merge-conflict: <one clause>"\n\nReturn: merged (boolean), sha (epic branch HEAD), notes.`
 }
 
+// Independent read-back for mergePrompt's bookkeeping tail (#270 fix-and-recheck,
+// Critical, operability-auditor): `merge.merged` above is a self-report from the same
+// agent that was supposed to write `epic-story-set --status landed` and `work-log
+// --step merge --phase done` in the same `&&` chain — if that chain died partway (the
+// git merge itself succeeded but the ledger write didn't), nothing previously re-checked
+// it, and this driver would settle 'landed' in-memory over a ledger that still disagrees.
+// A second, independently-dispatched mechanical fact-check — same haiku posture as
+// ledgerScopeCheckPrompt/routingScopeCheckPrompt above, never the first agent's own word
+// for its own side effects — re-reads the persisted ledger status and confirms the story
+// branch actually landed on the epic branch. See verifyMergeLanded below for how its
+// answer is used.
+function mergeVerifyPrompt(story) {
+  return `This is a mechanical fact-check, not a judgment call — report exactly what the commands show, never interpret or editorialize. From ${repoRoot}, run: gate-ledger epic-get --slug "${slug}"\n\nParse its JSON output and read .stories["${story}"].status.\n\nAlso run: git -C "${epicWorktree}" merge-base --is-ancestor "${storyBranch(story)}" HEAD — note whether that command's exit code is exactly 0.\n\nReturn your findings as EXACTLY one line of compact JSON, nothing else: {"ledgerLanded":<true iff .stories["${story}"].status is exactly "landed", else false>,"isAncestor":<true iff the merge-base command exited 0, else false>}`
+}
+
 function parkPrompt(story, gate, verdict, summary) {
   return `${ctx(story)}\n\nRecord this story as parked for the user — no fixing, no retrying, no editorializing beyond one clear clause:\n\ngate-ledger epic-story-set --epic "${slug}" --slug "${story}" --status parked --reason "${shellSafe(gate)}: ${shellSafe(verdict)} — <one clause distilled from the findings below; no shell metacharacters>"\n\nFindings: ${summary}\n\nReturn: verdict (echo "${shellSafe(verdict)}"), sha, summary (the exact reason string you recorded).`
 }
@@ -1229,6 +1244,42 @@ function crashParkArgs(phaseName, err) {
   return { gate: phaseName, verdict: 'BLOCKED', reason: `agent() threw during ${phaseName}: ${(err && err.message) || err}` }
 }
 
+// Dispatches mergeVerifyPrompt and classifies its answer into exactly three states —
+// never a boolean, because two very different failure modes would otherwise collapse
+// into one: 'divergent' means the read-back gave a DEFINITE answer and it disagrees
+// with `merge.merged` (the actual gap this function exists to close: park with a
+// reason instead of settling 'landed' over a ledger that doesn't match). 'unknown'
+// means the read-back itself died, threw, or came back unparseable/malformed — no
+// definite answer either way, same as ledgerAuditPrior/resolveRoutingMatchFlags above
+// degrading a flaky mechanical dispatch to "no signal" rather than a false negative.
+// runStory below treats 'unknown' the same as 'confirmed' (still lands) rather than
+// as 'divergent' (parks): a story whose merge genuinely landed must not be stranded in
+// needsYou by a merely-flaky verify call — that would trade this finding's failure
+// mode for a worse one, since a wrongly-parked story also blocks the epic finale
+// (landedCount + droppedCount === allSettled.length never reaches true while it sits
+// parked). `gate-ledger epic-reconcile`'s `landedButUnmerged` check is the resume-time
+// backstop for a genuinely-unverified 'unknown' case, run the next time /work-through
+// reconciles the epic — this dispatch is a same-run best-effort catch, not the only
+// safety net.
+async function verifyMergeLanded(story) {
+  let r = null
+  try {
+    r = await agent(mergeVerifyPrompt(story), { label: `merge:verify:${story}`, phase: `story:${story}`, schema: REPORT, model: 'haiku', effort: 'low' })
+  } catch (err) {
+    return { status: 'unknown', reason: `verify dispatch threw: ${(err && err.message) || err}` }
+  }
+  if (!r || !r.findings) return { status: 'unknown', reason: 'verify agent died or returned no findings' }
+  let parsed
+  try { parsed = JSON.parse(r.findings) } catch { return { status: 'unknown', reason: 'verify agent returned unparseable findings' } }
+  if (!parsed || typeof parsed.ledgerLanded !== 'boolean' || typeof parsed.isAncestor !== 'boolean') {
+    return { status: 'unknown', reason: 'verify agent returned malformed findings' }
+  }
+  if (!parsed.ledgerLanded || !parsed.isAncestor) {
+    return { status: 'divergent', reason: `merge dispatch reported merged, but the independent read-back disagrees (ledgerLanded=${parsed.ledgerLanded}, isAncestor=${parsed.isAncestor})` }
+  }
+  return { status: 'confirmed', reason: '' }
+}
+
 async function runStory(story) {
   const s = stories[story]
   // Already-settled stories resolve immediately; the driver never un-parks.
@@ -1342,13 +1393,10 @@ async function runStory(story) {
     //
     // This tier rationale covers the conflict-resolution threshold only, not
     // mergePrompt's bookkeeping tail (epic-story-set --status landed, work-log
-    // --step merge --phase done, worktree remove). That tail is an unverified
-    // self-report: `merge.merged` alone decides `settle(story, 'landed')`
-    // below, and nothing re-reads MERGE_RESULT.sha or confirms the ledger
-    // writes actually landed after this agent returns. A tier drop can't cause
-    // that gap — it already exists at any model — so it's out of scope here,
-    // but a haiku dispatch is exactly as blind to a silently-failed tail as
-    // any other tier would be. Named, not fixed, by this pin.
+    // --step merge --phase done, worktree remove). That tail is a self-report:
+    // `merge.merged` alone is not enough to decide `settle(story, 'landed')`
+    // below — verifyMergeLanded (below) independently re-reads the persisted
+    // ledger status and the epic branch itself before this function trusts it.
     merge = await agent(mergePrompt(story), { label: `merge:${story}`, phase: `story:${story}`, schema: MERGE_RESULT, model: 'haiku', effort: 'low' })
   } catch (err) {
     mergeCrashed = err
@@ -1360,6 +1408,20 @@ async function runStory(story) {
     return park(story, c.gate, c.verdict, c.reason)
   }
   if (merge && merge.merged) {
+    // Never trust the merge agent's own word for its own bookkeeping tail — see
+    // verifyMergeLanded's comment above. Only a definite disagreement parks; a
+    // merely-unavailable read-back still lands (logged, not silent), same
+    // fail-open-to-a-safe-default posture the other mechanical fact-checks in
+    // this file already use.
+    const verify = await verifyMergeLanded(story)
+    if (verify.status === 'divergent') {
+      log(`${story}: merge agent reported merged, but an independent read-back disagrees — parking instead of landing (${verify.reason})`)
+      parkedThisRun.push({ story: workSlug(story), gate: 'merge', verdict: 'VERIFY MISMATCH', reason: verify.reason })
+      return settle(story, 'parked')
+    }
+    if (verify.status === 'unknown') {
+      log(`${story}: merge landed, but the independent read-back could not confirm it (${verify.reason}) — landing anyway; gate-ledger epic-reconcile's landedButUnmerged check is the resume-time backstop if this was actually wrong`)
+    }
     landedThisRun.push({ story: workSlug(story), trail: trail.join(' → ') || 'resumed at merge' })
     return settle(story, 'landed')
   }

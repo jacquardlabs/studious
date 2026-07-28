@@ -44,7 +44,10 @@ DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 # Perf item 10 added acceptanceFanIn's own work-log call site, bumping this from 6.
 WORK_VERB_SLUG_CALL_COUNT = 7
 EPIC_STORY_SET_BARE_SLUG_COUNT = 4
-DISPLAY_WORK_SLUG_COUNT = 6
+# #270 fix-and-recheck (Critical, operability-auditor) added a second parkedThisRun
+# push for the merge dispatch — the 'VERIFY MISMATCH' branch verifyMergeLanded can
+# now route to — bumping this from 6.
+DISPLAY_WORK_SLUG_COUNT = 7
 
 
 def _extract_function(source: str, name: str) -> str:
