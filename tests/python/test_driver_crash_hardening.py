@@ -351,6 +351,7 @@ def test_ledger_scope_check_throw_parks_under_its_own_gate_name_not_audit() -> N
     rules = [
         {"match": r"^audit:ledger-scope:a$", "result": {"findings": json.dumps({
             "hasNarrowableVerdict": False,
+            "resolvedBranch": "",
             "error": "cd failed: no such directory",
             "errorKind": "worktree-broken",
         })}},
