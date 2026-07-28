@@ -113,6 +113,9 @@ supervised, evidence-first flow instead.
    one). It reaches every dispatch prompt through the driver's shared context block,
    marked settled and not to be re-litigated. Omit the flag for a story with no
    answered forks; keep acceptance criteria in `--criteria`, where they belong.
+   `--decisions` holds only what was answered here, at this one interview — a finding
+   diagnosed later, mid-flight, is never folded in; see Un-park below for where that
+   goes instead.
 
    One `epic-story-set` per story, then:
 
@@ -366,6 +369,25 @@ Amendments go through this command, never hand-edited state:
   gate-ledger epic-story-set --epic "<slug>" --slug "<story>" \
     --status pending --reason "resolved: <one clause>" --reset-retry <gate>
   ```
+
+  If the park itself carries a diagnosis the next dispatch needs to act on — a stalled
+  `FIX AND RE-CHECK` / `FIX AND RE-AUDIT` cycle's unresolved findings, a walkthrough's
+  suggested fix — add it via `--carried-findings`, **never** `--decisions`:
+
+  ```bash
+  gate-ledger epic-story-set --epic "<slug>" --slug "<story>" \
+    --status pending --reason "resolved: <one clause>" --reset-retry <gate> \
+    --carried-findings "<diagnosis the next dispatch needs, verbatim from the round that found it>"
+  ```
+
+  The two fields carry different instruction shapes into `ctx()`
+  (`workflows/epic-driver.js`): `--decisions` reads to every dispatch as a human-settled
+  answer, never to be re-litigated — reserve it for an actual interview fork the user
+  weighed and picked. `--carried-findings` reads as a weaker, still-actionable claim —
+  diagnosed but not human-reviewed, worth fixing, not worth rediscovering or
+  re-litigating whether it is real. The user un-parking a story by accepting an agent's
+  fix-cycle prose is not the same act as the user answering a fork at the epic
+  interview; the field it lands in must say which one happened.
 
 - **Drop** — `epic-story-set --status dropped`, remove the story's worktree if one
   exists, then re-evaluate dependents: a dependent of a dropped story needs the user

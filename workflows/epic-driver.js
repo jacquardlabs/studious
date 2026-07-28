@@ -1050,6 +1050,13 @@ function ctx(story) {
     ...(s.decisions
       ? [`Decisions already made by the human at epic planning — treat as settled, do not re-litigate: ${s.decisions}`]
       : []),
+    // A finding diagnosed in a prior gate round (an unresolved fix-and-retry, an
+    // un-parked story resuming from a walkthrough's own prose) — not a human
+    // decision, so it must not read as one (#245). Weaker claim, weaker wording:
+    // worth fixing without rediscovering it, never "settled."
+    ...(s.carriedFindings
+      ? [`Findings carried forward from a prior gate round — diagnosed but not human-reviewed, worth fixing, not worth rediscovering or re-litigating whether it is real: ${s.carriedFindings}`]
+      : []),
     `Story branch: ${storyBranch(story)}. Story worktree: ${storyWorktree(story)} (the ONLY checkout you may touch).`,
     `Conventions: read PRODUCT.md and CLAUDE.md at the project root. The gate-ledger tool is on PATH; the Studious plugin root is dirname "$(command -v gate-ledger)")/.. — read referenced command/reference files from there.`,
     `If the worktree does not exist yet, create it first, from inside ${repoRoot}: git branch "${storyBranch(story)}" "epic/${slug}" 2>/dev/null; git worktree add "${storyWorktree(story)}" "${storyBranch(story)}" — then record it: gate-ledger work-set --slug "${workSlug(story)}" --title "${shellSafe(s.title)}" --source "epic:${slug}" --branch "${storyBranch(story)}"`,

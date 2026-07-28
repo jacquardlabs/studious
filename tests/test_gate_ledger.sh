@@ -393,6 +393,26 @@ check "criteria update leaves decisions intact" "surface: REST not GraphQL; gues
 # --- a story with no answered forks carries no decisions key at all ---
 check "decisions absent when never set" "null" "$(jq -r '.stories["checkout-ui"].decisions // "null"' "$ef15")"
 
+# --- carried-findings: a diagnosis carried forward from a prior gate round,
+# stored distinctly from decisions (issue #245) ---
+( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug cart-api \
+    --carried-findings "round-2 walkthrough: missing null check on cart.items, file:line" )
+check "story stores carried-findings" "round-2 walkthrough: missing null check on cart.items, file:line" \
+  "$(jq -r '.stories["cart-api"].carriedFindings' "$ef15")"
+check "carried-findings do not disturb decisions" "surface: REST not GraphQL; guest carts: out of scope" \
+  "$(jq -r '.stories["cart-api"].decisions' "$ef15")"
+check "carried-findings do not disturb criteria" "POST /cart returns 201 and a Location header" \
+  "$(jq -r '.stories["cart-api"].criteria' "$ef15")"
+
+# --- a later decisions-only write must not clobber carried-findings (separate fields) ---
+( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug cart-api \
+    --decisions "surface: REST not GraphQL; guest carts: out of scope" )
+check "decisions update leaves carried-findings intact" "round-2 walkthrough: missing null check on cart.items, file:line" \
+  "$(jq -r '.stories["cart-api"].carriedFindings' "$ef15")"
+
+# --- a story with no carried findings carries no carriedFindings key at all ---
+check "carried-findings absent when never set" "null" "$(jq -r '.stories["checkout-ui"].carriedFindings // "null"' "$ef15")"
+
 # --- story upsert: status/reason land, earlier fields survive ---
 ( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug cart-api \
     --status parked --reason "audit: NEEDS DISCUSSION - auth model unclear" )
