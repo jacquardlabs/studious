@@ -391,7 +391,13 @@ def test_malformed_match_flags_missing_keys_fails_open() -> None:
 
 
 def _join_reports_with_routed_out(dispatched, reports, carried, prior_sha,
-                                    fix_delta_dispatched, fix_delta_report, routed_out) -> dict:
+                                    fix_delta_dispatched, fix_delta_report, routed_out,
+                                    frontend_match=True) -> dict:
+    """`frontend_match` defaults `True` for callers that don't care about the
+    accessibility not-covered block one way or the other (the routed-out-lane
+    tests above); pass `None` to simulate an absent/malformed frontendMatch
+    reaching this function directly (belt-and-braces fail-open at joinReports'
+    own boundary, not just resolveAuditRoster's)."""
     source = DRIVER.read_text()
     fn = _extract_function(source, "joinReports")
     script = f"""
@@ -403,7 +409,8 @@ const result = joinReports(
   {json.dumps(prior_sha)},
   {json.dumps(fix_delta_dispatched)},
   {json.dumps(fix_delta_report)},
-  {json.dumps(routed_out)}
+  {json.dumps(routed_out)},
+  {json.dumps(frontend_match)}
 )
 console.log(JSON.stringify(result))
 """
@@ -445,15 +452,19 @@ def test_join_reports_with_no_routed_out_lanes_is_unchanged_shape() -> None:
     assert "routed out" not in result["joined"]
 
 
-# ---------- #271 fix cycle SHOULD FIX: accessibility's absence rendered as a
-# fixed, always-visible "not covered" block ----------
+# ---------- #271 fix cycle SHOULD FIX, gated on frontendMatch by the
+# operability-routing-parity acceptance fix cycle: accessibility's absence
+# rendered as a "not covered" block whenever frontendMatch is true (fails
+# open on an absent/malformed value), and rendered as nothing at all — not a
+# stale claim — when frontendMatch is false ----------
 
 
-def test_join_reports_always_renders_the_accessibility_not_covered_block() -> None:
+def test_join_reports_renders_the_accessibility_not_covered_block_when_frontend_match_true() -> None:
     """Accessibility is never a member of AUDITORS (see the comment above it in
-    workflows/epic-driver.js) — this must render as a fixed, visible block on
-    EVERY compiled report, not only a source comment, whether or not any lane
-    was routed out this round."""
+    workflows/epic-driver.js) — this must render as a visible block whenever
+    this round's frontendMatch is true, whether or not any lane was routed
+    out this round. `missing` must stay empty regardless — the block must
+    never depress an otherwise-clean round's PASS."""
     result = _join_reports_with_routed_out(
         dispatched=["studious:security-auditor"],
         reports=[{"findings": "clean"}],
@@ -462,18 +473,23 @@ def test_join_reports_always_renders_the_accessibility_not_covered_block() -> No
         fix_delta_dispatched=False,
         fix_delta_report=None,
         routed_out=[],
+        frontend_match=True,
     )
     assert result["missing"] == [], (
-        "the fixed accessibility block must never be pushed onto `missing` — that "
+        "the not-covered block must never be pushed onto `missing` — that "
         "would force every audit round's PASS down to NEEDS DISCUSSION forever"
     )
     assert "studious:accessibility-auditor --- (not covered on the epic path:" in result["joined"]
-    assert "#274" in result["joined"]
+    assert "jacquardlabs/studious#274" in result["joined"], (
+        "the issue reference must be fully qualified — a consuming project's own "
+        "tracker has no local #274, so a bare number would resolve to the wrong repo"
+    )
 
 
 def test_join_reports_not_covered_block_survives_alongside_routed_out_lanes() -> None:
-    """The fixed not-covered block and the data-driven routed-out blocks are
-    independent — both must render together, never one crowding out the other."""
+    """When frontendMatch is true, the not-covered block and the data-driven
+    routed-out blocks are independent — both must render together, never one
+    crowding out the other."""
     result = _join_reports_with_routed_out(
         dispatched=["studious:security-auditor"],
         reports=[{"findings": "clean"}],
@@ -482,8 +498,55 @@ def test_join_reports_not_covered_block_survives_alongside_routed_out_lanes() ->
         fix_delta_dispatched=False,
         fix_delta_report=None,
         routed_out=[{"auditor": "studious:infra-auditor", "reason": "no infrastructure changes detected"}],
+        frontend_match=True,
     )
     assert "studious:infra-auditor --- (routed out" in result["joined"]
+    assert "studious:accessibility-auditor --- (not covered on the epic path:" in result["joined"]
+
+
+def test_join_reports_omits_the_not_covered_block_when_frontend_match_false() -> None:
+    """A changeset with no frontend surface at all (frontendMatch: false) gets
+    no accessibility caveat either — ux-reviewer/frontend-reviewer are already
+    routed out with a visible, self-explanatory reason, so the block's absence
+    here is consistent with theirs, not a second, unexplained gap. `missing`
+    must still stay empty: an absent block is neutral, never a lane going
+    unaudited."""
+    result = _join_reports_with_routed_out(
+        dispatched=["studious:security-auditor"],
+        reports=[{"findings": "clean"}],
+        carried=[],
+        prior_sha="",
+        fix_delta_dispatched=False,
+        fix_delta_report=None,
+        routed_out=[
+            {"auditor": "studious:ux-reviewer", "reason": "no frontend changes detected"},
+            {"auditor": "studious:frontend-reviewer", "reason": "no frontend changes detected"},
+        ],
+        frontend_match=False,
+    )
+    assert result["missing"] == []
+    assert "studious:accessibility-auditor" not in result["joined"], (
+        "the not-covered block rendered even though frontendMatch was false — a "
+        "changeset with no frontend surface should get no accessibility caveat"
+    )
+
+
+def test_join_reports_not_covered_block_fails_open_on_absent_frontend_match() -> None:
+    """An absent/malformed frontendMatch reaching joinReports directly (not
+    just resolveAuditRoster's own already-resolved value) must still render
+    the block — belt-and-braces fail-open at this function's own boundary,
+    checked `!== false` rather than truthiness, the same bias every other
+    flag in this file uses."""
+    result = _join_reports_with_routed_out(
+        dispatched=["studious:security-auditor"],
+        reports=[{"findings": "clean"}],
+        carried=[],
+        prior_sha="",
+        fix_delta_dispatched=False,
+        fix_delta_report=None,
+        routed_out=[],
+        frontend_match=None,
+    )
     assert "studious:accessibility-auditor --- (not covered on the epic path:" in result["joined"]
 
 

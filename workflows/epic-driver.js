@@ -90,20 +90,37 @@ const MAX_FIX_CYCLES = 2
 // output has that skill installed — adding accessibility-auditor here would ship
 // only the Task fallback unconditionally, which is different behavior from the
 // interactive gate on a project where the skill IS installed, not parity with it.
-// Whether the epic path needs an equivalent of that "installed" branch, or whether
-// the Task-only fallback is an acceptable narrowing for the unattended path, is its
-// own design question — split out to #274, not decided here. joinReports below
-// renders this gap as a fixed, always-visible block on every compiled report (not
-// only a source comment) so the human reading the verdict can see the narrowing
-// #274 will resolve, per this file's own no-silently-missing-lane rule (see the
-// comment above joinReports).
+// Decision (acceptance fix cycle, NEEDS DISCUSSION): the Task-only fallback stays
+// OUT, not deferred. Shipping it unconditionally would diverge silently from the
+// interactive gate on any project where web-design-guidelines IS installed — the
+// same changeset getting different accessibility coverage depending on which path
+// drove it, with no visible signal why. An honest, visible gap beats an
+// undetectable asymmetry. #274 tracks a real detection mechanism (an epic-plan
+// flag, a repo-root marker-file check) as a future, separately-designed change,
+// not an open question blocking this one. joinReports below renders this gap as a
+// block on every compiled report where frontendMatch is true (gated, acceptance
+// fix cycle SHOULD FIX — see joinReports' own doc comment for why an
+// all-round-unconditional render was wrong) so the human reading the verdict can
+// see the accepted narrowing, per this file's own no-silently-missing-lane rule
+// (see the comment above joinReports).
 //
 // This array, gate-audit.md's own numbered auditor list (1-13, which additionally
 // covers accessibility as auditor 8 and pre-mortem as auditor 13), and gate-audit.md's
 // narrowing condition 3 name list (`.gates.audit.blockingLanes` validation, "auditors
 // 1-7, 9-12") are three independently hand-maintained copies of nearly the same
 // roster. #271 flagged this as a drift risk this file's own commenting can't fix by
-// itself — tracked in #274, not resolved in this story.
+// itself — tracked in #274, not resolved in this story. Assessed here, not fixed,
+// per this story's own acceptance criterion: not trivial, because the three copies
+// aren't the same artifact in three places — a JS array this file executes
+// against, gate-audit.md's human-facing numbered prose (which also documents
+// per-auditor rubric detail this array has no room for), and gate-audit.md's
+// `.gates.audit.blockingLanes` validation name list (a different consumer, a CLI
+// flag's accepted values, not a dispatch roster) — so unifying them means picking
+// one as the generated source and teaching the other two formats (Markdown prose,
+// a validation script) to derive from it, a codegen/build step this
+// Markdown-prompt repo does not otherwise have, not a one-line rename. That is a
+// design question in its own right (#274), not a trivial fix this story can fold
+// in.
 const AUDITORS = [
   'studious:security-auditor', 'studious:code-auditor', 'studious:doc-auditor',
   'studious:architecture-auditor', 'studious:test-auditor', 'studious:infra-auditor',
@@ -898,7 +915,13 @@ function resolveAuditRoster(matchFlags, auditors) {
     }
     return true
   })
-  return { routed, routedOut }
+  // frontendMatch rides back out alongside routed/routedOut (not recomputed by
+  // callers from matchFlags a second time, #271 acceptance round): joinReports
+  // and auditFanIn both gate the accessibility "not covered" block on it (see
+  // their own doc comments) and need the same already-fail-open value this
+  // function computed above, not a second hand-written copy of `!matchFlags ||
+  // matchFlags.frontendMatch !== false`.
+  return { routed, routedOut, frontendMatch }
 }
 
 // Label every auditor lane even when its agent died — filter-then-map shifts
@@ -917,22 +940,29 @@ function resolveAuditRoster(matchFlags, auditors) {
 // UNAUDITED, added to `missing`, never silently absent from the compiled
 // report.
 //
-// A FIFTH state (accessibility, #271 fix cycle SHOULD FIX), distinct from all
-// four above: it is fixed, not data-driven — accessibility is never a member
-// of AUDITORS at all (see the comment above that constant), so there is no
-// per-round dispatch decision to report, unlike routed-out (which varies with
-// this round's match flags). Rendered unconditionally on every compiled
-// report, story and finale alike, so the coverage narrowing is visible where
-// a human reads the verdict rather than only in a source comment — this
-// file's own rule, one paragraph up, that a silently missing lane must never
-// compile into an unearned PASS applies just as much to a lane this driver
-// never attempts to cover as to one whose agent died mid-round. Deliberately
-// NOT pushed onto `missing`: that array's only two producers above (a died
-// lane, a died fix-delta pass) both force the caller's PASS -> NEEDS
-// DISCUSSION downgrade and strip blockingLanes: a lane this driver never
-// dispatches in the first place is neither of those, and treating it as one
-// would stall every audit round on every epic, forever, at NEEDS DISCUSSION.
-function joinReports(dispatched, reports, carriedForward, priorSha, fixDeltaDispatched, fixDeltaReport, routedOut) {
+// A FIFTH state (accessibility, #271 fix cycle SHOULD FIX; gated on
+// frontendMatch, acceptance fix cycle SHOULD FIX), distinct from all four
+// above: it has no per-round dispatch decision of its own to report —
+// accessibility is never a member of AUDITORS at all (see the comment above
+// that constant) — but it is NOT unconditional the way the doc comment above
+// this one previously claimed. It renders only when `frontendMatch` is true,
+// the same flag that routes ux-reviewer/frontend-reviewer in above: when
+// frontendMatch is false, those two lanes are already routed out with a
+// visible, self-explanatory reason, so a changeset with no frontend surface
+// at all gets no accessibility line either — silence there is consistent,
+// not a second, unexplained gap. frontendMatch itself fails open (see
+// resolveAuditRoster), so a died, absent, or malformed routing dispatch still
+// renders this block, exactly like the unconditional behavior before this
+// gate for every changeset that plausibly has a frontend surface — the only
+// change is that a changeset routing scope confidently marks as having NONE
+// no longer carries a standing, always-true coverage-gap notice forever.
+// Still deliberately NOT pushed onto `missing` when it does render: that
+// array's only two producers above (a died lane, a died fix-delta pass) both
+// force the caller's PASS -> NEEDS DISCUSSION downgrade and strip
+// blockingLanes: a lane this driver never dispatches in the first place is
+// neither of those, and treating it as one would stall every audit round on
+// every epic, forever, at NEEDS DISCUSSION.
+function joinReports(dispatched, reports, carriedForward, priorSha, fixDeltaDispatched, fixDeltaReport, routedOut, frontendMatch) {
   const missing = []
   const dispatchedBlocks = dispatched.map((a, i) => {
     const r = reports[i]
@@ -949,12 +979,17 @@ function joinReports(dispatched, reports, carriedForward, priorSha, fixDeltaDisp
   // re-auditing of a lane with nothing to audit.
   const routedOutBlocks = (routedOut || []).map(({ auditor, reason }) =>
     `--- ${auditor} --- (routed out — not applicable to this changeset: ${reason}; never dispatched, no prior report)`)
-  // Fixed FOURTH-from-routed-out, FIFTH-overall lane state (see the doc comment
-  // above): unconditional, never varies with this round's inputs, never added to
-  // `missing`.
-  const notCoveredBlocks = [
-    `--- studious:accessibility-auditor --- (not covered on the epic path: the epic driver cannot detect, from inside a Workflow script, whether the consuming session has the optional web-design-guidelines skill installed, so it never dispatches the interactive gate's Task fallback either — tracked in #274, not decided in this story)`,
-  ]
+  // Fourth-from-routed-out, fifth-overall lane state (see the doc comment
+  // above): gated on frontendMatch. Checked with `!== false`, not truthiness,
+  // so this function's own boundary fails open the same way every flag in
+  // this file already does even though its only caller today (auditRound /
+  // finaleAuditRound) always hands it resolveAuditRoster's already-resolved
+  // boolean — belt and braces, not a second place this could silently regress
+  // to suppressing the block on an absent/malformed value. Never added to
+  // `missing` when it does render.
+  const notCoveredBlocks = frontendMatch !== false ? [
+    `--- studious:accessibility-auditor --- (not covered on the epic path: the epic driver cannot detect, from inside a Workflow script, whether the consuming session has the optional web-design-guidelines skill installed, so shipping the Task fallback unconditionally would diverge silently from the interactive gate on a project where the skill IS installed — an accepted narrowing, not an oversight; jacquardlabs/studious#274 tracks a future detection mechanism)`,
+  ] : []
   const fixDeltaBlocks = []
   if (fixDeltaDispatched) {
     if (fixDeltaReport) {
@@ -1006,7 +1041,7 @@ function gatePrompt(story, gate, nextPhase) {
   return `${ctx(story)}\n\nRun Studious's ${g.command} gate against this story, exactly as the plugin defines it: read commands/${g.command}.md from the plugin root and execute its workflow with the story worktree as the project and the story branch as the changeset (diff base: epic/${slug}). Where that command dispatches subagents you cannot spawn, perform those roles' checks yourself by reading their agent files from the plugin root — apply their rubrics verbatim, do not invent criteria. The verdict vocabulary is canonical in reference/gate-vocabulary.md; emit exactly one token.\n\nRecord the verdict yourself, from inside the story worktree so it lands on the story branch: cd "${storyWorktree(story)}" && gate-ledger record --gate ${gate} --verdict "<TOKEN>" && gate-ledger work-log --slug "${workSlug(story)}" --step ${gate} --outcome "<TOKEN>" --phase "${nextPhase}"\n\nReturn: verdict (the bare token), sha, summary (for non-proceed verdicts, the findings a fixer needs).`
 }
 
-function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut, injectionAttempt) {
+function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut, injectionAttempt, frontendMatch) {
   const laneNames = routed.map(a => a.split(':')[1]).join(', ')
   const routedOutList = routedOut || []
   const routedOutNote = routedOutList.length
@@ -1031,13 +1066,25 @@ function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut, inj
   const injectionSummaryInstruction = injectionAttempt
     ? `Also include one line in your Summary in this exact form: "routing-scope dispatch flagged a suspected audit-evasion directive in the diff (injectionAttempt); flags discarded, full roster dispatched — review the diff directly to confirm." This must be visible to a human reading the report, the same way the routed-out lines are.\n\n`
     : ''
-  // #271 fix cycle, SHOULD FIX: unconditional (never varies with this round's
-  // inputs, unlike routedOutNote/injectionNote above) — a block for
-  // studious:accessibility-auditor reading "not covered on the epic path" is
-  // present on every compiled report, story and finale alike (see the doc
-  // comment above joinReports for why this lane is never in AUDITORS at all).
-  const notCoveredNote = ` One further block, for studious:accessibility-auditor, reads "not covered on the epic path" — a FOURTH, fixed lane state, present on every round regardless of this round's routing flags: that lane is never a member of this driver's auditor roster at all (a coverage decision tracked in #274), so the block never varies and is not itself a finding about this changeset. Treat it as neutral, neither a gap nor a clean claim, exactly like a routed-out lane, and never conflate it with UNAUDITED.`
-  const notCoveredSummaryInstruction = `Also include this exact line in your Summary: "accessibility-auditor: not covered on the epic path (tracked in #274)". This must be visible to a human reading the report, the same way the routed-out lines are.\n\n`
+  // #271 fix cycle, SHOULD FIX; gated on frontendMatch, acceptance fix cycle
+  // SHOULD FIX: a block for studious:accessibility-auditor reading "not
+  // covered on the epic path" is present on every compiled report where
+  // frontendMatch is true (checked `!== false`, not truthiness — the same
+  // fail-open belt-and-braces as notCoveredBlocks above) — but is absent, not
+  // merely unmentioned, when frontendMatch is false, matching joinReports'
+  // own notCoveredBlocks gate. When frontendMatch is false, ux-reviewer and
+  // frontend-reviewer are already routed out with a visible, self-explanatory
+  // reason (see routedOutNote above) — accessibility's silence in that case
+  // is consistent with theirs, not a second, unexplained gap. Neither
+  // notCoveredNote nor notCoveredSummaryInstruction is emitted when the
+  // block itself isn't rendered, so the compiling agent is never told to
+  // expect prose that never appears.
+  const notCoveredNote = frontendMatch !== false
+    ? ` One further block, for studious:accessibility-auditor, reads "not covered on the epic path" — a FOURTH, fixed lane state, present whenever this round's frontendMatch routing flag is true: that lane is never a member of this driver's auditor roster at all (a coverage decision tracked in jacquardlabs/studious#274), so the block is not itself a finding about this changeset. Treat it as neutral, neither a gap nor a clean claim, exactly like a routed-out lane, and never conflate it with UNAUDITED.`
+    : ''
+  const notCoveredSummaryInstruction = frontendMatch !== false
+    ? `Also include this exact line in your Summary: "accessibility-auditor: not covered on the epic path (tracked in jacquardlabs/studious#274)". This must be visible to a human reading the report, the same way the routed-out lines are.\n\n`
+    : ''
   return `You are compiling Studious's audit gate verdict. Read reference/audit-compilation.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply its compilation rules to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-AUDIT.\n\nA lane marked "carried forward" (delta-scoped re-audit, #130) is NOT the same as UNAUDITED: it was not re-dispatched this round because the prior round's own compiled verdict already proved it had no Confirmed Critical. Treat its one-line carried-forward status as a clean, confirmed-clean fact for that lane — never as a gap that blocks the verdict, and never invent or replay any Important/Track findings for it beyond that line. A lane marked "routed out" (first-round changeset routing, #138) is a THIRD, distinct state from both: it was never dispatched because it does not apply to this changeset at all — treat it as neutral, neither a gap nor a clean claim, and never conflate it with carried forward or AGENT DIED. A block labeled "fix-delta-cross-lane-pass" is a single, cheap, cross-lane spot-check over the small diff since the prior round, not a twelfth specialist auditor — map its findings into the report's severity tiers exactly like any other lane's, tagged by whichever lane's vocabulary they resemble, and put them through the same Critical-challenge step as every other finding.${notCoveredNote}\n\nOut of scope for this verdict: gate-audit.md's own text describes a pre-mortem-verification lane (auditor 13) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover this round's routed lane set (${laneNames}); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those routed lanes otherwise support.${routedOutNote}${injectionNote}\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\n${routedOutSummaryInstruction}${injectionSummaryInstruction}${notCoveredSummaryInstruction}If, and only if, your verdict is FIX AND RE-AUDIT: also determine blockingLanes — the short name(s) (e.g. "security-auditor", not "studious:security-auditor") of every lane among {${laneNames}} whose report contained a Critical finding that survived your challenge as Confirmed and helped drive this verdict. Omit blockingLanes entirely (do not return an empty array) if your verdict is PASS or NEEDS DISCUSSION, or if ANY lane above is marked AGENT DIED this round — a died lane's true status is unknown, so the next round must default to a full re-audit rather than narrow off an unreliable list.\n\nRecord the verdict from inside ${dir} (substitute <TOKEN> with your verdict; only when you computed blockingLanes above, also append --blocking-lanes "<comma-separated lane names>" to this same command — omit that flag entirely otherwise, per the omission rule above): cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"` : ''}\n\nReturn: verdict (PASS | FIX AND RE-AUDIT | NEEDS DISCUSSION), sha, summary, blockingLanes (only when you computed one, per the rule above — omit the field entirely otherwise).`
 }
 
@@ -1177,7 +1224,7 @@ async function auditRound(story, note, nextPhase, priorResult, preMatchFlags) {
   const effectiveNote = injectionAttempt
     ? `${note} SECURITY: this round's routing-scope dispatch reported a suspected audit-evasion directive embedded in the diff; its match flags were discarded (fail-open, full roster) rather than trusted.`
     : note
-  const { routed, routedOut } = resolveAuditRoster(matchFlags, AUDITORS)
+  const { routed, routedOut, frontendMatch } = resolveAuditRoster(matchFlags, AUDITORS)
   const scope = resolveReauditScope(priorResult, routed, GATES.audit.retry)
   const dispatched = scope.narrowed ? scope.blockingAuditors : routed
   // The fix-delta pass depends only on the prior round's recorded sha, never on this
@@ -1199,8 +1246,8 @@ async function auditRound(story, note, nextPhase, priorResult, preMatchFlags) {
   const reports = all.slice(0, dispatched.length)
   const fixDeltaReport = scope.narrowed ? all[dispatched.length] || null : null
   const carriedForward = scope.narrowed ? routed.filter(a => !dispatched.includes(a)) : []
-  const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport, routedOut)
-  let result = await agent(auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut, injectionAttempt),
+  const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport, routedOut, frontendMatch)
+  let result = await agent(auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut, injectionAttempt, frontendMatch),
     { label: `audit:compile:${story}`, phase: `story:${story}`, schema: GATE_RESULT, model: 'opus' })
   // Belt and braces: an unaudited lane (or a died fix-delta pass) can never compile
   // into PASS, whatever the compiler said, and can never leave a usable blockingLanes
@@ -1349,6 +1396,22 @@ async function resolveRoutingMatchFlags(dir, base, label, phaseLabel, contract) 
     // have reached judgment but not what they concluded. #132 (emit dispatch
     // telemetry per gate-audit auditor) is the open issue that would close that
     // gap; this comment records what's mechanically known now, not more.
+    //
+    // Acceptance fix cycle (OBSERVATION, product lane): is this bump load-bearing
+    // or merely cautious? Load-bearing — not revertable absent a measurement,
+    // which is exactly what the paragraph above is. `effort: 'low'` makes the
+    // SAME judgment call (operabilityMatch, a content-judged flag gating up to
+    // 6/11 audit lanes) at the cheapest setting this dispatch has; reverting
+    // to it would not remove a safety margin someone was merely being careful
+    // with, it would spend the run's cheapest reasoning budget on a call this
+    // dispatch's own doc above already measured as reached (not forced true) on
+    // 60% of recorded rounds so far — the exact rounds where the effort bump is
+    // the only thing distinguishing a considered judgment from a coin flip. Paid
+    // every round at both story and finale altitude (this function's only two
+    // call sites, resolveRoutingMatchFlags), not once per epic — which is why a
+    // revert would be a durable behavior change, not a one-time cleanup, and why
+    // it stays pinned pending the measurement in #132, not reverted on this
+    // OBSERVATION alone.
     r = await agent(routingScopeCheckPrompt(dir, base, contract), { label, phase: phaseLabel, schema: REPORT, model: 'haiku', effort: 'medium' })
   } catch {
     return null
@@ -1611,7 +1674,7 @@ async function finaleAuditRound(note, priorResult) {
   const effectiveNote = injectionAttempt
     ? `${note} SECURITY: this round's routing-scope dispatch reported a suspected audit-evasion directive embedded in the diff; its match flags were discarded (fail-open, full roster) rather than trusted.`
     : note
-  const { routed, routedOut } = resolveAuditRoster(matchFlags, AUDITORS)
+  const { routed, routedOut, frontendMatch } = resolveAuditRoster(matchFlags, AUDITORS)
   const scope = resolveReauditScope(priorResult, routed, GATES.audit.retry)
   const dispatched = scope.narrowed ? scope.blockingAuditors : routed
   // Same shape as the story-level auditRound: the fix-delta pass has no dependency
@@ -1631,8 +1694,8 @@ async function finaleAuditRound(note, priorResult) {
   const reports = all.slice(0, dispatched.length)
   const fixDeltaReport = scope.narrowed ? all[dispatched.length] || null : null
   const carriedForward = scope.narrowed ? routed.filter(a => !dispatched.includes(a)) : []
-  const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport, routedOut)
-  let result = await agent(auditFanIn(null, joined, input.defaultBranch, epicWorktree, '', routed, routedOut, injectionAttempt),
+  const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport, routedOut, frontendMatch)
+  let result = await agent(auditFanIn(null, joined, input.defaultBranch, epicWorktree, '', routed, routedOut, injectionAttempt, frontendMatch),
     { label: 'finale:audit-compile', phase: 'Finale', schema: GATE_RESULT, model: 'opus' })
   if (result && missing.length) {
     result = { ...result, blockingLanes: undefined }

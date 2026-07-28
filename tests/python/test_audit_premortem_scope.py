@@ -157,10 +157,16 @@ def test_auditors_constant_never_gains_a_premortem_entry() -> None:
     # applied to joinReports under #130; tests/python/test_audit_first_round_routing.py
     # covers the actual new shape. What this test still guarantees: neither call site
     # gained a pre-mortem argument — the carve-out stays prompt-text only.
-    assert "auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut, injectionAttempt)" in source, (
+    # Grew again under operability-routing-parity's acceptance fix cycle (a trailing
+    # frontendMatch boolean, so joinReports/auditFanIn can gate the accessibility
+    # not-covered block without a second hand-derived copy of the flag) — matching
+    # this docstring's own stated intent above, the prefix is checked, not the exact
+    # trailing argument list; tests/python/test_audit_first_round_routing.py covers
+    # the current shape in full.
+    assert "auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut, injectionAttempt" in source, (
         "auditRound's auditFanIn call site is missing or has an unexpected shape"
     )
-    assert "auditFanIn(null, joined, input.defaultBranch, epicWorktree, '', routed, routedOut, injectionAttempt)" in source, (
+    assert "auditFanIn(null, joined, input.defaultBranch, epicWorktree, '', routed, routedOut, injectionAttempt" in source, (
         "finaleAuditRound's auditFanIn call site is missing or has an unexpected shape"
     )
     assert "premortem" not in source[source.index("auditFanIn(story, joined,"):source.index("auditFanIn(story, joined,") + 200].lower()
