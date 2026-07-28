@@ -920,12 +920,17 @@ function computeScopeDelta(fields) {
 // one moment's attribution silently, with no `unmeasured` entry written in
 // its place, and this design (see the doc's own "adds no dispatches of its
 // own") deliberately doesn't add a verification dispatch to catch it. It is
-// detectable, not self-correcting: the NEXT round's own scope-check dispatch
-// (routingScopeCheckPrompt/acceptanceScopeCheckPrompt) reads `.scopeDelta`
-// back from the ledger as `scopeDeltaHistory`, so a missing moment shows up
-// as a gap in the run summary's per-moment breakdown for a reader to notice —
-// it just isn't retried or flagged automatically the way `unmeasured: true`
-// is when the scope-check dispatch itself fails.
+// detectable, not self-correcting, and not silent: fix-and-retry finding 1
+// (#244 round 8) made `commands/work-through.md`'s own report jq cross-check
+// this write's more reliable sibling half — the SAME `gate-ledger work-log`
+// call's `--step`/`--outcome` flags, which land in `.history` unconditionally
+// — against `.scopeDelta`'s own entry count, so a round that recorded its
+// step but dropped the trailing `--scope-delta-*` flags renders as "N of M
+// moments measured" (M the count of audit/acceptance `.history` steps) rather
+// than a silently smaller, clean-looking N. Still not retried or corrected
+// automatically the way `unmeasured: true` is when the scope-check dispatch
+// itself fails — the drop is surfaced to the human reading the run summary,
+// not repaired.
 function scopeDeltaWorkLogFlags(phase, delta) {
   if (!phase) return ''
   // Defense in depth, second layer: the real hardening is computeScopeDelta's

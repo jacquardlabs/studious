@@ -1122,6 +1122,94 @@ def test_report_moments_measured_is_the_denominator_a_dropped_flag_would_hide() 
     assert two_recorded != three_recorded
 
 
+def test_report_more_than_five_outside_files_orders_by_arrival_moment_not_alphabetically() -> None:
+    """Fix-and-retry finding 2 (#244 round 8): `unique`'s own sort is alphabetical
+    across the WHOLE outside-files set, not per-moment — a later fix-cycle file
+    whose name happens to sort before an earlier build file used to leak into the
+    visible window ahead of it, misrepresenting which five files actually arrived
+    first (and, with only two truncated slots, which two got cut). Ordering by
+    (moment index, name) instead keeps the five build files — all older than the
+    audit-fix file — the ones shown, and the audit-fix file (having arrived only
+    after all five) the one truncated away, regardless of its name's alphabetical
+    position ahead of every build file's."""
+    out = _run_scope_delta_jq({
+        "declaredFiles": [],
+        "scopeDelta": [
+            {"phase": "build", "unmeasured": False,
+             "outsideFiles": ["y1.py", "y2.py", "y3.py", "y4.py", "y5.py"]},
+            {"phase": "audit-fix-1", "unmeasured": False, "outsideFiles": ["a1.py", "a2.py"]},
+        ],
+        "amendments": [],
+    })
+    assert out == (
+        "scope: declared 0, outside 7 (5 at build, 2 at audit-fix-1); "
+        "2 moments measured: y1.py, y2.py, y3.py, y4.py, y5.py +2 more"
+    )
+
+
+def test_report_denominator_renders_when_history_confirms_every_moment_recorded() -> None:
+    """Fix-and-retry finding 1 (#244 round 8): the denominator renders whenever
+    `.history` gives a usable bound, not only when a gap exists — a reader must be
+    able to tell "checked, found nothing missing" from "never checked" at a
+    glance, the same reasoning that keeps the sibling `; N moment(s) measured`
+    clause itself never bracketed or omitted."""
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [
+            {"phase": "build", "unmeasured": False, "outsideFiles": []},
+            {"phase": "audit-fix-1", "unmeasured": False, "outsideFiles": []},
+        ],
+        "amendments": [],
+        "history": [
+            {"step": "audit", "outcome": "FIX AND RE-AUDIT"},
+            {"step": "audit", "outcome": "PASS"},
+        ],
+    })
+    assert out == "scope: declared 1, outside 0; 2 of 2 moments measured"
+
+
+def test_report_denominator_surfaces_a_dropped_scope_delta_write() -> None:
+    """The AC's own motivating failure mode, made concrete this time: `.history`
+    shows two audit rounds ran (each recording its own `--step audit --outcome`
+    write), but `.scopeDelta` has only one entry — the second round's compiling
+    agent typed the step/outcome half of its pre-filled command and dropped the
+    trailing `--scope-delta-*` flags, exactly the drop
+    `workflows/epic-driver.js`'s own "Known limitation" comment on
+    `scopeDeltaWorkLogFlags` names. The denominator surfaces the gap instead of
+    reading as a clean, small count — unlike the sibling test above (two
+    DIFFERENT stories with two DIFFERENT recorded counts), this reproduces the
+    gap within a single story's own history."""
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [{"phase": "build", "unmeasured": False, "outsideFiles": ["b.py"]}],
+        "amendments": [],
+        "history": [
+            {"step": "audit", "outcome": "FIX AND RE-AUDIT"},
+            {"step": "audit", "outcome": "PASS"},
+        ],
+    })
+    assert out == "scope: declared 1, outside 1 (1 at build); 1 of 2 moments measured: b.py"
+
+
+def test_report_denominator_falls_back_when_history_undercounts_a_no_audit_profile() -> None:
+    """A no-`audit`-gate profile's own first acceptance round names the "build"
+    moment (`scopeDeltaPhase`'s own rule) — this jq's conservative
+    `$expectedMoments` formula deliberately does not special-case that profile
+    shape (restating the driver's own gate/attempts rule in a second language is
+    the failure class the design doc's Alternatives table rejects a parser for),
+    so it always undercounts by exactly one there. The `$expectedMoments >=
+    $measuredCount` guard suppresses the resulting nonsensical "N of M" (M < N)
+    rather than rendering one — a false negative (no denominator shown), never a
+    false positive (a fabricated gap)."""
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [{"phase": "build", "unmeasured": False, "outsideFiles": []}],
+        "amendments": [],
+        "history": [{"step": "acceptance", "outcome": "SHIP"}],
+    })
+    assert out == "scope: declared 1, outside 0; 1 moment measured"
+
+
 # ---------- closing report's literal shape block (#244 fix-and-retry finding 6) ----------
 #
 # The jq filter above computes the value; these lock the SEPARATE prose surface

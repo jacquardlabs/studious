@@ -494,6 +494,28 @@ gate-ledger work-get --slug "<slug>--<story>" | jq -r '
     # `reason` (`// "unspecified"` — same missing-key rule as the leading
     # branch above), not just a bare count.
     ([$sd[] | select(.unmeasured == true) | "\(.phase) \(.reason // "unspecified")"]) as $unmeasuredDetail |
+    # Fix-and-retry finding 1 (#244 round 8): a denominator for the measured
+    # count, so a `gate-ledger work-log` call that recorded a round's
+    # `--step`/`--outcome` but dropped the trailing `--scope-delta-*` flags —
+    # a model typing a long, pre-filled command incompletely — is visible
+    # instead of reading as a smaller, silently-correct count. `.history`
+    # (already read by the duration-chain filter above) is the reliable half
+    # of that same work-log call: the step/outcome write is never optional,
+    # only the scope-delta suffix is. Deliberately a conservative LOWER bound,
+    # not a restatement of `scopeDeltaPhase`'s own gate/attempts rule in a
+    # second language (the #176/#115/#116 failure class the design doc's
+    # Alternatives table rejects a parser for) — every audit-step history
+    # entry names its own moment (round 1 is "build"); every acceptance-step
+    # entry after the first names its own moment (round 1 names none when an
+    # audit gate already claimed "build", so it undercounts by exactly one on
+    # a no-`audit`-gate profile, never overcounts). The `$expectedMoments >=
+    # $measuredCount` guard below only ever suppresses that undercount to the
+    # plain, undecorated rendering — it can never manufacture a false "N of M"
+    # gap.
+    (.history // []) as $hist |
+    ([$hist[] | select(.step == "audit")] | length) as $auditSteps |
+    ([$hist[] | select(.step == "acceptance")] | length) as $acceptanceSteps |
+    ($auditSteps + (if $acceptanceSteps > 0 then $acceptanceSteps - 1 else 0 end)) as $expectedMoments |
     # "One file counts once" is enforced authoritatively by
     # workflows/epic-driver.js's computeScopeDelta, against every prior
     # moment's own already-written history — `| unique` here is a display-side
@@ -503,7 +525,22 @@ gate-ledger work-get --slug "<slug>--<story>" | jq -r '
     # applies the same display-side `unique` to each moment's own count, so a
     # duplicated stored entry within one moment can't inflate that moment's
     # number while $outside's total (already deduplicated) looks unaffected.
-    ([$measured[] | .outsideFiles[]?] | unique) as $outside |
+    #
+    # Fix-and-retry finding 2 (#244 round 8): ordered by the moment a file
+    # first appears (array order — `$measured` is already chronological), then
+    # by name as a same-moment tie-break — `unique`'s own sort is alphabetical
+    # across the WHOLE set and would otherwise decide display order by
+    # accident, burying a fix-cycle arrival behind an alphabetically-earlier
+    # build-time file (the design doc's own worked example already lists
+    # files in moment order, not alphabetically).
+    ($measured
+      | to_entries
+      | map(.key as $idx | .value.outsideFiles[]? | {file: ., idx: $idx})
+      | group_by(.file)
+      | map({file: .[0].file, idx: (map(.idx) | min)})
+      | sort_by(.idx, .file)
+      | map(.file)
+    ) as $outside |
     ([$measured[] | {phase: .phase, n: ((.outsideFiles // []) | unique | length)} | select(.n > 0)]) as $byMomentRaw |
     ($byMomentRaw | map(.n) | add // 0) as $byMomentSum |
     ($byMomentRaw | map("\(.n) at \(.phase)") | join(", ")) as $byMoment |
@@ -529,8 +566,17 @@ gate-ledger work-get --slug "<slug>--<story>" | jq -r '
       # report on — a moment that never got recorded at all is a different,
       # already-distinct failure the two branches above this one render
       # (unmeasured/not-yet-measured), never this one reading as a false
-      # all-clean "outside 0".
-      + ("; " + plural($measuredCount; "moment") + " measured"
+      # all-clean "outside 0". Fix-and-retry finding 1 (#244 round 8): renders
+      # "N of M" whenever $expectedMoments is a usable bound (>= $measuredCount)
+      # — always, not only when the two differ, since a reader seeing a bare
+      # "N moments measured" cannot tell "checked, found nothing missing" from
+      # "never checked"; falls back to the plain, undecorated count exactly
+      # like every other fixture in this section that omits `.history`.
+      + ("; " + (if $expectedMoments >= $measuredCount then
+            "\($measuredCount) of " + plural($expectedMoments; "moment") + " measured"
+          else
+            plural($measuredCount; "moment") + " measured"
+          end)
           + (if ($unmeasuredDetail | length) > 0 then
               ", \($unmeasuredDetail | length) unmeasured (\($unmeasuredDetail | join(", ")))"
             else "" end))
@@ -570,20 +616,32 @@ this line names it: the trailing `amendment(s) reference no counted file` clause
 that signal, so a wrong or stale amendment reads as a visible discrepancy rather
 than a quietly lower `amended` number.
 
-The `; <N> moment(s) measured[, <M> unmeasured (...)]` clause is the denominator:
-without it, a moment that was never recorded at all (a dropped or mistyped work-log
-flag, or the fallback driver's own documented gap above) renders identically to a
-moment that measured clean, both reading as the same `outside <N>` number with
-nothing to tell them apart — exactly the false-clean reading the AC's "never summed
-as zero" rule exists to prevent. It fires whenever the `else` branch above does —
-which now requires at least one *measured* `scopeDelta` entry, since an
-all-unmeasured cohort gets its own leading-fact rendering instead (above), rather
-than reaching this clause with a measured count of zero — and is never itself
-bracketed or omitted; only its own trailing `, <M> unmeasured (...)` addendum drops
-when every recorded moment was measured. Fix-and-retry finding 3 (#244): that
-addendum's own parenthetical names each unmeasured moment's `phase` and `reason`
-(`unspecified` for an entry with no recorded reason — a pre-finding-3 write, or a
-caller that omitted `--scope-delta-reason`) — never a bare count standing alone.
+The `; <N> moment(s) measured[, <M> unmeasured (...)]` clause is the denominator: it
+fires whenever the `else` branch above does — which now requires at least one
+*measured* `scopeDelta` entry, since an all-unmeasured cohort gets its own
+leading-fact rendering instead (above), rather than reaching this clause with a
+measured count of zero — and is never itself bracketed or omitted; only its own
+trailing `, <M> unmeasured (...)` addendum drops when every recorded moment was
+measured. Fix-and-retry finding 3 (#244): that addendum's own parenthetical names
+each unmeasured moment's `phase` and `reason` (`unspecified` for an entry with no
+recorded reason — a pre-finding-3 write, or a caller that omitted
+`--scope-delta-reason`) — never a bare count standing alone. `unmeasured` is a
+*recorded* moment whose own scope check failed; it says nothing about a moment
+that was never recorded at all (a dropped or mistyped work-log flag — the same
+call that already recorded the round's `--step`/`--outcome`, per
+`workflows/epic-driver.js`'s own "Known limitation" comment on
+`scopeDeltaWorkLogFlags` — or the fallback driver's own documented gap above),
+which used to render identically to a moment that measured clean, both reading as
+the same `outside <N>` number with nothing to tell them apart. Fix-and-retry
+finding 1 (#244 round 8): the `<N> of <M>` prefix on the leading measured count is
+that denominator — `<M>` is a conservative count of audit/acceptance rounds
+`.history` already shows ran (never a restatement of `scopeDeltaPhase`'s own
+gate/attempts naming rule), so `<N>` falling short of `<M>` is a moment that ran
+and recorded its step but never wrote a scope-delta entry at all — distinct from,
+and never conflated with, an `unmeasured` entry's own accounted-for failure. The
+prefix renders whenever `<M>` is a usable bound (at least `<N>`); a caller or
+fixture with no `.history` (every pre-round-8 fixture in this section) degrades to
+the plain, undecorated `<N> moment(s) measured` it always rendered.
 
 End with exactly this shape and nothing after it:
 
@@ -620,7 +678,10 @@ being one of the jq's own outputs.
   `scope: not measured (...)` below instead, regardless of declaration.
 - `scope: declared <N>, not yet measured (no moment recorded)`
 - `scope: declared <N>, unmeasured (0 of <M> moment(s) measured: <phase> <reason>[, <phase> <reason>, ...])`
-- `scope: declared <N>, outside <N> (<breakdown by moment>)[, <N> amended][, <N> amendment(s) reference/references no counted file]; <N> moment(s) measured[, <N> unmeasured (<phase> <reason>[, <phase> <reason>, ...])][: <file, file, ..., +N more>]`
+- `scope: declared <N>, outside <N> (<breakdown by moment>)[, <N> amended][, <N> amendment(s) reference/references no counted file]; <N>[ of <M>] moment(s) measured[, <N> unmeasured (<phase> <reason>[, <phase> <reason>, ...])][: <file, file, ..., +N more>]` —
+  the `of <M>` prefix (fix-and-retry finding 1, #244 round 8) appears whenever
+  `.history` gives a usable bound (`<M>` at least `<N>`); a caller with no usable
+  `.history` renders the plain `<N> moment(s) measured` it always has.
 - `scope: unavailable (could not read the work file)` — caller-side, not one of
   the jq's four: the `work-get` read failed or the jq pipeline errored.
 - `scope: not measured (fallback driver — measurement runs on the Workflow path only)` — caller-side, rendered by the fallback driver in place of the jq
@@ -641,7 +702,9 @@ by hand happens inside its worktree (the story branch is checked out there), or 
 omitted individually when empty (no amendments, no orphaned amendments, zero outside
 files) — never a literal `[, 0 amended]` or empty bracket rendered to the user; the
 leading `; <N> moment(s) measured` clause is not bracketed and is never itself
-omitted in that rendering, per its own paragraph above.
+omitted in that rendering, per its own paragraph above — its own `of <M>` prefix is
+the one part of it that is conditional (present only when `.history` gives a usable
+bound), never a literal `[of <M>]` rendered to the user either way.
 
 ## Record keeping
 

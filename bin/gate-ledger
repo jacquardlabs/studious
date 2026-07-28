@@ -1051,6 +1051,19 @@ cmd_gc() {
   #
   # A work file with no branch yet (decide/design happen before one exists) is
   # kept unless its phase is terminal.
+  # Scope-delta measurement (#244) acceptance fix-and-retry, finding 3: this
+  # guard reads `.scopeDelta` — a field only `work-set --declared-files` and
+  # `work-log --scope-delta-*` (below, and cmd_work_log above) ever populate.
+  # A rollback that deletes just those two writers leaves this guard, and the
+  # six scope-delta-conditional `printf` sites it feeds (this block's two
+  # `kept:` messages, its two past-retention-window `removed` messages, and
+  # the two `--force discarded` messages further down), reading a field
+  # nothing populates anymore: every file's `sd_len` computes to 0, the guard
+  # never arms, and `gc` silently reverts to always collecting on first pass —
+  # the pre-#237 regression, with no visible symptom. Roll back this whole
+  # block (`scope_delta_retention_lapsed` above included) and the four
+  # `.scopeDelta`-describing locations in `commands/studious-doctor.md`
+  # (lines 50, 56, 57, 79) in the same change, or the rollback is incomplete.
   local wdir; wdir=$(work_dir)
   local phase sd_len
   for f in "$wdir"/*.json; do
