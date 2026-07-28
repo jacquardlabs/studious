@@ -26,12 +26,19 @@ Extended for issue #261: `ledgerScopeCheckPrompt` has the exact same cwd-depende
 ("From ${dir}, run: gate-ledger gate-get") but for a `gate-ledger` invocation rather than a
 `git` one — `gate-ledger` has no `-C` flag of its own, so anchoring it takes an explicit
 `--branch` (computed via `git -C "${dir}"`, the same technique the merge-base check one
-line below it already uses) plus a scoped `(cd "${dir}" && ...)` around the read itself,
-since `gate-ledger`'s ledger-file lookup is *also* cwd-anchored, not just its branch
-inference. It joins `SCOPE_PROBES` below and inherits all four generic checks; its own
-error-signalling half (`ledgerAuditPrior` failing loudly instead of degrading to
-`hasNarrowableVerdict:false`) gets dedicated executed-fixture tests further down, since
-that half is a caller-side behavior no prompt-text assertion can observe.
+line below it already uses) plus a scoped `(cd "${dir}" && ...)` around the read itself.
+That `cd` does NOT anchor the ledger *file* to this worktree specifically — bin/gate-
+ledger's `repo_root()` resolves via `git rev-parse --git-common-dir`, which every linked
+worktree of one repo shares, so they already point at the identical `.studious/gates`
+regardless of which one cwd sits in. What the `cd` actually guards is cwd landing
+outside this repo entirely, where `repo_root()` fails and `ledger_dir()` silently
+degrades to a cwd-relative path instead of erroring (corrected 2026-07-28,
+gate-acceptance round 2 non-blocking finding 3 — a prior round of this docstring stated
+the ledger-file rationale incorrectly). It joins `SCOPE_PROBES` below and inherits all
+four generic checks; its own error-signalling half (`ledgerAuditPrior` failing loudly
+instead of degrading to `hasNarrowableVerdict:false`) gets dedicated executed-fixture
+tests further down, since that half is a caller-side behavior no prompt-text assertion
+can observe.
 """
 
 from __future__ import annotations
@@ -142,9 +149,14 @@ def test_ledger_scope_check_never_calls_gate_get_without_an_explicit_branch():
 
 
 def test_ledger_scope_check_scopes_the_gate_get_read_with_a_cd():
-    """`gate-ledger`'s ledger-*directory* lookup is also cwd-anchored (`repo_root()`
-    walks up from cwd), not just its branch inference — `--branch` alone fixes one
-    half of the bug. The read itself must run inside `(cd "${dir}" && ...)`.
+    """The read itself must run inside `(cd "${dir}" && ...)` — not because
+    `gate-ledger`'s ledger-*directory* lookup is itself worktree-specific
+    (`repo_root()` resolves via `git rev-parse --git-common-dir`, shared by every
+    linked worktree of one repo, so `--branch` alone already fixes the branch half of
+    the bug regardless of cwd), but because `repo_root()` still requires cwd to be
+    inside *some* worktree of this repo at all. The `cd` guards a dispatched shell
+    landing in an unrelated repo or none, where `repo_root()` fails outright and
+    `ledger_dir()` silently degrades to a cwd-relative path instead of erroring.
     """
     prompt = _build_prompt("ledgerScopeCheckPrompt", [json.dumps(PROBE_DIR)])
     assert f'(cd "{PROBE_DIR}" && gate-ledger gate-get' in prompt, (
@@ -174,8 +186,18 @@ def test_ledger_scope_check_forbids_the_error_key_on_a_successful_empty_read():
 
 # ---------- #261: ledgerAuditPrior fails loudly on a reported read error ----------
 
+# This story's own branch, matching the shape storyBranch() computes
+# (`epic/${slug}--${story}`) — used as `expectedBranch` in every fixture below unless a
+# test deliberately supplies a different one to simulate a mismatch.
+EXPECTED_STORY_BRANCH = "epic/some-epic--some-story"
 
-def _run_ledger_audit_prior(agent_findings: dict | None, *, agent_throws: bool = False) -> dict:
+
+def _run_ledger_audit_prior(
+    agent_findings: dict | None,
+    *,
+    agent_throws: bool = False,
+    expected_branch: str = EXPECTED_STORY_BRANCH,
+) -> dict:
     """Executes the real `ledgerAuditPrior` (plus the `ledgerScopeCheckPrompt` it
     calls, extracted verbatim like every other fixture in this file) under Node,
     with `agent` stubbed to return canned findings instead of really dispatching, and
@@ -202,7 +224,7 @@ const REPORT = {{ type: 'object', properties: {{ findings: {{ type: 'string' }} 
 const LOGS = []
 function log(line) {{ LOGS.push(line) }}
 {agent_body}
-ledgerAuditPrior({json.dumps(PROBE_DIR)}, 'label', 'phase')
+ledgerAuditPrior({json.dumps(PROBE_DIR)}, {json.dumps(expected_branch)}, 'label', 'phase')
   .then(value => {{ console.log(JSON.stringify({{ threw: false, value, logs: LOGS }})) }})
   .catch(err => {{ console.log(JSON.stringify({{ threw: true, message: err.message, parkGate: err.parkGate || null, logs: LOGS }})) }})
 """
@@ -318,3 +340,170 @@ def test_ledger_audit_prior_still_fails_closed_on_a_died_dispatch():
     result = _run_ledger_audit_prior(None, agent_throws=True)
     assert not result["threw"], f"a died dispatch must degrade quietly, not throw: {result}"
     assert result["value"] is None
+
+
+# ---------- gate-acceptance round 2 (fix-and-recheck SHOULD FIX 1 & 2): resolvedBranch ----------
+
+
+def test_ledger_scope_check_requires_resolved_branch_in_every_returned_outcome():
+    """`resolvedBranch` — the literal output of the FIRST, unambiguous `git -C`
+    rev-parse command — must ride along on every one of the prompt's five returned
+    JSON shapes (both `hasNarrowableVerdict:false` error outcomes, both plain
+    `hasNarrowableVerdict:false` outcomes, and the `hasNarrowableVerdict:true` one), or
+    `ledgerAuditPrior`'s mismatch check below has nothing to compare against on
+    exactly the outcome where a #261-pattern wrong-cwd read is otherwise invisible: a
+    well-formed, error-free `hasNarrowableVerdict:false`.
+    """
+    prompt = _build_prompt("ledgerScopeCheckPrompt", [json.dumps(PROBE_DIR)])
+    missing = re.findall(r'\{"hasNarrowableVerdict":(?:true|false)(?!,"resolvedBranch")', prompt)
+    assert not missing, (
+        f"ledgerScopeCheckPrompt has {len(missing)} returned JSON shape(s) that don't "
+        "carry \"resolvedBranch\" immediately after \"hasNarrowableVerdict\" — an agent "
+        "following this prompt could omit it on some outcomes, leaving "
+        "ledgerAuditPrior's mismatch check blind on exactly those."
+    )
+    narrowable_count = prompt.count('"hasNarrowableVerdict"')
+    assert narrowable_count == 5, (
+        "this assertion assumes the prompt still returns exactly 5 distinct JSON "
+        f"shapes; it now returns {narrowable_count} — update the count above if that "
+        "changed deliberately."
+    )
+
+
+def test_ledger_audit_call_site_passes_the_expected_story_branch():
+    """The whole mechanical mismatch-detection mechanism is inert unless the driver's
+    own call site hands `ledgerAuditPrior` this story's branch to compare against —
+    guards against the function being fixed in isolation while its one caller is
+    never updated to pass the new argument.
+    """
+    source = DRIVER.read_text()
+    assert "ledgerAuditPrior(storyWorktree(story), storyBranch(story)," in source, (
+        "runGate's ledgerAuditPrior call no longer passes storyBranch(story) as the "
+        "expected branch — the mismatch check in ledgerAuditPrior always sees an "
+        "unrelated or undefined value and can never fire."
+    )
+
+
+def test_ledger_audit_prior_degrades_loudly_on_a_resolved_branch_mismatch_with_no_error_key():
+    """The AC's own literal failure mode: an agent that disregards the `-C`/`cd`
+    anchoring still runs a real rev-parse and a real gate-get, just against the
+    AMBIENT checkout — and can report a perfectly well-formed, error-free
+    `hasNarrowableVerdict:false` with no hint anything went wrong. Only comparing the
+    now-mandatory `resolvedBranch` against this story's own branch catches it; must
+    degrade loudly (log fires, value null), never silently.
+    """
+    result = _run_ledger_audit_prior(
+        {"hasNarrowableVerdict": False, "resolvedBranch": "epic/other-epic--other-story"}
+    )
+    assert not result["threw"], f"a resolved-branch mismatch must degrade, not park: {result}"
+    assert result["value"] is None
+    assert result["logs"], (
+        f"a resolved-branch mismatch must still fail loudly via log(), never "
+        f"disappear as a silent hasNarrowableVerdict:false: {result}"
+    )
+    assert any(
+        PROBE_DIR in line and "epic/other-epic--other-story" in line and EXPECTED_STORY_BRANCH in line
+        for line in result["logs"]
+    ), f"the log line should name the worktree, the wrong branch, and the expected one: {result}"
+
+
+def test_ledger_audit_prior_discards_a_narrowable_verdict_on_a_resolved_branch_mismatch():
+    """A `hasNarrowableVerdict:true` report is not exempt from the mismatch check —
+    checked BEFORE hasNarrowableVerdict is ever trusted, since applying a narrowed
+    verdict read from the WRONG branch would fold some other story's `blockingLanes`
+    into this one's re-audit, actively harmful rather than merely a wasted round.
+    """
+    result = _run_ledger_audit_prior(
+        {
+            "hasNarrowableVerdict": True,
+            "sha": "abc1234",
+            "blockingLanes": ["security"],
+            "resolvedBranch": "epic/other-epic--other-story",
+        }
+    )
+    assert not result["threw"], f"a mismatch must degrade, not throw: {result}"
+    assert result["value"] is None, (
+        f"a narrowed verdict read from the wrong branch must never be trusted, even "
+        f"though hasNarrowableVerdict was true: {result}"
+    )
+    assert result["logs"], "a discarded mismatch must still log loudly"
+
+
+def test_ledger_audit_prior_trusts_a_matching_resolved_branch():
+    """Regression: when `resolvedBranch` matches this story's own branch, the
+    pre-existing hasNarrowableVerdict handling proceeds exactly as before — the new
+    check must not false-positive on the ordinary, correctly-anchored case."""
+    result = _run_ledger_audit_prior(
+        {
+            "hasNarrowableVerdict": True,
+            "sha": "abc1234",
+            "blockingLanes": ["security"],
+            "resolvedBranch": EXPECTED_STORY_BRANCH,
+        }
+    )
+    assert not result["threw"], result
+    assert result["value"] == {
+        "verdict": "FIX AND RE-AUDIT",
+        "sha": "abc1234",
+        "blockingLanes": ["security"],
+    }, result
+    assert not result["logs"], "a matching resolvedBranch is not a mismatch and must not log"
+
+
+def test_ledger_audit_prior_treats_detached_head_as_not_a_mismatch():
+    """`resolvedBranch: "HEAD"` (a detached checkout) is a distinct, already-named
+    check-unavailable case, not a mismatch — the mismatch check must not fire on it
+    and must leave the existing errorKind handling to degrade it as before."""
+    result = _run_ledger_audit_prior(
+        {
+            "hasNarrowableVerdict": False,
+            "resolvedBranch": "HEAD",
+            "error": "branch lookup printed the literal string HEAD",
+            "errorKind": "check-unavailable",
+        }
+    )
+    assert not result["threw"], result
+    assert result["value"] is None
+    assert result["logs"], "the pre-existing check-unavailable degrade must still log"
+
+
+def test_ledger_audit_prior_overrides_a_misattributed_worktree_broken_when_branch_matches():
+    """Fix-and-recheck SHOULD FIX 2: a resolvedBranch that matches this story's own
+    branch already proves `dir` resolves as a worktree — so a self-reported
+    `errorKind:"worktree-broken"` alongside it is a misattributed guess (the agent
+    saw an ambiguous shell error and could not tell whether the `cd` or `gate-ledger`
+    itself failed). This must be overridden down to check-unavailable and degrade
+    loudly, not throw and permanently park a healthy story.
+    """
+    result = _run_ledger_audit_prior(
+        {
+            "hasNarrowableVerdict": False,
+            "resolvedBranch": EXPECTED_STORY_BRANCH,
+            "error": "gate-ledger: command not found",
+            "errorKind": "worktree-broken",
+        }
+    )
+    assert not result["threw"], (
+        f"a resolvedBranch match proves dir resolves as a worktree — a self-reported "
+        f"worktree-broken here is a misattribution that must be overridden, not "
+        f"trusted into a permanent park: {result}"
+    )
+    assert result["value"] is None
+    assert result["logs"], "the overridden check-unavailable degrade must still log loudly"
+
+
+def test_ledger_audit_prior_still_throws_worktree_broken_when_resolved_branch_is_empty():
+    """Regression: the one case that still throws is a genuinely empty
+    `resolvedBranch` (the FIRST, unambiguous rev-parse itself failing) alongside a
+    self-reported `worktree-broken` — unambiguous, so the model's own classification
+    is trustworthy here and the override in the test above does not apply."""
+    result = _run_ledger_audit_prior(
+        {
+            "hasNarrowableVerdict": False,
+            "resolvedBranch": "",
+            "error": "cd failed: no such directory",
+            "errorKind": "worktree-broken",
+        }
+    )
+    assert result["threw"], result
+    assert result["parkGate"] == "ledger-scope-check", result
