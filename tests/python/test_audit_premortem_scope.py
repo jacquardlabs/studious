@@ -132,7 +132,12 @@ def test_auditors_constant_never_gains_a_premortem_entry() -> None:
     `auditFanIn()`'s own call sites underwent the equivalent change under #138 (first-round
     changeset routing), which threads `routed`/`routedOut` through both call sites — so
     this test no longer pins their exact shape either; tests/python/test_audit_first_round_routing.py
-    covers that shape.
+    covers that shape. `auditRound`'s call site grew once more under #244 (scope-delta
+    measurement) to thread a computed `scopeDeltaFlags` string through — the finale call
+    site did NOT (a declared set has no single owner at finale altitude, per that design
+    doc's Open Questions), so this test now pins the finale shape exactly but only
+    prefix-matches auditRound's, leaving room for that one additional trailing argument;
+    tests/python/test_scope_delta_measurement.py covers the actual new shape.
     """
     source = _driver_text()
     auditors_match = re.search(r"const AUDITORS = \[(.*?)\]", source, re.DOTALL)
@@ -149,12 +154,16 @@ def test_auditors_constant_never_gains_a_premortem_entry() -> None:
     )
 
     # Both call sites' auditFanIn signature grew under #138 (first-round changeset
-    # routing) to thread routed/routedOut through — this test no longer pins their
-    # exact shape, mirroring the same relaxation this docstring already applied to
-    # joinReports under #130; tests/python/test_audit_first_round_routing.py covers
-    # the actual new shape. What this test still guarantees: neither call site
+    # routing) to thread routed/routedOut through, and auditRound's grew once more
+    # under #244 (scope-delta measurement) to append a computed scopeDeltaFlags
+    # string — this test no longer pins auditRound's exact trailing argument,
+    # mirroring the same relaxation this docstring already applied to joinReports
+    # under #130; tests/python/test_scope_delta_measurement.py covers the actual
+    # new shape. finaleAuditRound's call site never gained that argument (a
+    # declared set has no single owner at finale altitude), so it is still pinned
+    # exactly. What this test still guarantees either way: neither call site
     # gained a pre-mortem argument — the carve-out stays prompt-text only.
-    assert "auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut)" in source, (
+    assert "auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut" in source, (
         "auditRound's auditFanIn call site is missing or has an unexpected shape"
     )
     assert "auditFanIn(null, joined, input.defaultBranch, epicWorktree, '', routed, routedOut)" in source, (

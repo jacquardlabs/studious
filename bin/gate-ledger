@@ -13,6 +13,20 @@
 #     indistinguishable from "malformed," which both readers fail closed on (full audit).
 #   .studious/work/<feature-slug>.json  — per-feature flow position for /work-on
 #     (written via `work-set` / `work-log`; read via `work-get` / `work-list`).
+#     Optional scope-delta measurement fields (#244), epic-driven path only:
+#     `declaredFiles` — the design worker's own forecast of exact files this story
+#     expects to touch, set alongside `--design-doc` via `work-set --declared-files`;
+#     absent means no declaration was ever recorded (measured as `unmeasured`, never
+#     zero). `scopeDelta` — an append-only array, one entry per moment the driver
+#     measured (`{phase, unmeasured, outsideFiles, sha, at}`, plus `reason` —
+#     `dispatch-failed`/`no-declaration`/`unsafe-path` — on an unmeasured entry
+#     only, fix-and-retry finding 3, #244), written via `work-log
+#     --scope-delta-phase P (--scope-delta-files F1,F2 | --scope-delta-unmeasured
+#     [--scope-delta-reason R])`. `amendments` — a separate append-only array
+#     (`{file, phase, reason, at}`) attaching a one-line justification to a file some
+#     `scopeDelta` entry already counted as outside the declaration; an amendment
+#     never removes or edits a `scopeDelta` entry and never changes any count — see
+#     the design doc this story's SHA cites for the full mechanism.
 #   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /work-through (written via epic-set / epic-story-set; read via epic-get / epic-list).
 #   .studious/epics/<epic-slug>.events.jsonl — append-only status-transition and
 #     verdict-recording trail for stories running under that epic (one JSON object
@@ -406,15 +420,16 @@ work_file_init() { # slug → ensures the work file exists, echoes its path
 }
 
 cmd_work_set() {
-  local slug="" title="" src="" branch="" doc="" phase=""
+  local slug="" title="" src="" branch="" doc="" phase="" declared="" declared_given=0
   while [ $# -gt 0 ]; do
     case "$1" in
-      --slug)       slug="$2"; shift 2 ;;
-      --title)      title="$2"; shift 2 ;;
-      --source)     src="$2"; shift 2 ;;
-      --branch)     branch="$2"; shift 2 ;;
-      --design-doc) doc="$2"; shift 2 ;;
-      --phase)      phase="$2"; shift 2 ;;
+      --slug)           slug="$2"; shift 2 ;;
+      --title)          title="$2"; shift 2 ;;
+      --source)         src="$2"; shift 2 ;;
+      --branch)         branch="$2"; shift 2 ;;
+      --design-doc)     doc="$2"; shift 2 ;;
+      --declared-files) declared="$2"; declared_given=1; shift 2 ;;
+      --phase)          phase="$2"; shift 2 ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
@@ -437,18 +452,37 @@ cmd_work_set() {
   ensure_gitignore
   local file; file=$(work_file_init "$slug")
   local rc
+  # Scope-delta measurement (#244): --declared-files is the design worker's own
+  # forecast of the exact files this story expects to touch — a distinct
+  # work-file field (declaredFiles), never parsed from the design doc itself
+  # (reference/design-doc-contract.md puts file layout outside that doc's
+  # scope) and never a directory prefix (exact paths only, per the design's
+  # own "Alternatives considered"). An explicitly empty --declared-files
+  # ("") is a real declaration of zero files, not "not provided" — csv_trim
+  # maps it to []; distinguishing that from "never declared" (the field
+  # simply absent) is what lets a later reader tell "declared nothing" apart
+  # from "no declaration exists," so unlike every other optional field on
+  # this verb, it is written whenever the flag is present at all (tracked by
+  # `declared_given`, set in the arg-parsing loop above), not only when
+  # non-empty. `| unique` matches the report side's own treatment of
+  # `outsideFiles` (commands/work-through.md's jq) — a repeated path in the
+  # declaration must not inflate `declared \(N)` against a set that "one file
+  # counts once" already keeps disjoint on the outside-files side.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
-    '.schemaVersion = (.schemaVersion // 1)
+    'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
+     .schemaVersion = (.schemaVersion // 1)
      | .createdAt = (.createdAt // $t)
      | .updatedAt = $t
-     | (if $title  != "" then .title     = $title  else . end)
-     | (if $src    != "" then .source    = $src    else . end)
-     | (if $branch != "" then .branch    = $branch else . end)
-     | (if $doc    != "" then .designDoc = $doc    else . end)
-     | (if $phase  != "" then .phase     = $phase  else . end)' \
+     | (if $title    != "" then .title        = $title            else . end)
+     | (if $src      != "" then .source       = $src              else . end)
+     | (if $branch   != "" then .branch       = $branch           else . end)
+     | (if $doc      != "" then .designDoc    = $doc              else . end)
+     | (if $declGiven == "1" then .declaredFiles = ($decl | csv_trim | unique) else . end)
+     | (if $phase    != "" then .phase        = $phase            else . end)' \
     --arg title "$title" --arg src "$src" --arg branch "$branch" \
-    --arg doc "$doc" --arg phase "$phase" --arg t "$(now_iso)"
+    --arg doc "$doc" --arg decl "$declared" --arg declGiven "$declared_given" \
+    --arg phase "$phase" --arg t "$(now_iso)"
   rc=$?
 
   if [ "$rc" -eq 0 ] && [ -n "$phase" ]; then
@@ -463,26 +497,88 @@ cmd_work_set() {
   return "$rc"
 }
 
+validate_work_log_args() { # step outcome sdPhase sdFilesGiven sdUnmeasured amendFile amendReason sdReason ->
+  # cmd_work_log's own seven argument-combination rules, extracted so the verb's
+  # body reads as one parse loop, one validation pass, one jq write — not seven
+  # sequential branches ahead of the write they gate. Pure: reads only its own
+  # positional args, echoes at most one error to stderr, and returns non-zero
+  # on the FIRST rule a caller's flag combination violates. `slug` is checked
+  # by the caller before this runs (it gates work_file_init below, not the
+  # flag-combination rules this function owns).
+  local step="$1" outcome="$2" sd_phase="$3" sd_files_given="$4" sd_unmeasured="$5" \
+        amend_file="$6" amend_reason="$7" sd_reason="$8"
+  # --step/--outcome are paired (both or neither) — the flow-position history
+  # entry they write is optional on this verb only because scope-delta
+  # measurement (#244) needs a work-log call that records nothing but a
+  # moment's outside-file count or a fixer's amendment, with no step of its
+  # own to log (a fixer never had one — it only ever bumped a retry counter
+  # via epic-story-set). At least one of a step/outcome pair, a scope-delta
+  # write, or an amendment must be present; a call that would do nothing is
+  # a caller error, not a silent no-op.
+  if { [ -n "$step" ] && [ -z "$outcome" ]; } || { [ -z "$step" ] && [ -n "$outcome" ]; }; then
+    echo "gate-ledger: --step and --outcome must be given together" >&2
+    return 1
+  fi
+  if { [ -n "$amend_file" ] && [ -z "$amend_reason" ]; } || { [ -z "$amend_file" ] && [ -n "$amend_reason" ]; }; then
+    echo "gate-ledger: --amend-file and --amend-reason must be given together" >&2
+    return 1
+  fi
+  if [ "$sd_files_given" -eq 1 ] && [ "$sd_unmeasured" -eq 1 ]; then
+    echo "gate-ledger: --scope-delta-files and --scope-delta-unmeasured are mutually exclusive" >&2
+    return 1
+  fi
+  if { [ "$sd_files_given" -eq 1 ] || [ "$sd_unmeasured" -eq 1 ] || [ -n "$amend_file" ]; } && [ -z "$sd_phase" ]; then
+    echo "gate-ledger: --scope-delta-phase required with --scope-delta-files, --scope-delta-unmeasured, or --amend-file" >&2
+    return 1
+  fi
+  # Fix-and-retry finding 3 (#244): --scope-delta-reason names WHY a moment is
+  # unmeasured — meaningless on anything else. Reject it standing alone or
+  # paired with --scope-delta-files, the same "reject the impossible
+  # combination" posture as the mutual-exclusion rule just above.
+  if [ -n "$sd_reason" ] && [ "$sd_unmeasured" -ne 1 ]; then
+    echo "gate-ledger: --scope-delta-reason requires --scope-delta-unmeasured" >&2
+    return 1
+  fi
+  if [ -z "$step" ] && [ "$sd_files_given" -eq 0 ] && [ "$sd_unmeasured" -eq 0 ] && [ -z "$amend_file" ]; then
+    echo "gate-ledger: nothing to record — give --step/--outcome, --scope-delta-phase (with --scope-delta-files or --scope-delta-unmeasured), or --amend-file/--amend-reason" >&2
+    return 1
+  fi
+  return 0
+}
+
 cmd_work_log() {
-  local slug="" step="" outcome="" phase=""
+  local slug="" step="" outcome="" phase="" \
+        sd_phase="" sd_files="" sd_files_given=0 sd_unmeasured=0 sd_reason="" \
+        amend_file="" amend_reason=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --slug)    slug="$2"; shift 2 ;;
-      --step)    step="$2"; shift 2 ;;
-      --outcome) outcome="$2"; shift 2 ;;
-      --phase)   phase="$2"; shift 2 ;;
+      --slug)                  slug="$2"; shift 2 ;;
+      --step)                  step="$2"; shift 2 ;;
+      --outcome)                outcome="$2"; shift 2 ;;
+      --phase)                 phase="$2"; shift 2 ;;
+      --scope-delta-phase)     sd_phase="$2"; shift 2 ;;
+      --scope-delta-files)     sd_files="$2"; sd_files_given=1; shift 2 ;;
+      --scope-delta-unmeasured) sd_unmeasured=1; shift ;;
+      --scope-delta-reason)    sd_reason="$2"; shift 2 ;;
+      --amend-file)            amend_file="$2"; shift 2 ;;
+      --amend-reason)          amend_reason="$2"; shift 2 ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
-  if [ -z "$slug" ] || [ -z "$step" ] || [ -z "$outcome" ]; then
-    echo "gate-ledger: --slug, --step, and --outcome required" >&2
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug required" >&2
     return 2
   fi
+  validate_work_log_args "$step" "$outcome" "$sd_phase" "$sd_files_given" "$sd_unmeasured" \
+    "$amend_file" "$amend_reason" "$sd_reason" || return 2
   # Per-step outcome vocabulary. Only a step whose *reader* branches on the token is
   # constrained here; gate steps carry verdicts owned by reference/gate-vocabulary.md
   # and stay free-form, as do markers like run-boundary. `build` is constrained because
   # work-on.md's "Executor-reported build status" check branches on exactly these, and
-  # three writers had drifted into two dialects with nothing to catch it (#213).
+  # three writers had drifted into two dialects with nothing to catch it (#213). This
+  # vocabulary governs `--outcome` alone — scope-delta measurement (#244) rides its own
+  # dedicated fields (`--scope-delta-*`/`--amend-*`) precisely so it never has to widen
+  # (or smuggle a composite value through) this closed list.
   #   BUILT | PAUSED | ESCALATED  executor-reported terminal status (worker-contract.md)
   #   HANDED-OFF | SKIPPED        /work-on's own non-terminal flow markers
   if [ "$step" = "build" ]; then
@@ -492,6 +588,22 @@ cmd_work_log() {
         echo "gate-ledger: --step build --outcome '$outcome' is not a recognized status;" \
              "use BUILT, PAUSED, ESCALATED, HANDED-OFF, or SKIPPED" \
              "(reference/worker-contract.md, Status reporting)" >&2
+        return 2
+        ;;
+    esac
+  fi
+  # Fix-and-retry finding 3 (#244): --scope-delta-reason's own closed
+  # vocabulary — mirrors the --step build --outcome check above, same
+  # posture (reject a token outside the set, name the accepted values).
+  # Optional: an omitted reason still writes a valid unmeasured entry (a
+  # caller that predates this flag, or one that has nothing more specific to
+  # say), so this only fires when a value was actually given.
+  if [ -n "$sd_reason" ]; then
+    case "$sd_reason" in
+      dispatch-failed|no-declaration|unsafe-path) ;;
+      *)
+        echo "gate-ledger: --scope-delta-reason '$sd_reason' is not a recognized reason;" \
+             "use dispatch-failed, no-declaration, or unsafe-path" >&2
         return 2
         ;;
     esac
@@ -512,16 +624,57 @@ cmd_work_log() {
   local file; file=$(work_file_init "$slug")
   local sha rc
   sha="$(head_sha)"
+  # Scope-delta measurement (#244): `.scopeDelta` is an append-only log of
+  # per-moment measurements (one entry per work-log call that carries
+  # --scope-delta-phase with either --scope-delta-files or
+  # --scope-delta-unmeasured) — never rewritten, never summed here (the
+  # reader, commands/work-through.md, does that from the verbatim entries).
+  # `.amendments` is a separate append-only list keyed by file: a one-line
+  # justification attached to a file some moment already counted as
+  # outside the declaration. Neither ever removes or edits a prior entry in
+  # either array, and neither ever touches `.history` or `$outcome` — see
+  # the closed-vocabulary comment above. `unmeasured: true` carries an empty
+  # `outsideFiles` so every entry has the same shape; the boolean, not the
+  # (possibly coincidentally empty) array, is what a reader must branch on —
+  # "unmeasured" and "measured zero" are different facts. `reason` (fix-and-
+  # retry finding 3, #244) is present only on an unmeasured entry whose
+  # caller gave `--scope-delta-reason` — a measured entry never carries the
+  # key at all, and an unmeasured entry from before this flag existed, or
+  # from a caller that omitted it, has no key either; a reader must treat a
+  # missing key the same as "unspecified," never as a parse failure.
+  local sd_write=0
+  if [ "$sd_files_given" -eq 1 ] || [ "$sd_unmeasured" -eq 1 ]; then
+    sd_write=1
+  fi
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
-    '.history = ((.history // []) + [{step: $step, outcome: $outcome, sha: $s, at: $t}])
+    'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
+     (if $step != "" then .history = ((.history // []) + [{step: $step, outcome: $outcome, sha: $s, at: $t}]) else . end)
      | .updatedAt = $t
-     | (if $phase != "" then .phase = $phase else . end)' \
+     | (if $phase != "" then .phase = $phase else . end)
+     | (if $sdWrite == "1" then
+         .scopeDelta = ((.scopeDelta // []) + [
+           ({phase: $sdPhase, unmeasured: ($sdUnmeasured == "1"),
+             outsideFiles: (if $sdUnmeasured == "1" then [] else ($sdFiles | csv_trim) end),
+             sha: $s, at: $t}
+            + (if $sdUnmeasured == "1" and $sdReason != "" then {reason: $sdReason} else {} end))])
+       else . end)
+     | (if $amendFile != "" then
+         .amendments = ((.amendments // []) + [{file: $amendFile, phase: $sdPhase, reason: $amendReason, at: $t}])
+       else . end)' \
     --arg step "$step" --arg outcome "$outcome" --arg phase "$phase" \
+    --arg sdPhase "$sd_phase" --arg sdFiles "$sd_files" \
+    --arg sdWrite "$sd_write" --arg sdUnmeasured "$sd_unmeasured" --arg sdReason "$sd_reason" \
+    --arg amendFile "$amend_file" --arg amendReason "$amend_reason" \
     --arg s "$sha" --arg t "$(now_iso)"
   rc=$?
 
-  if [ "$rc" -eq 0 ]; then
+  # Event trail: only a call that actually logged a step (`--step`/`--outcome`
+  # given) writes a "step" event — a scope-delta-only or amendment-only call
+  # (no step of its own) has nothing analogous to log here yet, matching this
+  # append's existing contract (reference/events-format.md) of one event per
+  # recorded step, never a spurious empty one.
+  if [ "$rc" -eq 0 ] && [ -n "$step" ]; then
     local ctx epicSlug storySlug
     ctx=$(epic_context_from_slug "$raw_slug")
     if [ -n "$ctx" ]; then
@@ -641,7 +794,7 @@ cmd_epic_get() {
 }
 
 cmd_epic_story_set() {
-  local epic="" slug="" title="" src="" criteria="" decisions="" deps="" gates_csv="" status="" reason="" worktree="" bump="" reset=""
+  local epic="" slug="" title="" src="" criteria="" decisions="" carried="" deps="" gates_csv="" status="" reason="" worktree="" bump="" reset=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --epic)        epic="$2"; shift 2 ;;
@@ -650,6 +803,7 @@ cmd_epic_story_set() {
       --source)      src="$2"; shift 2 ;;
       --criteria)    criteria="$2"; shift 2 ;;
       --decisions)   decisions="$2"; shift 2 ;;
+      --carried-findings) carried="$2"; shift 2 ;;
       --deps)        deps="$2"; shift 2 ;;
       --gates)       gates_csv="$2"; shift 2 ;;
       --status)      status="$2"; shift 2 ;;
@@ -692,6 +846,7 @@ cmd_epic_story_set() {
        | (if $src      != "" then .source   = $src      else . end)
        | (if $criteria != "" then .criteria = $criteria else . end)
        | (if $decisions != "" then .decisions = $decisions else . end)
+       | (if $carried  != "" then .carriedFindings = $carried else . end)
        | (if $deps     != "" then .deps     = ($deps  | csv_trim) else . end)
        | (if $gates    != "" then .gates    = ($gates | csv_trim) else . end)
        | (if $status   != "" then .status   = $status   else . end)
@@ -700,7 +855,7 @@ cmd_epic_story_set() {
        | (if $bump     != "" then .retries[$bump]  = ((.retries[$bump]  // 0) + 1) else . end)
        | (if $reset    != "" then .retries[$reset] = 0 else . end))' \
     --arg s "$slug" --arg title "$title" --arg src "$src" --arg criteria "$criteria" \
-    --arg decisions "$decisions" \
+    --arg decisions "$decisions" --arg carried "$carried" \
     --arg deps "$deps" --arg gates "$gates_csv" --arg status "$status" --arg reason "$reason" \
     --arg wt "$worktree" --arg bump "$bump" --arg reset "$reset" --arg t "$(now_iso)"
   rc=$?
@@ -964,7 +1119,59 @@ cmd_work_list() {
   done
 }
 
+# Scope-delta measurement (#244) acceptance fix-and-retry: how long cmd_gc's
+# measured-scope-delta guard (below) keeps a work file before collecting it
+# regardless. Bounded, not permanent — the guard's first cut (`kept ... unless
+# --force`) had no terminating condition, so it never released a file to the
+# default (no-`--force`) path at all, silently re-disabling #237's fix on the
+# exact epic-driven files it was written for. Three mechanisms were on the
+# table: read-marking, bounded retention, per-slug opt-out. Read-marking is
+# rejected because `work-get` is called constantly by the driver's own
+# in-flow fact-checks (workflows/epic-driver.js) — marking "read" there would
+# defeat the guard before a human ever saw the cohort, the same failure this
+# guard exists to prevent, just relocated to a different call site. A
+# per-slug opt-out is rejected because it is `--force` at file granularity —
+# still a new action a human must remember to take, per file, rather than the
+# guard ever releasing on its own. Bounded retention needs neither: the same
+# plain `gc` a user already runs collects on its own once the window lapses,
+# so a batch run stops being a permanent trap without adding a second way to
+# lose data early. Not a flag — a configurable threshold is exactly the
+# round-one-deferred "no threshold" surface this story's epic-planning
+# decisions ruled out; the constant below is the whole knob for now.
+SCOPE_DELTA_RETENTION_DAYS=14
+
+scope_delta_retention_lapsed() { # file -> true (exit 0) once its last write is older than the keep window; false (exit 1) otherwise, and fail toward keeping (false) on any read failure or missing timestamp
+  local file="$1" updated
+  updated=$(jq -r '.updatedAt // .createdAt // empty' "$file" 2>/dev/null)
+  [ -n "$updated" ] || return 1
+  jq -n -e --arg u "$updated" --argjson days "$SCOPE_DELTA_RETENTION_DAYS" \
+    '(try (now - ($u | fromdateiso8601)) catch null) as $age
+     | $age != null and $age > ($days * 86400)' >/dev/null 2>&1
+}
+
 cmd_gc() {
+  # Scope-delta measurement (#244), pre-mortem register item 7 (REALIZED): a
+  # work file is the only copy of `declaredFiles`/`scopeDelta`/`amendments` —
+  # collecting it discards that story's measurement cohort for good. `--force`
+  # opts back into the old unconditional-collect behavior; without it, a work
+  # file that would otherwise be collected but still carries at least one
+  # *measured* `.scopeDelta` moment (an entry with `unmeasured: true` carries
+  # no file data by construction — see work-log above — so an all-unmeasured cohort has
+  # nothing this guard exists to save; narrowing on measured entries, rather
+  # than widening to `declaredFiles != null`, keeps a fallback-driven epic's
+  # own --scope-delta-unmeasured-only moments from pinning every work file it
+  # touches) is kept instead, named in the output, so a batch `gc` run can't
+  # silently erase a cohort the same run it's needed for (success metric 1
+  # wants 5-10 stories' worth, the same order of magnitude as the doctor's own
+  # "more than 10 work files" gc recommendation). The keep itself is bounded
+  # by SCOPE_DELTA_RETENTION_DAYS above — see that constant's comment for why.
+  local force=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --force) force=1; shift ;;
+      *) echo "gate-ledger: gc: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
   if ! have jq || ! have git; then return 0; fi
   local dir; dir=$(ledger_dir)
   local f branch
@@ -992,16 +1199,66 @@ cmd_gc() {
   #
   # A work file with no branch yet (decide/design happen before one exists) is
   # kept unless its phase is terminal.
+  # Scope-delta measurement (#244) acceptance fix-and-retry, finding 2: the
+  # measured-scope-delta guard below applies to rule 2 (terminal phase) ONLY —
+  # never to rule 1 (branch gone), a deliberate asymmetry, not an oversight.
+  # A story a human parked and then abandoned (deleted its branch, per
+  # `commands/work-through.md`'s own parked-story instructions) never reached
+  # acceptance, so its cohort is incomplete by construction and can never feed
+  # the success-metric read the guard exists to protect (design doc's
+  # "Success metrics" scopes that read to *landed* stories). Guarding rule 1
+  # too was tried and reverted: `commands/work-on.md`'s resolve-the-feature
+  # step selects by phase alone, never branch existence, so a rule-1 file the
+  # guard kept pinned stayed counted Active in `commands/studious-doctor.md`'s
+  # own >10 threshold — silently reintroducing the #237 symptom rule 2 exists
+  # to avoid, to protect data nothing reads. Scoping the guard to rule 2 alone
+  # keeps that command's Active count, and its "gc will collect it" promise
+  # for a branch-gone file, both true as written.
+  # This guard reads `.scopeDelta` — a field only `work-set --declared-files`
+  # and `work-log --scope-delta-*` (below, and cmd_work_log above) ever
+  # populate. A rollback that deletes just those two writers leaves this
+  # guard, and the three scope-delta-conditional `printf` sites it feeds (one
+  # `kept:` message, one past-retention-window `removed` message, and one
+  # `--force discarded` message, all in rule 2's branch below), reading a
+  # field nothing populates anymore: every file's `sd_len` computes to 0, the
+  # guard never arms, and `gc` silently reverts to always collecting rule-2
+  # files on first pass — the pre-#237 regression, with no visible symptom.
+  # Roll back this whole block (`scope_delta_retention_lapsed` above included)
+  # and the five `.scopeDelta`-describing spots in `commands/studious-
+  # doctor.md` — its Retained bullet, both Classify thresholds that mention
+  # retained files, the branch-gone bullet (finding 2's own asymmetry note),
+  # and the Flow state output line — in the same change, or
+  # the rollback is incomplete.
   local wdir; wdir=$(work_dir)
-  local phase
+  local phase sd_len slug
   for f in "$wdir"/*.json; do
     [ -e "$f" ] || continue
     branch=$(jq -r '.branch // empty' "$f" 2>/dev/null)
     phase=$(jq -r '.phase // empty' "$f" 2>/dev/null)
+    sd_len=$(jq -r '(.scopeDelta // []) | map(select(.unmeasured != true)) | length' "$f" 2>/dev/null)
+    slug=$(basename "$f" .json)
     if [ "$phase" = "done" ] || [ "$phase" = "stopped" ]; then
+      # Fix-and-retry finding 4 (#244 round 9): the read verb the retention
+      # exists for, not just the two ways to destroy it.
+      if [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ] && ! scope_delta_retention_lapsed "$f"; then
+        printf 'kept: %s still holds %s measured scope-delta moment(s) — gate-ledger work-get --slug "%s" to read it, gc --force to collect now, or plain gc collects it %s days after its last write\n' \
+          "$slug" "$sd_len" "$slug" "$SCOPE_DELTA_RETENTION_DAYS"
+        continue
+      fi
       rm -f "$f"
-      printf 'removed finished work file: %s (phase %s)\n' "$(basename "$f")" "$phase"
+      if [ -n "$sd_len" ] && [ "$sd_len" != "0" ] && [ "$force" -eq 1 ]; then
+        printf 'removed finished work file: %s (phase %s, --force discarded %s measured scope-delta moment(s))\n' \
+          "$(basename "$f")" "$phase" "$sd_len"
+      elif [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ]; then
+        printf 'removed work file past its %s-day scope-delta keep window: %s (phase %s, %s measured scope-delta moment(s) recorded)\n' \
+          "$SCOPE_DELTA_RETENTION_DAYS" "$(basename "$f")" "$phase" "$sd_len"
+      else
+        printf 'removed finished work file: %s (phase %s)\n' "$(basename "$f")" "$phase"
+      fi
     elif [ -n "$branch" ] && ! git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1; then
+      # No scope-delta guard here — see this function's own comment above for
+      # why rule 1 (branch gone) stays unconditional while rule 2 (terminal
+      # phase) above does not.
       rm -f "$f"
       printf 'removed stale work file: %s (branch %s no longer exists)\n' "$(basename "$f")" "$branch"
     fi
@@ -1146,5 +1403,5 @@ case "${1:-}" in
   evidence-append) shift; cmd_evidence_append "$@" ;;
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--phase PH] | work-log --slug S --step ST --outcome O [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
 esac

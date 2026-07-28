@@ -62,6 +62,32 @@ def test_every_build_skill_is_actually_guarded(tmp_path: Path, monkeypatch) -> N
     assert len(gi.violations()) == len(gi.BUILD_SKILLS)
 
 
+def test_catches_a_gate_shelling_out_to_a_build_executable(tmp_path: Path, monkeypatch) -> None:
+    """#246: naming `/build` was already caught, but nothing stopped a gate from
+    reaching past the skill straight to the executable it wraps."""
+    agents = tmp_path / "agents"
+    agents.mkdir()
+    (agents / "some-auditor.md").write_text(
+        "Run `uv run --no-project python scripts/verify` to check the task.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(gi, "REPO", tmp_path)
+    problems = gi.violations()
+    assert len(problems) == 1
+    assert "must not shell out to scripts/verify" in problems[0]
+
+
+def test_every_build_executable_is_actually_guarded(tmp_path: Path, monkeypatch) -> None:
+    agents = tmp_path / "agents"
+    agents.mkdir()
+    for executable in gi.BUILD_EXECUTABLES:
+        (agents / f"{executable}-auditor.md").write_text(
+            f"Then run scripts/{executable}.\n", encoding="utf-8"
+        )
+    monkeypatch.setattr(gi, "REPO", tmp_path)
+    assert len(gi.violations()) == len(gi.BUILD_EXECUTABLES)
+
+
 def test_path_segments_are_not_invocations(tmp_path: Path, monkeypatch) -> None:
     """All three of these appear on the real gate surface today."""
     agents = tmp_path / "agents"
@@ -109,6 +135,20 @@ def test_region_exempts_a_worker_dispatch_invocation(tmp_path: Path, monkeypatch
     )
     monkeypatch.setattr(gi, "REPO", tmp_path)
     assert gi.violations() == []
+
+
+def test_region_exempts_a_build_executable_too(tmp_path: Path, monkeypatch) -> None:
+    """#246 extended the same INVOCATION regex the region already exempts from —
+    confirm the hole grew to cover the new branch, not just the old one."""
+    _workflow(
+        tmp_path,
+        f"// {gi.REGION_OPEN}\n"
+        "const v = `Run scripts/verify to check the task.`\n"
+        f"// {gi.REGION_CLOSE}\n",
+    )
+    monkeypatch.setattr(gi, "REPO", tmp_path)
+    assert gi.violations() == []
+    assert gi.dead_regions() == []
 
 
 def test_the_same_string_outside_the_region_still_fails(tmp_path: Path, monkeypatch) -> None:

@@ -113,6 +113,9 @@ supervised, evidence-first flow instead.
    one). It reaches every dispatch prompt through the driver's shared context block,
    marked settled and not to be re-litigated. Omit the flag for a story with no
    answered forks; keep acceptance criteria in `--criteria`, where they belong.
+   `--decisions` holds only what was answered here, at this one interview — a finding
+   diagnosed later, mid-flight, is never folded in; see Un-park below for where that
+   goes instead.
 
    One `epic-story-set` per story, then:
 
@@ -289,21 +292,43 @@ second-guess its scheduling; anything it parked is the user's, not yours to retr
 
 ### Fallback driver — use only when the Workflow tool is unavailable
 
-Semantics are identical to the script's (defined once in the design doc; the two modes
-are interchangeable mid-epic): walk each runnable story's next phase with dispatched
-agents — runnable = every dependency `landed` ∧ not `parked`/`dropped` ∧ under the
-epic's cap — dispatching independent stories in parallel (one message, multiple Task
-calls). Workers follow `reference/worker-contract.md`; gate agents run the gate
-command workflows and record their own verdicts from inside the story worktree.
-Design-review and acceptance need no extra step — the single dispatched agent reads
-its gate command and self-injects exactly as it would from the script path. Audit is
-different here too: read `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md`
-yourself (same anchored resolution, Glob fallback if it doesn't substitute) and stamp
-its five blocks into every audit and premortem Task prompt you dispatch in this
-mode — you are the assembly point on this path exactly as your own read is on the
-script path. Log every step with
+Semantics are identical to the script's (defined once in the design doc) for
+everything except scope-delta measurement (#244): walk each runnable story's next
+phase with dispatched agents — runnable = every dependency `landed` ∧ not
+`parked`/`dropped` ∧ under the epic's cap — dispatching independent stories in
+parallel (one message, multiple Task calls). Workers follow
+`reference/worker-contract.md`; gate agents run the gate command workflows and
+record their own verdicts from inside the story worktree. Design-review and
+acceptance need no extra step — the single dispatched agent reads its gate command
+and self-injects exactly as it would from the script path. Audit is different here
+too: read `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md` yourself (same
+anchored resolution, Glob fallback if it doesn't substitute) and stamp its five
+blocks into every audit and premortem Task prompt you dispatch in this mode — you
+are the assembly point on this path exactly as your own read is on the script path.
+Log every step with
 `gate-ledger work-log --slug "<slug>--<story>" --step <phase> --outcome "<token>" --phase "<next phase>"`
 (the same epic-qualified slug as script mode — see Record keeping).
+
+**Scope-delta measurement does not run on this path in round one** — no equivalent
+of the script's own per-moment naming (`workflows/epic-driver.js`'s `scopeDeltaPhase`:
+`build` for audit's first round, `<gate>-fix-<N>` for each retry), and no
+`--declared-files` flag (which stays a `/design`-time step at `work-set`, untouched
+by this section). When you (the fallback driver) compose the closing report and a
+story's `.scopeDelta` is empty — never measured, whether by you or an earlier
+script-mode run — render
+`scope: not measured (fallback driver — measurement runs on the Workflow path only)`
+for it in place of the "Scope-delta line" jq below.
+Never `scope: unmeasured (no declaration recorded)` for that case: that string
+names a missing declaration, and a fallback-driven story can have a real
+declaration on file (declaration is a `/design`-time write, not something this
+section controls) and still never get a per-moment breakdown — the gap is the
+mode, not the declaration. A story that switches to this fallback mode mid-epic
+(script path initially, then Workflow unavailable) has real `.scopeDelta` history
+from before the switch, so it still renders through the jq below exactly as the
+script path would, even while you are driving it now. This is a stated round-one
+limitation of the driver-only design, not a claim that the two modes fully agree
+on everything they do.
+
 Apply verdicts exactly as the script does:
 
 - **Proceed** → the story's next profiled phase; when the **final profiled gate**
@@ -364,6 +389,25 @@ Amendments go through this command, never hand-edited state:
   gate-ledger epic-story-set --epic "<slug>" --slug "<story>" \
     --status pending --reason "resolved: <one clause>" --reset-retry <gate>
   ```
+
+  If the park itself carries a diagnosis the next dispatch needs to act on — a stalled
+  `FIX AND RE-CHECK` / `FIX AND RE-AUDIT` cycle's unresolved findings, a walkthrough's
+  suggested fix — add it via `--carried-findings`, **never** `--decisions`:
+
+  ```bash
+  gate-ledger epic-story-set --epic "<slug>" --slug "<story>" \
+    --status pending --reason "resolved: <one clause>" --reset-retry <gate> \
+    --carried-findings "<diagnosis the next dispatch needs, verbatim from the round that found it>"
+  ```
+
+  The two fields carry different instruction shapes into `ctx()`
+  (`workflows/epic-driver.js`): `--decisions` reads to every dispatch as a human-settled
+  answer, never to be re-litigated — reserve it for an actual interview fork the user
+  weighed and picked. `--carried-findings` reads as a weaker, still-actionable claim —
+  diagnosed but not human-reviewed, worth fixing, not worth rediscovering or
+  re-litigating whether it is real. The user un-parking a story by accepting an agent's
+  fix-cycle prose is not the same act as the user answering a fork at the epic
+  interview; the field it lands in must say which one happened.
 
 - **Drop** — `epic-story-set --status dropped`, remove the story's worktree if one
   exists, then re-evaluate dependents: a dependent of a dropped story needs the user
@@ -450,6 +494,214 @@ the driver's own trail/reason text exactly as it would render without this step 
 never a raw jq error, never "NaN," never a negative number, and never at the cost of
 any other story's line in the same report.
 
+### Scope-delta line (#244)
+
+A second, independent read of the same per-story work file — never entangled with the
+duration-chain computation above, which has its own degrade rule and its own tests.
+For every `landedThisRun` entry and every `needsYou` entry that names an actual story
+(same scoping as the duration chain above), compute:
+
+```bash
+gate-ledger work-get --slug "<slug>--<story>" | jq -r '
+  def plural(n; noun): "\(n) " + noun + (if n == 1 then "" else "s" end);
+  (.declaredFiles // null) as $declared |
+  (.scopeDelta // []) as $sd |
+  (.amendments // []) as $am |
+  # Fix-and-retry finding 1 (#244 round 8): a denominator for the measured
+  # count, so a `gate-ledger work-log` call that recorded a round's
+  # `--step`/`--outcome` but dropped the trailing `--scope-delta-*` flags —
+  # a model typing a long, pre-filled command incompletely — is visible
+  # instead of reading as a smaller, silently-correct count. `.history`
+  # (already read by the duration-chain filter above) is the reliable half
+  # of that same work-log call: the step/outcome write is never optional,
+  # only the scope-delta suffix is. Deliberately a conservative LOWER bound,
+  # not a restatement of `scopeDeltaPhase`'s own gate/attempts rule in a
+  # second language (the #176/#115/#116 failure class the design doc's
+  # Alternatives table rejects a parser for) — every audit-step history
+  # entry names its own moment (round 1 is "build"); every acceptance-step
+  # entry after the first names its own moment (round 1 names none when an
+  # audit gate already claimed "build", so it undercounts by exactly one on
+  # a no-`audit`-gate profile, never overcounts). The `$expectedMoments >=
+  # $measuredCount` guard below only ever suppresses that undercount to the
+  # plain, undecorated rendering — it can never manufacture a false "N of M"
+  # gap. Computed here, ahead of every branch below (fix-and-retry finding 3,
+  # #244 round 9), rather than only inside the fully-measured `else` branch:
+  # a story whose rounds all dropped the trailing `--scope-delta-*` flags has
+  # an empty `$sd` and would otherwise never see this bound at all, reading
+  # identically to a story that never reached a measured round.
+  (.history // []) as $hist |
+  ([$hist[] | select(.step == "audit")] | length) as $auditSteps |
+  ([$hist[] | select(.step == "acceptance")] | length) as $acceptanceSteps |
+  ($auditSteps + (if $acceptanceSteps > 0 then $acceptanceSteps - 1 else 0 end)) as $expectedMoments |
+  if $declared == null then "scope: unmeasured (no declaration recorded)"
+  elif ($sd | length) == 0 then
+    # Fix-and-retry finding 3 (#244 round 9): `$expectedMoments` distinguishes
+    # "no round has run yet" from "N round(s) ran, every one dropped its
+    # trailing `--scope-delta-*` flags" — the two would otherwise read
+    # identically as a bare `$sd` count of zero, but only the second is a
+    # measurement failure worth surfacing distinctly. Falls back to the
+    # original wording only when no bound exists.
+    (if $expectedMoments > 0 then
+      "scope: declared \($declared | length), 0 of " + plural($expectedMoments; "moment") + " measured (no scope-delta entry recorded)"
+    else
+      "scope: declared \($declared | length), not yet measured (no moment recorded)"
+    end)
+  elif ([$sd[] | select(.unmeasured != true)] | length) == 0 then
+    # Every recorded moment is unmeasured — reachable when a scope check dies
+    # or can't resolve a diff on the script path (`computeScopeDelta`'s
+    # dead-end path, workflows/epic-driver.js), never something the fallback
+    # driver writes: that path has no scope-delta measurement of its own (see
+    # "Fallback driver" above) and records no moment here at all. Leads with
+    # that fact rather than falling into the general branch below, which
+    # would render "outside 0" with the all-zero measured count demoted to a
+    # trailing clause — the exact false-clean reading the AC's "never summed
+    # as zero" rule exists to prevent.
+    #
+    # Fix-and-retry finding 3 (#244): names WHY each moment is unmeasured.
+    # `.reason` is present only when the writer gave `--scope-delta-reason`
+    # (closed vocabulary: dispatch-failed/no-declaration/unsafe-path) —
+    # `// "unspecified"` covers a pre-finding-3 entry or a caller that
+    # omitted it, so a missing key renders as a stated fact, never a bare
+    # `null` reaching this line.
+    ([$sd[] | "\(.phase) \(.reason // "unspecified")"]) as $unmeasuredDetail |
+    "scope: declared \($declared | length), unmeasured (0 of " + plural($sd | length; "moment")
+      + " measured: " + ($unmeasuredDetail | join(", ")) + ")"
+  else
+    ([$sd[] | select(.unmeasured != true)] ) as $measured |
+    ($measured | length) as $measuredCount |
+    # Fix-and-retry finding 3 (#244): each unmeasured entry's own `phase` and
+    # `reason` (`// "unspecified"` — same missing-key rule as the leading
+    # branch above), not just a bare count.
+    ([$sd[] | select(.unmeasured == true) | "\(.phase) \(.reason // "unspecified")"]) as $unmeasuredDetail |
+    # $hist/$auditSteps/$acceptanceSteps/$expectedMoments are computed once,
+    # above, ahead of every branch — see that binding's own comment.
+    # "One file counts once" is enforced authoritatively by
+    # workflows/epic-driver.js's computeScopeDelta, against every prior
+    # moment's own already-written history — `| unique` here is a display-side
+    # idempotency guard over data that function already made disjoint, not a
+    # second place this rule is decided. If this total and the driver's own
+    # per-moment writes ever disagree, trust the driver. `$byMoment` below
+    # applies the same display-side `unique` to each moment's own count, so a
+    # duplicated stored entry within one moment can't inflate that moment's
+    # number while $outside's total (already deduplicated) looks unaffected.
+    #
+    # Fix-and-retry finding 2 (#244 round 8): ordered by the moment a file
+    # first appears (array order — `$measured` is already chronological), then
+    # by name as a same-moment tie-break — `unique`'s own sort is alphabetical
+    # across the WHOLE set and would otherwise decide display order by
+    # accident, burying a fix-cycle arrival behind an alphabetically-earlier
+    # build-time file (the design doc's own worked example already lists
+    # files in moment order, not alphabetically).
+    ($measured
+      | to_entries
+      | map(.key as $idx | .value.outsideFiles[]? | {file: ., idx: $idx})
+      | group_by(.file)
+      | map({file: .[0].file, idx: (map(.idx) | min)})
+      | sort_by(.idx, .file)
+      | map(.file)
+    ) as $outside |
+    ([$measured[] | {phase: .phase, n: ((.outsideFiles // []) | unique | length)} | select(.n > 0)]) as $byMomentRaw |
+    ($byMomentRaw | map(.n) | add // 0) as $byMomentSum |
+    ($byMomentRaw | map("\(.n) at \(.phase)") | join(", ")) as $byMoment |
+    ([$am[] | .file] | unique) as $amendedFiles |
+    ([$amendedFiles[] | select(. as $f | $outside | index($f) != null)] | length) as $amendedCount |
+    (($amendedFiles | length) - $amendedCount) as $orphanedAmendments |
+    ("scope: declared \($declared | length), outside \($outside | length)"
+      + (if ($byMoment | length) > 0 then
+          " (\($byMoment)"
+          + (if $byMomentSum != ($outside | length) then
+              " — \($byMomentSum) counted across moments, \($outside | length) distinct; a file recurred in more than one moment"
+            else "" end)
+          + ")"
+        else "" end)
+      + (if $amendedCount > 0 then ", \($amendedCount) amended" else "" end)
+      + (if $orphanedAmendments > 0 then
+          ", " + plural($orphanedAmendments; "amendment")
+          + (if $orphanedAmendments == 1 then " references " else " reference " end)
+          + "no counted file"
+        else "" end)
+      # Not bracketed, never omitted here: every moment recorded is either
+      # measured or unmeasured, so this clause always has at least one to
+      # report on — a moment that never got recorded at all is a different,
+      # already-distinct failure the two branches above this one render
+      # (unmeasured/not-yet-measured), never this one reading as a false
+      # all-clean "outside 0". Fix-and-retry finding 1 (#244 round 8): renders
+      # "N of M" whenever $expectedMoments is a usable bound (>= $measuredCount)
+      # — always, not only when the two differ, since a reader seeing a bare
+      # "N moments measured" cannot tell "checked, found nothing missing" from
+      # "never checked"; falls back to the plain, undecorated count exactly
+      # like every other fixture in this section that omits `.history`.
+      + ("; " + (if $expectedMoments >= $measuredCount then
+            "\($measuredCount) of " + plural($expectedMoments; "moment") + " measured"
+          else
+            plural($measuredCount; "moment") + " measured"
+          end)
+          + (if ($unmeasuredDetail | length) > 0 then
+              ", \($unmeasuredDetail | length) unmeasured (\($unmeasuredDetail | join(", ")))"
+            else "" end))
+      + (if ($outside | length) > 0 then ": " + (($outside[0:5]) | join(", "))
+          + (if ($outside | length) > 5 then " +\(($outside | length) - 5) more" else "" end)
+        else "" end))
+  end
+'
+```
+
+Render the result as one line under the story's headline (below the duration-chain
+parenthetical for a `needsYou` entry; below the trail for a `landedThisRun` entry),
+followed by the retrieval verb itself so the reader can pull the full declaration and
+any amendment reasons (neither is printed inline — the reason is a work-file-only
+detail, same as the declared set): `gate-ledger work-get --slug "<slug>--<story>"`.
+A story with no declaration renders `unmeasured`, never a bare omission and never a
+manufactured zero — the same failure-path rule the design doc states for a failed
+diff resolution. Degrade the same way the duration chain does, but never to a bare
+line: a failed read or a jq error renders `scope: unavailable (could not read the
+work file)` for this line rather than aborting the story's own report entry — the
+same never-a-bare-omission rule as the sentence above, since an actually blank line
+would otherwise be indistinguishable from `unmeasured` — and never affects any
+other story's line.
+
+This line carries no verdict effect — round one measures only (no park, no retry
+refusal, no threshold); it exists so the two motivating failure modes (a story that
+grew unnoticed, a story that stayed near its declaration) are visible in the same
+summary the human already reads, for both a parked story and a landed one.
+
+`amended` only ever counts an amendment whose `.file` matches some moment's own
+`outsideFiles` entry — an amendment can never subtract from `outside`, by
+construction (the two counts are computed from disjoint fields; the amendment
+never touches `scopeDelta`). An amendment naming a file that never appears in any
+moment's `outsideFiles` — declared already, or a path that doesn't match what git
+actually reported — drops silently out of that count with nothing to say so unless
+this line names it: the trailing `amendment(s) reference no counted file` clause is
+that signal, so a wrong or stale amendment reads as a visible discrepancy rather
+than a quietly lower `amended` number.
+
+The `; <N> moment(s) measured[, <M> unmeasured (...)]` clause is the denominator: it
+fires whenever the `else` branch above does — which now requires at least one
+*measured* `scopeDelta` entry, since an all-unmeasured cohort gets its own
+leading-fact rendering instead (above), rather than reaching this clause with a
+measured count of zero — and is never itself bracketed or omitted; only its own
+trailing `, <M> unmeasured (...)` addendum drops when every recorded moment was
+measured. Fix-and-retry finding 3 (#244): that addendum's own parenthetical names
+each unmeasured moment's `phase` and `reason` (`unspecified` for an entry with no
+recorded reason — a pre-finding-3 write, or a caller that omitted
+`--scope-delta-reason`) — never a bare count standing alone. `unmeasured` is a
+*recorded* moment whose own scope check failed; it says nothing about a moment
+that was never recorded at all (a dropped or mistyped work-log flag — the same
+call that already recorded the round's `--step`/`--outcome`, per
+`workflows/epic-driver.js`'s own "Known limitation" comment on
+`scopeDeltaWorkLogFlags` — or the fallback driver's own documented gap above),
+which used to render identically to a moment that measured clean, both reading as
+the same `outside <N>` number with nothing to tell them apart. Fix-and-retry
+finding 1 (#244 round 8): the `<N> of <M>` prefix on the leading measured count is
+that denominator — `<M>` is a conservative count of audit/acceptance rounds
+`.history` already shows ran (never a restatement of `scopeDeltaPhase`'s own
+gate/attempts naming rule), so `<N>` falling short of `<M>` is a moment that ran
+and recorded its step but never wrote a scope-delta entry at all — distinct from,
+and never conflated with, an `unmeasured` entry's own accounted-for failure. The
+prefix renders whenever `<M>` is a usable bound (at least `<N>`); a caller or
+fixture with no `.history` (every pre-round-8 fixture in this section) degrades to
+the plain, undecorated `<N> moment(s) measured` it always rendered.
+
 End with exactly this shape and nothing after it:
 
 ```text
@@ -457,9 +709,52 @@ Epic: <slug> — <landed>/<total> landed, <parked> parked, <blocked> blocked on 
 Needs you:
   - <story>: <gate> returned <verdict> — <one clause: what's needed>
     (<phase>: <outcome> (<Nm>) → <phase>: <outcome> (<Nm>) → ...)
+    <scope line>
+    gate-ledger work-get --slug "<slug>--<story>"
 Landed this run: <story> — <phase>: <outcome> (<Nm>) → <phase>: <outcome> (<Nm>) → ...
+  <scope line>
+  gate-ledger work-get --slug "<slug>--<story>"
 Run /work-through when you're ready, or resolve the queue first.
 ```
+
+`<scope line>` is always exactly one of the five renderings the jq above produces
+when its read succeeds — identical composition for a `Needs you` entry and a
+`Landed this run` entry, never a shortened form for one and the full one for the
+other. The sole exception is the failed-read/jq-error case in the paragraph above:
+`<scope line>` renders `scope: unavailable (could not read the work file)` for
+that story only, per the degrade rule there — never one of the five success
+renderings standing in for a failure, never a bare omission, and never any other
+story's line affected. The fallback driver's `scope: not measured (...)` line
+("Fallback driver" above) is a third caller-side case: it replaces the jq
+entirely for a fallback-driven story with no scope-delta history, rather than
+being one of the jq's own outputs.
+
+- `scope: unmeasured (no declaration recorded)` — no declaration is on file for
+  this story: `.declaredFiles` is absent. Verify with
+  `gate-ledger work-get --slug "<slug>--<story>"`. On the fallback path this
+  only renders for a story with real scope-delta history from an earlier
+  script-mode run; an empty `.scopeDelta` there renders
+  `scope: not measured (...)` below instead, regardless of declaration.
+- `scope: declared <N>, not yet measured (no moment recorded)` — no round has
+  run yet: `.scopeDelta` is empty and `.history` shows no audit/acceptance
+  step either.
+- `scope: declared <N>, 0 of <M> moment(s) measured (no scope-delta entry recorded)` —
+  fix-and-retry finding 3 (#244 round 9): `.scopeDelta` is empty but
+  `.history` shows `<M>` audit/acceptance round(s) already ran — every one
+  dropped its trailing `--scope-delta-*` flags. Distinguishes a story that
+  never reached a measured round from one where measurement failed every
+  time it was attempted; renders only when `<M>` is a usable bound (same
+  `.history`-derived denominator as the `of <M>` prefix below).
+- `scope: declared <N>, unmeasured (0 of <M> moment(s) measured: <phase> <reason>[, <phase> <reason>, ...])`
+- `scope: declared <N>, outside <N> (<breakdown by moment>)[, <N> amended][, <N> amendment(s) reference/references no counted file]; <N>[ of <M>] moment(s) measured[, <N> unmeasured (<phase> <reason>[, <phase> <reason>, ...])][: <file, file, ..., +N more>]` —
+  the `of <M>` prefix (fix-and-retry finding 1, #244 round 8) appears whenever
+  `.history` gives a usable bound (`<M>` at least `<N>`); a caller with no usable
+  `.history` renders the plain `<N> moment(s) measured` it always has.
+- `scope: unavailable (could not read the work file)` — caller-side, not one of
+  the jq's five: the `work-get` read failed or the jq pipeline errored.
+- `scope: not measured (fallback driver — measurement runs on the Workflow path only)` — caller-side, rendered by the fallback driver in place of the jq
+  above whenever a fallback-driven story's `.scopeDelta` is empty ("Fallback
+  driver" above).
 
 `(<Nm>)` is a computed duration for a phase whose predecessor was real same-run work;
 a phase resumed across a run boundary (above) renders the
@@ -470,7 +765,14 @@ when nothing is parked. When the epic reaches `ready`, the last line becomes the
 `gh pr create` handoff; `stopped` states what ended it. A parked story is always also
 a valid `/work-on` feature — say so when the queue is non-empty; taking a story over
 by hand happens inside its worktree (the story branch is checked out there), or after
-`git worktree remove` on it.
+`git worktree remove` on it. In the `outside <N>` rendering's bracketed `scope:` clauses,
+`amended`, the amendment-orphan clause, and the trailing outside-file list are each
+omitted individually when empty (no amendments, no orphaned amendments, zero outside
+files) — never a literal `[, 0 amended]` or empty bracket rendered to the user; the
+leading `; <N> moment(s) measured` clause is not bracketed and is never itself
+omitted in that rendering, per its own paragraph above — its own `of <M>` prefix is
+the one part of it that is conditional (present only when `.history` gives a usable
+bound), never a literal `[of <M>]` rendered to the user either way.
 
 ## Record keeping
 
@@ -496,3 +798,5 @@ owns where they go — `--slug "<slug>"` for `__epic`, `--story "<story>"` for a
 `--json` for the whole map the driver is handed. That layout is described here so the
 shape is legible, not so it can be retyped: every path you actually use comes from the
 verb, so the layout can move without this file changing.
+
+**Scope-delta retention and collection.** If your epic declares file sets via design-doc flags on `work-set` calls, do not run `gate-ledger gc` while the scope-delta cohort is still being assembled across multiple runs — `SCOPE_DELTA_RETENTION_DAYS=14` keys on each work file's last write, so a cohort spanning more than 14 days will lose its earliest files. `gate-ledger work-get --slug <slug>` alone prints the work file's raw JSON, not a `scope:` line — run it through the same jq pipeline the Scope-delta line step above composes to read a story's rendered `scope:` line before collecting, so you know which stories' counts are still fresh.

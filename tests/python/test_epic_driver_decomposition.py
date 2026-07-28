@@ -42,6 +42,8 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import tempfile
+from pathlib import Path
 
 from test_driver_crash_hardening import DRIVER, _extract_function, _run_node
 
@@ -512,10 +514,15 @@ def test_driver_still_parses_and_lints_as_the_harness_runs_it() -> None:
     source = DRIVER.read_text()
     stripped = re.sub(r"^export\s+", "", source)
     script = f"(async function () {{\n{stripped}\n}})"
-    proc = subprocess.run(
-        ["node", "--input-type=module", "-e", f"void ({script});"],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+    # Written to a .mjs file (Node's file-based equivalent of --input-type=module)
+    # rather than passed via `node -e`: the embedded driver source now exceeds
+    # Linux's per-argument exec() limit (MAX_ARG_STRLEN, 128 KiB), which a `-e`
+    # argv string is subject to but a file read from disk is not.
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".mjs", delete=False) as f:
+        f.write(f"void ({script});")
+        script_path = f.name
+    try:
+        proc = subprocess.run(["node", script_path], capture_output=True, text=True, timeout=30)
+    finally:
+        Path(script_path).unlink(missing_ok=True)
     assert proc.returncode == 0, f"driver does not parse in harness shape: {proc.stderr}"
