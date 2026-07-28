@@ -124,6 +124,13 @@ const r = await agent('do it', opts)
 return { r }
 EOF
 
+expect_fail "flags a spread inside the options object even if the spread source is pinned" "no-unpinned-agent-dispatch" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const base = { model: 'haiku' }
+const r = await agent('do it', { ...base, label: 'x', phase: 'y' })
+return { r }
+EOF
+
 expect_pass "an agent() call pinned with an explicit model is clean" <<'EOF'
 export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
 const r = await agent('do it', { label: 'x', phase: 'y', model: 'haiku', effort: 'low' })
