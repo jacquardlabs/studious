@@ -1051,32 +1051,49 @@ cmd_gc() {
   #
   # A work file with no branch yet (decide/design happen before one exists) is
   # kept unless its phase is terminal.
-  # Scope-delta measurement (#244) acceptance fix-and-retry, finding 3: this
-  # guard reads `.scopeDelta` — a field only `work-set --declared-files` and
-  # `work-log --scope-delta-*` (below, and cmd_work_log above) ever populate.
-  # A rollback that deletes just those two writers leaves this guard, and the
-  # six scope-delta-conditional `printf` sites it feeds (this block's two
-  # `kept:` messages, its two past-retention-window `removed` messages, and
-  # the two `--force discarded` messages further down), reading a field
-  # nothing populates anymore: every file's `sd_len` computes to 0, the guard
-  # never arms, and `gc` silently reverts to always collecting on first pass —
-  # the pre-#237 regression, with no visible symptom. Roll back this whole
-  # block (`scope_delta_retention_lapsed` above included) and the four
-  # `.scopeDelta`-describing spots in `commands/studious-doctor.md` — its
-  # Retained bullet, both Classify thresholds that mention retained files,
-  # and the Flow state output line — in the same change, or the rollback is
-  # incomplete.
+  # Scope-delta measurement (#244) acceptance fix-and-retry, finding 2: the
+  # measured-scope-delta guard below applies to rule 2 (terminal phase) ONLY —
+  # never to rule 1 (branch gone), a deliberate asymmetry, not an oversight.
+  # A story a human parked and then abandoned (deleted its branch, per
+  # `commands/work-through.md`'s own parked-story instructions) never reached
+  # acceptance, so its cohort is incomplete by construction and can never feed
+  # the success-metric read the guard exists to protect (design doc's
+  # "Success metrics" scopes that read to *landed* stories). Guarding rule 1
+  # too was tried and reverted: `commands/work-on.md`'s resolve-the-feature
+  # step selects by phase alone, never branch existence, so a rule-1 file the
+  # guard kept pinned stayed counted Active in `commands/studious-doctor.md`'s
+  # own >10 threshold — silently reintroducing the #237 symptom rule 2 exists
+  # to avoid, to protect data nothing reads. Scoping the guard to rule 2 alone
+  # keeps that command's Active count, and its "gc will collect it" promise
+  # for a branch-gone file, both true as written.
+  # This guard reads `.scopeDelta` — a field only `work-set --declared-files`
+  # and `work-log --scope-delta-*` (below, and cmd_work_log above) ever
+  # populate. A rollback that deletes just those two writers leaves this
+  # guard, and the three scope-delta-conditional `printf` sites it feeds (one
+  # `kept:` message, one past-retention-window `removed` message, and one
+  # `--force discarded` message, all in rule 2's branch below), reading a
+  # field nothing populates anymore: every file's `sd_len` computes to 0, the
+  # guard never arms, and `gc` silently reverts to always collecting rule-2
+  # files on first pass — the pre-#237 regression, with no visible symptom.
+  # Roll back this whole block (`scope_delta_retention_lapsed` above included)
+  # and the four `.scopeDelta`-describing spots in `commands/studious-
+  # doctor.md` — its Retained bullet, both Classify thresholds that mention
+  # retained files, and the Flow state output line — in the same change, or
+  # the rollback is incomplete.
   local wdir; wdir=$(work_dir)
-  local phase sd_len
+  local phase sd_len slug
   for f in "$wdir"/*.json; do
     [ -e "$f" ] || continue
     branch=$(jq -r '.branch // empty' "$f" 2>/dev/null)
     phase=$(jq -r '.phase // empty' "$f" 2>/dev/null)
     sd_len=$(jq -r '(.scopeDelta // []) | map(select(.unmeasured != true)) | length' "$f" 2>/dev/null)
+    slug=$(basename "$f" .json)
     if [ "$phase" = "done" ] || [ "$phase" = "stopped" ]; then
+      # Fix-and-retry finding 4 (#244 round 9): the read verb the retention
+      # exists for, not just the two ways to destroy it.
       if [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ] && ! scope_delta_retention_lapsed "$f"; then
-        printf 'kept: %s still holds %s measured scope-delta moment(s) — gc --force to collect now, or plain gc collects it %s days after its last write\n' \
-          "$(basename "$f" .json)" "$sd_len" "$SCOPE_DELTA_RETENTION_DAYS"
+        printf 'kept: %s still holds %s measured scope-delta moment(s) — gate-ledger work-get --slug "%s" to read it, gc --force to collect now, or plain gc collects it %s days after its last write\n' \
+          "$slug" "$sd_len" "$slug" "$SCOPE_DELTA_RETENTION_DAYS"
         continue
       fi
       rm -f "$f"
@@ -1090,21 +1107,11 @@ cmd_gc() {
         printf 'removed finished work file: %s (phase %s)\n' "$(basename "$f")" "$phase"
       fi
     elif [ -n "$branch" ] && ! git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1; then
-      if [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ] && ! scope_delta_retention_lapsed "$f"; then
-        printf 'kept: %s still holds %s measured scope-delta moment(s) — gc --force to collect now, or plain gc collects it %s days after its last write\n' \
-          "$(basename "$f" .json)" "$sd_len" "$SCOPE_DELTA_RETENTION_DAYS"
-        continue
-      fi
+      # No scope-delta guard here — see this function's own comment above for
+      # why rule 1 (branch gone) stays unconditional while rule 2 (terminal
+      # phase) above does not.
       rm -f "$f"
-      if [ -n "$sd_len" ] && [ "$sd_len" != "0" ] && [ "$force" -eq 1 ]; then
-        printf 'removed stale work file: %s (branch %s no longer exists, --force discarded %s measured scope-delta moment(s))\n' \
-          "$(basename "$f")" "$branch" "$sd_len"
-      elif [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ]; then
-        printf 'removed work file past its scope-delta keep window: %s (branch %s no longer exists, %s measured scope-delta moment(s) recorded)\n' \
-          "$(basename "$f")" "$branch" "$sd_len"
-      else
-        printf 'removed stale work file: %s (branch %s no longer exists)\n' "$(basename "$f")" "$branch"
-      fi
+      printf 'removed stale work file: %s (branch %s no longer exists)\n' "$(basename "$f")" "$branch"
     fi
   done
 

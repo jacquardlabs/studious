@@ -465,8 +465,45 @@ gate-ledger work-get --slug "<slug>--<story>" | jq -r '
   (.declaredFiles // null) as $declared |
   (.scopeDelta // []) as $sd |
   (.amendments // []) as $am |
+  # Fix-and-retry finding 1 (#244 round 8): a denominator for the measured
+  # count, so a `gate-ledger work-log` call that recorded a round's
+  # `--step`/`--outcome` but dropped the trailing `--scope-delta-*` flags —
+  # a model typing a long, pre-filled command incompletely — is visible
+  # instead of reading as a smaller, silently-correct count. `.history`
+  # (already read by the duration-chain filter above) is the reliable half
+  # of that same work-log call: the step/outcome write is never optional,
+  # only the scope-delta suffix is. Deliberately a conservative LOWER bound,
+  # not a restatement of `scopeDeltaPhase`'s own gate/attempts rule in a
+  # second language (the #176/#115/#116 failure class the design doc's
+  # Alternatives table rejects a parser for) — every audit-step history
+  # entry names its own moment (round 1 is "build"); every acceptance-step
+  # entry after the first names its own moment (round 1 names none when an
+  # audit gate already claimed "build", so it undercounts by exactly one on
+  # a no-`audit`-gate profile, never overcounts). The `$expectedMoments >=
+  # $measuredCount` guard below only ever suppresses that undercount to the
+  # plain, undecorated rendering — it can never manufacture a false "N of M"
+  # gap. Computed here, ahead of every branch below (fix-and-retry finding 3,
+  # #244 round 9), rather than only inside the fully-measured `else` branch:
+  # a story whose rounds all dropped the trailing `--scope-delta-*` flags has
+  # an empty `$sd` and would otherwise never see this bound at all, reading
+  # identically to a story that never reached a measured round.
+  (.history // []) as $hist |
+  ([$hist[] | select(.step == "audit")] | length) as $auditSteps |
+  ([$hist[] | select(.step == "acceptance")] | length) as $acceptanceSteps |
+  ($auditSteps + (if $acceptanceSteps > 0 then $acceptanceSteps - 1 else 0 end)) as $expectedMoments |
   if $declared == null then "scope: unmeasured (no declaration recorded)"
-  elif ($sd | length) == 0 then "scope: declared \($declared | length), not yet measured (no moment recorded)"
+  elif ($sd | length) == 0 then
+    # Fix-and-retry finding 3 (#244 round 9): `$expectedMoments` distinguishes
+    # "no round has run yet" from "N round(s) ran, every one dropped its
+    # trailing `--scope-delta-*` flags" — the two would otherwise read
+    # identically as a bare `$sd` count of zero, but only the second is a
+    # measurement failure worth surfacing distinctly. Falls back to the
+    # original wording only when no bound exists.
+    (if $expectedMoments > 0 then
+      "scope: declared \($declared | length), 0 of " + plural($expectedMoments; "moment") + " measured (no scope-delta entry recorded)"
+    else
+      "scope: declared \($declared | length), not yet measured (no moment recorded)"
+    end)
   elif ([$sd[] | select(.unmeasured != true)] | length) == 0 then
     # Every recorded moment is unmeasured — reachable when a scope check dies
     # or can't resolve a diff on the script path (`computeScopeDelta`'s
@@ -494,28 +531,8 @@ gate-ledger work-get --slug "<slug>--<story>" | jq -r '
     # `reason` (`// "unspecified"` — same missing-key rule as the leading
     # branch above), not just a bare count.
     ([$sd[] | select(.unmeasured == true) | "\(.phase) \(.reason // "unspecified")"]) as $unmeasuredDetail |
-    # Fix-and-retry finding 1 (#244 round 8): a denominator for the measured
-    # count, so a `gate-ledger work-log` call that recorded a round's
-    # `--step`/`--outcome` but dropped the trailing `--scope-delta-*` flags —
-    # a model typing a long, pre-filled command incompletely — is visible
-    # instead of reading as a smaller, silently-correct count. `.history`
-    # (already read by the duration-chain filter above) is the reliable half
-    # of that same work-log call: the step/outcome write is never optional,
-    # only the scope-delta suffix is. Deliberately a conservative LOWER bound,
-    # not a restatement of `scopeDeltaPhase`'s own gate/attempts rule in a
-    # second language (the #176/#115/#116 failure class the design doc's
-    # Alternatives table rejects a parser for) — every audit-step history
-    # entry names its own moment (round 1 is "build"); every acceptance-step
-    # entry after the first names its own moment (round 1 names none when an
-    # audit gate already claimed "build", so it undercounts by exactly one on
-    # a no-`audit`-gate profile, never overcounts). The `$expectedMoments >=
-    # $measuredCount` guard below only ever suppresses that undercount to the
-    # plain, undecorated rendering — it can never manufacture a false "N of M"
-    # gap.
-    (.history // []) as $hist |
-    ([$hist[] | select(.step == "audit")] | length) as $auditSteps |
-    ([$hist[] | select(.step == "acceptance")] | length) as $acceptanceSteps |
-    ($auditSteps + (if $acceptanceSteps > 0 then $acceptanceSteps - 1 else 0 end)) as $expectedMoments |
+    # $hist/$auditSteps/$acceptanceSteps/$expectedMoments are computed once,
+    # above, ahead of every branch — see that binding's own comment.
     # "One file counts once" is enforced authoritatively by
     # workflows/epic-driver.js's computeScopeDelta, against every prior
     # moment's own already-written history — `| unique` here is a display-side
@@ -658,12 +675,12 @@ Landed this run: <story> — <phase>: <outcome> (<Nm>) → <phase>: <outcome> (<
 Run /work-through when you're ready, or resolve the queue first.
 ```
 
-`<scope line>` is always exactly one of the four renderings the jq above produces
+`<scope line>` is always exactly one of the five renderings the jq above produces
 when its read succeeds — identical composition for a `Needs you` entry and a
 `Landed this run` entry, never a shortened form for one and the full one for the
 other. The sole exception is the failed-read/jq-error case in the paragraph above:
 `<scope line>` renders `scope: unavailable (could not read the work file)` for
-that story only, per the degrade rule there — never one of the four success
+that story only, per the degrade rule there — never one of the five success
 renderings standing in for a failure, never a bare omission, and never any other
 story's line affected. The fallback driver's `scope: not measured (...)` line
 ("Fallback driver" above) is a third caller-side case: it replaces the jq
@@ -676,14 +693,23 @@ being one of the jq's own outputs.
   only renders for a story with real scope-delta history from an earlier
   script-mode run; an empty `.scopeDelta` there renders
   `scope: not measured (...)` below instead, regardless of declaration.
-- `scope: declared <N>, not yet measured (no moment recorded)`
+- `scope: declared <N>, not yet measured (no moment recorded)` — no round has
+  run yet: `.scopeDelta` is empty and `.history` shows no audit/acceptance
+  step either.
+- `scope: declared <N>, 0 of <M> moment(s) measured (no scope-delta entry recorded)` —
+  fix-and-retry finding 3 (#244 round 9): `.scopeDelta` is empty but
+  `.history` shows `<M>` audit/acceptance round(s) already ran — every one
+  dropped its trailing `--scope-delta-*` flags. Distinguishes a story that
+  never reached a measured round from one where measurement failed every
+  time it was attempted; renders only when `<M>` is a usable bound (same
+  `.history`-derived denominator as the `of <M>` prefix below).
 - `scope: declared <N>, unmeasured (0 of <M> moment(s) measured: <phase> <reason>[, <phase> <reason>, ...])`
 - `scope: declared <N>, outside <N> (<breakdown by moment>)[, <N> amended][, <N> amendment(s) reference/references no counted file]; <N>[ of <M>] moment(s) measured[, <N> unmeasured (<phase> <reason>[, <phase> <reason>, ...])][: <file, file, ..., +N more>]` —
   the `of <M>` prefix (fix-and-retry finding 1, #244 round 8) appears whenever
   `.history` gives a usable bound (`<M>` at least `<N>`); a caller with no usable
   `.history` renders the plain `<N> moment(s) measured` it always has.
 - `scope: unavailable (could not read the work file)` — caller-side, not one of
-  the jq's four: the `work-get` read failed or the jq pipeline errored.
+  the jq's five: the `work-get` read failed or the jq pipeline errored.
 - `scope: not measured (fallback driver — measurement runs on the Workflow path only)` — caller-side, rendered by the fallback driver in place of the jq
   above whenever a fallback-driven story's `.scopeDelta` is empty ("Fallback
   driver" above).

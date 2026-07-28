@@ -1281,13 +1281,17 @@ check "gc names the kept file and its scope-delta moment count" "yes" \
 # be driven by SCOPE_DELTA_RETENTION_DAYS, not a hardcoded literal — round 7's
 # fix for the "reads as a clock starting now" finding regressed this by
 # hardcoding "14" in the message text instead of interpolating the constant
-# it had replaced. Both kept: sites (terminal-phase path and branch-gone
-# path) must use the same %s-interpolated form, so turning the constant turns
-# the message everywhere it appears. ---
-check "both kept: message sites interpolate SCOPE_DELTA_RETENTION_DAYS rather than hardcoding its value" "2" \
+# it had replaced. Fix-and-retry finding 2 (#244 round 9) scoped the guard to
+# the terminal-phase path only, so there is exactly one kept: site left. ---
+check "the kept: message site interpolates SCOPE_DELTA_RETENTION_DAYS rather than hardcoding its value" "1" \
   "$(grep -c 'collects it %s days after its last write' "$LEDGER")"
-check "neither kept: message site hardcodes a bare day count" "0" \
+check "the kept: message site does not hardcode a bare day count" "0" \
   "$(grep -c 'collects it 14 days after its last write' "$LEDGER")"
+
+# --- Fix-and-retry finding 4 (#244 round 9): the kept: message names the read
+# verb the retention exists for, not only the two ways to destroy it. ---
+check "the kept: message names gate-ledger work-get as the read verb" "yes" \
+  "$(printf '%s' "$out46" | grep -q 'gate-ledger work-get --slug "sd-done" to read it' && echo yes || echo no)"
 
 out46f=$( cd "$d46" && "$LEDGER" gc --force 2>&1 )
 check "gc --force collects it anyway" "no" \
@@ -1300,17 +1304,25 @@ check "gc --force collects it anyway" "no" \
 check "gc --force names the measured scope-delta moment(s) it discarded" "yes" \
   "$(printf '%s' "$out46f" | grep -q 'removed finished work file: sd-done.json (phase done, --force discarded 1 measured scope-delta moment(s))' && echo yes || echo no)"
 
-# --- gc --force on the branch-gone path also names what it discards (fix-and-
-# retry finding 1: the terminal-phase path and the branch-gone path have
-# identical structure and the identical hazard) ---
+# --- Fix-and-retry finding 2 (#244 round 9): the measured-scope-delta guard
+# applies to the terminal-phase rule only — a parked, non-terminal-phase story
+# whose branch the user deleted never reached acceptance, so its cohort is
+# incomplete by construction and gets no keep. Plain gc (no --force) collects
+# it outright, same as before #244 ever touched this path — this is the
+# regression pin for the option chosen over widening the guard to both rules. ---
 d46b=$(sandbox)
 git -C "$d46b" branch "epic/gone-branch" >/dev/null 2>&1
-( cd "$d46b" && "$LEDGER" work-set --slug sd-branch-gone --title "branch gone, measured" --branch "epic/gone-branch" ) >/dev/null 2>&1
+( cd "$d46b" && "$LEDGER" work-set --slug sd-branch-gone --title "branch gone, measured, still in flight" --branch "epic/gone-branch" ) >/dev/null 2>&1
 ( cd "$d46b" && "$LEDGER" work-log --slug sd-branch-gone --scope-delta-phase build --scope-delta-files "a.py" ) >/dev/null 2>&1
+wf46b="$d46b/.studious/work/sd-branch-gone.json"
 git -C "$d46b" branch -D "epic/gone-branch" >/dev/null 2>&1
-out46b=$( cd "$d46b" && "$LEDGER" gc --force 2>&1 )
-check "gc --force on the branch-gone path also names the discarded moment count" "yes" \
-  "$(printf '%s' "$out46b" | grep -q -- '--force discarded 1 measured scope-delta moment(s)' && echo yes || echo no)"
+out46b=$( cd "$d46b" && "$LEDGER" gc 2>&1 )
+check "plain gc collects a branch-gone, non-terminal-phase work file outright, even with a measured scope-delta cohort" "no" \
+  "$([ -f "$wf46b" ] && echo yes || echo no)"
+check "gc names the branch-gone collection with the plain, unguarded message" "yes" \
+  "$(printf '%s' "$out46b" | grep -q 'removed stale work file: sd-branch-gone.json (branch epic/gone-branch no longer exists)' && echo yes || echo no)"
+check "the branch-gone path names nothing about scope-delta — the guard never armed there" "no" \
+  "$(printf '%s' "$out46b" | grep -q 'scope-delta' && echo yes || echo no)"
 
 d47=$(sandbox)
 ( cd "$d47" && "$LEDGER" work-set --slug sd-done-clean --title "finished, no scope-delta" --phase "done" ) >/dev/null 2>&1

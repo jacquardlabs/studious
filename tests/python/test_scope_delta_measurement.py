@@ -51,13 +51,22 @@ WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
 # ---------- scopeDeltaPhase: pure-function executed fixture ----------
 
 
-def _scope_delta_phase(gate: str, attempts: int, has_audit_gate: bool | None = None) -> str | None:
+def _scope_delta_phase(
+    gate: str,
+    attempts: int,
+    has_audit_gate: bool | None = None,
+    scope_delta_history: list | None = None,
+) -> str | None:
     source = DRIVER.read_text()
     fn = _extract_function(source, "scopeDeltaPhase")
-    extra_arg = "" if has_audit_gate is None else f", {json.dumps(has_audit_gate)}"
+    args = [json.dumps(gate), str(attempts)]
+    if has_audit_gate is not None or scope_delta_history is not None:
+        args.append("undefined" if has_audit_gate is None else json.dumps(has_audit_gate))
+    if scope_delta_history is not None:
+        args.append(json.dumps(scope_delta_history))
     script = f"""
 {fn}
-console.log(JSON.stringify(scopeDeltaPhase({json.dumps(gate)}, {attempts}{extra_arg})))
+console.log(JSON.stringify(scopeDeltaPhase({", ".join(args)})))
 """
     return _run_node(script)
 
@@ -107,6 +116,63 @@ def test_audit_round_one_names_build_regardless_of_has_audit_gate() -> None:
 def test_acceptance_retries_are_unaffected_by_has_audit_gate() -> None:
     assert _scope_delta_phase("acceptance", 1, False) == "acceptance-fix-1"
     assert _scope_delta_phase("acceptance", 1, True) == "acceptance-fix-1"
+
+
+# ---------- scopeDeltaPhase: collision disambiguation (fix-and-retry finding 1,
+# #244 round 9) ----------
+
+
+def test_no_history_never_disambiguates() -> None:
+    """Every pre-round-9 call site and test omits the history argument entirely
+    — today's behavior must be byte-identical when it does."""
+    assert _scope_delta_phase("audit", 1) == "audit-fix-1"
+    assert _scope_delta_phase("audit", 1, scope_delta_history=[]) == "audit-fix-1"
+
+
+def test_a_phase_name_collision_gets_suffixed() -> None:
+    """`attempts` is seeded once from the ledger's persisted retry counter,
+    which no script path resets — a resumed process re-dispatching the same
+    (gate, attempts) pair must not collapse onto an already-recorded moment's
+    exact phase string."""
+    history = [{"phase": "audit-fix-1", "unmeasured": False, "outsideFiles": ["x.py"]}]
+    assert _scope_delta_phase("audit", 1, scope_delta_history=history) == "audit-fix-1b"
+
+
+def test_a_second_collision_advances_to_the_next_letter() -> None:
+    history = [
+        {"phase": "audit-fix-1", "unmeasured": False, "outsideFiles": ["x.py"]},
+        {"phase": "audit-fix-1b", "unmeasured": False, "outsideFiles": ["y.py"]},
+    ]
+    assert _scope_delta_phase("audit", 1, scope_delta_history=history) == "audit-fix-1c"
+
+
+def test_the_build_moment_also_disambiguates_on_collision() -> None:
+    """The demonstrated bug: audit round 1 (attempts === 0, names "build")
+    re-dispatched across separate resumed sessions, none of which ever entered
+    the in-run retry loop that would otherwise advance `attempts`."""
+    history = [{"phase": "build", "unmeasured": False, "outsideFiles": ["x.py"]}]
+    assert _scope_delta_phase("audit", 0, scope_delta_history=history) == "buildb"
+
+
+def test_an_unmeasured_history_entry_still_occupies_its_phase_for_collision_purposes() -> None:
+    """An `unmeasured: true` entry is still a recorded moment under that phase
+    name — a died scope check at `audit-fix-1` and a later real re-dispatch at
+    the same stale `attempts` value must not render as the same moment either."""
+    history = [{"phase": "audit-fix-1", "unmeasured": True, "outsideFiles": [], "reason": "dispatch-failed"}]
+    assert _scope_delta_phase("audit", 1, scope_delta_history=history) == "audit-fix-1b"
+
+
+def test_a_history_entry_missing_its_phase_field_is_ignored_not_crashing() -> None:
+    history = [{"unmeasured": False, "outsideFiles": ["x.py"]}]
+    assert _scope_delta_phase("audit", 1, scope_delta_history=history) == "audit-fix-1"
+
+
+def test_no_moment_never_disambiguates() -> None:
+    """Acceptance round 1 with an audit gate ahead of it names no moment at all
+    (`scopeDeltaPhase` returns `null`) — disambiguation only ever applies to an
+    actual base name, never manufactures one out of a null."""
+    history = [{"phase": "acceptance-fix-1", "unmeasured": False, "outsideFiles": []}]
+    assert _scope_delta_phase("acceptance", 0, True, history) is None
 
 
 # ---------- computeScopeDelta: pure-function executed fixture ----------
@@ -647,6 +713,44 @@ def test_audit_fix_cycle_moment_excludes_files_already_counted_at_build() -> Non
     )
 
 
+def test_a_resumed_entry_round_disambiguates_a_colliding_phase_name_without_affecting_the_count() -> None:
+    """Fix-and-retry finding 1 (#244 round 9): the demonstrated bug — this
+    story's own work file recorded four `audit: PASS` events across four
+    run-boundary sessions against an unchanged `retries.audit: 1`, because a
+    round that comes back clean (as this one does) never enters the in-run
+    retry loop that would otherwise advance `attempts`. The routing-scope
+    dispatch's own `.scopeDelta` read-back already carries an `audit-fix-1`
+    entry from an earlier, now-gone session; this round's own write must land
+    under a disambiguated label, not collapse onto it — and `b.py`, already
+    counted at that earlier moment, must still not be recounted here even
+    though the label changed."""
+    story = "a"
+    epic = {
+        "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
+        "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"], "retries": {"audit": 1}}},
+    }
+    findings = json.dumps({
+        "infraMatch": True, "frontendMatch": True, "depMatch": True, "promptMatch": True,
+        "files": ["a.py", "b.py", "c.py"],
+        "declaredFiles": ["a.py"],
+        "designDoc": "",
+        "scopeDelta": [{"phase": "audit-fix-1", "unmeasured": False, "outsideFiles": ["b.py"]}],
+    })
+    rules = [
+        {"match": rf"^audit:ledger-scope:{story}$", "result": {"findings": json.dumps({"hasNarrowableVerdict": False})}},
+        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": findings}},
+        *_full_roster_pass_rules(story),
+        {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "s1", "summary": "clean"}},
+        {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "s2", "notes": "clean"}},
+        *_FINALE_CLEAN_RULES,
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    compile_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"audit:compile:{story}"]
+    assert len(compile_prompts) == 1
+    assert "--scope-delta-phase \"audit-fix-1b\" --scope-delta-files 'c.py'" in compile_prompts[0]
+
+
 def test_acceptance_round_one_never_embeds_scope_delta_flags_when_audit_ran_first() -> None:
     """Acceptance round 1 (attempts === 0) names no moment WHEN an `audit` gate is
     in this story's profile — build-exit was already measured at audit's own round
@@ -884,6 +988,34 @@ def test_report_declared_but_no_moment_recorded_is_not_a_manufactured_zero() -> 
     actually measured, against the AC's 'never summed as zero.'"""
     out = _run_scope_delta_jq({"declaredFiles": ["a.py", "b.py", "c.py"], "scopeDelta": [], "amendments": []})
     assert out == "scope: declared 3, not yet measured (no moment recorded)"
+
+
+def test_report_declared_history_ran_but_every_scope_delta_write_dropped() -> None:
+    """Fix-and-retry finding 3 (#244 round 9): the `($sd | length) == 0` branch
+    used to render 'not yet measured' unconditionally, so a landed story whose
+    rounds all dropped the trailing `--scope-delta-*` flags read identically to
+    one that never reached a round at all. `.history` shows two audit rounds
+    ran while `.scopeDelta` stayed empty throughout — the render must say so."""
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [],
+        "amendments": [],
+        "history": [
+            {"step": "audit", "outcome": "FIX AND RE-AUDIT"},
+            {"step": "audit", "outcome": "PASS"},
+        ],
+    })
+    assert out == "scope: declared 1, 0 of 2 moments measured (no scope-delta entry recorded)"
+
+
+def test_report_declared_history_ran_once_but_dropped_uses_the_singular_denominator() -> None:
+    out = _run_scope_delta_jq({
+        "declaredFiles": ["a.py"],
+        "scopeDelta": [],
+        "amendments": [],
+        "history": [{"step": "audit", "outcome": "PASS"}],
+    })
+    assert out == "scope: declared 1, 0 of 1 moment measured (no scope-delta entry recorded)"
 
 
 def test_report_all_unmeasured_moments_lead_with_the_fact_not_a_false_clean_outside_zero() -> None:
@@ -1270,7 +1402,20 @@ def test_closing_shape_documents_the_all_unmeasured_rendering() -> None:
     jq_filter = _extract_scope_delta_jq_filter()
     assert ", unmeasured (0 of " in jq_filter
     assert ", unmeasured (0 of " in section
-    assert "four renderings" in section
+
+
+def test_closing_shape_documents_the_dropped_scope_delta_write_rendering() -> None:
+    """Fix-and-retry finding 3 (#244 round 9): a fifth distinct rendering — a
+    declared story whose rounds ran (per `.history`) but whose `.scopeDelta`
+    stayed empty throughout — same rule as the other failure paths: named in
+    the shape block's bullet list, in the jq filter's own words, and the
+    renderings-count prose updated to match."""
+    section = _closing_shape_section()
+    jq_filter = _extract_scope_delta_jq_filter()
+    assert "0 of \" + plural($expectedMoments; \"moment\") + \" measured (no scope-delta entry recorded)" in jq_filter
+    assert "0 of <M> moment(s) measured (no scope-delta entry recorded)" in section
+    assert "five renderings" in section
+    assert "four renderings" not in section
 
 
 def test_closing_shape_unavailable_rendering_is_caller_side_not_the_jqs() -> None:

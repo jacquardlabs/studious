@@ -53,9 +53,9 @@ Also count epic state by globbing `.studious/epics/*.json`.
 
 Classify:
 
-- **More than 10 active work files** — **Important** — "`/work-on` will ask you to choose from N features instead of resuming one." Retained files never appear in that menu — they're terminal-phase — so they don't count toward this threshold on their own, but if any exist, name them too: "`gate-ledger gc --force` collects M retained now, discarding each one's measured scope-delta history for good; plain `gate-ledger gc` collects whichever have already passed their `SCOPE_DELTA_RETENTION_DAYS` window (same permanent loss), and the rest once it passes."
+- **More than 10 active work files** — **Important** — "`/work-on` will ask you to choose from N features instead of resuming one." Retained files never appear in that menu — they're terminal-phase — so they don't count toward this threshold on their own, but if any exist, name them too: "`gate-ledger work-get --slug <slug>` reads any of them before they go; `gate-ledger gc --force` collects M retained now, discarding each one's measured scope-delta history for good; plain `gate-ledger gc` collects whichever have already passed their `SCOPE_DELTA_RETENTION_DAYS` window (same permanent loss), and the rest once it passes."
 - **1–10 active** — **OK**, with the active count (and the retained count, if nonzero).
-- **A work file whose branch no longer exists** — name it: `gc` will collect it, and until then it is noise in every `work-list` read.
+- **A work file whose branch no longer exists** — name it: `gc` will collect it outright on its next run, no retention window and no `--force` needed even if it carries a measured scope-delta cohort — that guard applies to a *finished* story's work file only, never to a still-in-flight one whose branch is gone (a parked story never reached acceptance, so there is no completed cohort to protect) — and until collected it is noise in every `work-list` read.
 
 Report the counts, never the full list — this is a health check, not an inventory. And recommend `gc`; never run it. Same recommend-only posture as everything else here.
 
@@ -76,7 +76,7 @@ Report the counts, never the full list — this is a health check, not an invent
 - [OK|Important] CLAUDE.md: <populated | missing> — <consequence if not OK>
 
 **Flow state**
-- [OK|Important] <n active, k retained for scope-delta, m epics> — <"clean" | "`/work-on` will ask you to choose from n features" | "k retained for scope-delta — `gate-ledger gc --force` to collect now (discards their scope-delta history for good), or plain `gc` once their window lapses (same permanent loss)">
+- [OK|Important] <n active, k retained for scope-delta, m epics> — <"clean" | "`/work-on` will ask you to choose from n features" | "k retained for scope-delta — `gate-ledger work-get --slug <slug>` to read any before deciding; `gate-ledger gc --force` to collect now (discards their scope-delta history for good), or plain `gc` once their window lapses (same permanent loss)">
 
 ### Summary
 <N> critical, <N> important, <N> ok. This is a health check, not a gate — no verdict token, nothing recorded to the ledger.

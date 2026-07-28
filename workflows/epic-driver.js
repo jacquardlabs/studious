@@ -397,7 +397,11 @@ async function acceptanceRound(story, note, nextPhase, attempts, hasAuditGate) {
   // command reads byte-identical to before this story. On a profile with no
   // `audit` gate, this same round 1 IS the build-exit round, so it names
   // "build" instead (hasAuditGate === false).
-  const scopeDeltaPhaseName = scopeDeltaPhase('acceptance', attempts, hasAuditGate)
+  // Fix-and-retry finding 1 (#244 round 9): threads this round's already-
+  // resolved `.scopeDelta` history through for collision disambiguation —
+  // see scopeDeltaPhase's own comment.
+  const scopeDeltaPhaseName = scopeDeltaPhase('acceptance', attempts, hasAuditGate,
+    parsedScope && Array.isArray(parsedScope.scopeDelta) ? parsedScope.scopeDelta : undefined)
   const scopeDeltaDelta = computeScopeDelta({
     files,
     declaredFiles: parsedScope && Array.isArray(parsedScope.declaredFiles) ? parsedScope.declaredFiles : null,
@@ -787,9 +791,41 @@ function resolveAuditRoster(matchFlags, auditors) {
 // first acceptance-fix cycle, attributing every file present since build to
 // the fix cycle instead of build — inverting overreach (present at build)
 // into apparent accretion (present only after a fix).
-function scopeDeltaPhase(gate, attempts, hasAuditGate = true) {
-  if (attempts === 0) return gate === 'audit' || !hasAuditGate ? 'build' : null
-  return `${gate}-fix-${attempts}`
+//
+// Fix-and-retry finding 1 (#244 round 9): `attempts` (the ledger's persisted
+// retry counter, per the comment above) is reused verbatim across a resumed
+// process — nothing resets it, and no script path bumps it except an actual
+// in-run fix cycle or a human's `epic-story-set --bump-retry`. A story whose
+// gate keeps re-dispatching at the SAME stale `attempts` value across
+// separate run-boundary sessions (this story's own work file: four `audit:
+// PASS` events across four sessions, `retries.audit` unchanged at 1
+// throughout) would otherwise compute the identical base name every time,
+// collapsing four distinct moments onto one `.scopeDelta` phase label.
+// `scopeDeltaHistory` — the same already-resolved `.scopeDelta` array
+// `computeScopeDelta` reads back for `alreadySeen` (never a second dispatch)
+// — lets this function detect that the base name is already on record and
+// suffix it (`audit-fix-1b`, then `audit-fix-1c`, ...) rather than reuse it.
+// Optional and last: every existing call site and test that omits it keeps
+// today's behavior exactly (`undefined`/non-array skips disambiguation
+// entirely), and a null base (acceptance round 1 with an audit gate ahead of
+// it) is returned as-is — there is no moment to disambiguate. This changes
+// only which STRING labels a moment; `computeScopeDelta`'s own `alreadySeen`
+// dedupe (keyed on `outsideFiles`, never on `phase`) is untouched, so a
+// suffixed moment has no effect on any count.
+function scopeDeltaPhase(gate, attempts, hasAuditGate = true, scopeDeltaHistory) {
+  const base = attempts === 0
+    ? (gate === 'audit' || !hasAuditGate ? 'build' : null)
+    : `${gate}-fix-${attempts}`
+  if (!base || !Array.isArray(scopeDeltaHistory)) return base
+  const used = new Set(
+    scopeDeltaHistory.filter(e => e && typeof e.phase === 'string').map(e => e.phase)
+  )
+  if (!used.has(base)) return base
+  for (let i = 1; i < 26; i++) {
+    const suffixed = `${base}${String.fromCharCode(97 + i)}`
+    if (!used.has(suffixed)) return suffixed
+  }
+  return base
 }
 
 // Scope-delta measurement (#244): pure arithmetic over facts a mechanical
@@ -1232,8 +1268,11 @@ async function auditRound(story, note, nextPhase, priorResult, preMatchFlags, at
   // Scope-delta measurement (#244): computed from the SAME routing dispatch above
   // (widened to also carry files/declaredFiles/designDoc/scopeDelta) — no new
   // dispatch. `attempts` here is the value at THIS round's own dispatch time
-  // (see runGate below): 0 names "build," any retry names "audit-fix-N."
-  const scopeDeltaPhaseName = scopeDeltaPhase('audit', attempts)
+  // (see runGate below): 0 names "build," any retry names "audit-fix-N." Fix-
+  // and-retry finding 1 (#244 round 9): the history carried on the same
+  // dispatch also disambiguates a collision — see scopeDeltaPhase's own comment.
+  const scopeDeltaPhaseName = scopeDeltaPhase('audit', attempts, undefined,
+    matchFlags && Array.isArray(matchFlags.scopeDelta) ? matchFlags.scopeDelta : undefined)
   const scopeDeltaDelta = computeScopeDelta({
     files: matchFlags && matchFlags.files,
     declaredFiles: matchFlags && matchFlags.declaredFiles,
