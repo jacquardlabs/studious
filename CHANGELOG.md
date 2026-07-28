@@ -2,6 +2,121 @@
 
 <!-- version list -->
 
+## v2.28.0 (2026-07-28)
+
+### Bug Fixes
+
+- Address acceptance fix-and-retry findings on scope-delta measurement
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Bound gc's unread-scope-delta keep, and narrow it to measured entries
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Catch a gate shelling out to a build-skill executable directly
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Correct rollback-enumeration count after finding-2's line-58 edit
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Describe scope-delta rendering by content, not stale ordinal
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Describe studious-doctor.md rollback sites positionally, not by line number
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Gc retention wording, gc-restraint timing guidance, and stale gc remedy
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Harden scope-delta measurement against model-relayed path injection
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Interpolate SCOPE_DELTA_RETENTION_DAYS instead of hardcoding it, and flag cross-moment file
+  recurrence ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Run the driver-harness node probe from a temp file, not node -e
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Run the harness-shape parse check from a .mjs file, not node -e
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Scope-delta measurement acceptance findings (FIX AND RE-CHECK #3)
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Scope-delta measurement acceptance findings (FIX AND RE-CHECK #4)
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Scope-delta measurement acceptance findings (FIX AND RE-CHECK #5)
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Scope-delta measurement acceptance findings (FIX AND RE-CHECK #6)
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Scope-delta measurement acceptance findings (FIX AND RE-CHECK #7)
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Scope-delta measurement acceptance findings (FIX AND RE-CHECK #8)
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Scope-delta measurement acceptance findings (FIX AND RE-CHECK #9)
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Widen the scope-delta path validator to a denylist, not an allowlist
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+### Documentation
+
+- Note the core.quotePath caveat on the scope-delta path denylist
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Record the scope-delta-measurement pre-mortem register
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+### Features
+
+- Add --carried-findings, distinct from --decisions, for unreviewed acceptance findings
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Add scope-delta storage fields to gate-ledger's work-set/work-log
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Measure per-moment scope delta on the epic-driven build path
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+- Scope-delta measurement, carried-findings field, and gate-independence executable coverage
+  ([#275](https://github.com/jacquardlabs/studious/pull/275),
+  [`398f9d1`](https://github.com/jacquardlabs/studious/commit/398f9d1b78158b4e8a8f6c4ab8061ae41e249f7a))
+
+### Refactoring
+
+- Give tests/jig one normalize_ws and one vocabulary parsing path
+  ([#264](https://github.com/jacquardlabs/studious/pull/264),
+  [`2f478bc`](https://github.com/jacquardlabs/studious/commit/2f478bc734d119bfec3c0ae5e69773d0c524bc21))
+
+
 ## v2.27.6 (2026-07-27)
 
 ### Bug Fixes
