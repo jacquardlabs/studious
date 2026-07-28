@@ -44,11 +44,18 @@ CLAUDE.md has no shipped template (`templates/CLAUDE.md` does not exist), so it 
 
 `.studious/` accumulates one work file per feature and one state file per epic, and nothing collects them automatically. When they pile up, `/work-on` with no argument stops being able to answer "what's next" — it has to ask you to pick from a list instead (#237).
 
-Count them with `gate-ledger work-list` (one line per work file) and by globbing `.studious/epics/*.json`. Classify:
+`gate-ledger work-list` (one line per work file: slug, phase, branch, title) gives the raw inventory; classify each line by phase, matching `commands/work-on.md`'s own definition:
 
-- **More than 10 work files** — **Important** — "`/work-on` will ask you to choose from N features instead of resuming one. Run `gate-ledger gc`." That verb collects work files whose flow ended (phase `done`/`stopped`) or whose branch is gone, and epic state for epics that shipped.
-- **1–10** — **OK**, with the count.
-- **A work file whose branch no longer exists** — name it: `gc` will collect it, and until then it is noise in every `work-list` read.
+- **Active** — phase not `done`/`stopped`. This is the count that governs `/work-on`'s no-argument menu (`commands/work-on.md`'s resolve-the-feature step lists exactly the active work files) — it's the number that answers "will `/work-on` have to ask me to choose?"
+- **Retained** — phase `done`/`stopped`, and `gate-ledger work-get --slug <slug>` (never a raw file read — work files are read and written only through the ledger tool, same as `commands/work-on.md`'s own rule) shows at least one *measured* `scopeDelta` entry (#244), i.e. one with `unmeasured` not `true`. `gate-ledger gc` keeps such a file until its retention window lapses — `bin/gate-ledger`'s `SCOPE_DELTA_RETENTION_DAYS`, checked against the file's last write, not when its flow ended — after which plain `gc` collects it too; `gate-ledger gc --force` collects it immediately regardless. A work file whose scope-delta cohort is entirely `unmeasured` carries none of this protection and collects on the very next plain `gc`.
+
+Also count epic state by globbing `.studious/epics/*.json`.
+
+Classify:
+
+- **More than 10 active work files** — **Important** — "`/work-on` will ask you to choose from N features instead of resuming one." Retained files never appear in that menu — they're terminal-phase — so they don't count toward this threshold on their own, but if any exist, name them too: "`gate-ledger work-get --slug <slug>` reads any of them before they go; `gate-ledger gc --force` collects M retained now, discarding each one's measured scope-delta history for good; plain `gate-ledger gc` collects whichever have already passed their `SCOPE_DELTA_RETENTION_DAYS` window (same permanent loss), and the rest once it passes."
+- **1–10 active** — **OK**, with the active count (and the retained count, if nonzero).
+- **A work file whose branch no longer exists** — name it: `gc` will collect it outright on its next run, no retention window and no `--force` needed even if it carries a measured scope-delta cohort — that guard applies to a *finished* story's work file only, never to a still-in-flight one whose branch is gone (a parked story never reached acceptance, so there is no completed cohort to protect) — and until collected it is noise in every `work-list` read.
 
 Report the counts, never the full list — this is a health check, not an inventory. And recommend `gc`; never run it. Same recommend-only posture as everything else here.
 
@@ -69,7 +76,7 @@ Report the counts, never the full list — this is a health check, not an invent
 - [OK|Important] CLAUDE.md: <populated | missing> — <consequence if not OK>
 
 **Flow state**
-- [OK|Important] <n work files, m epics> — <"clean" | "`/work-on` will ask you to choose from n features; run `gate-ledger gc`">
+- [OK|Important] <n active, k retained for scope-delta, m epics> — <"clean" | "`/work-on` will ask you to choose from n features" | "k retained for scope-delta — `gate-ledger work-get --slug <slug>` to read any before deciding; `gate-ledger gc --force` to collect now (discards their scope-delta history for good), or plain `gc` once their window lapses (same permanent loss)">
 
 ### Summary
 <N> critical, <N> important, <N> ok. This is a health check, not a gate — no verdict token, nothing recorded to the ledger.
