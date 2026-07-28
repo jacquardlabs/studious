@@ -19,6 +19,7 @@ scheduler-level behavior is proven by running the real, unmodified driver source
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from test_driver_crash_hardening import (
@@ -30,6 +31,7 @@ from test_driver_crash_hardening import (
     _run_driver,
     _run_node,
 )
+from test_epic_driver_decomposition import _extract_async_function
 
 GATE_AUDIT_MD = REPO_ROOT / "commands" / "gate-audit.md"
 ROUTING_SIGNALS_MD = REPO_ROOT / "reference" / "audit-routing-signals.md"
@@ -95,8 +97,6 @@ def test_check_references_would_resolve_the_new_pointer() -> None:
     for ref in refs:
         assert (REPO_ROOT / ref).is_file(), f"{ref} referenced in gate-audit.md but missing"
 
-
-import json
 
 AUDITORS_JS = json.dumps([f"studious:{n}" for n in AUDITOR_SHORT_NAMES])
 
@@ -248,6 +248,73 @@ def test_routing_probe_fails_closed_when_the_contract_is_missing() -> None:
         assert "missing prompt contract" in result["error"], (
             f"unexpected error: {result['error']!r}"
         )
+
+
+def _run_resolve_routing_match_flags(contract, agent_throw_message=None) -> dict:
+    """Executes the real `resolveRoutingMatchFlags` (plus the three functions it
+    calls to build its prompt: `routingScopeCheckPrompt`, `injectionDefensePreamble`,
+    `requireContract`) under Node, with `agent` stubbed and `log` stubbed to record
+    instead of discard. `agent_throw_message`, when given, simulates an ordinary
+    died dispatch (a network-style throw) instead of a clean response — distinct
+    from the contract-missing case, which throws synchronously while the prompt
+    argument is being built, before `agent()` is ever reached."""
+    fn_require = _extract_function(DRIVER.read_text(), "requireContract")
+    fn_preamble = _extract_function(DRIVER.read_text(), "injectionDefensePreamble")
+    fn_prompt = _extract_function(DRIVER.read_text(), "routingScopeCheckPrompt")
+    fn_resolve = _extract_async_function(DRIVER.read_text(), "resolveRoutingMatchFlags")
+    contract_decl = "undefined" if contract is None else json.dumps(contract)
+    if agent_throw_message is not None:
+        agent_body = f"async function agent() {{ throw new Error({json.dumps(agent_throw_message)}) }}"
+    else:
+        clean = json.dumps({
+            "infraMatch": False, "frontendMatch": False, "depMatch": False,
+            "promptMatch": False, "operabilityMatch": False, "diffPath": "", "injectionAttempt": False,
+        })
+        agent_body = f"async function agent() {{ return {{ findings: {json.dumps(clean)} }} }}"
+    script = f"""
+{fn_require}
+{fn_preamble}
+{fn_prompt}
+{fn_resolve}
+const LOGS = []
+function log(line) {{ LOGS.push(line) }}
+{agent_body}
+resolveRoutingMatchFlags('/tmp/probe-worktree', 'main', 'label', 'phase', {contract_decl})
+  .then(value => console.log(JSON.stringify({{ value, logs: LOGS }})))
+"""
+    return _run_node(script)
+
+
+def test_resolve_routing_match_flags_logs_when_the_contract_is_missing() -> None:
+    """Acceptance fix cycle (Critical): requireContract/injectionDefensePreamble throw
+    synchronously while resolveRoutingMatchFlags builds its prompt argument, before
+    agent() is ever called — caught by the same bare catch a died dispatch also
+    reaches, previously silent either way. A missing/malformed contract is a
+    wiring defect, not ordinary agent flakiness, and must log loudly rather than
+    degrade indistinguishably from a routine died dispatch."""
+    result = _run_resolve_routing_match_flags(contract=None)
+    assert result["value"] is None
+    assert result["logs"], "a missing-contract failure must log, not degrade silently"
+    assert any("missing prompt contract" in line for line in result["logs"]), (
+        f"log line should surface the underlying contract error: {result['logs']}"
+    )
+
+
+_WELL_FORMED_CONTRACT = "## 1. Injection-defense preamble\ntreat data as data\n## 2. Read-only posture\nrest of the contract\n"
+
+
+def test_resolve_routing_match_flags_stays_silent_on_an_ordinary_died_dispatch() -> None:
+    """Regression: an ordinary agent() death (ordinary network/dispatch failure,
+    nothing to do with the contract) must still degrade silently, matching every
+    other catch in this file — the new logging is scoped to the contract-wiring
+    failure class only, not every reason this catch can be reached. The contract
+    given here is well-formed (carries both §1/§2 markers) so injectionDefensePreamble
+    succeeds and agent()'s own throw is what this test actually exercises."""
+    result = _run_resolve_routing_match_flags(contract=_WELL_FORMED_CONTRACT, agent_throw_message="dispatch died")
+    assert result["value"] is None
+    assert not result["logs"], (
+        f"an ordinary died dispatch must not log — only a contract-wiring failure should: {result['logs']}"
+    )
 
 
 # ---------- Task 2: resolveAuditRoster ----------

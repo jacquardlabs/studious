@@ -1413,7 +1413,18 @@ async function resolveRoutingMatchFlags(dir, base, label, phaseLabel, contract) 
     // it stays pinned pending the measurement in #132, not reverted on this
     // OBSERVATION alone.
     r = await agent(routingScopeCheckPrompt(dir, base, contract), { label, phase: phaseLabel, schema: REPORT, model: 'haiku', effort: 'medium' })
-  } catch {
+  } catch (err) {
+    // Round 4 (acceptance fix cycle, Critical): requireContract/injectionDefensePreamble
+    // throw synchronously while building this dispatch's prompt, before agent() is ever
+    // called — a fundamentally different failure than an ordinary died dispatch (every
+    // other catch in this file degrades silently by design, e.g. ledgerAuditPrior
+    // above), since it means the contract text itself arrived missing or restructured,
+    // not that a network call flaked. Log only this class; an ordinary agent() death
+    // still degrades silently, matching the rest of this file.
+    const msg = err instanceof Error ? err.message : ''
+    if (msg.startsWith('epic-driver: missing prompt contract') || msg.startsWith('epic-driver: could not locate the §1 injection-defense')) {
+      log(`epic-driver: routing-scope dispatch for ${dir} could not build its prompt (${msg}) — degrading to a full unnarrowed round rather than silently discarding a contract-wiring failure`)
+    }
     return null
   }
   if (!r || !r.findings) return null
