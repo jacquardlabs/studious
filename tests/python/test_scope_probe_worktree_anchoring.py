@@ -30,6 +30,7 @@ import re
 
 import pytest
 from test_driver_crash_hardening import (
+    DEFAULT_TEST_CONTRACT,
     DRIVER,
     _extract_function,
     _run_node,
@@ -52,11 +53,23 @@ _UNANCHORED_GIT = re.compile(rf"\bgit\s+(?!-C\b)(?={_GIT_SUBCOMMANDS})\b")
 _CWD_DIRECTIVE = re.compile(r"From\s+/tmp/probe-worktree[:,]")
 
 
+# routingScopeCheckPrompt now calls requireContract/injectionDefensePreamble
+# internally (gate-audit round 1, #271 fix cycle: the §1 injection-defense preamble
+# it slices out of its `contract` argument) — extracted alongside it below or the
+# probe script raises ReferenceError, same reason test_audit_first_round_routing.py
+# does the same.
+_EXTRA_DEPS = {
+    "routingScopeCheckPrompt": ("requireContract", "injectionDefensePreamble"),
+}
+
+
 def _build_prompt(fn_name: str, args: list[str]) -> str:
     source = DRIVER.read_text()
-    fn = _extract_function(source, fn_name)
+    fns = "\n\n".join(
+        _extract_function(source, name) for name in (*_EXTRA_DEPS.get(fn_name, ()), fn_name)
+    )
     script = f"""
-{fn}
+{fns}
 process.stdout.write(JSON.stringify({{ prompt: {fn_name}({", ".join(args)}) }}))
 """
     return _run_node(script)["prompt"]
@@ -64,7 +77,7 @@ process.stdout.write(JSON.stringify({{ prompt: {fn_name}({", ".join(args)}) }}))
 
 SCOPE_PROBES = [
     ("acceptanceScopeCheckPrompt", [json.dumps(PROBE_DIR), json.dumps(PROBE_BASE), json.dumps(PROBE_SLUG)]),
-    ("routingScopeCheckPrompt", [json.dumps(PROBE_DIR), json.dumps(PROBE_BASE)]),
+    ("routingScopeCheckPrompt", [json.dumps(PROBE_DIR), json.dumps(PROBE_BASE), json.dumps(DEFAULT_TEST_CONTRACT)]),
 ]
 
 

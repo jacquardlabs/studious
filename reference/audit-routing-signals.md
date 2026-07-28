@@ -5,9 +5,13 @@ rules `commands/gate-audit.md` (auditor 9, auditor 11, auditor 12, and auditors 
 per-changeset clause) and `workflows/epic-driver.js`'s mechanical routing dispatch both apply. Neither restates these
 lists inline — both point here, so there is exactly one list to ever drift from. Auditor 10
 (operability) is deliberately not covered here: its skip condition is content-judged ("Judge
-from the diff's content… not file paths alone" — see `commands/gate-audit.md`), not a
-file-pattern rule, and stays unconditionally dispatched on the epic-driven path (see the
-design doc for issue #138).
+from the diff's content… not file paths alone" — see `commands/gate-audit.md:56`), not a
+file-pattern rule, and there is no reliable file-name proxy for "does this code serve
+requests, consume queues, or perform network I/O" the way there is for IaC, frontend,
+dependency, or prompt file types. `commands/gate-audit.md:56` stays the canonical statement
+of the rule; `workflows/epic-driver.js`'s routing dispatch mirrors it as a content judgment
+made inline in its own prompt (`routingScopeCheckPrompt`'s `operabilityMatch`, issue #271),
+not as a pattern list added here.
 
 **When ambiguous, apply the pattern anyway — default to running the lane, not skipping it.**
 A file that loosely or partially matches a pattern below counts as a match.

@@ -53,6 +53,19 @@ DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 
 MAX_FIX_CYCLES = 2
 
+# gate-audit round 1 (#271 fix cycle): the routing-scope dispatch's prompt builder
+# now slices its own §1 injection-defense preamble out of whatever contract text it's
+# given (`injectionDefensePreamble` in workflows/epic-driver.js), which requires real
+# `## 1.`/`## 2.` section markers — the bare placeholder `"CONTRACT-TEXT"` this
+# harness used before has neither, so `_run_driver`'s default must be a shape
+# `injectionDefensePreamble` can actually slice, or every routing-scope dispatch would
+# throw before its mocked `agent()` rule is ever reached (the throw happens while
+# evaluating `routingScopeCheckPrompt(...)` as an argument, before the mock call is
+# made), silently exercising the fail-open path instead of whichever routing flags a
+# test's rule specifies. The real contract file always has both markers, so it
+# doubles as a faithful default for every other dispatch too.
+DEFAULT_TEST_CONTRACT = (REPO_ROOT / "reference" / "prompt-contract.md").read_text()
+
 
 def _extract_function(source: str, name: str) -> str:
     """Extract a top-level ``function <name>(...) { ... }`` declaration verbatim.
@@ -217,7 +230,7 @@ AUDITOR_SHORT_NAMES = [
 ]
 
 
-def _run_driver(epic: dict, agent_rules: list[dict], phases: dict | None = None, contract: str = "CONTRACT-TEXT") -> dict:
+def _run_driver(epic: dict, agent_rules: list[dict], phases: dict | None = None, contract: str = DEFAULT_TEST_CONTRACT) -> dict:
     """Runs the real, unmodified driver source the way the Workflow harness
     does: strip the one `export` keyword and execute the remainder as the
     body of an async function supplied with args/agent/parallel/log/phase —
