@@ -301,7 +301,10 @@ def test_ledger_audit_prior_never_throws_on_a_narrowable_verdict_even_with_a_str
     report carrying a stray `error` key (an over-helpful agent's commentary on an
     otherwise-successful read) must return the narrowed verdict, not throw and
     permanently park the story. `hasNarrowableVerdict` is checked before `error`
-    is ever looked at.
+    is ever looked at. `resolvedBranch` is included here matching this story's own
+    branch — an orthogonal precondition the round-3 fix below requires before any
+    narrowing is trusted at all — so this fixture isolates the one thing it actually
+    tests: the stray-error-key behavior, not branch confirmation.
     """
     result = _run_ledger_audit_prior(
         {
@@ -309,6 +312,7 @@ def test_ledger_audit_prior_never_throws_on_a_narrowable_verdict_even_with_a_str
             "sha": "abc1234",
             "blockingLanes": ["security"],
             "error": "just a note, everything succeeded",
+            "resolvedBranch": EXPECTED_STORY_BRANCH,
         }
     )
     assert not result["threw"], (
@@ -448,6 +452,27 @@ def test_ledger_audit_prior_trusts_a_matching_resolved_branch():
         "blockingLanes": ["security"],
     }, result
     assert not result["logs"], "a matching resolvedBranch is not a mismatch and must not log"
+
+
+def test_ledger_audit_prior_never_trusts_a_narrowable_verdict_with_no_resolved_branch():
+    """Gate-acceptance round 3 (fix-and-recheck SHOULD FIX): the mismatch check above
+    is truthy-gated (`resolvedBranch && ...`), so an omitted or empty `resolvedBranch`
+    used to skip it entirely and reach hasNarrowableVerdict:true with zero cwd
+    confirmation at all — the same #261-pattern risk as a known mismatch, just silent
+    instead of caught. A narrowed verdict must now require a confirmed resolvedBranch
+    (this story's own branch, or the detached-HEAD case) before it is ever trusted."""
+    result = _run_ledger_audit_prior(
+        {
+            "hasNarrowableVerdict": True,
+            "sha": "abc1234",
+            "blockingLanes": ["security"],
+        }
+    )
+    assert not result["threw"], f"an unconfirmed narrowing must degrade, not throw: {result}"
+    assert result["value"] is None, (
+        f"hasNarrowableVerdict:true with no resolvedBranch must never be trusted: {result}"
+    )
+    assert result["logs"], "an unconfirmed narrowing must still log loudly"
 
 
 def test_ledger_audit_prior_treats_detached_head_as_not_a_mismatch():

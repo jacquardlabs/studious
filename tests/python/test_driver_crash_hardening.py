@@ -120,6 +120,30 @@ console.log(JSON.stringify(crashParkArgs('build', 'a bare string throw')))
     assert "a bare string throw" in result["reason"]
 
 
+def test_crash_park_args_does_not_say_agent_threw_for_a_parkgate_classification() -> None:
+    """Gate-acceptance round 3 (fix-and-recheck MINOR): a `parkGate`-carrying error
+    (ledgerAuditPrior's own worktree-broken throw — its probe returned normally and
+    the driver rejected the content) is a deliberate code-level classification, not a
+    literal `agent()` dispatch crash. "agent() threw during X" misdirects the first
+    step of operator diagnosis toward the wrong failure class. Only a parkGate-less
+    error (a genuine `agent()` throw, covered by the two tests above) gets that
+    phrasing."""
+    source = DRIVER.read_text()
+    fn = _extract_function(source, "crashParkArgs")
+    script = f"""
+{fn}
+const err = new Error('could not read the gate ledger: cd failed')
+err.parkGate = 'ledger-scope-check'
+console.log(JSON.stringify(crashParkArgs('audit', err)))
+"""
+    result = _run_node(script)
+    assert result["gate"] == "ledger-scope-check", result
+    assert "agent() threw" not in result["reason"], (
+        f"a parkGate classification is not a dispatch crash: {result}"
+    )
+    assert result["reason"].startswith("ledger-scope-check failed:"), result
+
+
 def _stalled_finale_entry(gate: str, result_js: str, retry_token: str) -> dict | None:
     source = DRIVER.read_text()
     fn = _extract_function(source, "stalledFinaleEntry")

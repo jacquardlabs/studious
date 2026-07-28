@@ -1175,22 +1175,31 @@ async function ledgerAuditPrior(dir, expectedBranch, label, phaseLabel) {
   // mismatched-branch report that happened to carry hasNarrowableVerdict:true would
   // apply some OTHER story's blockingLanes to this one's re-audit — actively harmful,
   // not merely a wasted round. "HEAD" (a detached checkout) is not a mismatch; the
-  // prompt already carves that out as its own check-unavailable case below. A missing
-  // resolvedBranch (an agent that hasn't adopted the field) can't be compared at all,
-  // so it falls through to the pre-existing checks unchanged.
+  // prompt already carves that out as its own check-unavailable case below.
   const resolvedBranch = typeof parsed.resolvedBranch === 'string' ? parsed.resolvedBranch : ''
   if (resolvedBranch && resolvedBranch !== 'HEAD' && resolvedBranch !== expectedBranch) {
     log(`epic-driver: ledger-scope-check for ${dir} resolved branch "${resolvedBranch}" instead of this story's own "${expectedBranch}" — the check read the wrong worktree (a #261-pattern cwd read), degrading to a full unnarrowed audit round instead of trusting its verdict`)
     return null
   }
 
-  // #261 fix-and-recheck (gate-acceptance round 1, BLOCKER): a fully valid narrowed
-  // verdict wins even if it carries a stray "error" key an over-helpful agent
-  // attached alongside it — check hasNarrowableVerdict FIRST, before ever looking at
-  // .error, so a valid narrowing is never discarded and the story never permanently
-  // parked over commentary on an otherwise-successful read.
+  // Gate-acceptance round 3 (fix-and-recheck, SHOULD FIX): the mismatch guard above
+  // is truthy-gated (`resolvedBranch && ...`), so it silently skips verification when
+  // resolvedBranch is empty — and that covers TWO different situations the prior fix
+  // conflated: an agent that hasn't adopted the field (never sent one) and an agent
+  // that ran the rev-parse and got nothing back (sent an explicitly empty one). Both
+  // collapse to the same `''` here, and neither is proof this check ran in the right
+  // worktree — so trusting hasNarrowableVerdict:true on an unconfirmed resolvedBranch
+  // is exactly the #261-pattern risk the mismatch guard above exists to catch, just
+  // with the branch name missing instead of wrong. Require a confirmed match (this
+  // story's own branch, or the carved-out detached-HEAD case) before ever trusting a
+  // narrowed verdict; anything else degrades to a full unnarrowed round, same as a
+  // known mismatch.
   if (parsed.hasNarrowableVerdict) {
-    return { verdict: GATES.audit.retry, sha: parsed.sha, blockingLanes: parsed.blockingLanes }
+    if (resolvedBranch === expectedBranch || resolvedBranch === 'HEAD') {
+      return { verdict: GATES.audit.retry, sha: parsed.sha, blockingLanes: parsed.blockingLanes }
+    }
+    log(`epic-driver: ledger-scope-check for ${dir} reported hasNarrowableVerdict:true but resolvedBranch was ${resolvedBranch ? `"${resolvedBranch}"` : 'missing'} — cannot confirm the read happened in this story's own worktree, degrading to a full unnarrowed audit round rather than trusting an unconfirmed narrowing`)
+    return null
   }
   if (parsed.error) {
     // Only "worktree-broken" means the worktree itself is unusable — the same
@@ -1341,7 +1350,15 @@ async function park(story, gate, verdict, reason) {
 // are (tests/python/test_contract_injection.py).
 function crashParkArgs(phaseName, err) {
   const gate = (err && err.parkGate) || phaseName
-  return { gate, verdict: 'BLOCKED', reason: `agent() threw during ${gate}: ${(err && err.message) || err}` }
+  // Gate-acceptance round 3 (fix-and-recheck, MINOR): a `parkGate`-carrying error is
+  // the ledger-scope-check's own deliberate classification (its probe returned
+  // normally; the driver rejected the content as worktree-broken) — not a literal
+  // `agent()` call throwing. "agent() threw during X" misdirects the first step of
+  // operator diagnosis toward a dispatch failure that didn't happen. Only a
+  // parkGate-less error (a genuine agent() crash, caught elsewhere in this file)
+  // gets that phrasing.
+  const prefix = (err && err.parkGate) ? `${gate} failed` : `agent() threw during ${gate}`
+  return { gate, verdict: 'BLOCKED', reason: `${prefix}: ${(err && err.message) || err}` }
 }
 
 async function runStory(story) {
