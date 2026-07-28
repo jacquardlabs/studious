@@ -181,6 +181,50 @@ const r = await agent('do it', { label: 'x', phase: 'y' })
 return { r }
 EOF
 
+# --- eslint-disable-next-line as a block comment suppresses exactly like the `//`
+# form above, but the rationale check used to filter on `c.type === 'Line'` and
+# silently missed it (#270 fix-and-recheck finding 1) ---
+expect_fail "a block-comment eslint-disable-next-line with no reason is itself flagged" "has no reason after" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+/* eslint-disable-next-line local/no-unpinned-agent-dispatch */
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_pass "a block-comment eslint-disable-next-line with a reason is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+/* eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned: pending an A/B, not a default */
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+# --- a trailing eslint-disable-line, on the call's own line rather than the line
+# above, is the other silently-missed form (#270 fix-and-recheck finding 1) — both
+# `//` and `/* */` syntax ---
+expect_fail "a trailing eslint-disable-line with no reason is itself flagged" "has no reason after" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it', { label: 'x', phase: 'y' }) // eslint-disable-line local/no-unpinned-agent-dispatch
+return { r }
+EOF
+
+expect_pass "a trailing eslint-disable-line with a reason is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it', { label: 'x', phase: 'y' }) // eslint-disable-line local/no-unpinned-agent-dispatch -- deliberately unpinned: pending an A/B, not a default
+return { r }
+EOF
+
+expect_fail "a trailing block-comment eslint-disable-line with no reason is itself flagged" "has no reason after" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it', { label: 'x', phase: 'y' }) /* eslint-disable-line local/no-unpinned-agent-dispatch */
+return { r }
+EOF
+
+expect_pass "a trailing block-comment eslint-disable-line with a reason is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it', { label: 'x', phase: 'y' }) /* eslint-disable-line local/no-unpinned-agent-dispatch -- deliberately unpinned: pending an A/B, not a default */
+return { r }
+EOF
+
 # --- a file-level eslint-disable covers every later line, ours included, and
 # is checked for a rationale the same way (#270 fix-and-recheck finding 3) ---
 expect_fail "a file-level bare eslint-disable with no reason is itself flagged" "A file-level eslint-disable" <<'EOF'

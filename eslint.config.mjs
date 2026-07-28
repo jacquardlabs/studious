@@ -172,24 +172,44 @@ function parseDisableDirective(value, directiveName) {
   return { coversRule: names.length === 0 || names.includes('local/no-unpinned-agent-dispatch'), why }
 }
 
-// A `// eslint-disable-next-line local/no-unpinned-agent-dispatch` comment (or a
-// bare `// eslint-disable-next-line` with no rule list, which covers every rule)
-// suppresses the `unpinned` report above regardless of its own text, so a bare
-// disable with no `-- why` would otherwise pass silently — the exact default this
-// rule exists to prevent. This walks back to the disable comment directly above
-// the flagged call and, if it covers this rule with no non-empty text after `--`,
-// reports again. That second report is anchored to the COMMENT's own line rather
-// than the call's line, so eslint-disable-next-line's suppression window — which
-// covers only the line immediately following the comment — cannot swallow it too.
+// Two ESLint-valid suppression forms can cover the `unpinned` report above with no
+// rationale, and both need checking regardless of comment syntax (`//` or `/* */`):
+// an `eslint-disable-next-line` directive on the line above the call, or a trailing
+// `eslint-disable-line` directive on the call's own line. Neither is filtered by
+// comment type — `/* eslint-disable-next-line ... */` is exactly as valid as its
+// `//` form, so checking only `c.type === 'Line'` silently let the block form
+// through with zero rationale check.
+//
+// A bare disable with no `-- why` would otherwise pass silently — the exact default
+// this rule exists to prevent. The next-line report is anchored to the comment's own
+// line, since eslint-disable-next-line's suppression window covers only the line
+// immediately following the comment and cannot reach back to swallow it. The
+// disable-line report can't use the same trick — that comment sits ON the very line
+// it suppresses, so an anchor there is swallowed by the same (ruleId, line) filtering
+// `checkFileLevelDisableExemption` documents below. Anchor one line earlier instead:
+// `targetLine - 1` is always >= 1 here (harnessShape's wrapper guarantees at least one
+// synthetic line before any real statement, so no call site can sit on wrapped line 1),
+// and is distinct per call site the same way the next-line anchor already is.
 function checkExemptionRationale(context, node) {
   const targetLine = node.loc.start.line
-  const comment = context.sourceCode
-    .getAllComments()
-    .find(c => c.type === 'Line' && c.loc.start.line === targetLine - 1)
-  if (!comment) return
-  const parsed = parseDisableDirective(comment.value.trim(), 'eslint-disable-next-line')
-  if (parsed && parsed.coversRule && !parsed.why) {
-    context.report({ loc: comment.loc, messageId: 'bareExemption' })
+  const comments = context.sourceCode.getAllComments()
+  const nextLineComment = comments.find(c => c.loc.start.line === targetLine - 1)
+  if (nextLineComment) {
+    const parsed = parseDisableDirective(nextLineComment.value.trim(), 'eslint-disable-next-line')
+    if (parsed && parsed.coversRule && !parsed.why) {
+      context.report({ loc: nextLineComment.loc, messageId: 'bareExemption' })
+      return
+    }
+  }
+  const sameLineComment = comments.find(c => c.loc.start.line === targetLine)
+  if (sameLineComment) {
+    const parsed = parseDisableDirective(sameLineComment.value.trim(), 'eslint-disable-line')
+    if (parsed && parsed.coversRule && !parsed.why) {
+      context.report({
+        loc: { start: { line: targetLine - 1, column: 0 }, end: { line: targetLine - 1, column: 1 } },
+        messageId: 'bareExemption',
+      })
+    }
   }
 }
 

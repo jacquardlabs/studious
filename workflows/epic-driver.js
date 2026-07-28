@@ -1339,6 +1339,16 @@ async function runStory(story) {
     // justification than ledgerScopeCheckPrompt/routingScopeCheckPrompt/
     // parkPrompt above, none of which has a judgment threshold to get wrong
     // at all.
+    //
+    // This tier rationale covers the conflict-resolution threshold only, not
+    // mergePrompt's bookkeeping tail (epic-story-set --status landed, work-log
+    // --step merge --phase done, worktree remove). That tail is an unverified
+    // self-report: `merge.merged` alone decides `settle(story, 'landed')`
+    // below, and nothing re-reads MERGE_RESULT.sha or confirms the ledger
+    // writes actually landed after this agent returns. A tier drop can't cause
+    // that gap — it already exists at any model — so it's out of scope here,
+    // but a haiku dispatch is exactly as blind to a silently-failed tail as
+    // any other tier would be. Named, not fixed, by this pin.
     merge = await agent(mergePrompt(story), { label: `merge:${story}`, phase: `story:${story}`, schema: MERGE_RESULT, model: 'haiku', effort: 'low' })
   } catch (err) {
     mergeCrashed = err
