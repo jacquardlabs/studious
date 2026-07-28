@@ -1003,6 +1003,16 @@ const mergeSem = makeSemaphore(1)
 const outcome = {}            // story → 'landed' | 'parked' | 'dropped' | 'blocked'
 const parkedThisRun = []      // {story, gate, verdict, reason}
 const landedThisRun = []      // {story, trail}
+// Acceptance fix cycle (SHOULD FIX): counts ledgerAuditPrior's three degrade paths
+// (branch mismatch, unconfirmed/missing resolvedBranch, check-unavailable error) —
+// every case where a narrowed retry was possible in principle but couldn't be
+// trusted, never the plain "nothing recorded to narrow" case, which isn't a
+// degradation. Without this, #261's round-3 tightening (a confirmed resolvedBranch
+// is now required before narrowing) has no visible cost signal: a haiku/low agent
+// omitting the now-mandatory key pays a full unnarrowed round where it previously
+// narrowed, and nothing in the compiled report lets an operator tell whether that
+// net-saved or net-cost this epic.
+let degradedNarrowings = 0
 const doneResolvers = {}
 const donePromises = {}
 for (const s of Object.keys(stories)) donePromises[s] = new Promise(r => (doneResolvers[s] = r))
@@ -1178,6 +1188,7 @@ async function ledgerAuditPrior(dir, expectedBranch, label, phaseLabel) {
   // prompt already carves that out as its own check-unavailable case below.
   const resolvedBranch = typeof parsed.resolvedBranch === 'string' ? parsed.resolvedBranch : ''
   if (resolvedBranch && resolvedBranch !== 'HEAD' && resolvedBranch !== expectedBranch) {
+    degradedNarrowings++
     log(`epic-driver: ledger-scope-check for ${dir} resolved branch "${resolvedBranch}" instead of this story's own "${expectedBranch}" — the check read the wrong worktree (a #261-pattern cwd read), degrading to a full unnarrowed audit round instead of trusting its verdict`)
     return null
   }
@@ -1191,13 +1202,21 @@ async function ledgerAuditPrior(dir, expectedBranch, label, phaseLabel) {
   // worktree — so trusting hasNarrowableVerdict:true on an unconfirmed resolvedBranch
   // is exactly the #261-pattern risk the mismatch guard above exists to catch, just
   // with the branch name missing instead of wrong. Require a confirmed match (this
-  // story's own branch, or the carved-out detached-HEAD case) before ever trusting a
-  // narrowed verdict; anything else degrades to a full unnarrowed round, same as a
-  // known mismatch.
+  // story's own branch) before ever trusting a narrowed verdict; anything else
+  // degrades to a full unnarrowed round, same as a known mismatch. Deliberately NOT
+  // extended with the 'HEAD' carve-out the mismatch guard above and the
+  // check-unavailable path below both use (acceptance fix cycle, MINOR): a compliant
+  // agent can never send hasNarrowableVerdict:true alongside resolvedBranch:"HEAD" —
+  // ledgerScopeCheckPrompt routes a literal "HEAD" read to
+  // hasNarrowableVerdict:false/errorKind:"check-unavailable" by contract — so this
+  // combination reaching here at all means a non-compliant agent, exactly the case
+  // this guard exists to catch. Trusting 'HEAD' here would wave through the one
+  // narrowing this whole mechanism is supposed to block.
   if (parsed.hasNarrowableVerdict) {
-    if (resolvedBranch === expectedBranch || resolvedBranch === 'HEAD') {
+    if (resolvedBranch === expectedBranch) {
       return { verdict: GATES.audit.retry, sha: parsed.sha, blockingLanes: parsed.blockingLanes }
     }
+    degradedNarrowings++
     log(`epic-driver: ledger-scope-check for ${dir} reported hasNarrowableVerdict:true but resolvedBranch was ${resolvedBranch ? `"${resolvedBranch}"` : 'missing'} — cannot confirm the read happened in this story's own worktree, degrading to a full unnarrowed audit round rather than trusting an unconfirmed narrowing`)
     return null
   }
@@ -1234,6 +1253,7 @@ async function ledgerAuditPrior(dir, expectedBranch, label, phaseLabel) {
     // ambiguous/missing case. Loud is not the same as fatal — this still satisfies
     // "fail loudly rather than silently returning hasNarrowableVerdict:false", just
     // without conflating "this check couldn't tell" with "nothing here can run".
+    degradedNarrowings++
     log(`epic-driver: ledger-scope-check for ${dir} could not fully resolve (${errorKind || 'unclassified'}): ${parsed.error} — degrading to a full unnarrowed audit round instead of parking`)
     return null
   }
@@ -1708,5 +1728,6 @@ return {
   dropped: droppedCount,
   blocked: allSettled.filter(o => o === 'blocked').length,
   total: allSettled.length,
+  degradedNarrowings,
   finale,
 }

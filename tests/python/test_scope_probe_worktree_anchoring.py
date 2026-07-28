@@ -205,8 +205,12 @@ def _run_ledger_audit_prior(
     `log`; see `test_driver_crash_hardening.py`'s own `function log() {}` stub — this
     one records instead of discarding, so the degrade-to-null path's "fail loudly via
     log()" half is actually observable, not just asserted by code inspection).
-    Reports whether the returned promise rejected, its message or resolved value, and
-    every line `log()` was called with.
+    Reports whether the returned promise rejected, its message or resolved value,
+    every line `log()` was called with, and the final value of `degradedNarrowings`
+    — a module-level counter `ledgerAuditPrior` closes over (mirroring
+    `parkedThisRun`/`landedThisRun`'s own declaration site), declared here the same
+    way the driver itself declares it, so this isolated extraction of the function
+    still resolves the reference.
     """
     source = DRIVER.read_text()
     ledger_scope_fn = _extract_function(source, "ledgerScopeCheckPrompt")
@@ -223,10 +227,11 @@ const GATES = {{ audit: {{ retry: 'FIX AND RE-AUDIT' }} }}
 const REPORT = {{ type: 'object', properties: {{ findings: {{ type: 'string' }} }}, required: ['findings'] }}
 const LOGS = []
 function log(line) {{ LOGS.push(line) }}
+let degradedNarrowings = 0
 {agent_body}
 ledgerAuditPrior({json.dumps(PROBE_DIR)}, {json.dumps(expected_branch)}, 'label', 'phase')
-  .then(value => {{ console.log(JSON.stringify({{ threw: false, value, logs: LOGS }})) }})
-  .catch(err => {{ console.log(JSON.stringify({{ threw: true, message: err.message, parkGate: err.parkGate || null, logs: LOGS }})) }})
+  .then(value => {{ console.log(JSON.stringify({{ threw: false, value, logs: LOGS, degradedNarrowings }})) }})
+  .catch(err => {{ console.log(JSON.stringify({{ threw: true, message: err.message, parkGate: err.parkGate || null, logs: LOGS, degradedNarrowings }})) }})
 """
     return _run_node(script)
 
@@ -294,6 +299,9 @@ def test_ledger_audit_prior_degrades_loudly_instead_of_parking_on_non_worktree_e
         f"the log line should name both the worktree and what was reported, for "
         f"diagnosis: {result}"
     )
+    assert result["degradedNarrowings"] == 1, (
+        f"a degraded narrowing must be counted so the epic report can surface it: {result}"
+    )
 
 
 def test_ledger_audit_prior_never_throws_on_a_narrowable_verdict_even_with_a_stray_error_key():
@@ -335,6 +343,10 @@ def test_ledger_audit_prior_still_returns_null_for_a_genuinely_empty_ledger():
     assert not result["threw"], f"a genuine non-narrowable verdict must not throw: {result}"
     assert result["value"] is None
     assert not result["logs"], f"a genuinely empty, error-free read must not log anything: {result}"
+    assert result["degradedNarrowings"] == 0, (
+        f"nothing to narrow in the first place is not a degradation and must not be "
+        f"counted as one: {result}"
+    )
 
 
 def test_ledger_audit_prior_still_fails_closed_on_a_died_dispatch():
@@ -409,6 +421,7 @@ def test_ledger_audit_prior_degrades_loudly_on_a_resolved_branch_mismatch_with_n
         PROBE_DIR in line and "epic/other-epic--other-story" in line and EXPECTED_STORY_BRANCH in line
         for line in result["logs"]
     ), f"the log line should name the worktree, the wrong branch, and the expected one: {result}"
+    assert result["degradedNarrowings"] == 1, result
 
 
 def test_ledger_audit_prior_discards_a_narrowable_verdict_on_a_resolved_branch_mismatch():
@@ -460,7 +473,8 @@ def test_ledger_audit_prior_never_trusts_a_narrowable_verdict_with_no_resolved_b
     used to skip it entirely and reach hasNarrowableVerdict:true with zero cwd
     confirmation at all — the same #261-pattern risk as a known mismatch, just silent
     instead of caught. A narrowed verdict must now require a confirmed resolvedBranch
-    (this story's own branch, or the detached-HEAD case) before it is ever trusted."""
+    (this story's own branch — see the test below for why 'HEAD' does not also
+    qualify here) before it is ever trusted."""
     result = _run_ledger_audit_prior(
         {
             "hasNarrowableVerdict": True,
@@ -473,6 +487,33 @@ def test_ledger_audit_prior_never_trusts_a_narrowable_verdict_with_no_resolved_b
         f"hasNarrowableVerdict:true with no resolvedBranch must never be trusted: {result}"
     )
     assert result["logs"], "an unconfirmed narrowing must still log loudly"
+    assert result["degradedNarrowings"] == 1, result
+
+
+def test_ledger_audit_prior_never_trusts_a_narrowable_verdict_reported_against_head():
+    """Gate-acceptance round 4 (fix-and-recheck MINOR): unlike the mismatch guard
+    above (where 'HEAD' is a legitimate carve-out — a compliant agent reports it
+    alongside hasNarrowableVerdict:false, never :true), a report combining
+    hasNarrowableVerdict:true with resolvedBranch:"HEAD" can only come from a
+    non-compliant agent — ledgerScopeCheckPrompt's own contract routes a literal
+    "HEAD" read to hasNarrowableVerdict:false/errorKind:"check-unavailable". Trusting
+    'HEAD' here would wave through exactly the narrowing this whole mechanism exists
+    to block."""
+    result = _run_ledger_audit_prior(
+        {
+            "hasNarrowableVerdict": True,
+            "sha": "abc1234",
+            "blockingLanes": ["security"],
+            "resolvedBranch": "HEAD",
+        }
+    )
+    assert not result["threw"], result
+    assert result["value"] is None, (
+        f"a narrowing reported against 'HEAD' must never be trusted, even though "
+        f"the mismatch guard above treats 'HEAD' as a legitimate non-mismatch: {result}"
+    )
+    assert result["logs"], "a discarded HEAD-reported narrowing must still log loudly"
+    assert result["degradedNarrowings"] == 1, result
 
 
 def test_ledger_audit_prior_treats_detached_head_as_not_a_mismatch():

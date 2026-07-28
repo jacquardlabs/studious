@@ -454,6 +454,7 @@ End with exactly this shape and nothing after it:
 
 ```text
 Epic: <slug> — <landed>/<total> landed, <parked> parked, <blocked> blocked on them.
+Degraded narrowings: <degradedNarrowings> — a ledger-scope-check couldn't confirm it read the right worktree and paid a full unnarrowed round instead.
 Needs you:
   - <story>: <gate> returned <verdict> — <one clause: what's needed>
     (<phase>: <outcome> (<Nm>) → <phase>: <outcome> (<Nm>) → ...)
@@ -465,7 +466,8 @@ Run /work-through when you're ready, or resolve the queue first.
 a phase resumed across a run boundary (above) renders the
 `(resumed — no same-run duration; worth a gate-ledger work-get check)` tag in that same
 position instead, never omitted, never a bare `(resumed)` alone, and never a
-manufactured number. Omit `Needs you:`
+manufactured number. Omit `Degraded narrowings:` when the driver's returned
+`degradedNarrowings` is 0 — a zero carries no signal worth a line. Omit `Needs you:`
 when nothing is parked. When the epic reaches `ready`, the last line becomes the
 `gh pr create` handoff; `stopped` states what ended it. A parked story is always also
 a valid `/work-on` feature — say so when the queue is non-empty; taking a story over
