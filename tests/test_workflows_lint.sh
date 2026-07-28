@@ -104,6 +104,45 @@ const ready = Boolean(auditOk)
 return { ready }
 EOF
 
+# --- defect class 4: unpinned agent() dispatch (#270) ---
+expect_fail "flags an agent() call with no model or agentType option" "no-unpinned-agent-dispatch" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_fail "flags an agent() call with only one argument" "no-unpinned-agent-dispatch" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it')
+return { r }
+EOF
+
+expect_fail "flags an agent() call whose options come from a variable, not a literal" "no-unpinned-agent-dispatch" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const opts = { label: 'x', phase: 'y', model: 'haiku' }
+const r = await agent('do it', opts)
+return { r }
+EOF
+
+expect_pass "an agent() call pinned with an explicit model is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it', { label: 'x', phase: 'y', model: 'haiku', effort: 'low' })
+return { r }
+EOF
+
+expect_pass "an agent() call routed through an agentType is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it', { agentType: 'studious:some-auditor', label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_pass "an unpinned agent() call with a justified suppression is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+// eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned: pending an A/B, not a default
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
 # --- suppression directives are still checked for staleness ---
 expect_fail "a stale suppression (rule wouldn't have fired) is itself flagged" "Unused eslint-disable directive" <<'EOF'
 export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }

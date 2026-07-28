@@ -81,6 +81,51 @@ const localRules = {
       }
     },
   },
+  // #270: `inherit` is a known defect (#136), not a cheap tier — an agent() dispatch
+  // with no explicit model silently takes on the session model, so the same call can
+  // be judged by two different models on two different days. Every dispatch must
+  // either pin one (`model`), route through a registered agentType that already
+  // carries its own pin, or carry a `// eslint-disable-next-line
+  // local/no-unpinned-agent-dispatch -- <why>` comment recording that the gap is a
+  // deliberate, not-yet-made decision — never a silent default.
+  'no-unpinned-agent-dispatch': {
+    meta: {
+      type: 'problem',
+      docs: {
+        description:
+          'Every agent() dispatch must carry an explicit `model` or `agentType` option in its options object, or a `// eslint-disable-next-line local/no-unpinned-agent-dispatch -- <why>` justification. An unpinned dispatch silently inherits the session model (#136) rather than a deliberately chosen one.',
+      },
+      schema: [],
+      messages: {
+        unpinned:
+          'agent() dispatch has no explicit `model` or `agentType` option. Pin one, or justify why not with a suppression comment (see rule description).',
+      },
+    },
+    create(context) {
+      return {
+        CallExpression(node) {
+          if (node.callee.type !== 'Identifier' || node.callee.name !== 'agent') return
+          const opts = node.arguments[1]
+          // No second argument, or one that isn't a literal object, can't be
+          // statically verified as pinned — fail closed (report) rather than
+          // silently pass on a shape this rule can't read, matching
+          // no-fail-open-boolean's own posture above.
+          if (!opts || opts.type !== 'ObjectExpression') {
+            context.report({ node, messageId: 'unpinned' })
+            return
+          }
+          const pinned = opts.properties.some(p => {
+            if (p.type !== 'Property' || p.computed) return false
+            const keyName = p.key.type === 'Identifier' ? p.key.name : p.key.type === 'Literal' ? p.key.value : null
+            return keyName === 'model' || keyName === 'agentType'
+          })
+          if (!pinned) {
+            context.report({ node, messageId: 'unpinned' })
+          }
+        },
+      }
+    },
+  },
 }
 
 export default [
@@ -162,6 +207,7 @@ export default [
         },
       ],
       'local/no-fail-open-boolean': 'error',
+      'local/no-unpinned-agent-dispatch': 'error',
     },
   },
 ]

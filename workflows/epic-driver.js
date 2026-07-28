@@ -453,6 +453,7 @@ async function acceptanceRound(story, note, nextPhase) {
       ? Promise.resolve(null)
       : agent(acceptanceProductReviewPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: dir, files, designDoc, contract: CONTRACT }),
           { agentType: 'studious:product-reviewer', label: `acceptance:product-review:${story}`, phase: `story:${story}`, schema: REPORT }),
+    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#270): this dispatch self-performs @agent-product-reviewer's IMPLEMENTATION checklist directly rather than routing through that registered agentType (see acceptanceWalkthroughPrompt's own comment), so there is no agentType carrying a pin, and no tier has yet been chosen for this judgment call — record the gap rather than default it.
     () => agent(acceptanceWalkthroughPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: dir, base, contract: CONTRACT }),
         { label: `acceptance:walkthrough:${story}`, phase: `story:${story}`, schema: REPORT }),
   ]
@@ -1049,9 +1050,15 @@ async function auditRound(story, note, nextPhase, priorResult, preMatchFlags) {
   if (scope.narrowed) {
     // Fix-delta stays excluded from the precomputed diff (perf item 8) — it audits
     // its own smaller, separately-scoped delta since priorSha, not this changeset.
+    // Piloted at sonnet (#270): this is a cheap, broad spot-check over a small,
+    // known-risky diff, not a claim to any specialist's full depth (see the
+    // prompt builder's own comment) — the same tier acceptancePremortemFallbackPrompt's
+    // dispatch above already pilots for a comparably-scoped mechanical-but-not-trivial
+    // read. Not yet measured against haiku or opus for this specific pass; a
+    // deliberate first data point, not a permanent tier decision.
     thunks.push(() =>
       agent(fixDeltaDispatchPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: storyWorktree(story), priorSha: scope.priorSha, contract: CONTRACT }),
-        { label: `audit:fix-delta:${story}`, phase: `story:${story}`, schema: REPORT }))
+        { label: `audit:fix-delta:${story}`, phase: `story:${story}`, schema: REPORT, model: 'sonnet', effort: 'medium' }))
   }
   const all = await parallel(thunks)
   const reports = all.slice(0, dispatched.length)
@@ -1155,6 +1162,7 @@ async function runGate(story, gate, nextPhase) {
   while (result.verdict === GATES[gate].retry && attempts < MAX_FIX_CYCLES) {
     attempts++
     log(`${story}: ${gate} → ${result.verdict}; fix cycle ${attempts}/${MAX_FIX_CYCLES}`)
+    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#270): this one dispatch writes the actual fix code for whichever gate (design-review/audit/acceptance) retried, across every story's own tech stack — its right tier is a cost/quality tradeoff nobody has A/B'd yet (see #136's "don't drop a merge-blocking agent's tier without an A/B"), not a decision to make silently here.
     const fix = await agent(fixerPrompt(story, gate, result.summary),
       { label: `fix:${gate}:${story}`, phase: `story:${story}`, schema: WORKER_RESULT })
     if (!fix || fix.status === 'blocked') {
@@ -1268,6 +1276,7 @@ async function runStory(story) {
         // Unknown verdicts NEVER advance — rigor's safe default.
         return park(story, phaseName, r.verdict, r.summary)
       } else if (WORKER_PHASES.includes(phaseName)) {
+        // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#270): this dispatch does the actual design/build work for whatever the story's tech stack requires — the same unmeasured cost/quality tradeoff as the fixer above (#136), not a default to make silently at this call site.
         const w = await agent(workerPrompt(story, phaseName, nextPhase),
           { label: `${phaseName}:${story}`, phase: `story:${story}`, schema: WORKER_RESULT })
         trail.push(`${phaseName}: ${(w && w.status) || 'died'}`)
@@ -1299,7 +1308,11 @@ async function runStory(story) {
   let merge
   let mergeCrashed = null
   try {
-    merge = await agent(mergePrompt(story), { label: `merge:${story}`, phase: `story:${story}`, schema: MERGE_RESULT })
+    // Pinned to haiku (#270): a merge is mechanical git (git merge --no-ff, an
+    // abort on any conflict that isn't mechanically obvious) with no judgment
+    // call to make — the same "cheapest tier buys nothing more" reasoning as
+    // ledgerScopeCheckPrompt/routingScopeCheckPrompt/parkPrompt above.
+    merge = await agent(mergePrompt(story), { label: `merge:${story}`, phase: `story:${story}`, schema: MERGE_RESULT, model: 'haiku', effort: 'low' })
   } catch (err) {
     mergeCrashed = err
   } finally {
@@ -1344,9 +1357,12 @@ async function finaleAuditRound(note, priorResult) {
   if (scope.narrowed) {
     // Fix-delta stays excluded from the precomputed diff (perf item 8) — same
     // exclusion as the story-level round above.
+    // Piloted at sonnet (#270), same tier and same rationale as the story-level
+    // fix-delta pass's own pin above: a cheap, broad spot-check over a small
+    // known-risky diff, not yet measured against haiku or opus for this pass.
     thunks.push(() =>
       agent(finaleFixDeltaDispatchPrompt({ note, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, priorSha: scope.priorSha, contract: CONTRACT }),
-        { label: 'finale:fix-delta', phase: 'Finale', schema: REPORT }))
+        { label: 'finale:fix-delta', phase: 'Finale', schema: REPORT, model: 'sonnet', effort: 'medium' }))
   }
   const all = await parallel(thunks)
   const reports = all.slice(0, dispatched.length)
@@ -1408,6 +1424,7 @@ async function finaleGate(gate, runOnce) {
   while (result && result.verdict === GATES[gate].retry && cycles < MAX_FIX_CYCLES) {
     cycles++
     log(`finale: ${gate} → ${result.verdict}; fix cycle ${cycles}/${MAX_FIX_CYCLES}`)
+    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#270): the finale-level fixer, same unmeasured cost/quality tradeoff as the story-level fixerPrompt dispatch above (#136), now at the cross-story integration scope — not a decision to make silently here either.
     const fix = await agent(finaleFixerPrompt(gate, result.summary),
       { label: `finale:fix:${gate}`, phase: 'Finale', schema: WORKER_RESULT })
     if (!fix || fix.status === 'blocked') break
