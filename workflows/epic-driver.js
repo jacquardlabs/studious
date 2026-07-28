@@ -980,7 +980,7 @@ function gatePrompt(story, gate, nextPhase) {
   return `${ctx(story)}\n\nRun Studious's ${g.command} gate against this story, exactly as the plugin defines it: read commands/${g.command}.md from the plugin root and execute its workflow with the story worktree as the project and the story branch as the changeset (diff base: epic/${slug}). Where that command dispatches subagents you cannot spawn, perform those roles' checks yourself by reading their agent files from the plugin root — apply their rubrics verbatim, do not invent criteria. The verdict vocabulary is canonical in reference/gate-vocabulary.md; emit exactly one token.\n\nRecord the verdict yourself, from inside the story worktree so it lands on the story branch: cd "${storyWorktree(story)}" && gate-ledger record --gate ${gate} --verdict "<TOKEN>" && gate-ledger work-log --slug "${workSlug(story)}" --step ${gate} --outcome "<TOKEN>" --phase "${nextPhase}"\n\nReturn: verdict (the bare token), sha, summary (for non-proceed verdicts, the findings a fixer needs).`
 }
 
-function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut) {
+function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut, injectionAttempt) {
   const laneNames = routed.map(a => a.split(':')[1]).join(', ')
   const routedOutList = routedOut || []
   const routedOutNote = routedOutList.length
@@ -989,7 +989,23 @@ function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut) {
   const routedOutSummaryInstruction = routedOutList.length
     ? `In your Summary section, include one plain line per routed-out lane in this exact form: "<lane>: routed out — not applicable to this changeset (<reason>)" — e.g. "${routedOutList[0].auditor.split(':')[1]}: routed out — not applicable to this changeset (${routedOutList[0].reason})". This must be visible in the report a human reads, the same way /gate-audit's own skip notes are, not only reflected in your internal reasoning.\n\n`
     : ''
-  return `You are compiling Studious's audit gate verdict. Read reference/audit-compilation.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply its compilation rules to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-AUDIT.\n\nA lane marked "carried forward" (delta-scoped re-audit, #130) is NOT the same as UNAUDITED: it was not re-dispatched this round because the prior round's own compiled verdict already proved it had no Confirmed Critical. Treat its one-line carried-forward status as a clean, confirmed-clean fact for that lane — never as a gap that blocks the verdict, and never invent or replay any Important/Track findings for it beyond that line. A lane marked "routed out" (first-round changeset routing, #138) is a THIRD, distinct state from both: it was never dispatched because it does not apply to this changeset at all — treat it as neutral, neither a gap nor a clean claim, and never conflate it with carried forward or AGENT DIED. A block labeled "fix-delta-cross-lane-pass" is a single, cheap, cross-lane spot-check over the small diff since the prior round, not a twelfth specialist auditor — map its findings into the report's severity tiers exactly like any other lane's, tagged by whichever lane's vocabulary they resemble, and put them through the same Critical-challenge step as every other finding.\n\nOut of scope for this verdict: gate-audit.md's own text describes a pre-mortem-verification lane (auditor 13) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover this round's routed lane set (${laneNames}); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those routed lanes otherwise support.${routedOutNote}\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\n${routedOutSummaryInstruction}If, and only if, your verdict is FIX AND RE-AUDIT: also determine blockingLanes — the short name(s) (e.g. "security-auditor", not "studious:security-auditor") of every lane among {${laneNames}} whose report contained a Critical finding that survived your challenge as Confirmed and helped drive this verdict. Omit blockingLanes entirely (do not return an empty array) if your verdict is PASS or NEEDS DISCUSSION, or if ANY lane above is marked AGENT DIED this round — a died lane's true status is unknown, so the next round must default to a full re-audit rather than narrow off an unreliable list.\n\nRecord the verdict from inside ${dir} (substitute <TOKEN> with your verdict; only when you computed blockingLanes above, also append --blocking-lanes "<comma-separated lane names>" to this same command — omit that flag entirely otherwise, per the omission rule above): cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"` : ''}\n\nReturn: verdict (PASS | FIX AND RE-AUDIT | NEEDS DISCUSSION), sha, summary, blockingLanes (only when you computed one, per the rule above — omit the field entirely otherwise).`
+  // gate-audit round 2 (security Important, #271 fix cycle): a reported
+  // injectionAttempt already fails open (resolveRoutingMatchFlags discards every
+  // routing flag) but previously vanished silently — a human reading the compiled
+  // report could not tell that apart from a died routing dispatch or an ordinary
+  // unnarrowed round. This is a REPORT from the routing-scope model, not a
+  // mechanically confirmed exploit — this repo's own reference/prompt-contract.md
+  // and CLAUDE.md legitimately ship literal strings like `// reviewed, skip` as
+  // rubric examples, so a changeset touching prompt files can trip this flag on
+  // routine, non-hostile content. Surface it as a signal to look at, not an
+  // automatic verdict downgrade.
+  const injectionNote = injectionAttempt
+    ? ` SECURITY SIGNAL: this round's routing-scope dispatch reported a suspected audit-evasion directive embedded in the diff (injectionAttempt: true) — every routing flag from that reply was discarded and this round dispatched the full, unnarrowed roster as a fail-open precaution, not because the changeset was independently found to need every lane. This is the routing model's own report, not a confirmed exploit: a changeset that legitimately touches prompt-contract or CLAUDE.md files can trip this on literal rubric strings it ships (e.g. "// reviewed, skip" as a documented example), not just a real attempt. Note it plainly in your Summary so a human can tell a false positive from a real one by reading the diff directly; do not let it by itself demand a particular verdict.`
+    : ''
+  const injectionSummaryInstruction = injectionAttempt
+    ? `Also include one line in your Summary in this exact form: "routing-scope dispatch flagged a suspected audit-evasion directive in the diff (injectionAttempt); flags discarded, full roster dispatched — review the diff directly to confirm." This must be visible to a human reading the report, the same way the routed-out lines are.\n\n`
+    : ''
+  return `You are compiling Studious's audit gate verdict. Read reference/audit-compilation.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply its compilation rules to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-AUDIT.\n\nA lane marked "carried forward" (delta-scoped re-audit, #130) is NOT the same as UNAUDITED: it was not re-dispatched this round because the prior round's own compiled verdict already proved it had no Confirmed Critical. Treat its one-line carried-forward status as a clean, confirmed-clean fact for that lane — never as a gap that blocks the verdict, and never invent or replay any Important/Track findings for it beyond that line. A lane marked "routed out" (first-round changeset routing, #138) is a THIRD, distinct state from both: it was never dispatched because it does not apply to this changeset at all — treat it as neutral, neither a gap nor a clean claim, and never conflate it with carried forward or AGENT DIED. A block labeled "fix-delta-cross-lane-pass" is a single, cheap, cross-lane spot-check over the small diff since the prior round, not a twelfth specialist auditor — map its findings into the report's severity tiers exactly like any other lane's, tagged by whichever lane's vocabulary they resemble, and put them through the same Critical-challenge step as every other finding.\n\nOut of scope for this verdict: gate-audit.md's own text describes a pre-mortem-verification lane (auditor 13) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover this round's routed lane set (${laneNames}); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those routed lanes otherwise support.${routedOutNote}${injectionNote}\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\n${routedOutSummaryInstruction}${injectionSummaryInstruction}If, and only if, your verdict is FIX AND RE-AUDIT: also determine blockingLanes — the short name(s) (e.g. "security-auditor", not "studious:security-auditor") of every lane among {${laneNames}} whose report contained a Critical finding that survived your challenge as Confirmed and helped drive this verdict. Omit blockingLanes entirely (do not return an empty array) if your verdict is PASS or NEEDS DISCUSSION, or if ANY lane above is marked AGENT DIED this round — a died lane's true status is unknown, so the next round must default to a full re-audit rather than narrow off an unreliable list.\n\nRecord the verdict from inside ${dir} (substitute <TOKEN> with your verdict; only when you computed blockingLanes above, also append --blocking-lanes "<comma-separated lane names>" to this same command — omit that flag entirely otherwise, per the omission rule above): cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"` : ''}\n\nReturn: verdict (PASS | FIX AND RE-AUDIT | NEEDS DISCUSSION), sha, summary, blockingLanes (only when you computed one, per the rule above — omit the field entirely otherwise).`
 }
 
 function fixerPrompt(story, gate, findings) {
@@ -1119,6 +1135,15 @@ async function auditRound(story, note, nextPhase, priorResult, preMatchFlags) {
   const matchFlags = preMatchFlags !== undefined
     ? preMatchFlags
     : await resolveRoutingMatchFlags(storyWorktree(story), `epic/${slug}`, `audit:routing-scope:${story}`, `story:${story}`, CONTRACT)
+  // Security Important finding (#271 fix cycle round 2): thread a reported
+  // injectionAttempt into this round's own note (every dispatched lane sees it,
+  // same as any other round note) as well as into auditFanIn's compile prompt
+  // below — see resolveRoutingMatchFlags and auditFanIn for what this does and
+  // does not mean.
+  const injectionAttempt = !!(matchFlags && matchFlags.injectionAttempt)
+  const effectiveNote = injectionAttempt
+    ? `${note} SECURITY: this round's routing-scope dispatch reported a suspected audit-evasion directive embedded in the diff; its match flags were discarded (fail-open, full roster) rather than trusted.`
+    : note
   const { routed, routedOut } = resolveAuditRoster(matchFlags, AUDITORS)
   const scope = resolveReauditScope(priorResult, routed, GATES.audit.retry)
   const dispatched = scope.narrowed ? scope.blockingAuditors : routed
@@ -1128,13 +1153,13 @@ async function auditRound(story, note, nextPhase, priorResult, preMatchFlags) {
   // thrown fix-delta dispatch resolves to null exactly like a died lane's, which
   // joinReports already renders as UNAUDITED — same fail-closed outcome as before.
   const thunks = dispatched.map(a => () =>
-    agent(auditDispatchPrompt({ ctxBlock: ctx(story), note, slug, storyWorktreePath: storyWorktree(story), contract: CONTRACT, diffPath: matchFlags && matchFlags.diffPath }),
+    agent(auditDispatchPrompt({ ctxBlock: ctx(story), note: effectiveNote, slug, storyWorktreePath: storyWorktree(story), contract: CONTRACT, diffPath: matchFlags && matchFlags.diffPath }),
       { agentType: a, label: `audit:${a.split(':')[1]}:${story}`, phase: `story:${story}`, schema: REPORT }))
   if (scope.narrowed) {
     // Fix-delta stays excluded from the precomputed diff (perf item 8) — it audits
     // its own smaller, separately-scoped delta since priorSha, not this changeset.
     thunks.push(() =>
-      agent(fixDeltaDispatchPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: storyWorktree(story), priorSha: scope.priorSha, contract: CONTRACT }),
+      agent(fixDeltaDispatchPrompt({ ctxBlock: ctx(story), note: effectiveNote, storyWorktreePath: storyWorktree(story), priorSha: scope.priorSha, contract: CONTRACT }),
         { label: `audit:fix-delta:${story}`, phase: `story:${story}`, schema: REPORT }))
   }
   const all = await parallel(thunks)
@@ -1142,7 +1167,7 @@ async function auditRound(story, note, nextPhase, priorResult, preMatchFlags) {
   const fixDeltaReport = scope.narrowed ? all[dispatched.length] || null : null
   const carriedForward = scope.narrowed ? routed.filter(a => !dispatched.includes(a)) : []
   const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport, routedOut)
-  let result = await agent(auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut),
+  let result = await agent(auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut, injectionAttempt),
     { label: `audit:compile:${story}`, phase: `story:${story}`, schema: GATE_RESULT, model: 'opus' })
   // Belt and braces: an unaudited lane (or a died fix-delta pass) can never compile
   // into PASS, whatever the compiler said, and can never leave a usable blockingLanes
@@ -1187,6 +1212,34 @@ async function ledgerAuditPrior(dir, label, phaseLabel) {
   return { verdict: GATES.audit.retry, sha: parsed.sha, blockingLanes: parsed.blockingLanes }
 }
 
+// gate-audit round 2 (security Critical, #271 fix cycle): round 1's fix coerced a
+// wrong-*typed* diffPath to '' but trusted any non-empty string verbatim — a
+// well-formed string is not the same claim as "the file this driver's own mktemp
+// wrote a moment ago." A credentials path (redirecting up to 11 auditor Reads plus
+// the premortem dispatch at a file that is not the diff) or a newline-bearing string
+// (splicing attacker text into diffBlock()'s prompt interpolation) both survived a
+// bare `typeof`/truthiness check. Validate against the actual shape
+// routingScopeCheckPrompt's own mktemp call produces: an absolute path, no
+// whitespace or control character anywhere in it (kills newline/prompt-splicing),
+// and a basename literally `studious-audit-diff.<suffix>` (kills redirection to an
+// arbitrary file this driver never wrote). Deliberately permissive on the directory
+// portion and the suffix's exact length/alphabet — `$TMPDIR` legitimately varies by
+// platform (macOS's ends in its own trailing slash, producing a harmless double
+// slash before the basename) and mktemp's suffix generator is not a portable
+// contract; pinning either would false-negative the legitimate path, which is a
+// correctness bug on a cost-mechanism epic (every auditor would silently fall back
+// to self-discovery, undoing perf item 8's precomputed-diff optimization), not a
+// security improvement. This closes the shape-substitution channel; it does NOT
+// close a steered agent overwriting the file it legitimately created and returning
+// that same, validly-shaped path — that residual is content-level, not shape-level,
+// and is accepted rather than claimed closed here.
+function isValidDiffPath(path) {
+  if (typeof path !== 'string' || !path) return false
+  if (!/^\/[^\s\x00-\x1f\x7f]*$/.test(path)) return false
+  const basename = path.slice(path.lastIndexOf('/') + 1)
+  return /^studious-audit-diff\.[A-Za-z0-9]+$/.test(basename)
+}
+
 // First-round changeset routing (#138), resumed/every-round fact resolution: runs
 // the mechanical dispatch above and parses its match flags (plus, as of perf item 8
 // and its diff-as-file follow-up, a precomputed diff *file path* — a straight
@@ -1209,11 +1262,25 @@ async function ledgerAuditPrior(dir, label, phaseLabel) {
 async function resolveRoutingMatchFlags(dir, base, label, phaseLabel, contract) {
   let r = null
   try {
-    // No longer purely mechanical (#271): operabilityMatch is a content judgment
-    // backing a merge gate, not a pattern match — still `haiku` (a model swap would
-    // roughly double this dispatch's per-round rate, and it runs every round, story
-    // and finale), but `effort` moves from `low` to `medium` so that judgment isn't
-    // made at the cheapest setting available.
+    // gate-audit round 2 (security Important, #271 fix cycle): operabilityMatch is
+    // a content judgment gating up to 6 of 11 audit lanes (resolveAuditRoster below)
+    // plus the diffPath channel every one of them and the premortem dispatch reads —
+    // a merge-gate-adjacent call, not the "recommend-only, no merge gate behind it"
+    // work CLAUDE.md scopes to haiku/sonnet. It stays on `haiku` anyway: this
+    // dispatch runs every round at both story and finale altitude, doubling its
+    // per-round rate on a `sonnet` swap would cut against this epic's own goal
+    // (cost-mechanism fixes), and splitting the four mechanical flags into their
+    // own dispatch to isolate the content-judged one would cost a second call per
+    // round — breaking this story's own "zero extra dispatches" acceptance
+    // criterion to fix a non-blocking finding. This is a recorded, accepted
+    // residual, not an oversight: what mitigates it is `effort: 'medium'` (below,
+    // moved up from `low` so the judgment isn't made at the cheapest setting
+    // available), the "when ambiguous, resolve true" bias in the prompt itself
+    // (a false negative needs the model to be confidently, incorrectly certain a
+    // runtime-surface change is NOT one), the `injectionAttempt` discard, and now
+    // `isValidDiffPath` above. What stays open: a reply that steers operabilityMatch
+    // AND never admits it via injectionAttempt — the same residual the diffPath fix
+    // above accepts for content-substitution.
     r = await agent(routingScopeCheckPrompt(dir, base, contract), { label, phase: phaseLabel, schema: REPORT, model: 'haiku', effort: 'medium' })
   } catch {
     return null
@@ -1225,14 +1292,23 @@ async function resolveRoutingMatchFlags(dir, base, label, phaseLabel, contract) 
   // A reported injection attempt means this reply's own judgment is suspect —
   // discard every flag from it, not just operabilityMatch, and fail open exactly
   // like a died dispatch (see the comment above routingScopeCheckPrompt for what
-  // this does and does not catch).
-  if (parsed.injectionAttempt === true) return null
-  // Unvalidated-model-output hardening (gate-audit Important finding): diffPath
-  // reaches up to 11 further dispatch prompts verbatim via diffBlock() — coerce
-  // anything that isn't a real non-empty string to '', which diffBlock() already
-  // treats as "add no block," rather than splicing a wrong-shaped value into every
-  // one of them.
-  if (typeof parsed.diffPath !== 'string' || !parsed.diffPath) parsed.diffPath = ''
+  // this does and does not catch). Security Important finding (round 2): a
+  // discarded-and-silent reply was byte-indistinguishable downstream from a died
+  // dispatch — same full roster, same possible PASS, no human signal. Report the
+  // flag back to the caller (auditRound/finaleAuditRound thread it into this
+  // round's note and into auditFanIn's compile prompt) instead of collapsing to a
+  // bare `null` indistinguishable from every other fail-open cause; every routing
+  // flag and diffPath still resolve as undefined here, so resolveAuditRoster and
+  // diffBlock() see the exact same "route everything in, no diff block" shape a
+  // `null` return produces — only the signal changes, not the fail-open behavior.
+  if (parsed.injectionAttempt === true) return { injectionAttempt: true }
+  // Unvalidated-model-output hardening (gate-audit Important finding, round 1;
+  // tightened to real shape validation in round 2 — see isValidDiffPath above):
+  // diffPath reaches up to 11 further dispatch prompts verbatim via diffBlock(),
+  // plus the premortem dispatch. Anything that doesn't validate coerces to '',
+  // which diffBlock() already treats as "add no block," rather than splicing a
+  // hostile or wrong-shaped value into every one of them.
+  if (!isValidDiffPath(parsed.diffPath)) parsed.diffPath = ''
   return parsed
 }
 
@@ -1442,6 +1518,13 @@ async function finaleAuditRound(note, priorResult) {
   // beyond its own concurrency limit, so a cap-3 epic peaking above 12 agents
   // is throttled, not broken.
   const matchFlags = await resolveRoutingMatchFlags(epicWorktree, input.defaultBranch, 'finale:routing-scope', 'Finale', CONTRACT)
+  // Security Important finding (#271 fix cycle round 2): same threading as the
+  // story-level auditRound above — see resolveRoutingMatchFlags and auditFanIn for
+  // what this does and does not mean.
+  const injectionAttempt = !!(matchFlags && matchFlags.injectionAttempt)
+  const effectiveNote = injectionAttempt
+    ? `${note} SECURITY: this round's routing-scope dispatch reported a suspected audit-evasion directive embedded in the diff; its match flags were discarded (fail-open, full roster) rather than trusted.`
+    : note
   const { routed, routedOut } = resolveAuditRoster(matchFlags, AUDITORS)
   const scope = resolveReauditScope(priorResult, routed, GATES.audit.retry)
   const dispatched = scope.narrowed ? scope.blockingAuditors : routed
@@ -1449,13 +1532,13 @@ async function finaleAuditRound(note, priorResult) {
   // on this round's lane reports, so it joins the same parallel() barrier; a thrown
   // dispatch resolves to null → UNAUDITED via joinReports, as before.
   const thunks = dispatched.map(a => () =>
-    agent(finaleAuditDispatchPrompt({ note, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, epicGoal: epic.goal, contract: CONTRACT, diffPath: matchFlags && matchFlags.diffPath }),
+    agent(finaleAuditDispatchPrompt({ note: effectiveNote, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, epicGoal: epic.goal, contract: CONTRACT, diffPath: matchFlags && matchFlags.diffPath }),
       { agentType: a, label: `finale:${a.split(':')[1]}`, phase: 'Finale', schema: REPORT }))
   if (scope.narrowed) {
     // Fix-delta stays excluded from the precomputed diff (perf item 8) — same
     // exclusion as the story-level round above.
     thunks.push(() =>
-      agent(finaleFixDeltaDispatchPrompt({ note, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, priorSha: scope.priorSha, contract: CONTRACT }),
+      agent(finaleFixDeltaDispatchPrompt({ note: effectiveNote, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, priorSha: scope.priorSha, contract: CONTRACT }),
         { label: 'finale:fix-delta', phase: 'Finale', schema: REPORT }))
   }
   const all = await parallel(thunks)
@@ -1463,7 +1546,7 @@ async function finaleAuditRound(note, priorResult) {
   const fixDeltaReport = scope.narrowed ? all[dispatched.length] || null : null
   const carriedForward = scope.narrowed ? routed.filter(a => !dispatched.includes(a)) : []
   const { joined, missing } = joinReports(dispatched, reports, carriedForward, scope.priorSha, scope.narrowed, fixDeltaReport, routedOut)
-  let result = await agent(auditFanIn(null, joined, input.defaultBranch, epicWorktree, '', routed, routedOut),
+  let result = await agent(auditFanIn(null, joined, input.defaultBranch, epicWorktree, '', routed, routedOut, injectionAttempt),
     { label: 'finale:audit-compile', phase: 'Finale', schema: GATE_RESULT, model: 'opus' })
   if (result && missing.length) {
     result = { ...result, blockingLanes: undefined }

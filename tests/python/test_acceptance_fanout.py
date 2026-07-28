@@ -352,7 +352,10 @@ def test_scope_check_is_pinned_to_haiku_low_effort() -> None:
     session model. resolveRoutingMatchFlags shares the haiku pin but moved to
     `effort: 'medium'` in the #271 fix cycle, once operabilityMatch made it a
     content judgment rather than a purely mechanical one — see
-    test_audit_first_round_routing.py for that dispatch's own coverage."""
+    test_audit_first_round_routing.py::test_routing_scope_dispatch_is_pinned_to_haiku_medium_effort
+    for that dispatch's own coverage (added in the #271 fix cycle's round 2; this
+    docstring's prior reference to that file was aspirational, not actual — the
+    file had zero occurrences of "effort"/"haiku"/"model:" until that test landed)."""
     source = DRIVER.read_text()
     anchor = "acceptanceScopeCheckPrompt(dir, base, workSlug(story))"
     assert anchor in source, "acceptanceRound no longer dispatches the scope-check as documented"

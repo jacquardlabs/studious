@@ -130,9 +130,11 @@ def test_auditors_constant_never_gains_a_premortem_entry() -> None:
     (narrowed dispatch, carry-forward, a fix-delta pass) — so this test no longer pins
     their exact shape; tests/python/test_delta_scoped_reaudit.py covers that shape.
     `auditFanIn()`'s own call sites underwent the equivalent change under #138 (first-round
-    changeset routing), which threads `routed`/`routedOut` through both call sites — so
-    this test no longer pins their exact shape either; tests/python/test_audit_first_round_routing.py
-    covers that shape.
+    changeset routing), which threads `routed`/`routedOut` through both call sites, and
+    again under #271's fix cycle round 2 (a trailing `injectionAttempt` boolean, so a
+    detected audit-evasion attempt surfaces in the compiled report instead of vanishing
+    silently) — so this test no longer pins their exact shape either;
+    tests/python/test_audit_first_round_routing.py covers that shape.
     """
     source = _driver_text()
     auditors_match = re.search(r"const AUDITORS = \[(.*?)\]", source, re.DOTALL)
@@ -149,15 +151,16 @@ def test_auditors_constant_never_gains_a_premortem_entry() -> None:
     )
 
     # Both call sites' auditFanIn signature grew under #138 (first-round changeset
-    # routing) to thread routed/routedOut through — this test no longer pins their
-    # exact shape, mirroring the same relaxation this docstring already applied to
-    # joinReports under #130; tests/python/test_audit_first_round_routing.py covers
-    # the actual new shape. What this test still guarantees: neither call site
+    # routing) to thread routed/routedOut through, and again under #271's fix cycle
+    # round 2 to thread a trailing injectionAttempt boolean — this test no longer
+    # pins their exact shape, mirroring the same relaxation this docstring already
+    # applied to joinReports under #130; tests/python/test_audit_first_round_routing.py
+    # covers the actual new shape. What this test still guarantees: neither call site
     # gained a pre-mortem argument — the carve-out stays prompt-text only.
-    assert "auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut)" in source, (
+    assert "auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut, injectionAttempt)" in source, (
         "auditRound's auditFanIn call site is missing or has an unexpected shape"
     )
-    assert "auditFanIn(null, joined, input.defaultBranch, epicWorktree, '', routed, routedOut)" in source, (
+    assert "auditFanIn(null, joined, input.defaultBranch, epicWorktree, '', routed, routedOut, injectionAttempt)" in source, (
         "finaleAuditRound's auditFanIn call site is missing or has an unexpected shape"
     )
     assert "premortem" not in source[source.index("auditFanIn(story, joined,"):source.index("auditFanIn(story, joined,") + 200].lower()
