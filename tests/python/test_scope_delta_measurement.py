@@ -1418,6 +1418,22 @@ def test_closing_shape_documents_the_dropped_scope_delta_write_rendering() -> No
     assert "four renderings" not in section
 
 
+def test_closing_shape_never_refers_to_a_rendering_by_ordinal() -> None:
+    """Acceptance finding (epic driver-hygiene): the "In the fourth rendering's
+    bracketed `scope:` clauses" sentence cited an ordinal position into a bullet
+    list that had already grown once (four renderings) and grew again the same
+    round (five renderings, #244 round 9) without the ordinal being updated —
+    the sentence ended up describing the wrong bullet while `test_..._rendering`
+    above stayed green, because it only checked the plural count phrase
+    ("five renderings" / "four renderings"), never the singular ordinal-plus-
+    "rendering" phrase the stale sentence actually used. A bullet list that has
+    drifted twice will drift a third time, so the fix is to ban any ordinal
+    reference to a specific rendering outright — content-based description only
+    (89d8546's precedent for the same class of drift in studious-doctor.md)."""
+    section = _closing_shape_section()
+    assert not re.search(r"\b(first|second|third|fourth|fifth|sixth)\s+rendering\b", section, re.IGNORECASE)
+
+
 def test_closing_shape_unavailable_rendering_is_caller_side_not_the_jqs() -> None:
     """Fix-and-retry finding 4: `:514` said the scope line is "never a bare
     omission" while `:516-518` said a failed read or jq error "renders nothing

@@ -745,7 +745,7 @@ when nothing is parked. When the epic reaches `ready`, the last line becomes the
 `gh pr create` handoff; `stopped` states what ended it. A parked story is always also
 a valid `/work-on` feature — say so when the queue is non-empty; taking a story over
 by hand happens inside its worktree (the story branch is checked out there), or after
-`git worktree remove` on it. In the fourth rendering's bracketed `scope:` clauses,
+`git worktree remove` on it. In the `outside <N>` rendering's bracketed `scope:` clauses,
 `amended`, the amendment-orphan clause, and the trailing outside-file list are each
 omitted individually when empty (no amendments, no orphaned amendments, zero outside
 files) — never a literal `[, 0 amended]` or empty bracket rendered to the user; the
