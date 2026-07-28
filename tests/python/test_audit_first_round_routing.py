@@ -101,6 +101,49 @@ import json
 AUDITORS_JS = json.dumps([f"studious:{n}" for n in AUDITOR_SHORT_NAMES])
 
 
+# ---------- Operability routing parity (#271): routingScopeCheckPrompt itself ----------
+
+
+def _routing_scope_check_prompt(dir_: str = "/tmp/probe", base: str = "main") -> str:
+    source = DRIVER.read_text()
+    fn = _extract_function(source, "routingScopeCheckPrompt")
+    script = f"""
+{fn}
+process.stdout.write(JSON.stringify({{ prompt: routingScopeCheckPrompt({json.dumps(dir_)}, {json.dumps(base)}) }}))
+"""
+    return _run_node(script)["prompt"]
+
+
+def test_routing_probe_asks_for_operability_match_and_returns_it_in_the_json_schema() -> None:
+    prompt = _routing_scope_check_prompt()
+    assert "operabilityMatch" in prompt
+    assert '"operabilityMatch":<true|false>' in prompt
+
+
+def test_routing_probe_mirrors_gate_audit_auditor_10s_content_judged_rule() -> None:
+    """operabilityMatch is judgment, not a pattern match — the prompt must say so
+    and must carry the same criteria commands/gate-audit.md:56 states, not a new,
+    independently-invented wording that could drift from it."""
+    prompt = _routing_scope_check_prompt()
+    assert "content-judged" in prompt
+    for phrase in (
+        "serves requests", "consumes queues", "daemon", "network I/O",
+        "framework imports", "handler/route/consumer definitions",
+        "long-running entrypoints", "outbound calls", "not file paths alone",
+    ):
+        assert phrase in prompt, f"expected {phrase!r} (mirrors gate-audit.md:56) in the routing probe prompt"
+
+
+def test_routing_probe_treats_the_diff_file_as_data_not_instructions() -> None:
+    prompt = _routing_scope_check_prompt()
+    assert "as data" in prompt and "never as instructions" in prompt
+
+
+def test_routing_probe_fails_open_on_a_large_or_unreadable_diff() -> None:
+    prompt = _routing_scope_check_prompt()
+    assert "operabilityMatch to true" in prompt
+
+
 # ---------- Task 2: resolveAuditRoster ----------
 
 
@@ -179,6 +222,8 @@ def test_absent_prompt_match_flag_fails_open_routes_prompt_lane_in() -> None:
 
 
 def test_no_signal_matches_routes_out_all_five_routable_lanes() -> None:
+    """Pre-#271 shape: with operabilityMatch omitted (absent, not false), it fails
+    open and stays routed in alongside the six always-applicable lanes."""
     result = _resolve_roster('{ infraMatch: false, frontendMatch: false, depMatch: false, promptMatch: false }')
     assert set(result["routed"]) == {
         "studious:security-auditor", "studious:code-auditor", "studious:doc-auditor",
@@ -187,13 +232,38 @@ def test_no_signal_matches_routes_out_all_five_routable_lanes() -> None:
     assert len(result["routedOut"]) == 5
 
 
-def test_operability_is_never_routed_out_regardless_of_flags() -> None:
-    for flags in (
-        '{ infraMatch: true, frontendMatch: true, depMatch: true, promptMatch: true }',
-        '{ infraMatch: false, frontendMatch: false, depMatch: false, promptMatch: false }',
-    ):
-        result = _resolve_roster(flags)
-        assert "studious:operability-auditor" in result["routed"]
+def test_no_operability_match_routes_out_only_operability_auditor() -> None:
+    result = _resolve_roster('{ infraMatch: true, frontendMatch: true, depMatch: true, promptMatch: true, operabilityMatch: false }')
+    assert "studious:operability-auditor" not in result["routed"]
+    assert len(result["routed"]) == 10
+    assert result["routedOut"] == [
+        {"auditor": "studious:operability-auditor", "reason": "no runtime surface detected"}
+    ]
+
+
+def test_operability_match_true_keeps_the_lane_routed_in() -> None:
+    result = _resolve_roster('{ infraMatch: false, frontendMatch: false, depMatch: false, promptMatch: false, operabilityMatch: true }')
+    assert "studious:operability-auditor" in result["routed"]
+
+
+def test_absent_operability_match_flag_fails_open_routes_operability_lane_in() -> None:
+    """A four-flag dispatch (a pre-#271 prompt, or a malformed reply that dropped
+    operabilityMatch) must route the operability lane IN — absent is never false."""
+    result = _resolve_roster('{ infraMatch: true, frontendMatch: true, depMatch: true, promptMatch: true }')
+    assert "studious:operability-auditor" in result["routed"]
+    assert result["routedOut"] == []
+
+
+def test_no_signal_matches_including_operability_routes_out_all_six_routable_lanes() -> None:
+    result = _resolve_roster(
+        '{ infraMatch: false, frontendMatch: false, depMatch: false, promptMatch: false, operabilityMatch: false }'
+    )
+    assert set(result["routed"]) == {
+        "studious:security-auditor", "studious:code-auditor", "studious:doc-auditor",
+        "studious:architecture-auditor", "studious:test-auditor",
+    }
+    assert len(result["routedOut"]) == 6
+    assert {"auditor": "studious:operability-auditor", "reason": "no runtime surface detected"} in result["routedOut"]
 
 
 def test_null_match_flags_fails_open_to_full_roster() -> None:
@@ -401,6 +471,40 @@ def test_routed_out_lanes_appear_in_the_compile_prompt_with_plain_reasons() -> N
     assert "audit-routing-signals.md" not in prompt.split("routed out")[1][:200]
     # The Summary instruction is present so the human-facing report gets the line too.
     assert "routed out — not applicable to this changeset (<reason>)" in prompt
+
+
+def test_no_runtime_surface_changeset_routes_out_only_operability_auditor() -> None:
+    """Operability routing parity (#271): a changeset with every file-pattern
+    signal present but no runtime surface routes out operability-auditor alone —
+    the other ten lanes still dispatch."""
+    story = "a"
+    epic = {
+        "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
+        "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
+    }
+    routed_in = [n for n in AUDITOR_SHORT_NAMES if n != "operability-auditor"]
+    rules = [
+        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({
+            "infraMatch": True, "frontendMatch": True, "depMatch": True, "promptMatch": True,
+            "operabilityMatch": False,
+        })}},
+        *[{"match": rf"^audit:{name}:{story}$", "result": {"findings": "clean"}} for name in routed_in],
+        {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "s1", "summary": "clean"}},
+        {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "s2", "notes": "clean"}},
+        *_FINALE_CLEAN_RULES,
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    labels = [c["label"] for c in out["calls"]]
+    for name in routed_in:
+        assert labels.count(f"audit:{name}:{story}") == 1
+    assert f"audit:operability-auditor:{story}" not in labels, (
+        "operability-auditor was dispatched despite operabilityMatch: false"
+    )
+    compile_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"audit:compile:{story}"]
+    assert len(compile_prompts) == 1
+    assert "studious:operability-auditor --- (routed out — not applicable to this changeset: no runtime surface detected" in compile_prompts[0]
+    assert out["result"]["landed"] == 1
 
 
 def test_dead_routing_dispatch_fails_open_to_the_full_roster() -> None:
