@@ -82,12 +82,12 @@ spent reading and reasoning).
 **`effort` is model-gated, and on `haiku` there is nothing to gate.** Claude Code's
 subagent frontmatter documents `effort`'s "available levels depend on the model", and
 Haiku 4.5 does not take the parameter at all. So the `effort: low` pins on `review-readme`
-and `backlog-hygiene` — both `model: haiku` — and the six `{model: 'haiku', effort:
+and `backlog-hygiene` — both `model: haiku` — and the seven `{model: 'haiku', effort:
 'low'}` dispatches in `workflows/epic-driver.js` are declarations of intent, not live
-dials: those eight get haiku's own behavior regardless. They are kept rather than deleted
-because they record the stakes call and become live the moment either agent moves tier,
-but do not budget a turn-count saving from them, and do not read the `low` row above as
-covering them.
+dials: all nine items (those two agents plus the seven dispatches) get haiku's own
+behavior regardless. They are kept rather than deleted because they record the stakes
+call and become live the moment either agent moves tier, but do not budget a turn-count
+saving from them, and do not read the `low` row above as covering them.
 
 `premortem-auditor` sits at `medium` despite being merge-blocking: it verifies a fixed
 register item by item and never free-hunts, so it is structured verification, not open-ended
@@ -116,10 +116,22 @@ ships worse decisions.
   `review-prompt-health`.
 - **`haiku`** — recommend-only pure inventory and drift checks, no merge gate behind it:
   `backlog-hygiene`, `review-readme`.
-- **`sonnet`/`haiku` driver dispatches** — exception to the "no merge gate" rule: the epic-driver
-  orchestrator's park/finale-ready (haiku), merge (haiku), and fix-delta passes (sonnet) carry
-  merge-gating responsibility despite their tier, gating flow decisions and the epic integration
-  branch mutation.
+- **Driver dispatches are a different pin surface, not an entry in the taxonomy above.**
+  The `agent()` calls inside `workflows/epic-driver.js` carry their model as an inline
+  call option, never as an agent's own frontmatter, so #136's "no silent default"
+  principle governs them but the taxonomy's "no merge gate" framing does not — each is
+  pinned for its own distinct reason, never one shared exception:
+  - park/finale-ready/verify (`haiku`) are pure ledger/git read-backs and record-writes
+    with no judgment threshold to get wrong — the same mechanical-fact-check posture as
+    `ledgerScopeCheckPrompt`/`routingScopeCheckPrompt`.
+  - merge (`haiku`) is different: it has one real judgment call inside it — whether a
+    conflict's resolution is "mechanically obvious" — and stays `haiku` only because
+    that threshold is asymmetric by design: its abort-biased default turns a wrong call
+    into a safe park, never a bad merge (see the dispatch's own comment in
+    `epic-driver.js`).
+  - the fix-delta passes (`sonnet`) are a first-ever pin, not a drop from a previously-
+    measured tier — the A/B rule below guards against dropping an already-measured
+    tier, not against establishing a first one.
 - **`inherit`** — merge-blocking, mechanical or rule-based checks, pending an A/B against a
   pinned drop (see below): `code-auditor`, `doc-auditor`, `test-auditor`,
   `frontend-reviewer`.

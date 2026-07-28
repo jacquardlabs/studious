@@ -14,6 +14,18 @@
 // below lints the file in the same shape the harness actually executes it
 // in: strip the one `export` keyword, wrap the remainder in an async
 // function, then map reported locations back to the original file.
+// The processor's wrapper (`preprocess` below) prepends exactly this many synthetic
+// lines before the original file's own line 1 — `(async function () {` on its own
+// line, nothing more. Every place that maps a wrapped-source line back to the real
+// file (postprocess below) or reasons about "the wrapped line the real first
+// statement sits on" (checkFileLevelDisableExemption / checkRuleConfigCommentBypass
+// further down) must derive from this ONE constant, never repeat the arithmetic as
+// its own hardcoded literal (#270 fix-and-recheck round 3, architecture-auditor):
+// a future change to the wrapper (e.g. an added synthetic line) would otherwise
+// silently mis-anchor every report these functions produce, with nothing here
+// tying them together to catch it.
+const HARNESS_PREAMBLE_LINES = 1
+
 const harnessShape = {
   preprocess(text) {
     const stripped = text.replace(/^export\s+/, '')
@@ -22,8 +34,8 @@ const harnessShape = {
   postprocess(messagesList) {
     return messagesList[0].map(m => ({
       ...m,
-      line: m.line - 1,
-      endLine: typeof m.endLine === 'number' ? m.endLine - 1 : m.endLine,
+      line: m.line - HARNESS_PREAMBLE_LINES,
+      endLine: typeof m.endLine === 'number' ? m.endLine - HARNESS_PREAMBLE_LINES : m.endLine,
     }))
   },
   supportsAutofix: false,
@@ -35,7 +47,11 @@ const harnessShape = {
 // agent() dispatch — each need to check something a selector can't express
 // (whether a flag is ever referenced in negated form anywhere in its scope;
 // whether a suppression comment on the preceding line carries a non-empty
-// rationale), so they're small hand-written local rules.
+// rationale), so they're small hand-written local rules. A third hand-written
+// rule, no-rule-config-bypass, closes a loophole in enforcing the fourth
+// defect class rather than naming a fifth: it exists only because a report
+// from no-unpinned-agent-dispatch about its own bypass mechanism is provably
+// unable to survive that mechanism (see the rule's own comment below).
 const localRules = {
   'no-fail-open-boolean': {
     meta: {
@@ -119,6 +135,14 @@ const localRules = {
       // "comment present but nothing needed it") only fires when something in
       // this file actually depends on the suppression it found.
       let sawUnpinned = false
+      // Shared by both "can't statically verify a pin" branches below (the missing/
+      // non-literal-options case and the literal-but-unpinned case) — previously
+      // duplicated inline at each call site.
+      function flagUnpinned(node) {
+        sawUnpinned = true
+        context.report({ node, messageId: 'unpinned' })
+        checkExemptionRationale(context, node)
+      }
       return {
         CallExpression(node) {
           if (node.callee.type !== 'Identifier' || node.callee.name !== 'agent') return
@@ -128,24 +152,62 @@ const localRules = {
           // silently pass on a shape this rule can't read, matching
           // no-fail-open-boolean's own posture above.
           if (!opts || opts.type !== 'ObjectExpression') {
-            sawUnpinned = true
-            context.report({ node, messageId: 'unpinned' })
-            checkExemptionRationale(context, node)
+            flagUnpinned(node)
             return
           }
           const pinned = opts.properties.some(p => {
             if (p.type !== 'Property' || p.computed) return false
-            const keyName = p.key.type === 'Identifier' ? p.key.name : p.key.type === 'Literal' ? p.key.value : null
-            return keyName === 'model' || keyName === 'agentType'
+            if (p.key.type === 'Identifier') return p.key.name === 'model' || p.key.name === 'agentType'
+            if (p.key.type === 'Literal') return p.key.value === 'model' || p.key.value === 'agentType'
+            return false
           })
-          if (!pinned) {
-            sawUnpinned = true
-            context.report({ node, messageId: 'unpinned' })
-            checkExemptionRationale(context, node)
-          }
+          if (!pinned) flagUnpinned(node)
         },
         'Program:exit'() {
           if (sawUnpinned) checkFileLevelDisableExemption(context)
+        },
+      }
+    },
+  },
+  // #270 fix-and-recheck round 3 (architecture-auditor): an ESLint inline rule-
+  // CONFIGURATION comment (`/* eslint local/no-unpinned-agent-dispatch: "off" */`, or
+  // `: 0` / `: false`) is a wholly different directive from `eslint-disable`/
+  // `eslint-disable-next-line` — it silences the named rule for the rest of the file,
+  // with no `-- reason` convention at all, so nothing above could ever check it for a
+  // rationale. `noInlineConfig: true` looks like the obvious fix but is not one —
+  // verified empirically, it also disables every legitimate `eslint-disable-next-line
+  // ... -- <why>` exemption no-unpinned-agent-dispatch's whole design depends on, which
+  // would make every documented suppression already in workflows/epic-driver.js start
+  // failing lint (see this story's commit message for the empirical check).
+  //
+  // This MUST be its own rule, never a check bolted onto no-unpinned-agent-dispatch's
+  // own Program:exit: verified empirically (a built-in-rule probe, same story's commit
+  // message) that an inline `/* eslint <rule>: "off" */` comment disables that rule's
+  // reports for the WHOLE file, retroactively — not merely from the comment's position
+  // onward, the way an eslint-disable comment's forward-only suppression range works.
+  // A report from no-unpinned-agent-dispatch itself about the very comment that
+  // disables it would be swallowed by the same mechanism, at any anchor line, first
+  // statement included — the firstStatementLine trick that keeps
+  // checkFileLevelDisableExemption's report alive against a bare eslint-disable does
+  // NOT transfer here. A sibling rule's reports are unaffected, because the comment
+  // only names no-unpinned-agent-dispatch.
+  'no-rule-config-bypass': {
+    meta: {
+      type: 'problem',
+      docs: {
+        description:
+          'An inline `/* eslint local/no-unpinned-agent-dispatch: "off" */`-style rule-configuration comment disables that rule file-wide with no rationale check at all. Use `// eslint-disable-next-line local/no-unpinned-agent-dispatch -- <why>` instead, which IS checked for a reason.',
+      },
+      schema: [],
+      messages: {
+        ruleConfigBypass:
+          'An inline `/* eslint local/no-unpinned-agent-dispatch: "off" */`-style rule-configuration comment disables that rule for the rest of the file with no rationale check at all — unlike eslint-disable(-next-line), it has no `-- <why>` convention to check. Use `// eslint-disable-next-line local/no-unpinned-agent-dispatch -- <why>` instead.',
+      },
+    },
+    create(context) {
+      return {
+        'Program:exit'() {
+          checkRuleConfigCommentBypass(context)
         },
       }
     },
@@ -227,14 +289,14 @@ function checkExemptionRationale(context, node) {
 // every disable-comment placement a real file can have.
 function checkFileLevelDisableExemption(context) {
   // harnessShape.preprocess (top of this file) wraps the original source as
-  // `(async function () {\n${stripped}\n})()` — always exactly one synthetic
-  // line before the original file's own line 1. So wrapped-source line 2 is
-  // always original line 1, in every file this config lints, regardless of
-  // that file's own content. Not context.sourceCode.ast.body[0]: that's the
-  // single top-level ExpressionStatement wrapping the whole IIFE, which
-  // starts at wrapped line 1 (the synthetic `(async function () {` itself),
-  // not at the real content one line below it.
-  const firstStatementLine = 2
+  // `(async function () {\n${stripped}\n})()` — HARNESS_PREAMBLE_LINES synthetic
+  // line(s) before the original file's own line 1. So wrapped-source line
+  // HARNESS_PREAMBLE_LINES + 1 is always original line 1, in every file this config
+  // lints, regardless of that file's own content. Not context.sourceCode.ast.body[0]:
+  // that's the single top-level ExpressionStatement wrapping the whole IIFE, which
+  // starts at the wrapper's own opening line (the synthetic `(async function () {`
+  // itself), not at the real content HARNESS_PREAMBLE_LINES below it.
+  const firstStatementLine = HARNESS_PREAMBLE_LINES + 1
   const comments = context.sourceCode.getAllComments()
   const disable = comments.find(c => {
     if (c.type !== 'Block') return false
@@ -247,6 +309,42 @@ function checkFileLevelDisableExemption(context) {
     context.report({
       loc: { start: { line: firstStatementLine, column: 0 }, end: { line: firstStatementLine, column: 1 } },
       messageId: 'bareFileExemption',
+    })
+  }
+}
+
+// ESLint's inline rule-CONFIGURATION comment (`/* eslint local/no-unpinned-agent-dispatch:
+// "off" */`, or `: 0` / `: false`) is a wholly different directive from `eslint-disable`/
+// `eslint-disable-next-line` — it silences this rule for the rest of the file exactly like
+// a bare `eslint-disable` does, but carries no `-- reason` convention at all, so nothing
+// here could ever satisfy the rationale checks above for it. `noInlineConfig: true` looks
+// like the obvious fix but is not one — verified empirically, it disables every legitimate
+// `eslint-disable-next-line ... -- <why>` exemption this rule's whole design depends on,
+// which would make every documented suppression already in workflows/epic-driver.js start
+// failing lint. Flagging this specific construct directly, unconditionally (see the
+// Program:exit call site above), closes the actual bypass without that collateral damage.
+//
+// Anchored at `firstStatementLine`, same trick as checkFileLevelDisableExemption above,
+// for the same reason applied one level up: a bare file-level `/* eslint-disable */`
+// would disable no-rule-config-bypass's own reports too (it disables every rule), and
+// no report anchored at or after such a comment's own line survives it — earlier than
+// any comment can legally be is the one place immune to that.
+function checkRuleConfigCommentBypass(context) {
+  const firstStatementLine = HARNESS_PREAMBLE_LINES + 1
+  const comments = context.sourceCode.getAllComments()
+  // Deliberately requires whitespace after `eslint` (`eslint ` never `eslint-`), so
+  // eslint-disable*/eslint-enable/eslint-env — unrelated directives already handled by
+  // the checks above — can never match this pattern.
+  const configComment = /^eslint\s+([\s\S]+)$/
+  const targetsRuleOff = /local\/no-unpinned-agent-dispatch\s*:\s*"?(?:off|0|false)\b"?/
+  const found = comments.some(c => {
+    const match = configComment.exec(c.value.trim())
+    return match && targetsRuleOff.test(match[1])
+  })
+  if (found) {
+    context.report({
+      loc: { start: { line: firstStatementLine, column: 0 }, end: { line: firstStatementLine, column: 1 } },
+      messageId: 'ruleConfigBypass',
     })
   }
 }
@@ -331,6 +429,7 @@ export default [
       ],
       'local/no-fail-open-boolean': 'error',
       'local/no-unpinned-agent-dispatch': 'error',
+      'local/no-rule-config-bypass': 'error',
     },
   },
 ]
