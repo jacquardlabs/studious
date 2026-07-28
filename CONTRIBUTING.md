@@ -82,9 +82,9 @@ spent reading and reasoning).
 **`effort` is model-gated, and on `haiku` there is nothing to gate.** Claude Code's
 subagent frontmatter documents `effort`'s "available levels depend on the model", and
 Haiku 4.5 does not take the parameter at all. So the `effort: low` pins on `review-readme`
-and `backlog-hygiene` — both `model: haiku` — and the five `{model: 'haiku', effort:
+and `backlog-hygiene` — both `model: haiku` — and the six `{model: 'haiku', effort:
 'low'}` dispatches in `workflows/epic-driver.js` are declarations of intent, not live
-dials: those six get haiku's own behavior regardless. They are kept rather than deleted
+dials: those eight get haiku's own behavior regardless. They are kept rather than deleted
 because they record the stakes call and become live the moment either agent moves tier,
 but do not budget a turn-count saving from them, and do not read the `low` row above as
 covering them.
@@ -116,6 +116,10 @@ ships worse decisions.
   `review-prompt-health`.
 - **`haiku`** — recommend-only pure inventory and drift checks, no merge gate behind it:
   `backlog-hygiene`, `review-readme`.
+- **`sonnet`/`haiku` driver dispatches** — exception to the "no merge gate" rule: the epic-driver
+  orchestrator's park/finale-ready (haiku), merge (haiku), and fix-delta passes (sonnet) carry
+  merge-gating responsibility despite their tier, gating flow decisions and the epic integration
+  branch mutation.
 - **`inherit`** — merge-blocking, mechanical or rule-based checks, pending an A/B against a
   pinned drop (see below): `code-auditor`, `doc-auditor`, `test-auditor`,
   `frontend-reviewer`.
@@ -129,7 +133,7 @@ they are not "the cheap tier" by design, they are the remaining defect. The five
 `sonnet`/`haiku` agents above show the target shape: no merge gate behind an agent's output
 means no A/B is needed to drop its tier, since a weak result is visible and cheap for a human
 to catch. Do not add new `inherit` agents for that reason, and do not read `inherit`
-anywhere in this file as an endorsed default.
+anywhere in this file as an endorsed default. #136 also governs the unpinned driver dispatches listed above: walkthrough/story-fixer/worker/finale-fixer dispatches remain deliberately unpinned pending the A/B's outcome on their respective tiers.
 
 **The A/B is `scripts/run_ab_eval.py`; the protocol is [`tests/ab/README.md`](tests/ab/README.md).**
 It runs each arm over the golden fixtures N times and scores every planted defect as

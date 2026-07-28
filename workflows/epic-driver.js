@@ -461,7 +461,7 @@ async function acceptanceRound(story, note, nextPhase) {
       ? Promise.resolve(null)
       : agent(acceptanceProductReviewPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: dir, files, designDoc, contract: CONTRACT }),
           { agentType: 'studious:product-reviewer', label: `acceptance:product-review:${story}`, phase: `story:${story}`, schema: REPORT }),
-    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#270): this dispatch self-performs @agent-product-reviewer's IMPLEMENTATION checklist directly rather than routing through that registered agentType, so there is no agentType carrying a pin, and no tier has yet been chosen for this judgment call — record the gap rather than default it.
+    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#136): this dispatch self-performs @agent-product-reviewer's IMPLEMENTATION checklist directly rather than routing through that registered agentType, so there is no agentType carrying a pin, and no tier has yet been chosen for this judgment call — record the gap rather than default it.
     () => agent(acceptanceWalkthroughPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: dir, base, contract: CONTRACT }),
         { label: `acceptance:walkthrough:${story}`, phase: `story:${story}`, schema: REPORT }),
   ]
@@ -1176,7 +1176,7 @@ async function runGate(story, gate, nextPhase) {
   while (result.verdict === GATES[gate].retry && attempts < MAX_FIX_CYCLES) {
     attempts++
     log(`${story}: ${gate} → ${result.verdict}; fix cycle ${attempts}/${MAX_FIX_CYCLES}`)
-    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#270): this one dispatch writes the actual fix code for whichever gate (design-review/audit/acceptance) retried, across every story's own tech stack — its right tier is a cost/quality tradeoff nobody has A/B'd yet (see #136's "don't drop a merge-blocking agent's tier without an A/B"), not a decision to make silently here.
+    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#136): this one dispatch writes the actual fix code for whichever gate (design-review/audit/acceptance) retried, across every story's own tech stack — its right tier is a cost/quality tradeoff nobody has A/B'd yet (see #136's "don't drop a merge-blocking agent's tier without an A/B"), not a decision to make silently here.
     const fix = await agent(fixerPrompt(story, gate, result.summary),
       { label: `fix:${gate}:${story}`, phase: `story:${story}`, schema: WORKER_RESULT })
     if (!fix || fix.status === 'blocked') {
@@ -1290,7 +1290,7 @@ async function runStory(story) {
         // Unknown verdicts NEVER advance — rigor's safe default.
         return park(story, phaseName, r.verdict, r.summary)
       } else if (WORKER_PHASES.includes(phaseName)) {
-        // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#270): this dispatch does the actual design/build work for whatever the story's tech stack requires — the same unmeasured cost/quality tradeoff as the fixer above (#136), not a default to make silently at this call site.
+        // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#136): this dispatch does the actual design/build work for whatever the story's tech stack requires — the same unmeasured cost/quality tradeoff as the fixer above (#136), not a default to make silently at this call site.
         const w = await agent(workerPrompt(story, phaseName, nextPhase),
           { label: `${phaseName}:${story}`, phase: `story:${story}`, schema: WORKER_RESULT })
         trail.push(`${phaseName}: ${(w && w.status) || 'died'}`)
@@ -1461,7 +1461,7 @@ async function finaleGate(gate, runOnce) {
   while (result && result.verdict === GATES[gate].retry && cycles < MAX_FIX_CYCLES) {
     cycles++
     log(`finale: ${gate} → ${result.verdict}; fix cycle ${cycles}/${MAX_FIX_CYCLES}`)
-    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#270): the finale-level fixer, same unmeasured cost/quality tradeoff as the story-level fixerPrompt dispatch above (#136), now at the cross-story integration scope — not a decision to make silently here either.
+    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#136): the finale-level fixer, same unmeasured cost/quality tradeoff as the story-level fixerPrompt dispatch above (#136), now at the cross-story integration scope — not a decision to make silently here either.
     const fix = await agent(finaleFixerPrompt(gate, result.summary),
       { label: `finale:fix:${gate}`, phase: 'Finale', schema: WORKER_RESULT })
     if (!fix || fix.status === 'blocked') break
