@@ -922,7 +922,7 @@ function fixerPrompt(story, gate, findings) {
 }
 
 function mergePrompt(story) {
-  return `${ctx(story)}\n\nThis story passed its final profiled gate. Merge it into the epic integration branch, working ONLY in the epic worktree ${epicWorktree} (create it if missing, from inside ${repoRoot}: git worktree add "${epicWorktree}" "epic/${slug}"):\n\ncd "${epicWorktree}" && git merge --no-ff "${storyBranch(story)}"\n\nOn conflict you get ONE fix attempt: resolve only if the resolution is mechanically obvious from the two sides; otherwise git merge --abort. After a successful merge, record BOTH the story's epic status and its work-file terminal phase — the second is what lets the work file be collected later, since this step deliberately keeps the branch and nothing else ever closes the file out (#237): gate-ledger epic-story-set --epic "${slug}" --slug "${story}" --status landed && gate-ledger work-log --slug "${workSlug(story)}" --step merge --outcome LANDED --phase done && git -C "${repoRoot}" worktree remove "${storyWorktree(story)}" (keep the branch). After an aborted merge: gate-ledger epic-story-set --epic "${slug}" --slug "${story}" --status parked --reason "merge-conflict: <one clause>"\n\nReturn: merged (boolean), sha (epic branch HEAD), notes.`
+  return `${ctx(story)}\n\nThis story passed its final profiled gate. Merge it into the epic integration branch, working ONLY in the epic worktree ${epicWorktree} (create it if missing, from inside ${repoRoot}: git worktree add "${epicWorktree}" "epic/${slug}"):\n\ncd "${epicWorktree}" && git merge --no-ff "${storyBranch(story)}"\n\nOn conflict: git merge --abort, always — never attempt to resolve it yourself. Deciding a resolution is "mechanically obvious" is exactly the judgment this dispatch's tier is not trusted to make on the epic integration branch, which nothing downstream re-checks. After a successful merge, record BOTH the story's epic status and its work-file terminal phase — the second is what lets the work file be collected later, since this step deliberately keeps the branch and nothing else ever closes the file out (#237): gate-ledger epic-story-set --epic "${slug}" --slug "${story}" --status landed && gate-ledger work-log --slug "${workSlug(story)}" --step merge --outcome LANDED --phase done && git -C "${repoRoot}" worktree remove "${storyWorktree(story)}" (keep the branch). After an aborted merge: gate-ledger epic-story-set --epic "${slug}" --slug "${story}" --status parked --reason "merge-conflict: <one clause>"\n\nReturn: merged (boolean), sha (epic branch HEAD), notes.`
 }
 
 // Independent read-back for mergePrompt's bookkeeping tail (#270 fix-and-recheck,
@@ -1078,13 +1078,14 @@ async function auditRound(story, note, nextPhase, priorResult, preMatchFlags) {
     // prompt builder's own comment) — the same tier acceptancePremortemFallbackPrompt's
     // dispatch above already pilots for a comparably-scoped mechanical-but-not-trivial
     // read. Not yet measured against haiku or opus for this specific pass; a
-    // deliberate first data point, not a permanent tier decision. This does not
-    // conflict with #136's "don't drop a merge-blocking agent's tier without an
-    // A/B" cited at the fixer exemptions below: that rule guards against silently
-    // lowering an already-working, previously-measured tier. This dispatch had no
-    // tier at all before #270 — it inherited the session model, #136's actual
-    // defect — so establishing a first pin here, even an unmeasured one, is the
-    // fix the rule calls for, not the thing it warns against.
+    // deliberate first data point, not a permanent tier decision — #279 owns the
+    // evaluation once telemetry/replay data exists. This does not conflict with
+    // #136's "don't drop a merge-blocking agent's tier without an A/B" cited at
+    // the fixer exemptions below: that rule guards against silently lowering an
+    // already-working, previously-measured tier. This dispatch had no tier at
+    // all before #270 — it inherited the session model, #136's actual defect —
+    // so establishing a first pin here, even an unmeasured one, is the fix the
+    // rule calls for, not the thing it warns against.
     thunks.push(() =>
       agent(fixDeltaDispatchPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: storyWorktree(story), priorSha: scope.priorSha, contract: CONTRACT }),
         { label: `audit:fix-delta:${story}`, phase: `story:${story}`, schema: REPORT, model: 'sonnet', effort: 'medium' }))
@@ -1373,23 +1374,17 @@ async function runStory(story) {
   let merge
   let mergeCrashed = null
   try {
-    // Pinned to haiku (#270): git merge --no-ff itself is pure mechanics, but
-    // mergePrompt's "resolve only if the resolution is mechanically obvious,
-    // otherwise abort" (see mergePrompt above) IS a judgment threshold, not a
-    // mechanical check — and unlike the fixer/worker dispatches this changeset
-    // pins or exempts, whose output is a report or a story-branch commit a
-    // later lane re-reads and re-judges, this one's output — a merge --no-ff —
+    // Pinned to haiku (#270): git merge --no-ff itself is pure mechanics, and
+    // mergePrompt (acceptance fix cycle, SHOULD FIX) is now abort-only on
+    // conflict — no resolution permission to misjudge. This dispatch's output
     // lands directly onto the epic integration branch with nothing downstream
-    // to re-check it, so a wrong tier call here costs more than it does
-    // elsewhere in this file. Haiku is adequate anyway
-    // because the threshold is asymmetric by design: the prompt's default
-    // under any doubt is abort, not resolve, so a weaker model's most likely
-    // failure mode is an unnecessary park — safe, a human resolves it, no
-    // different from any other conflict — rather than a wrongly-resolved
-    // merge, which is the actually risky outcome. That is a different
-    // justification than ledgerScopeCheckPrompt/routingScopeCheckPrompt/
-    // parkPrompt above, none of which has a judgment threshold to get wrong
-    // at all.
+    // to re-check it (unlike the fixer/worker dispatches this changeset pins or
+    // exempts, whose output is a report or a story-branch commit a later lane
+    // re-reads and re-judges), so a wrong tier call here would have cost more
+    // than it does elsewhere in this file — which is exactly why the judgment
+    // call was removed rather than trusted to this tier. The same justification
+    // as ledgerScopeCheckPrompt/routingScopeCheckPrompt/parkPrompt above: none
+    // of these has a judgment threshold to get wrong at all.
     //
     // This tier rationale covers the conflict-resolution threshold only, not
     // mergePrompt's bookkeeping tail (epic-story-set --status landed, work-log
@@ -1458,7 +1453,8 @@ async function finaleAuditRound(note, priorResult) {
     // exclusion as the story-level round above.
     // Piloted at sonnet (#270), same tier and same rationale as the story-level
     // fix-delta pass's own pin above: a cheap, broad spot-check over a small
-    // known-risky diff, not yet measured against haiku or opus for this pass.
+    // known-risky diff, not yet measured against haiku or opus for this pass —
+    // #279 owns the evaluation, same as the story-level pin.
     thunks.push(() =>
       agent(finaleFixDeltaDispatchPrompt({ note, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, priorSha: scope.priorSha, contract: CONTRACT }),
         { label: 'finale:fix-delta', phase: 'Finale', schema: REPORT, model: 'sonnet', effort: 'medium' }))

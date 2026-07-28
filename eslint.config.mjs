@@ -122,11 +122,11 @@ const localRules = {
       schema: [],
       messages: {
         unpinned:
-          'agent() dispatch has no explicit `model` or `agentType` option. Pin one, or justify why not with a suppression comment (see rule description).',
+          'agent() dispatch has no explicit `model` or `agentType` option. Pin one, or justify why not with `// eslint-disable-next-line local/no-unpinned-agent-dispatch -- <why>`.',
         bareExemption:
-          'eslint-disable-next-line local/no-unpinned-agent-dispatch has no reason after `--`. A bare disable is exactly the silent default this rule exists to prevent — record the rationale (see rule description).',
+          'eslint-disable-next-line local/no-unpinned-agent-dispatch has no reason after `--`. A bare disable is exactly the silent default this rule exists to prevent — add a reason, e.g. `-- deliberately unpinned: <why>`.',
         bareFileExemption:
-          'A file-level eslint-disable comment (bare, or naming local/no-unpinned-agent-dispatch) covers an unpinned agent() dispatch in this file with no reason after `--`. Record the rationale (see rule description), the same as a disable-next-line exemption must.',
+          'A file-level eslint-disable comment (bare, or naming local/no-unpinned-agent-dispatch) covers an unpinned agent() dispatch in this file with no reason after `--`. Add a reason after `--` on the file-level comment, the same as a disable-next-line exemption must.',
       },
     },
     create(context) {
