@@ -1183,7 +1183,22 @@ function mergePrompt(story) {
 // branch actually landed on the epic branch. See verifyMergeLanded below for how its
 // answer is used.
 function mergeVerifyPrompt(story) {
-  return `This is a mechanical fact-check, not a judgment call — report exactly what the commands show, never interpret or editorialize. From ${repoRoot}, run: gate-ledger epic-get --slug "${slug}"\n\nParse its JSON output and read .stories["${story}"].status.\n\nAlso run: git -C "${epicWorktree}" merge-base --is-ancestor "${storyBranch(story)}" HEAD — note whether that command's exit code is exactly 0.\n\nReturn your findings as EXACTLY one line of compact JSON, nothing else: {"ledgerLanded":<true iff .stories["${story}"].status is exactly "landed", else false>,"isAncestor":<true iff the merge-base command exited 0, else false>}`
+  // Finale fix cycle (prompt-auditor Critical + operability-auditor High, m6-wave1):
+  // two fixes to this same prompt. First, gate-ledger has no -C flag of its own — the
+  // epic-get call below was un-anchored prose ("From ${repoRoot}, run: ...") while the
+  // git command two lines below it already carries its own -C, an asymmetry visible
+  // inside one prompt and exactly the class ledgerScopeCheckPrompt's own comment
+  // above states the rule for. Anchored now with the same parenthesized `(cd ... &&
+  // ...)` form. Second, the old two-boolean schema had no way to say "the check
+  // itself failed" — `git merge-base --is-ancestor` exits 1 for a genuine "not an
+  // ancestor" but 128 for an unresolvable ref or an unusable worktree, and both
+  // collapsed into isAncestor:false; a failed gate-ledger call likewise collapsed
+  // into ledgerLanded:false. Both fed straight into verifyMergeLanded's 'divergent'
+  // branch, which parks — so an environmental hiccup in the read-back, not a real
+  // disagreement, could strand a story that actually landed. The two new *CheckOk
+  // fields let verifyMergeLanded below tell "confirmed false" apart from "couldn't
+  // tell," mirroring ledgerAuditPrior's own check-unavailable split.
+  return `This is a mechanical fact-check, not a judgment call — report exactly what the commands show, never interpret or editorialize. gate-ledger has no -C flag of its own, so anchor it exactly as written, including the parentheses, rather than relying on wherever this agent's shell happens to already be standing: (cd "${repoRoot}" && gate-ledger epic-get --slug "${slug}").\n\nIf that command exited non-zero, or its output was not parseable JSON, report ledgerCheckOk:false and ledgerLanded:false — do not guess at a status you never got. Otherwise parse its JSON output, read .stories["${story}"].status, report ledgerCheckOk:true, and set ledgerLanded to true iff that status is exactly "landed", else false.\n\nAlso run: git -C "${epicWorktree}" merge-base --is-ancestor "${storyBranch(story)}" HEAD. Exit 0 means it IS an ancestor: report isAncestor:true, ancestorCheckOk:true. Exit exactly 1 means it definitively is NOT an ancestor — a real, confirmed answer, not an error: report isAncestor:false, ancestorCheckOk:true. Any other outcome (an unresolvable ref, ${epicWorktree} not being a usable worktree, or any other command error) means the check itself failed and answered nothing: report ancestorCheckOk:false, isAncestor:false.\n\nReturn your findings as EXACTLY one line of compact JSON, nothing else: {"ledgerLanded":<true|false>,"ledgerCheckOk":<true|false>,"isAncestor":<true|false>,"ancestorCheckOk":<true|false>}`
 }
 
 function parkPrompt(story, gate, verdict, summary) {
@@ -1811,8 +1826,21 @@ async function verifyMergeLanded(story) {
   if (!r || !r.findings) return { status: 'unknown', reason: 'verify agent died or returned no findings' }
   let parsed
   try { parsed = JSON.parse(r.findings) } catch { return { status: 'unknown', reason: 'verify agent returned unparseable findings' } }
-  if (!parsed || typeof parsed.ledgerLanded !== 'boolean' || typeof parsed.isAncestor !== 'boolean') {
+  if (!parsed || typeof parsed.ledgerLanded !== 'boolean' || typeof parsed.isAncestor !== 'boolean' ||
+      typeof parsed.ledgerCheckOk !== 'boolean' || typeof parsed.ancestorCheckOk !== 'boolean') {
     return { status: 'unknown', reason: 'verify agent returned malformed findings' }
+  }
+  // gate-audit finale fix cycle (prompt-auditor Critical + operability-auditor High,
+  // m6-wave1): a check that itself failed (gate-ledger off PATH, a corrupted epic
+  // file, an unresolvable ref, exit 128) is not the same claim as "confirmed not
+  // landed" — the former is this verify dispatch failing, the latter is a genuine
+  // disagreement with the merge dispatch's own report. Only a check that actually ran
+  // (*CheckOk: true) and came back false is a confirmed divergence worth parking
+  // over; a failed check degrades to 'unknown' (log + land anyway), matching
+  // ledgerAuditPrior's own check-unavailable/worktree-broken split rather than
+  // parking a story whose merge may well have succeeded.
+  if (!parsed.ledgerCheckOk || !parsed.ancestorCheckOk) {
+    return { status: 'unknown', reason: `verify check itself failed (ledgerCheckOk=${parsed.ledgerCheckOk}, ancestorCheckOk=${parsed.ancestorCheckOk}) — could not confirm either way` }
   }
   if (!parsed.ledgerLanded || !parsed.isAncestor) {
     return { status: 'divergent', reason: `merge dispatch reported merged, but the independent read-back disagrees (ledgerLanded=${parsed.ledgerLanded}, isAncestor=${parsed.isAncestor})` }

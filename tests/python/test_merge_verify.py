@@ -21,13 +21,25 @@ tests pin:
 - **confirmed** — the read-back agrees: lands, as before.
 - **divergent** — the read-back gives a DEFINITE, disagreeing answer: parks
   with an explicit reason instead of landing (the finding's actual ask).
-- **unknown** — the read-back itself died, threw, or came back malformed: still
-  lands (logged, not silent) rather than parking a story whose merge may well
-  have genuinely succeeded — collapsing 'unknown' into 'divergent' would trade
-  the finding's failure mode for a worse one (a flaky verify dispatch
-  stranding a landed story in `needsYou` and stalling the epic finale, since
-  `landedCount + droppedCount === allSettled.length` never reaches true while
-  it sits parked).
+- **unknown** — the read-back itself died, threw, came back malformed, or the
+  mechanical check it ran (gate-ledger epic-get, `git merge-base
+  --is-ancestor`) itself errored rather than answering: still lands (logged,
+  not silent) rather than parking a story whose merge may well have genuinely
+  succeeded — collapsing 'unknown' into 'divergent' would trade the finding's
+  failure mode for a worse one (a flaky verify dispatch stranding a landed
+  story in `needsYou` and stalling the epic finale, since `landedCount +
+  droppedCount === allSettled.length` never reaches true while it sits
+  parked).
+
+Finale fix cycle (prompt-auditor Critical + operability-auditor High,
+m6-wave1): the original two-boolean schema (`ledgerLanded`, `isAncestor`)
+could not distinguish "the check ran and confirmed false" from "the check
+itself failed" — `git merge-base --is-ancestor` exits 1 for a genuine
+not-an-ancestor answer but 128 for an unresolvable ref, and both collapsed
+into `isAncestor:false`, feeding straight into 'divergent'. The schema now
+also carries `ledgerCheckOk`/`ancestorCheckOk`; either being false degrades to
+'unknown' regardless of what the other two booleans say, so an environmental
+hiccup in the read-back can no longer park a story that actually landed.
 """
 
 from __future__ import annotations
@@ -80,7 +92,7 @@ def _run_with_verify_rule(verify_rule: dict) -> dict:
 
 
 def test_confirmed_verify_lands_exactly_as_before() -> None:
-    out = _run_with_verify_rule(_findings({"ledgerLanded": True, "isAncestor": True}))
+    out = _run_with_verify_rule(_findings({"ledgerLanded": True, "isAncestor": True, "ledgerCheckOk": True, "ancestorCheckOk": True}))
     assert out["ok"], f"driver crashed: {out.get('error')}"
     result = out["result"]
     assert {e["story"] for e in result["landedThisRun"]} == {"epx--a"}
@@ -91,9 +103,9 @@ def test_confirmed_verify_lands_exactly_as_before() -> None:
 
 
 DIVERGENT_CASES = [
-    ("ledger disagrees", {"ledgerLanded": False, "isAncestor": True}),
-    ("branch not an ancestor", {"ledgerLanded": True, "isAncestor": False}),
-    ("both disagree", {"ledgerLanded": False, "isAncestor": False}),
+    ("ledger disagrees", {"ledgerLanded": False, "isAncestor": True, "ledgerCheckOk": True, "ancestorCheckOk": True}),
+    ("branch not an ancestor", {"ledgerLanded": True, "isAncestor": False, "ledgerCheckOk": True, "ancestorCheckOk": True}),
+    ("both disagree", {"ledgerLanded": False, "isAncestor": False, "ledgerCheckOk": True, "ancestorCheckOk": True}),
 ]
 
 
@@ -140,8 +152,16 @@ UNKNOWN_CASES = [
     ("dispatch died (null)", {"result": None}),
     ("unparseable findings", {"result": {"findings": "not json"}}),
     ("missing findings field", {"result": {}}),
-    ("malformed findings (wrong types)", {"result": {"findings": json.dumps({"ledgerLanded": "yes", "isAncestor": True})}}),
-    ("malformed findings (field missing)", {"result": {"findings": json.dumps({"ledgerLanded": True})}}),
+    ("malformed findings (wrong types)", {"result": {"findings": json.dumps({"ledgerLanded": "yes", "isAncestor": True, "ledgerCheckOk": True, "ancestorCheckOk": True})}}),
+    ("malformed findings (field missing)", {"result": {"findings": json.dumps({"ledgerLanded": True, "isAncestor": True})}}),
+    # gate-audit finale fix cycle (prompt-auditor Critical + operability-auditor High,
+    # m6-wave1): the check itself failing (git exit 128 / gate-ledger errored) must
+    # degrade to 'unknown', never 'divergent' — even though the same reply also
+    # carries ledgerLanded/isAncestor:false, which used to be read as a confirmed
+    # disagreement before this fix.
+    ("ledger check itself failed", _findings({"ledgerLanded": False, "isAncestor": True, "ledgerCheckOk": False, "ancestorCheckOk": True})),
+    ("ancestor check itself failed", _findings({"ledgerLanded": True, "isAncestor": False, "ledgerCheckOk": True, "ancestorCheckOk": False})),
+    ("both checks failed", _findings({"ledgerLanded": False, "isAncestor": False, "ledgerCheckOk": False, "ancestorCheckOk": False})),
 ]
 
 
@@ -176,7 +196,7 @@ def test_divergent_reason_names_the_epic_branch_not_the_story_branch() -> None:
     operator to check whether the story branch contains the story branch —
     `git merge-base --is-ancestor X X` trivially exits 0, so the check
     silently "succeeded" and pointed away from the real divergence."""
-    out = _run_with_verify_rule(_findings({"ledgerLanded": False, "isAncestor": True}))
+    out = _run_with_verify_rule(_findings({"ledgerLanded": False, "isAncestor": True, "ledgerCheckOk": True, "ancestorCheckOk": True}))
     assert out["ok"], f"driver crashed: {out.get('error')}"
     entry = {e["story"]: e for e in out["result"]["needsYou"]}["epx--a"]
     assert "epic/epx" in entry["reason"], f"reason does not name the epic branch: {entry['reason']!r}"
@@ -220,6 +240,17 @@ def test_merge_dispatch_is_pinned_to_haiku_low() -> None:
         "{ label: `merge:${story}`, phase: `story:${story}`, schema: MERGE_RESULT, "
         "model: 'haiku', effort: 'low' })"
     ) in source, "the merge dispatch's pinned model/effort literal changed or moved"
+
+
+def test_merge_verify_prompt_anchors_gate_ledger_to_repo_root() -> None:
+    """Prompt-auditor Critical (m6-wave1 finale): gate-ledger has no -C flag of its
+    own, so the epic-get call must be anchored with the same parenthesized `(cd ...
+    && ...)` form ledgerScopeCheckPrompt already uses — not left as unanchored prose
+    that runs wherever the agent's shell happens to already be standing."""
+    source = DRIVER.read_text()
+    assert '(cd "${repoRoot}" && gate-ledger epic-get --slug "${slug}")' in source, (
+        "mergeVerifyPrompt's gate-ledger epic-get call is no longer anchored to repoRoot"
+    )
 
 
 def test_merge_verify_dispatch_is_pinned_to_haiku_low() -> None:
