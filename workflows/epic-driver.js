@@ -121,6 +121,15 @@ const MAX_FIX_CYCLES = 2
 // Markdown-prompt repo does not otherwise have, not a one-line rename. That is a
 // design question in its own right (#274), not a trivial fix this story can fold
 // in.
+//
+// Each entry below is dispatched by `agentType` (see resolveAuditRoster's callers),
+// which eslint.config.mjs's no-unpinned-agent-dispatch rule accepts as satisfying the
+// "pin a model" requirement — but that only checks that the dispatch names a
+// registered agent, not that the agent itself is pinned. 4 of these 11 are
+// `model: inherit` today (agents/*.md:5): code-auditor, doc-auditor, test-auditor,
+// frontend-reviewer. Those four audit lanes still silently take on the session
+// model (#136) despite lint reporting the dispatch clean. Fixing that is #136's A/B
+// (model tier per auditor), not something this changeset does.
 const AUDITORS = [
   'studious:security-auditor', 'studious:code-auditor', 'studious:doc-auditor',
   'studious:architecture-auditor', 'studious:test-auditor', 'studious:infra-auditor',
@@ -610,6 +619,7 @@ async function acceptanceRound(story, note, nextPhase) {
       ? Promise.resolve(null)
       : agent(acceptanceProductReviewPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: dir, files, designDoc, contract: CONTRACT }),
           { agentType: 'studious:product-reviewer', label: `acceptance:product-review:${story}`, phase: `story:${story}`, schema: REPORT }),
+    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#136): this dispatch self-performs @agent-product-reviewer's IMPLEMENTATION checklist directly rather than routing through that registered agentType, so there is no agentType carrying a pin, and no tier has yet been chosen for this judgment call — record the gap rather than default it.
     () => agent(acceptanceWalkthroughPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: dir, base, contract: CONTRACT }),
         { label: `acceptance:walkthrough:${story}`, phase: `story:${story}`, schema: REPORT }),
   ]
@@ -1157,7 +1167,22 @@ function fixerPrompt(story, gate, findings) {
 }
 
 function mergePrompt(story) {
-  return `${ctx(story)}\n\nThis story passed its final profiled gate. Merge it into the epic integration branch, working ONLY in the epic worktree ${epicWorktree} (create it if missing, from inside ${repoRoot}: git worktree add "${epicWorktree}" "epic/${slug}"):\n\ncd "${epicWorktree}" && git merge --no-ff "${storyBranch(story)}"\n\nOn conflict you get ONE fix attempt: resolve only if the resolution is mechanically obvious from the two sides; otherwise git merge --abort. After a successful merge, record BOTH the story's epic status and its work-file terminal phase — the second is what lets the work file be collected later, since this step deliberately keeps the branch and nothing else ever closes the file out (#237): gate-ledger epic-story-set --epic "${slug}" --slug "${story}" --status landed && gate-ledger work-log --slug "${workSlug(story)}" --step merge --outcome LANDED --phase done && git -C "${repoRoot}" worktree remove "${storyWorktree(story)}" (keep the branch). After an aborted merge: gate-ledger epic-story-set --epic "${slug}" --slug "${story}" --status parked --reason "merge-conflict: <one clause>"\n\nReturn: merged (boolean), sha (epic branch HEAD), notes.`
+  return `${ctx(story)}\n\nThis story passed its final profiled gate. Merge it into the epic integration branch, working ONLY in the epic worktree ${epicWorktree} (create it if missing, from inside ${repoRoot}: git worktree add "${epicWorktree}" "epic/${slug}"):\n\ncd "${epicWorktree}" && git merge --no-ff "${storyBranch(story)}"\n\nOn conflict: git merge --abort, always — never attempt to resolve it yourself. Deciding a resolution is "mechanically obvious" is exactly the judgment this dispatch's tier is not trusted to make on the epic integration branch, which nothing downstream re-checks. After a successful merge, record BOTH the story's epic status and its work-file terminal phase — the second is what lets the work file be collected later, since this step deliberately keeps the branch and nothing else ever closes the file out (#237): gate-ledger epic-story-set --epic "${slug}" --slug "${story}" --status landed && gate-ledger work-log --slug "${workSlug(story)}" --step merge --outcome LANDED --phase done && git -C "${repoRoot}" worktree remove "${storyWorktree(story)}" (keep the branch). After an aborted merge: gate-ledger epic-story-set --epic "${slug}" --slug "${story}" --status parked --reason "merge-conflict: <one clause>"\n\nReturn: merged (boolean), sha (epic branch HEAD), notes.`
+}
+
+// Independent read-back for mergePrompt's bookkeeping tail (#270 fix-and-recheck,
+// Critical, operability-auditor): `merge.merged` above is a self-report from the same
+// agent that was supposed to write `epic-story-set --status landed` and `work-log
+// --step merge --phase done` in the same `&&` chain — if that chain died partway (the
+// git merge itself succeeded but the ledger write didn't), nothing previously re-checked
+// it, and this driver would settle 'landed' in-memory over a ledger that still disagrees.
+// A second, independently-dispatched mechanical fact-check — same haiku posture as
+// ledgerScopeCheckPrompt/routingScopeCheckPrompt above, never the first agent's own word
+// for its own side effects — re-reads the persisted ledger status and confirms the story
+// branch actually landed on the epic branch. See verifyMergeLanded below for how its
+// answer is used.
+function mergeVerifyPrompt(story) {
+  return `This is a mechanical fact-check, not a judgment call — report exactly what the commands show, never interpret or editorialize. From ${repoRoot}, run: gate-ledger epic-get --slug "${slug}"\n\nParse its JSON output and read .stories["${story}"].status.\n\nAlso run: git -C "${epicWorktree}" merge-base --is-ancestor "${storyBranch(story)}" HEAD — note whether that command's exit code is exactly 0.\n\nReturn your findings as EXACTLY one line of compact JSON, nothing else: {"ledgerLanded":<true iff .stories["${story}"].status is exactly "landed", else false>,"isAncestor":<true iff the merge-base command exited 0, else false>}`
 }
 
 function parkPrompt(story, gate, verdict, summary) {
@@ -1322,9 +1347,22 @@ async function auditRound(story, note, nextPhase, priorResult, preMatchFlags) {
   if (scope.narrowed) {
     // Fix-delta stays excluded from the precomputed diff (perf item 8) — it audits
     // its own smaller, separately-scoped delta since priorSha, not this changeset.
+    // Piloted at sonnet (#270): this is a cheap, broad spot-check over a small,
+    // known-risky diff, not a claim to any specialist's full depth (see the
+    // prompt builder's own comment) — the same tier acceptancePremortemFallbackPrompt's
+    // dispatch above already pilots for a comparably-scoped mechanical-but-not-trivial
+    // read. Not yet measured against haiku or opus for this specific pass; a
+    // deliberate first data point, not a permanent tier decision — #279 owns the
+    // evaluation once telemetry/replay data exists. This does not conflict with
+    // #136's "don't drop a merge-blocking agent's tier without an A/B" cited at
+    // the fixer exemptions below: that rule guards against silently lowering an
+    // already-working, previously-measured tier. This dispatch had no tier at
+    // all before #270 — it inherited the session model, #136's actual defect —
+    // so establishing a first pin here, even an unmeasured one, is the fix the
+    // rule calls for, not the thing it warns against.
     thunks.push(() =>
       agent(fixDeltaDispatchPrompt({ ctxBlock: ctx(story), note: effectiveNote, storyWorktreePath: storyWorktree(story), priorSha: scope.priorSha, contract: CONTRACT }),
-        { label: `audit:fix-delta:${story}`, phase: `story:${story}`, schema: REPORT }))
+        { label: `audit:fix-delta:${story}`, phase: `story:${story}`, schema: REPORT, model: 'sonnet', effort: 'medium' }))
   }
   const all = await parallel(thunks)
   const reports = all.slice(0, dispatched.length)
@@ -1671,6 +1709,7 @@ async function runGate(story, gate, nextPhase) {
   while (result.verdict === GATES[gate].retry && attempts < MAX_FIX_CYCLES) {
     attempts++
     log(`${story}: ${gate} → ${result.verdict}; fix cycle ${attempts}/${MAX_FIX_CYCLES}`)
+    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#136): this one dispatch writes the actual fix code for whichever gate (design-review/audit/acceptance) retried, across every story's own tech stack — its right tier is a cost/quality tradeoff nobody has A/B'd yet (see #136's "don't drop a merge-blocking agent's tier without an A/B"), not a decision to make silently here.
     const fix = await agent(fixerPrompt(story, gate, result.summary),
       { label: `fix:${gate}:${story}`, phase: `story:${story}`, schema: WORKER_RESULT })
     if (!fix || fix.status === 'blocked') {
@@ -1738,6 +1777,42 @@ function crashParkArgs(phaseName, err) {
   return { gate, verdict: 'BLOCKED', reason: `${prefix}: ${(err && err.message) || err}` }
 }
 
+// Dispatches mergeVerifyPrompt and classifies its answer into exactly three states —
+// never a boolean, because two very different failure modes would otherwise collapse
+// into one: 'divergent' means the read-back gave a DEFINITE answer and it disagrees
+// with `merge.merged` (the actual gap this function exists to close: park with a
+// reason instead of settling 'landed' over a ledger that doesn't match). 'unknown'
+// means the read-back itself died, threw, or came back unparseable/malformed — no
+// definite answer either way, same as ledgerAuditPrior/resolveRoutingMatchFlags above
+// degrading a flaky mechanical dispatch to "no signal" rather than a false negative.
+// runStory below treats 'unknown' the same as 'confirmed' (still lands) rather than
+// as 'divergent' (parks): a story whose merge genuinely landed must not be stranded in
+// needsYou by a merely-flaky verify call — that would trade this finding's failure
+// mode for a worse one, since a wrongly-parked story also blocks the epic finale
+// (landedCount + droppedCount === allSettled.length never reaches true while it sits
+// parked). `gate-ledger epic-reconcile`'s `landedButUnmerged` check is the resume-time
+// backstop for a genuinely-unverified 'unknown' case, run the next time /work-through
+// reconciles the epic — this dispatch is a same-run best-effort catch, not the only
+// safety net.
+async function verifyMergeLanded(story) {
+  let r = null
+  try {
+    r = await agent(mergeVerifyPrompt(story), { label: `merge:verify:${story}`, phase: `story:${story}`, schema: REPORT, model: 'haiku', effort: 'low' })
+  } catch (err) {
+    return { status: 'unknown', reason: `verify dispatch threw: ${(err && err.message) || err}` }
+  }
+  if (!r || !r.findings) return { status: 'unknown', reason: 'verify agent died or returned no findings' }
+  let parsed
+  try { parsed = JSON.parse(r.findings) } catch { return { status: 'unknown', reason: 'verify agent returned unparseable findings' } }
+  if (!parsed || typeof parsed.ledgerLanded !== 'boolean' || typeof parsed.isAncestor !== 'boolean') {
+    return { status: 'unknown', reason: 'verify agent returned malformed findings' }
+  }
+  if (!parsed.ledgerLanded || !parsed.isAncestor) {
+    return { status: 'divergent', reason: `merge dispatch reported merged, but the independent read-back disagrees (ledgerLanded=${parsed.ledgerLanded}, isAncestor=${parsed.isAncestor})` }
+  }
+  return { status: 'confirmed', reason: '' }
+}
+
 async function runStory(story) {
   const s = stories[story]
   // Already-settled stories resolve immediately; the driver never un-parks.
@@ -1799,6 +1874,7 @@ async function runStory(story) {
         // Unknown verdicts NEVER advance — rigor's safe default.
         return park(story, phaseName, r.verdict, r.summary)
       } else if (WORKER_PHASES.includes(phaseName)) {
+        // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#136): this dispatch does the actual design/build work for whatever the story's tech stack requires — the same unmeasured cost/quality tradeoff as the fixer above (#136), not a default to make silently at this call site.
         const w = await agent(workerPrompt(story, phaseName, nextPhase),
           { label: `${phaseName}:${story}`, phase: `story:${story}`, schema: WORKER_RESULT })
         trail.push(`${phaseName}: ${(w && w.status) || 'died'}`)
@@ -1830,7 +1906,25 @@ async function runStory(story) {
   let merge
   let mergeCrashed = null
   try {
-    merge = await agent(mergePrompt(story), { label: `merge:${story}`, phase: `story:${story}`, schema: MERGE_RESULT })
+    // Pinned to haiku (#270): git merge --no-ff itself is pure mechanics, and
+    // mergePrompt (acceptance fix cycle, SHOULD FIX) is now abort-only on
+    // conflict — no resolution permission to misjudge. This dispatch's output
+    // lands directly onto the epic integration branch with nothing downstream
+    // to re-check it (unlike the fixer/worker dispatches this changeset pins or
+    // exempts, whose output is a report or a story-branch commit a later lane
+    // re-reads and re-judges), so a wrong tier call here would have cost more
+    // than it does elsewhere in this file — which is exactly why the judgment
+    // call was removed rather than trusted to this tier. The same justification
+    // as ledgerScopeCheckPrompt/routingScopeCheckPrompt/parkPrompt above: none
+    // of these has a judgment threshold to get wrong at all.
+    //
+    // This tier rationale covers the conflict-resolution threshold only, not
+    // mergePrompt's bookkeeping tail (epic-story-set --status landed, work-log
+    // --step merge --phase done, worktree remove). That tail is a self-report:
+    // `merge.merged` alone is not enough to decide `settle(story, 'landed')`
+    // below — verifyMergeLanded (below) independently re-reads the persisted
+    // ledger status and the epic branch itself before this function trusts it.
+    merge = await agent(mergePrompt(story), { label: `merge:${story}`, phase: `story:${story}`, schema: MERGE_RESULT, model: 'haiku', effort: 'low' })
   } catch (err) {
     mergeCrashed = err
   } finally {
@@ -1841,6 +1935,26 @@ async function runStory(story) {
     return park(story, c.gate, c.verdict, c.reason)
   }
   if (merge && merge.merged) {
+    // Never trust the merge agent's own word for its own bookkeeping tail — see
+    // verifyMergeLanded's comment above. Only a definite disagreement parks; a
+    // merely-unavailable read-back still lands (logged, not silent), same
+    // fail-open-to-a-safe-default posture the other mechanical fact-checks in
+    // this file already use.
+    const verify = await verifyMergeLanded(story)
+    if (verify.status === 'divergent') {
+      const reason = verify.reason + '; check whether epic/' + workSlug(story) + ' actually contains the story branch and correct the recorded status before re-running.'
+      // Round 6 fix-and-recheck regression, caught re-running this file's own tests:
+      // routing through park() (below) persists the reason to gate-ledger, but park()
+      // itself never calls log() — the divergent branch's own operator-visible log
+      // line, present before this reroute, was silently dropped along with the
+      // in-memory-only push it replaced. Both are needed: log() for the live
+      // transcript, park() for the persisted record.
+      log(`${story}: ${reason}`)
+      return park(story, 'merge', 'VERIFY MISMATCH', reason)
+    }
+    if (verify.status === 'unknown') {
+      log(`${story}: merge landed, but the independent read-back could not confirm it (${verify.reason}) — landing anyway; gate-ledger epic-reconcile's landedButUnmerged check is the resume-time backstop if this was actually wrong`)
+    }
     landedThisRun.push({ story: workSlug(story), trail: trail.join(' → ') || 'resumed at merge' })
     return settle(story, 'landed')
   }
@@ -1882,9 +1996,13 @@ async function finaleAuditRound(note, priorResult) {
   if (scope.narrowed) {
     // Fix-delta stays excluded from the precomputed diff (perf item 8) — same
     // exclusion as the story-level round above.
+    // Piloted at sonnet (#270), same tier and same rationale as the story-level
+    // fix-delta pass's own pin above: a cheap, broad spot-check over a small
+    // known-risky diff, not yet measured against haiku or opus for this pass —
+    // #279 owns the evaluation, same as the story-level pin.
     thunks.push(() =>
       agent(finaleFixDeltaDispatchPrompt({ note: effectiveNote, repoRoot, epicWorktreePath: epicWorktree, slug, defaultBranch: input.defaultBranch, priorSha: scope.priorSha, contract: CONTRACT }),
-        { label: 'finale:fix-delta', phase: 'Finale', schema: REPORT }))
+        { label: 'finale:fix-delta', phase: 'Finale', schema: REPORT, model: 'sonnet', effort: 'medium' }))
   }
   const all = await parallel(thunks)
   const reports = all.slice(0, dispatched.length)
@@ -1946,6 +2064,7 @@ async function finaleGate(gate, runOnce) {
   while (result && result.verdict === GATES[gate].retry && cycles < MAX_FIX_CYCLES) {
     cycles++
     log(`finale: ${gate} → ${result.verdict}; fix cycle ${cycles}/${MAX_FIX_CYCLES}`)
+    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#136): the finale-level fixer, same unmeasured cost/quality tradeoff as the story-level fixerPrompt dispatch above (#136), now at the cross-story integration scope — not a decision to make silently here either.
     const fix = await agent(finaleFixerPrompt(gate, result.summary),
       { label: `finale:fix:${gate}`, phase: 'Finale', schema: WORKER_RESULT })
     if (!fix || fix.status === 'blocked') break
