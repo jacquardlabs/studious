@@ -1076,9 +1076,10 @@ cmd_gc() {
   # guard never arms, and `gc` silently reverts to always collecting rule-2
   # files on first pass — the pre-#237 regression, with no visible symptom.
   # Roll back this whole block (`scope_delta_retention_lapsed` above included)
-  # and the four `.scopeDelta`-describing spots in `commands/studious-
+  # and the five `.scopeDelta`-describing spots in `commands/studious-
   # doctor.md` — its Retained bullet, both Classify thresholds that mention
-  # retained files, and the Flow state output line — in the same change, or
+  # retained files, the branch-gone bullet (finding 2's own asymmetry note),
+  # and the Flow state output line — in the same change, or
   # the rollback is incomplete.
   local wdir; wdir=$(work_dir)
   local phase sd_len slug
