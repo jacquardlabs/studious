@@ -1321,30 +1321,34 @@ async function resolveRoutingMatchFlags(dir, base, label, phaseLabel, contract) 
     // `diffPath` cutoff (routingScopeCheckPrompt's own "under 400" branch, above)
     // — at or above it, `diffPath` comes back empty and `operabilityMatch` is
     // forced `true` unconditionally (no model judgment runs at all), which
-    // resolveAuditRoster (below) treats as "dispatch
-    // operability-auditor," so the raised effort is spent with zero chance of a
-    // saving. Measured against this epic's own three story branches
-    // (`git diff $(git merge-base epic/m6-wave1 <branch>) <branch> | wc -l`, run
-    // 2026-07-28): epic/m6-wave1--ledger-scope-fix is 707 lines,
-    // epic/m6-wave1--driver-model-pins is 433, epic/m6-wave1--operability-routing-parity
-    // (this story) is 1089 — all three exceed 400, so on THIS epic's own
-    // dogfooding, zero of three stories' audit rounds have ever reached the
-    // content-judged branch; every round so far paid the raised effort for no
-    // saving. Widening the sample to this repo's last 14 non-epic merge commits
-    // (`git diff <sha>~1 <sha> | wc -l` for the tip of `origin/main` back through
-    // ee0d1aa): 4 of 14 (~29%) are under 400 lines and would reach judgment
-    // (24819cd 80, b126658 139, ee0d1aa 185, c987415 349); the other 10 (~71%,
-    // including two one-time jig-absorption merges over 20k lines each) are not.
-    // So the answer to this story's own open sub-question — does this repo's
-    // changeset shape read as runtime surface to the probe — is moot on the
-    // majority of rounds: size alone decides before content judgment ever runs,
-    // and it decides against a saving on most of this repo's own history so far.
-    // What isn't measured, and can't be from a fixer's sandbox: how the haiku
-    // probe actually resolves the minority of sub-400-line rounds that DO reach
-    // judgment — that needs a live dispatch's telemetry, which #132 (emit
-    // dispatch telemetry per gate-audit auditor) is the open issue for. This
-    // comment records what's mechanically known now; it does not claim to close
-    // that gap.
+    // resolveAuditRoster (below) treats as "dispatch operability-auditor," so the
+    // raised effort is spent with zero chance of a saving. A tip-of-branch diff
+    // is the WRONG unit to measure this against — it conflates every round's
+    // cumulative diff into one number and understates how many rounds were
+    // actually small. The right unit is the diff at the exact sha each recorded
+    // audit round actually ran against; this epic's own gate-ledger events
+    // (`.studious/epics/m6-wave1.events.jsonl`, local/gitignored, not something a
+    // future reader can re-derive from git history alone — recorded here as the
+    // fixer's own measurement, run 2026-07-28) name those shas directly:
+    // ledger-scope-fix PASSed its only round at e847df5 (205 lines vs
+    // merge-base — under the cutoff, judgment reached); driver-model-pins PASSed
+    // its only round at f130eb2 (201 lines — also reached); this story's own
+    // three rounds were f893434 (288 lines — reached), 78ddf36 (725 — forced
+    // true), f3f802a (1089 — forced true). Five recorded rounds so far, three
+    // (60%) reached real judgment, two (both this story's own retries, needed by
+    // the prior fix cycle's security findings, not by this mechanism) did not.
+    // So the honest read isn't "this never saves anything" — most of this
+    // epic's own rounds so far had the opportunity — it's narrower: a story
+    // that needs multiple fix-and-retry rounds tends to grow past the cutoff on
+    // its later rounds as fix commits accumulate, and this story is itself the
+    // worked example (288 -> 725 -> 1089). What isn't measured, and can't be
+    // from a fixer's sandbox with no live dispatch access: how the haiku probe
+    // actually resolved operabilityMatch on the three rounds that DID reach
+    // judgment — the routing decision itself emits no telemetry, only the final
+    // verdict per gate does, which is why the three rounds above are known to
+    // have reached judgment but not what they concluded. #132 (emit dispatch
+    // telemetry per gate-audit auditor) is the open issue that would close that
+    // gap; this comment records what's mechanically known now, not more.
     r = await agent(routingScopeCheckPrompt(dir, base, contract), { label, phase: phaseLabel, schema: REPORT, model: 'haiku', effort: 'medium' })
   } catch {
     return null
