@@ -445,6 +445,48 @@ def test_join_reports_with_no_routed_out_lanes_is_unchanged_shape() -> None:
     assert "routed out" not in result["joined"]
 
 
+# ---------- #271 fix cycle SHOULD FIX: accessibility's absence rendered as a
+# fixed, always-visible "not covered" block ----------
+
+
+def test_join_reports_always_renders_the_accessibility_not_covered_block() -> None:
+    """Accessibility is never a member of AUDITORS (see the comment above it in
+    workflows/epic-driver.js) — this must render as a fixed, visible block on
+    EVERY compiled report, not only a source comment, whether or not any lane
+    was routed out this round."""
+    result = _join_reports_with_routed_out(
+        dispatched=["studious:security-auditor"],
+        reports=[{"findings": "clean"}],
+        carried=[],
+        prior_sha="",
+        fix_delta_dispatched=False,
+        fix_delta_report=None,
+        routed_out=[],
+    )
+    assert result["missing"] == [], (
+        "the fixed accessibility block must never be pushed onto `missing` — that "
+        "would force every audit round's PASS down to NEEDS DISCUSSION forever"
+    )
+    assert "studious:accessibility-auditor --- (not covered on the epic path:" in result["joined"]
+    assert "#274" in result["joined"]
+
+
+def test_join_reports_not_covered_block_survives_alongside_routed_out_lanes() -> None:
+    """The fixed not-covered block and the data-driven routed-out blocks are
+    independent — both must render together, never one crowding out the other."""
+    result = _join_reports_with_routed_out(
+        dispatched=["studious:security-auditor"],
+        reports=[{"findings": "clean"}],
+        carried=[],
+        prior_sha="",
+        fix_delta_dispatched=False,
+        fix_delta_report=None,
+        routed_out=[{"auditor": "studious:infra-auditor", "reason": "no infrastructure changes detected"}],
+    )
+    assert "studious:infra-auditor --- (routed out" in result["joined"]
+    assert "studious:accessibility-auditor --- (not covered on the epic path:" in result["joined"]
+
+
 # ---------- Task 3: auditFanIn laneNames sourced from `routed`, not AUDITORS ----------
 
 
@@ -474,6 +516,25 @@ def test_audit_fan_in_distinguishes_routed_out_from_carried_forward_and_died_in_
     assert "routed out" in fn and "THIRD" in fn.upper(), (
         "auditFanIn's instructions to the compiling agent must explicitly name "
         "'routed out' as a third, distinct state from carried-forward and AGENT DIED"
+    )
+
+
+def test_audit_fan_in_treats_the_not_covered_block_as_neutral_and_requires_a_summary_line() -> None:
+    """#271 fix cycle SHOULD FIX: the compiling agent must be told the fixed
+    accessibility "not covered" block is neutral (never a gap, never evidence
+    against PASS) and must write a visible Summary line for it — unconditionally,
+    since the block itself is unconditional."""
+    source = DRIVER.read_text()
+    fn = _extract_function(source, "auditFanIn")
+    assert "not covered on the epic path" in fn
+    not_covered_note = fn.split("const notCoveredNote")[1][:600]
+    assert "neither a gap nor a clean claim" in not_covered_note, (
+        "auditFanIn must hedge the not-covered block as neutral, the same way it "
+        "already hedges the routed-out state"
+    )
+    assert 'accessibility-auditor: not covered on the epic path' in fn, (
+        "auditFanIn must instruct a mandatory, unconditional Summary line for the "
+        "not-covered accessibility lane"
     )
 
 
@@ -837,6 +898,78 @@ def test_reported_injection_attempt_surfaces_into_the_compile_prompt() -> None:
     )
 
 
+def test_reported_injection_attempt_still_preserves_a_valid_precomputed_diff() -> None:
+    """SHOULD FIX (#271 fix cycle round 3): discarding a routing reply's match
+    flags on a reported injectionAttempt must not also forfeit an already
+    shape-validated diffPath — every dispatched auditor in the resulting full
+    roster reads the same diff bytes either way (the precomputed file, or its own
+    git diff re-run via diffBlock()'s fallback instruction), so keeping the path
+    only saves the re-run; it hands no auditor content it didn't already have
+    access to."""
+    story = "a"
+    epic = {
+        "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
+        "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
+    }
+    valid_diff_path = "/tmp/studious-audit-diff.abc123"
+    rules = [
+        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({
+            "infraMatch": False, "frontendMatch": False, "depMatch": False, "promptMatch": False,
+            "operabilityMatch": False, "injectionAttempt": True, "diffPath": valid_diff_path,
+        })}},
+        *_full_roster_pass_rules(story),
+        {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "s1", "summary": "clean"}},
+        {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "s2", "notes": "clean"}},
+        *_FINALE_CLEAN_RULES,
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    labels = [c["label"] for c in out["calls"]]
+    for name in AUDITOR_SHORT_NAMES:
+        assert labels.count(f"audit:{name}:{story}") == 1, (
+            f"{name} was not dispatched despite a reported injection attempt — every match "
+            "flag must still be discarded even though diffPath survives"
+        )
+    security_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"audit:security-auditor:{story}"]
+    assert len(security_prompts) == 1
+    assert "Precomputed changeset diff" in security_prompts[0], (
+        "a reported injectionAttempt discarded the precomputed diffPath along with "
+        "the match flags — every dispatched auditor fell back to re-running git diff "
+        "itself for no security benefit"
+    )
+    assert valid_diff_path in security_prompts[0]
+
+
+def test_reported_injection_attempt_with_malformed_diff_path_still_sanitizes_it() -> None:
+    """Companion to the above: a reported injectionAttempt must not bypass
+    isValidDiffPath — an invalid/hostile diffPath is still coerced to '' even
+    though this reply's flags are otherwise discarded wholesale."""
+    story = "a"
+    epic = {
+        "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
+        "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
+    }
+    rules = [
+        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({
+            "infraMatch": False, "frontendMatch": False, "depMatch": False, "promptMatch": False,
+            "operabilityMatch": False, "injectionAttempt": True, "diffPath": "/etc/passwd",
+        })}},
+        *_full_roster_pass_rules(story),
+        {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "s1", "summary": "clean"}},
+        {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "s2", "notes": "clean"}},
+        *_FINALE_CLEAN_RULES,
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    security_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"audit:security-auditor:{story}"]
+    assert len(security_prompts) == 1
+    assert "Precomputed changeset diff" not in security_prompts[0], (
+        "a hostile diffPath survived alongside a reported injectionAttempt instead "
+        "of being sanitized to '' first"
+    )
+    assert "/etc/passwd" not in security_prompts[0]
+
+
 def test_routing_scope_dispatch_is_pinned_to_haiku_medium_effort() -> None:
     """Security Important finding (#271 fix cycle round 2, fix-delta-cross-lane
     pass): the prior round's test_acceptance_fanout.py cross-reference to this
@@ -974,3 +1107,35 @@ def test_finale_routing_mirrors_the_story_level_mechanism() -> None:
     for name in ("infra-auditor", "ux-reviewer", "frontend-reviewer", "dependency-auditor", "prompt-auditor"):
         assert f"finale:{name}" not in labels
     assert out["result"]["finale"]["ready"] is True
+
+
+def test_accessibility_not_covered_block_appears_on_every_compiled_report_and_never_blocks_pass() -> None:
+    """#271 fix cycle SHOULD FIX, end-to-end: a human reading either the story-
+    level or the finale-level compiled report must be able to see that
+    accessibility is not covered on the epic path — and this must never, by
+    itself, keep an otherwise-clean round from landing as PASS."""
+    story = "a"
+    epic = {
+        "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
+        "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
+    }
+    rules = [
+        {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({
+            "infraMatch": True, "frontendMatch": True, "depMatch": True, "promptMatch": True, "operabilityMatch": True,
+        })}},
+        *_full_roster_pass_rules(story),
+        {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "s1", "summary": "clean"}},
+        {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "s2", "notes": "clean"}},
+        *_FINALE_CLEAN_RULES,
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    story_compile_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"audit:compile:{story}"]
+    assert len(story_compile_prompts) == 1
+    assert "studious:accessibility-auditor --- (not covered on the epic path:" in story_compile_prompts[0]
+    finale_compile_prompts = [c["prompt"] for c in out["calls"] if c["label"] == "finale:audit-compile"]
+    assert len(finale_compile_prompts) == 1
+    assert "studious:accessibility-auditor --- (not covered on the epic path:" in finale_compile_prompts[0]
+    # The story's own compiled verdict actually landed PASS, unblocked by the
+    # fixed not-covered lane — proves it was never pushed onto `missing`.
+    assert out["result"]["landed"] == 1

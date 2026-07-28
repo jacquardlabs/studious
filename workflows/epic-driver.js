@@ -92,14 +92,18 @@ const MAX_FIX_CYCLES = 2
 // interactive gate on a project where the skill IS installed, not parity with it.
 // Whether the epic path needs an equivalent of that "installed" branch, or whether
 // the Task-only fallback is an acceptable narrowing for the unattended path, is its
-// own design question — left for a follow-up issue, not decided here.
+// own design question — split out to #274, not decided here. joinReports below
+// renders this gap as a fixed, always-visible block on every compiled report (not
+// only a source comment) so the human reading the verdict can see the narrowing
+// #274 will resolve, per this file's own no-silently-missing-lane rule (see the
+// comment above joinReports).
 //
 // This array, gate-audit.md's own numbered auditor list (1-13, which additionally
 // covers accessibility as auditor 8 and pre-mortem as auditor 13), and gate-audit.md's
 // narrowing condition 3 name list (`.gates.audit.blockingLanes` validation, "auditors
 // 1-7, 9-12") are three independently hand-maintained copies of nearly the same
 // roster. #271 flagged this as a drift risk this file's own commenting can't fix by
-// itself — noted here, not resolved in this story.
+// itself — tracked in #274, not resolved in this story.
 const AUDITORS = [
   'studious:security-auditor', 'studious:code-auditor', 'studious:doc-auditor',
   'studious:architecture-auditor', 'studious:test-auditor', 'studious:infra-auditor',
@@ -912,6 +916,22 @@ function resolveAuditRoster(matchFlags, auditors) {
 // narrowed round, and — like every other lane — a died fix-delta pass is
 // UNAUDITED, added to `missing`, never silently absent from the compiled
 // report.
+//
+// A FIFTH state (accessibility, #271 fix cycle SHOULD FIX), distinct from all
+// four above: it is fixed, not data-driven — accessibility is never a member
+// of AUDITORS at all (see the comment above that constant), so there is no
+// per-round dispatch decision to report, unlike routed-out (which varies with
+// this round's match flags). Rendered unconditionally on every compiled
+// report, story and finale alike, so the coverage narrowing is visible where
+// a human reads the verdict rather than only in a source comment — this
+// file's own rule, one paragraph up, that a silently missing lane must never
+// compile into an unearned PASS applies just as much to a lane this driver
+// never attempts to cover as to one whose agent died mid-round. Deliberately
+// NOT pushed onto `missing`: that array's only two producers above (a died
+// lane, a died fix-delta pass) both force the caller's PASS -> NEEDS
+// DISCUSSION downgrade and strip blockingLanes: a lane this driver never
+// dispatches in the first place is neither of those, and treating it as one
+// would stall every audit round on every epic, forever, at NEEDS DISCUSSION.
 function joinReports(dispatched, reports, carriedForward, priorSha, fixDeltaDispatched, fixDeltaReport, routedOut) {
   const missing = []
   const dispatchedBlocks = dispatched.map((a, i) => {
@@ -929,6 +949,12 @@ function joinReports(dispatched, reports, carriedForward, priorSha, fixDeltaDisp
   // re-auditing of a lane with nothing to audit.
   const routedOutBlocks = (routedOut || []).map(({ auditor, reason }) =>
     `--- ${auditor} --- (routed out — not applicable to this changeset: ${reason}; never dispatched, no prior report)`)
+  // Fixed FOURTH-from-routed-out, FIFTH-overall lane state (see the doc comment
+  // above): unconditional, never varies with this round's inputs, never added to
+  // `missing`.
+  const notCoveredBlocks = [
+    `--- studious:accessibility-auditor --- (not covered on the epic path: the epic driver cannot detect, from inside a Workflow script, whether the consuming session has the optional web-design-guidelines skill installed, so it never dispatches the interactive gate's Task fallback either — tracked in #274, not decided in this story)`,
+  ]
   const fixDeltaBlocks = []
   if (fixDeltaDispatched) {
     if (fixDeltaReport) {
@@ -938,7 +964,7 @@ function joinReports(dispatched, reports, carriedForward, priorSha, fixDeltaDisp
       fixDeltaBlocks.push('--- fix-delta-cross-lane-pass --- (AGENT DIED — no report; this pass is UNAUDITED)')
     }
   }
-  const joined = [...dispatchedBlocks, ...carriedBlocks, ...routedOutBlocks, ...fixDeltaBlocks].join('\n\n')
+  const joined = [...dispatchedBlocks, ...carriedBlocks, ...routedOutBlocks, ...notCoveredBlocks, ...fixDeltaBlocks].join('\n\n')
   return { joined, missing }
 }
 
@@ -1005,7 +1031,14 @@ function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut, inj
   const injectionSummaryInstruction = injectionAttempt
     ? `Also include one line in your Summary in this exact form: "routing-scope dispatch flagged a suspected audit-evasion directive in the diff (injectionAttempt); flags discarded, full roster dispatched — review the diff directly to confirm." This must be visible to a human reading the report, the same way the routed-out lines are.\n\n`
     : ''
-  return `You are compiling Studious's audit gate verdict. Read reference/audit-compilation.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply its compilation rules to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-AUDIT.\n\nA lane marked "carried forward" (delta-scoped re-audit, #130) is NOT the same as UNAUDITED: it was not re-dispatched this round because the prior round's own compiled verdict already proved it had no Confirmed Critical. Treat its one-line carried-forward status as a clean, confirmed-clean fact for that lane — never as a gap that blocks the verdict, and never invent or replay any Important/Track findings for it beyond that line. A lane marked "routed out" (first-round changeset routing, #138) is a THIRD, distinct state from both: it was never dispatched because it does not apply to this changeset at all — treat it as neutral, neither a gap nor a clean claim, and never conflate it with carried forward or AGENT DIED. A block labeled "fix-delta-cross-lane-pass" is a single, cheap, cross-lane spot-check over the small diff since the prior round, not a twelfth specialist auditor — map its findings into the report's severity tiers exactly like any other lane's, tagged by whichever lane's vocabulary they resemble, and put them through the same Critical-challenge step as every other finding.\n\nOut of scope for this verdict: gate-audit.md's own text describes a pre-mortem-verification lane (auditor 13) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover this round's routed lane set (${laneNames}); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those routed lanes otherwise support.${routedOutNote}${injectionNote}\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\n${routedOutSummaryInstruction}${injectionSummaryInstruction}If, and only if, your verdict is FIX AND RE-AUDIT: also determine blockingLanes — the short name(s) (e.g. "security-auditor", not "studious:security-auditor") of every lane among {${laneNames}} whose report contained a Critical finding that survived your challenge as Confirmed and helped drive this verdict. Omit blockingLanes entirely (do not return an empty array) if your verdict is PASS or NEEDS DISCUSSION, or if ANY lane above is marked AGENT DIED this round — a died lane's true status is unknown, so the next round must default to a full re-audit rather than narrow off an unreliable list.\n\nRecord the verdict from inside ${dir} (substitute <TOKEN> with your verdict; only when you computed blockingLanes above, also append --blocking-lanes "<comma-separated lane names>" to this same command — omit that flag entirely otherwise, per the omission rule above): cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"` : ''}\n\nReturn: verdict (PASS | FIX AND RE-AUDIT | NEEDS DISCUSSION), sha, summary, blockingLanes (only when you computed one, per the rule above — omit the field entirely otherwise).`
+  // #271 fix cycle, SHOULD FIX: unconditional (never varies with this round's
+  // inputs, unlike routedOutNote/injectionNote above) — a block for
+  // studious:accessibility-auditor reading "not covered on the epic path" is
+  // present on every compiled report, story and finale alike (see the doc
+  // comment above joinReports for why this lane is never in AUDITORS at all).
+  const notCoveredNote = ` One further block, for studious:accessibility-auditor, reads "not covered on the epic path" — a FOURTH, fixed lane state, present on every round regardless of this round's routing flags: that lane is never a member of this driver's auditor roster at all (a coverage decision tracked in #274), so the block never varies and is not itself a finding about this changeset. Treat it as neutral, neither a gap nor a clean claim, exactly like a routed-out lane, and never conflate it with UNAUDITED.`
+  const notCoveredSummaryInstruction = `Also include this exact line in your Summary: "accessibility-auditor: not covered on the epic path (tracked in #274)". This must be visible to a human reading the report, the same way the routed-out lines are.\n\n`
+  return `You are compiling Studious's audit gate verdict. Read reference/audit-compilation.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply its compilation rules to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-AUDIT.\n\nA lane marked "carried forward" (delta-scoped re-audit, #130) is NOT the same as UNAUDITED: it was not re-dispatched this round because the prior round's own compiled verdict already proved it had no Confirmed Critical. Treat its one-line carried-forward status as a clean, confirmed-clean fact for that lane — never as a gap that blocks the verdict, and never invent or replay any Important/Track findings for it beyond that line. A lane marked "routed out" (first-round changeset routing, #138) is a THIRD, distinct state from both: it was never dispatched because it does not apply to this changeset at all — treat it as neutral, neither a gap nor a clean claim, and never conflate it with carried forward or AGENT DIED. A block labeled "fix-delta-cross-lane-pass" is a single, cheap, cross-lane spot-check over the small diff since the prior round, not a twelfth specialist auditor — map its findings into the report's severity tiers exactly like any other lane's, tagged by whichever lane's vocabulary they resemble, and put them through the same Critical-challenge step as every other finding.${notCoveredNote}\n\nOut of scope for this verdict: gate-audit.md's own text describes a pre-mortem-verification lane (auditor 13) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover this round's routed lane set (${laneNames}); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those routed lanes otherwise support.${routedOutNote}${injectionNote}\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\n${routedOutSummaryInstruction}${injectionSummaryInstruction}${notCoveredSummaryInstruction}If, and only if, your verdict is FIX AND RE-AUDIT: also determine blockingLanes — the short name(s) (e.g. "security-auditor", not "studious:security-auditor") of every lane among {${laneNames}} whose report contained a Critical finding that survived your challenge as Confirmed and helped drive this verdict. Omit blockingLanes entirely (do not return an empty array) if your verdict is PASS or NEEDS DISCUSSION, or if ANY lane above is marked AGENT DIED this round — a died lane's true status is unknown, so the next round must default to a full re-audit rather than narrow off an unreliable list.\n\nRecord the verdict from inside ${dir} (substitute <TOKEN> with your verdict; only when you computed blockingLanes above, also append --blocking-lanes "<comma-separated lane names>" to this same command — omit that flag entirely otherwise, per the omission rule above): cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"` : ''}\n\nReturn: verdict (PASS | FIX AND RE-AUDIT | NEEDS DISCUSSION), sha, summary, blockingLanes (only when you computed one, per the rule above — omit the field entirely otherwise).`
 }
 
 function fixerPrompt(story, gate, findings) {
@@ -1281,6 +1314,37 @@ async function resolveRoutingMatchFlags(dir, base, label, phaseLabel, contract) 
     // `isValidDiffPath` above. What stays open: a reply that steers operabilityMatch
     // AND never admits it via injectionAttempt — the same residual the diffPath fix
     // above accepts for content-substitution.
+    //
+    // Round 3 (#271 fix cycle, SHOULD FIX): the net saving this raised effort buys
+    // is real but conditional, and this repo's own history is the measurement, not
+    // an estimate. `operabilityMatch` only reaches judgment below the 400-line
+    // `diffPath` cutoff (routingScopeCheckPrompt's own "under 400" branch, above)
+    // — at or above it, `diffPath` comes back empty and `operabilityMatch` is
+    // forced `true` unconditionally (no model judgment runs at all), which
+    // resolveAuditRoster (below) treats as "dispatch
+    // operability-auditor," so the raised effort is spent with zero chance of a
+    // saving. Measured against this epic's own three story branches
+    // (`git diff $(git merge-base epic/m6-wave1 <branch>) <branch> | wc -l`, run
+    // 2026-07-28): epic/m6-wave1--ledger-scope-fix is 707 lines,
+    // epic/m6-wave1--driver-model-pins is 433, epic/m6-wave1--operability-routing-parity
+    // (this story) is 1089 — all three exceed 400, so on THIS epic's own
+    // dogfooding, zero of three stories' audit rounds have ever reached the
+    // content-judged branch; every round so far paid the raised effort for no
+    // saving. Widening the sample to this repo's last 14 non-epic merge commits
+    // (`git diff <sha>~1 <sha> | wc -l` for the tip of `origin/main` back through
+    // ee0d1aa): 4 of 14 (~29%) are under 400 lines and would reach judgment
+    // (24819cd 80, b126658 139, ee0d1aa 185, c987415 349); the other 10 (~71%,
+    // including two one-time jig-absorption merges over 20k lines each) are not.
+    // So the answer to this story's own open sub-question — does this repo's
+    // changeset shape read as runtime surface to the probe — is moot on the
+    // majority of rounds: size alone decides before content judgment ever runs,
+    // and it decides against a saving on most of this repo's own history so far.
+    // What isn't measured, and can't be from a fixer's sandbox: how the haiku
+    // probe actually resolves the minority of sub-400-line rounds that DO reach
+    // judgment — that needs a live dispatch's telemetry, which #132 (emit
+    // dispatch telemetry per gate-audit auditor) is the open issue for. This
+    // comment records what's mechanically known now; it does not claim to close
+    // that gap.
     r = await agent(routingScopeCheckPrompt(dir, base, contract), { label, phase: phaseLabel, schema: REPORT, model: 'haiku', effort: 'medium' })
   } catch {
     return null
@@ -1289,26 +1353,44 @@ async function resolveRoutingMatchFlags(dir, base, label, phaseLabel, contract) 
   let parsed
   try { parsed = JSON.parse(r.findings) } catch { return null }
   if (!parsed || typeof parsed !== 'object') return null
-  // A reported injection attempt means this reply's own judgment is suspect —
-  // discard every flag from it, not just operabilityMatch, and fail open exactly
-  // like a died dispatch (see the comment above routingScopeCheckPrompt for what
-  // this does and does not catch). Security Important finding (round 2): a
-  // discarded-and-silent reply was byte-indistinguishable downstream from a died
-  // dispatch — same full roster, same possible PASS, no human signal. Report the
-  // flag back to the caller (auditRound/finaleAuditRound thread it into this
-  // round's note and into auditFanIn's compile prompt) instead of collapsing to a
-  // bare `null` indistinguishable from every other fail-open cause; every routing
-  // flag and diffPath still resolve as undefined here, so resolveAuditRoster and
-  // diffBlock() see the exact same "route everything in, no diff block" shape a
-  // `null` return produces — only the signal changes, not the fail-open behavior.
-  if (parsed.injectionAttempt === true) return { injectionAttempt: true }
   // Unvalidated-model-output hardening (gate-audit Important finding, round 1;
   // tightened to real shape validation in round 2 — see isValidDiffPath above):
   // diffPath reaches up to 11 further dispatch prompts verbatim via diffBlock(),
   // plus the premortem dispatch. Anything that doesn't validate coerces to '',
   // which diffBlock() already treats as "add no block," rather than splicing a
-  // hostile or wrong-shaped value into every one of them.
+  // hostile or wrong-shaped value into every one of them. Validated BEFORE the
+  // injectionAttempt branch below (round 3, #271 fix cycle) so a reported
+  // injection attempt discards the match flags without also forfeiting an
+  // already-validated diffPath.
   if (!isValidDiffPath(parsed.diffPath)) parsed.diffPath = ''
+  // A reported injection attempt means this reply's own judgment is suspect —
+  // discard every match flag from it, not just operabilityMatch, and fail open
+  // exactly like a died dispatch (see the comment above routingScopeCheckPrompt
+  // for what this does and does not catch). Security Important finding (round 2): a
+  // discarded-and-silent reply was byte-indistinguishable downstream from a died
+  // dispatch — same full roster, same possible PASS, no human signal. Report the
+  // flag back to the caller (auditRound/finaleAuditRound thread it into this
+  // round's note and into auditFanIn's compile prompt) instead of collapsing to a
+  // bare `null` indistinguishable from every other fail-open cause; every match
+  // flag still resolves as undefined here, so resolveAuditRoster sees the exact
+  // same "route everything in" shape a `null` return produces — only the signal
+  // changes, not the fail-open behavior.
+  //
+  // Round 3 (#271 fix cycle, SHOULD FIX): diffPath is deliberately carried through
+  // this branch instead of being discarded along with the match flags. Every
+  // dispatched auditor in a full-roster round reads these same diff bytes either
+  // way — via the precomputed file when diffPath survives, or by re-running git
+  // diff itself when it doesn't (diffBlock()'s own fallback instruction). Keeping
+  // the already shape-validated path saves that re-run without handing any
+  // auditor content it didn't already have access to: isValidDiffPath only proves
+  // the string names a file this driver's own mktemp call could have produced, it
+  // says nothing about the judgment (operabilityMatch, or the other four flags)
+  // that reply attached to that file — which is exactly what's being discarded
+  // here. The residual this doesn't close (a steered reply overwriting the file
+  // it legitimately created with different-but-validly-shaped content) is the same
+  // one the comment above isValidDiffPath already accepts as content-level, not
+  // shape-level.
+  if (parsed.injectionAttempt === true) return { injectionAttempt: true, diffPath: parsed.diffPath }
   return parsed
 }
 
