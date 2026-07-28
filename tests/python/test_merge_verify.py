@@ -100,7 +100,14 @@ DIVERGENT_CASES = [
 def test_divergent_verify_parks_instead_of_landing_with_an_explicit_reason() -> None:
     """The finding's actual ask: a DEFINITE disagreement between `merge.merged`
     and the independent read-back must never settle 'landed' — it must park
-    with a reason a human can read, naming what disagreed."""
+    with a reason a human can read, naming what disagreed.
+
+    Round 6 fix-and-recheck (SHOULD FIX): parking here must go through the real
+    `park()` helper — which dispatches `parkPrompt` to persist the reason to
+    gate-ledger — not merely produce a similar-looking in-memory `needsYou`
+    entry. Asserting on `calls` (not just the compiled result) is what
+    distinguishes the two: a `park:epx--a` dispatch proves the persisted write
+    was attempted, which an in-memory-only push cannot fake."""
     for name, findings in DIVERGENT_CASES:
         out = _run_with_verify_rule(_findings(findings))
         assert out["ok"], f"{name}: driver crashed: {out.get('error')}"
@@ -115,6 +122,16 @@ def test_divergent_verify_parks_instead_of_landing_with_an_explicit_reason() -> 
         assert entry["verdict"] == "VERIFY MISMATCH"
         assert str(findings["ledgerLanded"]).lower() in entry["reason"].lower() or "ledgerLanded" in entry["reason"], (
             f"{name}: reason doesn't name what disagreed: {entry['reason']}"
+        )
+        park_calls = [c for c in out["calls"] if c["label"] == "park:a"]
+        assert park_calls, (
+            f"{name}: no park:a dispatch found — the divergent branch must route "
+            f"through the real park() helper (which persists to gate-ledger), not just "
+            f"push an in-memory needsYou entry: {[c['label'] for c in out['calls']]}"
+        )
+        assert entry["reason"] in park_calls[0]["prompt"], (
+            f"{name}: the reason handed to needsYou doesn't match what was actually "
+            f"sent to the park dispatch: {entry['reason']!r} vs {park_calls[0]['prompt']!r}"
         )
 
 

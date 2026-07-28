@@ -1411,6 +1411,13 @@ async function runStory(story) {
     const verify = await verifyMergeLanded(story)
     if (verify.status === 'divergent') {
       const reason = verify.reason + '; check whether epic/' + workSlug(story) + ' actually contains the story branch and correct the recorded status before re-running.'
+      // Round 6 fix-and-recheck regression, caught re-running this file's own tests:
+      // routing through park() (below) persists the reason to gate-ledger, but park()
+      // itself never calls log() — the divergent branch's own operator-visible log
+      // line, present before this reroute, was silently dropped along with the
+      // in-memory-only push it replaced. Both are needed: log() for the live
+      // transcript, park() for the persisted record.
+      log(`${story}: ${reason}`)
       return park(story, 'merge', 'VERIFY MISMATCH', reason)
     }
     if (verify.status === 'unknown') {
