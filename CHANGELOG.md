@@ -2,6 +2,63 @@
 
 <!-- version list -->
 
+## v2.28.3 (2026-07-30)
+
+### Bug Fixes
+
+- /coach reads the evidence path capture actually writes
+  ([#290](https://github.com/jacquardlabs/studious/pull/290),
+  [`7435381`](https://github.com/jacquardlabs/studious/commit/7435381154c02a2863069bd47c0820aac6eeeca7))
+
+- /coach reads the evidence path capture actually writes (#260)
+  ([#290](https://github.com/jacquardlabs/studious/pull/290),
+  [`7435381`](https://github.com/jacquardlabs/studious/commit/7435381154c02a2863069bd47c0820aac6eeeca7))
+
+- Derive the evidence grammar from its writer, and let a warning name the old shape
+  ([#290](https://github.com/jacquardlabs/studious/pull/290),
+  [`7435381`](https://github.com/jacquardlabs/studious/commit/7435381154c02a2863069bd47c0820aac6eeeca7))
+
+- Give <worktree> a read the coach is actually allowed to make
+  ([#290](https://github.com/jacquardlabs/studious/pull/290),
+  [`7435381`](https://github.com/jacquardlabs/studious/commit/7435381154c02a2863069bd47c0820aac6eeeca7))
+
+- Give the coach's evidence & reports row a read verb and a story match
+  ([#290](https://github.com/jacquardlabs/studious/pull/290),
+  [`7435381`](https://github.com/jacquardlabs/studious/commit/7435381154c02a2863069bd47c0820aac6eeeca7))
+
+- Hand the coach's escape hatch a command that runs, in words the reader can act on
+  ([#290](https://github.com/jacquardlabs/studious/pull/290),
+  [`7435381`](https://github.com/jacquardlabs/studious/commit/7435381154c02a2863069bd47c0820aac6eeeca7))
+
+- Hand the declined-folder line a way out, and anchor the scan on no single file
+  ([#290](https://github.com/jacquardlabs/studious/pull/290),
+  [`7435381`](https://github.com/jacquardlabs/studious/commit/7435381154c02a2863069bd47c0820aac6eeeca7))
+
+- Name the branch read, the declined folders, and the slug source
+  ([#290](https://github.com/jacquardlabs/studious/pull/290),
+  [`7435381`](https://github.com/jacquardlabs/studious/commit/7435381154c02a2863069bd47c0820aac6eeeca7))
+
+- Widen the grammar scan to reference/, and spell the report date one way
+  ([#290](https://github.com/jacquardlabs/studious/pull/290),
+  [`7435381`](https://github.com/jacquardlabs/studious/commit/7435381154c02a2863069bd47c0820aac6eeeca7))
+
+### Documentation
+
+- Record the m10-flow-coherence epic pre-mortem register (M10)
+  ([#290](https://github.com/jacquardlabs/studious/pull/290),
+  [`7435381`](https://github.com/jacquardlabs/studious/commit/7435381154c02a2863069bd47c0820aac6eeeca7))
+
+### Testing
+
+- Pin finish's grammar line, which no assertion covered
+  ([#290](https://github.com/jacquardlabs/studious/pull/290),
+  [`7435381`](https://github.com/jacquardlabs/studious/commit/7435381154c02a2863069bd47c0820aac6eeeca7))
+
+- Pin the declined-folder way-out and the substitution rule
+  ([#290](https://github.com/jacquardlabs/studious/pull/290),
+  [`7435381`](https://github.com/jacquardlabs/studious/commit/7435381154c02a2863069bd47c0820aac6eeeca7))
+
+
 ## v2.28.2 (2026-07-30)
 
 ### Bug Fixes
