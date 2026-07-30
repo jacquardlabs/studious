@@ -2,6 +2,144 @@
 
 <!-- version list -->
 
+## v2.28.2 (2026-07-30)
+
+### Bug Fixes
+
+- Anchor ledgerScopeCheckPrompt's gate-get read to its worktree
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Anchor mergeVerifyPrompt and distinguish a failed check from a confirmed divergence
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Catch block-comment and trailing-line suppression forms, name the merge tail's unverified
+  self-report ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Close no-unpinned-agent-dispatch's rule-config-comment bypass
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Correct agentType-pin claim and close unpinned-dispatch suppression gaps
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Decide accessibility-lane parity (stays out), recover an orphaned frontendMatch-gating fix, revert
+  unrelated wording churn ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Enforce non-empty rationale on unpinned-dispatch exemptions
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Guard the operability routing dispatch against diff-embedded injection
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Land M6 wave 1 cost-mechanism fixes (#261, #270, #271)
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Log when the routing-scope dispatch's own prompt-build fails, not just when agent() dies
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Make the merge dispatch abort-only, and close two minor gaps in its neighborhood
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Measure the cost-delta claim per audit round, not per tip-of-branch diff, and canonicalize the
+  not-covered lane state ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Mechanically detect a wrong-cwd ledger-scope read via resolvedBranch
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Never discard a narrowable ledger-scope verdict, and classify its errors
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Pin epic-driver's merge dispatch and pilot fix-delta at sonnet
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Point divergent-merge remediation at the epic branch, not the story branch
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Repair dangling prompt cross-reference, sharpen an e2e fixture
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Require a confirmed resolvedBranch before trusting a narrowed verdict, and stop misattributing a
+  park classification as a dispatch crash
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Reroute divergent merge verify through park() with actionable reason
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Restore the divergent-verify log line dropped when it was rerouted through park()
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Route operability-auditor by runtime-surface match, like the other four flagged lanes
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Surface accessibility's epic-path gap, preserve diffPath on injection discard, and measure the
+  operability-routing saving ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Surface degraded narrowings to the operator, and stop trusting a HEAD-reported narrowing
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Thread injectionAttempt signal into the finale premortem dispatch
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Update CONTRIBUTING.md stakes table and driver-dispatch governance; repoint #270 exemptions to
+  #136 ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Validate diffPath shape and surface a discarded injection attempt
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Verify the merge dispatch's ledger writes before settling landed
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+### Documentation
+
+- Document the ledger-scope-check park cause and its worktree-broken takeover gap
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Make the degraded-narrowings clause cause-neutral, fix a broken recovery command, name a revert
+  threshold ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+### Testing
+
+- Pin no-unpinned-agent-dispatch's fail-closed spread-element behavior
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Pin the injection-attempt notice on a specific phrase, not "SECURITY"
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+- Prove the ledger-scope-check parkGate override end to end
+  ([#282](https://github.com/jacquardlabs/studious/pull/282),
+  [`f28ac1e`](https://github.com/jacquardlabs/studious/commit/f28ac1ec4e011fec116a49288a7c5c80d428d40b))
+
+
 ## v2.28.1 (2026-07-30)
 
 ### Bug Fixes
