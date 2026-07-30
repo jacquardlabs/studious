@@ -238,8 +238,153 @@ class TestCoachSkillBody(unittest.TestCase):
         )
 
     def test_evidence_and_report_folders_are_named(self) -> None:
-        self.assertIn("docs/jig/evidence/", self.body)
-        self.assertIn("docs/jig/reports/", self.body)
+        # studious #260: the row named the pre-#258 grammar, so every lookup
+        # missed silently. Pin the full grammar `scripts/evidence-capture`
+        # writes (its `target_dir`), not just the root -- the loose form
+        # passed both before and after the fix.
+        self.assertIn("docs/jig/evidence/<date>-<task>-<branch-slug>/", self.body)
+        self.assertNotIn("docs/jig/evidence/<date>-<task>/", self.body)
+        # The reports half names the whole filename `scripts/build-report`
+        # writes, not the bare folder: reports accumulate across stories, so a
+        # folder-level hit says nothing about *this* story (see below). The
+        # `YYYY-MM-DD` placeholder is the spelling `scripts/build-report`'s own
+        # docstring and `skills/finish/SKILL.md:224` already use -- one grammar,
+        # spelled one way, or this row becomes the drift #260 was.
+        self.assertIn("docs/jig/reports/YYYY-MM-DD-<story-slug>-build-report.md", self.body)
+
+    def test_evidence_is_read_from_the_manifest_never_a_rebuilt_folder_name(self) -> None:
+        # The naming grammar alone is a shape to reconstruct, and two of its
+        # three tokens are not reconstructible: `<date>` is the capture date,
+        # and `<branch-slug>` is `_gitutil.branch_slug`'s `/`-to-`-` collapse.
+        # So the row must name a read, the way its siblings do -- the same
+        # manifest match `evidence-capture resolve` performs internally.
+        self.assertIn("docs/jig/evidence/*/manifest.json", self.body)
+        self.assertPhraseIn("(Glob), then Read each manifest's own `branch` and `task` fields")
+        self.assertPhraseIn("never a name to reconstruct")
+        self.assertPhraseIn(
+            "the folders whose manifest `branch` equals the current branch"
+        )
+        # The manifest records the branch *name*; matching on the slug would
+        # collapse `feat/foo` and `feat-foo` back together (_gitutil.py).
+        self.assertPhraseIn("the branch *name*, never its slug")
+
+    def test_the_branch_read_is_the_command_that_stamped_the_manifest(self) -> None:
+        # `_gitutil.current_branch` stamps manifests with `rev-parse
+        # --abbrev-ref HEAD` (literal "HEAD" when detached); `git status`
+        # prints "HEAD detached at <sha>" there and matches no manifest. Both
+        # halves are asserted together on purpose: naming the command in the
+        # row while the permitted-tool list still forbids it makes the skill
+        # self-contradictory, so neither half can ship alone.
+        self.assertPhraseIn(
+            "read with `git rev-parse --abbrev-ref HEAD` — the same command "
+            "`scripts/_gitutil.py`'s `current_branch` stamped the manifest with"
+        )
+        self.assertNotIn("equals the current branch (`git status`)", self.body)
+        self.assertPhraseIn("`git rev-parse --abbrev-ref HEAD` (Step 1's branch read")
+
+    def test_unattributable_folders_are_reported_never_folded_into_absence(self) -> None:
+        # Every folder committed under docs/jig/evidence/ today predates #258
+        # and carries no `branch`, so a row that only says "not claimable"
+        # reports "no evidence for this branch" on a repo full of evidence --
+        # PRODUCT.md known problem #2 recurring. Declined is a third case.
+        self.assertPhraseIn(
+            "don't let it disappear into the empty case either: report it on its own line"
+        )
+        # The line is prescribed verbatim, so its wording is contract. It
+        # names the condition, not the issue that created it: PRODUCT.md's
+        # persona is a developer in their own repo with no access to this
+        # plugin's tracker, and "#258" is unactionable there. Provenance
+        # numbers stay in the body prose, which only the model reads.
+        self.assertPhraseIn(
+            "N evidence folder(s) predate branch-stamped capture and carry no "
+            "`branch` field; not claimed for this branch"
+        )
+        self.assertNotIn("N pre-#258 folder(s)", self.body)
+
+    def test_the_stricter_read_names_the_authoritative_surface(self) -> None:
+        # `scripts/evidence-capture` declares itself the one home for
+        # branch-to-folder attribution and resolves three ways this row
+        # declines to. The coach is correctly barred from calling it, so the
+        # prose must say it is the stricter reader and not the authority.
+        self.assertPhraseIn("That refusal is deliberately stricter than the script's own rule.")
+        self.assertPhraseIn("resolves with a `[legacy]` token")
+        self.assertPhraseIn("two or more return `[ambiguous]` naming the candidate folders")
+        self.assertPhraseIn("newest-first by `captured_at`")
+        self.assertPhraseIn("that script is authoritative and this read is not")
+        # The row hands the human a command instead of running one, so the
+        # command has to work. `--branch` is `required=True` in
+        # `parse_query_args` (both `resolve` and `list`), so the short form
+        # `resolve --task <N>` argparse-errors with exit 2 -- a dead escape
+        # hatch offered at the moment attribution is already in doubt. Pin the
+        # full form `skills/finish/SKILL.md` runs, and pin the shortened one
+        # out, since this sentence is otherwise the row's only unguarded claim.
+        self.assertPhraseIn(
+            "`scripts/evidence-capture resolve --repo <worktree> --branch "
+            '"$(git -C <worktree> rev-parse --abbrev-ref HEAD)" --task <N>`'
+        )
+        self.assertNotIn("evidence-capture resolve --task", self.body)
+        # Two links this row's usefulness rests on, both prose-only until now.
+        # The declined-folder line above names a condition; without the first
+        # pin, a reword can leave the reader at that condition with no way out
+        # -- the defect /gate-acceptance filed against 30e932b. Without the
+        # second, the command reaches the human as a shape to fill in.
+        self.assertPhraseIn("print the `resolve` command below with it")
+        self.assertPhraseIn("with `<worktree>` and `<N>` already substituted")
+        # And that second promise is only keepable if the skill may actually
+        # read a worktree path. It could not: Step 1 produced no such value and
+        # the permitted-tool list named only `--abbrev-ref HEAD`, so the pin
+        # above asserted a substitution nothing could perform -- inert exactly
+        # where it mattered (/gate-acceptance against 0e189fa).
+        #
+        # Two occurrences, pinned separately on purpose. A bare
+        # assertIn("`git rev-parse --show-toplevel`") passes on either one, so
+        # it would not notice the tool-list entry being dropped or typo'd --
+        # verified by mutation, which is how that near-miss was caught. Each
+        # phrase below is unique to its own site.
+        self.assertPhraseIn("| Worktree | `git rev-parse --show-toplevel` |")
+        self.assertPhraseIn(
+            "`git rev-parse --show-toplevel` (Step 1's worktree read, named there because"
+        )
+
+    def test_the_two_empty_evidence_cases_stay_distinguishable(self) -> None:
+        # #260's actual damage: "found nothing" and "captured nothing" read
+        # identically to the human. Both must be reportable apart.
+        self.assertPhraseIn("Report the two empty cases apart")
+        self.assertPhraseIn("no `docs/jig/evidence/` at all")
+        self.assertPhraseIn("the folder existing with no manifest matching this branch")
+        # The declined case (a manifest with no `branch` at all) must not also
+        # satisfy the second empty case, or a repo whose every folder predates
+        # #258 -- this one -- reports "other stories captured" about folders no
+        # story captured under this grammar, re-creating the collapse above.
+        self.assertPhraseIn(
+            "that second case means manifests that *carry* a `branch` naming a different one"
+        )
+        self.assertPhraseIn("goes on the declined line, and is never reported as another "
+                            "story's capture")
+
+    def test_a_build_report_counts_only_when_its_slug_names_this_story(self) -> None:
+        # The reports half is load-bearing for routing: the last routing row
+        # terminates the session on a build report ("Nothing to dispatch"), and
+        # reports from unrelated stories already share the folder. A
+        # folder-level read would close out a live story as already done.
+        self.assertPhraseIn("only a report whose `<story-slug>` segment names this story")
+        self.assertPhraseIn("a folder-level hit is not the signal")
+        self.assertPhraseIn('never read it as "already done."')
+
+    def test_the_story_slug_the_report_is_matched_against_has_a_source(self) -> None:
+        # A match rule with no readable left-hand side degrades the terminal
+        # routing row to "ask the human" in exactly the case /finish just ran.
+        # /finish's --slug is model-chosen, so name the two slugs the coach
+        # can actually read, and forbid rebuilding the date half.
+        self.assertPhraseIn(
+            "the segment after `--` in `epic/<epic>--<story>`) or from the work file's "
+            "slug with the epic prefix stripped"
+        )
+        self.assertPhraseIn("`/finish`'s `--slug` is model-chosen")
+        # Pins the two load-bearing tokens, not the sentence: the date half is
+        # spelled `YYYY-MM-DD` here to match `scripts/build-report` and
+        # `skills/finish/SKILL.md:224`, and rewording the rest must not fail.
+        self.assertPhraseIn("never reconstruct the `YYYY-MM-DD` half")
 
     def test_gate_verdicts_are_read_from_gate_ledger_when_readable(self) -> None:
         # The probe stays — whether the ledger is readable is a real question.
@@ -372,9 +517,12 @@ class TestCoachSkillBody(unittest.TestCase):
         # put on one store (#214). It must stay read-only in the same breath: the
         # four reads named, the three writes explicitly refused.
         self.assertPhraseIn(
-            "read-only, always: Read/Glob/Grep, `git log`, `git status`, `command -v`, "
-            "and `gate-ledger`'s four *read* verbs — `gate-get`, `status`, `work-list`, "
-            "`work-get`"
+            "read-only, always: Read/Glob/Grep, `git log`, `git status`, "
+            "`git rev-parse --abbrev-ref HEAD`"
+        )
+        self.assertPhraseIn(
+            "`command -v`, and `gate-ledger`'s four *read* verbs — `gate-get`, "
+            "`status`, `work-list`, `work-get`"
         )
         self.assertPhraseIn("Never `work-set`, never `work-log`, never `record`")
         self.assertPhraseIn("never writes or edits a file")

@@ -38,8 +38,7 @@ this feature's — an evidence table assembled, plausibly, off the wrong branch.
 For each task in `PLAN.md` (now fully status-flipped), read its `Done
 means` items and the evidence folder `/build`'s own `evidence-capture` call
 wrote for it. **Ask the script which folder that is — never rebuild the path
-from its shape**: the folder name now carries a branch slug, so a hand-rebuilt
-`docs/jig/evidence/<date>-<task>/` matches nothing.
+from its shape**: capture writes `docs/jig/evidence/<date>-<task>-<branch-slug>/`, so a path rebuilt to the pre-#258 shape `docs/jig/evidence/<date>-<task>/` matches nothing. <!-- evidence-grammar: counterexample -->
 
 ```
 scripts/evidence-capture resolve --repo <worktree> --branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" --task <task id>
