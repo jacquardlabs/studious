@@ -37,19 +37,29 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+from _evidence_grammar import derive_folder_grammar
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+EVIDENCE_ROOT = "docs/jig/evidence/"
 
 # A placeholder path opens with this; `<` is what makes it a *shape* a reader
 # would rebuild rather than a literal directory (`docs/jig/evidence/` alone, or
 # the `docs/jig/evidence/*/manifest.json` glob, name a real read and are fine).
-PLACEHOLDER_PREFIX = "docs/jig/evidence/<"
+PLACEHOLDER_PREFIX = EVIDENCE_ROOT + "<"
 
-# The one continuation `scripts/evidence-capture`'s `target_dir` writes:
-# `evidence_root / f"{date}-{task}-{branch_slug(branch)}"`, branch-slugged
-# since #258.
-REQUIRED_TAIL = "date>-<task>-<branch-slug>/"
+# Derived from `scripts/evidence-capture`'s own `target_dir`, never transcribed
+# -- see `_evidence_grammar.py` for why a hand copy here would inherit exactly
+# the drift this scan exists to catch.
+CURRENT_GRAMMAR = EVIDENCE_ROOT + derive_folder_grammar()
 
-CURRENT_GRAMMAR = PLACEHOLDER_PREFIX + REQUIRED_TAIL
+REQUIRED_TAIL = CURRENT_GRAMMAR[len(PLACEHOLDER_PREFIX) :]
+
+# A line carrying this may name a wrong shape on purpose -- a skill warning a
+# reader off the pre-#258 folder name has to be able to print it. Same shape as
+# `scripts/check_gate_independence.py`'s `REGION_OPEN` sentinel: a plain comment
+# marker, visible where it applies rather than listed in a config elsewhere.
+COUNTEREXAMPLE_SENTINEL = "evidence-grammar: counterexample"
 
 # The shape `evidence-capture` wrote before #258 -- kept only as a planted
 # violation for the guard-the-guard case below, never as the assertion itself.
@@ -72,13 +82,21 @@ def prompt_files() -> list[Path]:
 
 
 def wrong_shapes(text: str) -> list[str]:
-    """Every placeholder evidence path in `text` that is not the current grammar."""
+    """Every placeholder evidence path in `text` that is not the current grammar.
+
+    Scanned per line so `COUNTEREXAMPLE_SENTINEL` can exempt one. A placeholder
+    split across a newline is therefore not seen -- it would not be a path a
+    reader could copy either, so the line is the right unit.
+    """
     found = []
-    index = text.find(PLACEHOLDER_PREFIX)
-    while index != -1:
-        if not text.startswith(CURRENT_GRAMMAR, index):
-            found.append(text[index : index + SNIPPET])
-        index = text.find(PLACEHOLDER_PREFIX, index + 1)
+    for line in text.splitlines():
+        if COUNTEREXAMPLE_SENTINEL in line:
+            continue
+        index = line.find(PLACEHOLDER_PREFIX)
+        while index != -1:
+            if not line.startswith(CURRENT_GRAMMAR, index):
+                found.append(line[index : index + SNIPPET])
+            index = line.find(PLACEHOLDER_PREFIX, index + 1)
     return found
 
 
@@ -86,7 +104,9 @@ class TestEvidencePathGrammarOnPromptSurfaces(unittest.TestCase):
     def test_the_scan_covers_the_real_surfaces(self) -> None:
         """A wrong root or a typo'd glob would make the scan below vacuous."""
         files = prompt_files()
-        self.assertIn(REPO_ROOT / "skills" / "coach" / "SKILL.md", files)
+        # Deliberately not anchored on skills/coach/SKILL.md: that surface is
+        # slated for deprecation, and a liveness check keyed to a file being
+        # deleted fails the day it goes rather than the day the scan breaks.
         self.assertIn(REPO_ROOT / "skills" / "finish" / "SKILL.md", files)
         self.assertIn(REPO_ROOT / "commands" / "work-on.md", files)
         self.assertIn(REPO_ROOT / "reference" / "evidence-format.md", files)
@@ -98,13 +118,23 @@ class TestEvidencePathGrammarOnPromptSurfaces(unittest.TestCase):
         )
 
     def test_at_least_one_surface_names_the_grammar(self) -> None:
-        """Guards the scan against passing because nothing names a path at all."""
+        """Guards the scan against passing because nothing names a path at all.
+
+        Anchored on `skills/finish/SKILL.md`, not `skills/coach/SKILL.md`: the
+        coach is slated for deprecation, and pinning the liveness check to it
+        would force deleting this assertion at removal -- restoring exactly the
+        vacuity it exists to prevent.
+        """
         naming = [
             path.relative_to(REPO_ROOT)
             for path in prompt_files()
             if CURRENT_GRAMMAR in path.read_text(encoding="utf-8")
         ]
-        self.assertIn(Path("skills") / "coach" / "SKILL.md", naming)
+        self.assertIn(
+            Path("skills") / "finish" / "SKILL.md",
+            naming,
+            f"no durable surface names {CURRENT_GRAMMAR!r}; surfaces naming it: {naming}",
+        )
 
     def test_every_named_evidence_path_is_the_current_grammar(self) -> None:
         for path in prompt_files():
@@ -134,9 +164,32 @@ class TestEvidencePathGrammarOnPromptSurfaces(unittest.TestCase):
             f"the folders are named `{CURRENT_GRAMMAR}`",
             "Glob `docs/jig/evidence/*/manifest.json`, then Read each manifest",
             "no `docs/jig/evidence/` at all",
+            # A surface warning a reader off the old shape must be able to
+            # print it; without this the scan forces the warning to go vague,
+            # which is what happened to skills/finish/SKILL.md (#260 audit).
+            f"rebuilding `{PRE_258_GRAMMAR}` matches nothing. <!-- {COUNTEREXAMPLE_SENTINEL} -->",
         ):
             with self.subTest(clean=clean):
                 self.assertEqual([], wrong_shapes(clean))
+
+    def test_the_sentinel_exempts_only_its_own_line(self) -> None:
+        """A blanket file-level exemption would silently un-guard whole files."""
+        exempt, plain = (
+            f"`{PRE_258_GRAMMAR}` <!-- {COUNTEREXAMPLE_SENTINEL} -->",
+            f"and elsewhere `{PRE_258_GRAMMAR}` with no marker",
+        )
+        self.assertEqual([], wrong_shapes(exempt))
+        self.assertNotEqual([], wrong_shapes(f"{exempt}\n{plain}"))
+
+    def test_the_grammar_is_derived_from_the_writer_not_transcribed(self) -> None:
+        """Change `target_dir`'s shape and every pinned surface must follow."""
+        self.assertEqual("<date>-<task>-<branch-slug>/", derive_folder_grammar())
+        reordered = 'target_dir = evidence_root / f"{args.task}-{date}"'
+        self.assertEqual("<task>-<date>/", derive_folder_grammar(reordered))
+        with self.assertRaises(AssertionError):
+            derive_folder_grammar('target_dir = evidence_root / f"{args.renamed}"')
+        with self.assertRaises(AssertionError):
+            derive_folder_grammar("the writer was rewritten and names no target_dir")
 
 
 if __name__ == "__main__":
