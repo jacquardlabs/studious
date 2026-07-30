@@ -327,10 +327,24 @@ class TestCoachSkillBody(unittest.TestCase):
         # The declined-folder line above names a condition; without the first
         # pin, a reword can leave the reader at that condition with no way out
         # -- the defect /gate-acceptance filed against 30e932b. Without the
-        # second, the command reaches the human as a shape to fill in, and
-        # `<worktree>` is glossed nowhere in this file (#285).
+        # second, the command reaches the human as a shape to fill in.
         self.assertPhraseIn("print the `resolve` command below with it")
         self.assertPhraseIn("with `<worktree>` and `<N>` already substituted")
+        # And that second promise is only keepable if the skill may actually
+        # read a worktree path. It could not: Step 1 produced no such value and
+        # the permitted-tool list named only `--abbrev-ref HEAD`, so the pin
+        # above asserted a substitution nothing could perform -- inert exactly
+        # where it mattered (/gate-acceptance against 0e189fa).
+        #
+        # Two occurrences, pinned separately on purpose. A bare
+        # assertIn("`git rev-parse --show-toplevel`") passes on either one, so
+        # it would not notice the tool-list entry being dropped or typo'd --
+        # verified by mutation, which is how that near-miss was caught. Each
+        # phrase below is unique to its own site.
+        self.assertPhraseIn("| Worktree | `git rev-parse --show-toplevel` |")
+        self.assertPhraseIn(
+            "`git rev-parse --show-toplevel` (Step 1's worktree read, named there because"
+        )
 
     def test_the_two_empty_evidence_cases_stay_distinguishable(self) -> None:
         # #260's actual damage: "found nothing" and "captured nothing" read

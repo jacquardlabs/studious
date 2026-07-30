@@ -52,6 +52,7 @@ paraphrase:
 
 | Signal | Read from | Establishes |
 |---|---|---|
+| Worktree | `git rev-parse --show-toplevel` | The checkout you are reading — the value every `<worktree>` placeholder below takes, including the `--repo` of the escape-hatch command in the Evidence row. Read it once, here. `--repo` defaults to `.`, so a session whose own cwd is some other checkout would answer about that repository instead; `skills/finish/SKILL.md` spends a paragraph on the same hazard for the same flag. |
 | Design docs | `docs/design/*.md` (Glob) | Which stories have designs. A `## Revision History` heading means at least one viva round *finished* — not that it was approved. viva appends the same heading on a `REVISED` round, so this signal cannot tell a signed-off doc from a revised one (#198). Treat it as "a round happened," never as sign-off, and see the note below. |
 | Plan | `PLAN.md` at the repo root — a filesystem read, never `git ls-files` (a project that treats `/PLAN.md` as disposable scaffolding gitignores it, so an index read misses a real plan) | A plan exists; its `### Task N — <title>` blocks. |
 | Task statuses | Heading suffixes ` [PASS]` / ` [REPLAN]` / ` [ESCALATE]` — `scripts/status-flip`'s own `SUFFIX_RE` grammar, written only by that script, never the model | Which tasks closed, which paused or escalated. No suffix means not yet terminal (`todo` / `in-progress`). |
@@ -210,7 +211,10 @@ after `BUILT`."
 The coach's tool use is read-only, always: Read/Glob/Grep, `git log`,
 `git status`, `git rev-parse --abbrev-ref HEAD` (Step 1's branch read, named
 there because it is the command the manifests were stamped with),
-`command -v`, and `gate-ledger`'s four *read* verbs —
+`git rev-parse --show-toplevel` (Step 1's worktree read, named there because
+the escape-hatch command it feeds takes `--repo` and must not be handed over
+with the placeholder unresolved), `command -v`, and `gate-ledger`'s four
+*read* verbs —
 `gate-get`, `status`, `work-list`, `work-get`. Never `work-set`, never
 `work-log`, never `record`: sharing `/work-on`'s store means reading it, not
 writing it, and a coach that corrected the work file would be doing the work
