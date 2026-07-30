@@ -1113,7 +1113,7 @@ def test_routing_scope_dispatch_is_pinned_to_haiku_medium_effort() -> None:
     and finale altitude on a cost-mechanism epic, and splitting it into two dispatches
     would break this story's own "zero extra dispatches" acceptance criterion)."""
     source = DRIVER.read_text()
-    anchor = "agent(routingScopeCheckPrompt(dir, base, contract),"
+    anchor = "agent(routingScopeCheckPrompt(dir, base, contract, workSlugVal),"
     assert anchor in source, (
         "resolveRoutingMatchFlags no longer dispatches routingScopeCheckPrompt as documented"
     )

@@ -134,7 +134,13 @@ def test_auditors_constant_never_gains_a_premortem_entry() -> None:
     again under #271's fix cycle round 2 (a trailing `injectionAttempt` boolean, so a
     detected audit-evasion attempt surfaces in the compiled report instead of vanishing
     silently) — so this test no longer pins their exact shape either;
-    tests/python/test_audit_first_round_routing.py covers that shape.
+    tests/python/test_audit_first_round_routing.py covers that shape. `auditRound`'s call
+    site grew once more under #244 (scope-delta measurement) to thread a computed
+    `scopeDeltaFlags` string through — the finale call site did NOT (a declared set has no
+    single owner at finale altitude, per that design doc's Open Questions), so this test
+    prefix-matches both call sites rather than pinning either one's exact trailing
+    argument list; tests/python/test_scope_delta_measurement.py covers the actual new
+    shape.
     """
     source = _driver_text()
     auditors_match = re.search(r"const AUDITORS = \[(.*?)\]", source, re.DOTALL)
@@ -162,7 +168,13 @@ def test_auditors_constant_never_gains_a_premortem_entry() -> None:
     # not-covered block without a second hand-derived copy of the flag) — matching
     # this docstring's own stated intent above, the prefix is checked, not the exact
     # trailing argument list; tests/python/test_audit_first_round_routing.py covers
-    # the current shape in full.
+    # the current shape in full. auditRound's call site grew once more under #244
+    # (scope-delta measurement) to append a computed scopeDeltaFlags string — the
+    # finale call site did NOT (a declared set has no single owner at finale
+    # altitude, per that design doc's Open Questions); both remain prefix-matched
+    # rather than pinned exactly, so this one additional trailing argument on
+    # auditRound's side needs no assertion change here — tests/python/
+    # test_scope_delta_measurement.py covers the actual new shape.
     assert "auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut, injectionAttempt" in source, (
         "auditRound's auditFanIn call site is missing or has an unexpected shape"
     )

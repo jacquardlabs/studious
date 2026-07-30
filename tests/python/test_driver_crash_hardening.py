@@ -46,6 +46,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -322,7 +323,19 @@ __driver({json.dumps(args)}, agent, parallel, log, phase)
   .then(r => {{ console.log(JSON.stringify({{ ok: true, result: r, calls: CALLS }})) }})
   .catch(err => {{ console.log(JSON.stringify({{ ok: false, error: String((err && err.stack) || err), calls: CALLS }})) }})
 """
-    proc = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=60)
+    # Written to a file rather than passed via `node -e <script>`: the embedded
+    # driver source plus mock scaffolding routinely exceeds Linux's per-argument
+    # exec() limit (MAX_ARG_STRLEN, 128 KiB) well before macOS's much larger one —
+    # a `node -e` invocation that runs fine locally can still fail as "Argument
+    # list too long" on Linux CI runners once the driver file itself grows past
+    # that threshold, as opposed to any actual behavioral difference.
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".js", delete=False) as f:
+        f.write(script)
+        script_path = f.name
+    try:
+        proc = subprocess.run(["node", script_path], capture_output=True, text=True, timeout=60)
+    finally:
+        Path(script_path).unlink(missing_ok=True)
     assert proc.returncode == 0, f"node driver probe crashed outright: {proc.stderr}\nSTDOUT: {proc.stdout}"
     return json.loads(proc.stdout)
 

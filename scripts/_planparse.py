@@ -33,6 +33,13 @@ TASK_HEADING_RE = re.compile(r"^### Task (\d+)\b.*$", re.MULTILINE)
 # (e.g. a closing `## Not-here follow-ups`), either one ends a task block.
 HEADING_LEVEL_1_TO_3_RE = re.compile(r"^(#{1,3})[ \t]", re.MULTILINE)
 
+# The heading's title half, and the suffix `status-flip` writes onto it.
+# Both moved here from `plan-lint` (#206) rather than left there: the
+# load-bearing derivation needs titles on two surfaces, and a second copy is
+# exactly how the task-heading grammar diverged in the first place.
+TASK_HEADING_TITLE_RE = re.compile(r"^### Task \d+(?:\s*—\s*(.*))?$", re.MULTILINE)
+STATUS_FLIP_SUFFIX_RE = re.compile(r"\s*\[(?:PASS|REPLAN|ESCALATE)\]\s*$")
+
 ITEM_RE = re.compile(
     r"^[ \t]*(\d+)\.[ \t]*\[(cap|hold)\][ \t]*(.*?)[ \t]*(?:\(tier:[ \t]*([^)]*)\))?[ \t]*$",
     re.MULTILINE,
@@ -65,6 +72,35 @@ def split_tasks(text: str, boundary_re: re.Pattern[str] | None = None) -> list[t
         end = next((b for b in boundary_starts if b > start), len(text))
         tasks.append((m.group(1), text[start:end]))
     return tasks
+
+
+def task_title(block: str) -> str:
+    """The task's own heading title (after the em-dash), with any status-flip
+    suffix stripped -- "" if the heading carries no title at all (a bare
+    `### Task N`)."""
+    first_line = block.splitlines()[0] if block else ""
+    m = TASK_HEADING_TITLE_RE.match(first_line)
+    if not m or not m.group(1):
+        return ""
+    return STATUS_FLIP_SUFFIX_RE.sub("", m.group(1)).strip()
+
+
+def split_tasks_with_titles(
+    text: str, boundary_re: re.Pattern[str] | None = None
+) -> list[tuple[str, str, str]]:
+    """`split_tasks`, plus each block's heading title: (number, title, block).
+
+    Exists so every surface deriving the load-bearing set reads the same task
+    boundaries and the same titles (#206). `scripts/plan-lint` and the
+    test-side reference in `tests/jig/_load_bearing.py` previously each carried
+    their own heading regex, and disagreed on three inputs: a non-numeric label
+    (`Task 2a`), a hyphen where the em-dash belongs, and -- worst -- a trailing
+    coarser-level section, which the reference absorbed into the last task's
+    block. That last one is the naive-parser bug `skills/build/SKILL.md` Step
+    1.4 explicitly warns about, reproduced by the very module written to
+    demonstrate the rule.
+    """
+    return [(num, task_title(block), block) for num, block in split_tasks(text, boundary_re)]
 
 
 def parse_items(block: str) -> list[Item]:

@@ -393,6 +393,26 @@ check "criteria update leaves decisions intact" "surface: REST not GraphQL; gues
 # --- a story with no answered forks carries no decisions key at all ---
 check "decisions absent when never set" "null" "$(jq -r '.stories["checkout-ui"].decisions // "null"' "$ef15")"
 
+# --- carried-findings: a diagnosis carried forward from a prior gate round,
+# stored distinctly from decisions (issue #245) ---
+( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug cart-api \
+    --carried-findings "round-2 walkthrough: missing null check on cart.items, file:line" )
+check "story stores carried-findings" "round-2 walkthrough: missing null check on cart.items, file:line" \
+  "$(jq -r '.stories["cart-api"].carriedFindings' "$ef15")"
+check "carried-findings do not disturb decisions" "surface: REST not GraphQL; guest carts: out of scope" \
+  "$(jq -r '.stories["cart-api"].decisions' "$ef15")"
+check "carried-findings do not disturb criteria" "POST /cart returns 201 and a Location header" \
+  "$(jq -r '.stories["cart-api"].criteria' "$ef15")"
+
+# --- a later decisions-only write must not clobber carried-findings (separate fields) ---
+( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug cart-api \
+    --decisions "surface: REST not GraphQL; guest carts: out of scope" )
+check "decisions update leaves carried-findings intact" "round-2 walkthrough: missing null check on cart.items, file:line" \
+  "$(jq -r '.stories["cart-api"].carriedFindings' "$ef15")"
+
+# --- a story with no carried findings carries no carriedFindings key at all ---
+check "carried-findings absent when never set" "null" "$(jq -r '.stories["checkout-ui"].carriedFindings // "null"' "$ef15")"
+
 # --- story upsert: status/reason land, earlier fields survive ---
 ( cd "$d15" && "$LEDGER" epic-story-set --epic checkout-revamp --slug cart-api \
     --status parked --reason "audit: NEEDS DISCUSSION - auth model unclear" )
@@ -1198,6 +1218,126 @@ check "a gate step's outcome stays free-form" "0" "$?"
 ( cd "$d37" && "$LEDGER" work-log --slug enum-work --step run-boundary --outcome DISPATCHED ) >/dev/null 2>&1
 check "a non-build marker step's outcome stays free-form" "0" "$?"
 
+# --- scope-delta measurement (#244): --declared-files on work-set ---
+d40=$(sandbox)
+( cd "$d40" && "$LEDGER" work-set --slug sd-story --design-doc "notes/sd-story.md" --declared-files "a.py, b.py ,a.py" )
+wf40="$d40/.studious/work/sd-story.json"
+check "declared-files stored as a trimmed, deduped JSON array" '["a.py","b.py"]' "$(jq -c '.declaredFiles' "$wf40")"
+check "designDoc is untouched by the new flag" "notes/sd-story.md" "$(jq -r '.designDoc' "$wf40")"
+
+d41=$(sandbox)
+( cd "$d41" && "$LEDGER" work-set --slug sd-empty --declared-files "" )
+check "an explicit empty --declared-files records a real zero-file declaration, not absence" \
+  '[]' "$(jq -c '.declaredFiles' "$d41/.studious/work/sd-empty.json")"
+
+d42=$(sandbox)
+( cd "$d42" && "$LEDGER" work-set --slug sd-none --title "no declaration" )
+check "a story that never declares has no declaredFiles field at all (distinct from [])" \
+  "null" "$(jq -c '.declaredFiles' "$d42/.studious/work/sd-none.json")"
+
+# --- scope-delta measurement (#244): work-log --scope-delta-* / --amend-* ---
+d43=$(sandbox)
+( cd "$d43" && "$LEDGER" work-log --slug sd-moments --step audit --outcome PASS --scope-delta-phase build --scope-delta-files "x.py,y.py" )
+wf43="$d43/.studious/work/sd-moments.json"
+check "--outcome vocabulary is untouched by the new flags (history still records the step)" \
+  "PASS" "$(jq -r '.history[0].outcome' "$wf43")"
+check "the step never carries the scope-delta value (own field, not the outcome token)" \
+  '["x.py","y.py"]' "$(jq -c '.scopeDelta[0].outsideFiles' "$wf43")"
+check "a measured moment records unmeasured: false" "false" "$(jq -c '.scopeDelta[0].unmeasured' "$wf43")"
+
+( cd "$d43" && "$LEDGER" work-log --slug sd-moments --scope-delta-phase audit-fix-1 --scope-delta-unmeasured )
+check "--scope-delta-unmeasured records unmeasured: true with an empty file list, never absence" \
+  '{"unmeasured":true,"outsideFiles":[]}' \
+  "$(jq -c '.scopeDelta[1] | {unmeasured, outsideFiles}' "$wf43")"
+check "a scope-delta-only call (no --step) writes no new history entry" \
+  "1" "$(jq '.history | length' "$wf43")"
+
+( cd "$d43" && "$LEDGER" work-log --slug sd-moments --scope-delta-phase build --amend-file "x.py" --amend-reason "shared parsing with verify" )
+check "an amendment is stored, keyed by file and phase, with its own reason" \
+  '{"file":"x.py","phase":"build","reason":"shared parsing with verify"}' \
+  "$(jq -c '.amendments[0] | {file, phase, reason}' "$wf43")"
+check "an amendment never touches the outsideFiles it annotates (total unaffected)" \
+  '["x.py","y.py"]' "$(jq -c '.scopeDelta[0].outsideFiles' "$wf43")"
+check "an amendment appends no scopeDelta entry of its own (still exactly 2 moments)" \
+  "2" "$(jq '.scopeDelta | length' "$wf43")"
+
+# --- work-log: --step/--outcome combined with --step build's closed vocabulary,
+# alongside the new scope-delta flags in the SAME call — pre-mortem risk #4's own
+# detection hint (the outcome vocabulary check must never see, or be bypassed by,
+# a scope-delta value riding on the same call). ---
+d44=$(sandbox)
+( cd "$d44" && "$LEDGER" work-log --slug sd-build --step build --outcome BUILT \
+    --scope-delta-phase build --scope-delta-files "z.py" --amend-file "z.py" --amend-reason "unforeseen shared module" ) >/dev/null 2>&1
+rc44=$?
+check "--step build --outcome BUILT succeeds alongside scope-delta/amend flags" "0" "$rc44"
+wf44="$d44/.studious/work/sd-build.json"
+check "the build outcome itself is still exactly BUILT" "BUILT" "$(jq -r '.history[0].outcome' "$wf44")"
+check "the scope-delta write landed in the same call" '["z.py"]' "$(jq -c '.scopeDelta[0].outsideFiles' "$wf44")"
+check "the amendment write landed in the same call" "z.py" "$(jq -r '.amendments[0].file' "$wf44")"
+
+# --- amendment as a standalone call (scope-delta-phase + amend-file/reason, no
+# --step/--outcome) should append to .amendments and not touch .history ---
+( cd "$d44" && "$LEDGER" work-log --slug sd-build --scope-delta-phase build \
+    --amend-file "unexpected.py" --amend-reason "discovered during verify stage" ) >/dev/null 2>&1
+rc44_amend=$?
+check "amendment as a standalone call succeeds" "0" "$rc44_amend"
+check "standalone amendment appends a second amendment entry" "2" "$(jq '.amendments | length' "$wf44")"
+check "standalone amendment does not add a history entry" "1" "$(jq '.history | length' "$wf44")"
+check "standalone amendment file is recorded" "unexpected.py" "$(jq -r '.amendments[1].file' "$wf44")"
+
+# --- multiple amendments in sequence (one per file, as the instruction prescribes) ---
+( cd "$d44" && "$LEDGER" work-log --slug sd-build --scope-delta-phase build \
+    --amend-file "other.py" --amend-reason "another unforeseen module" ) >/dev/null 2>&1
+check "second amendment also succeeds" "0" "$?"
+check "total amendments now reach three" "3" "$(jq '.amendments | length' "$wf44")"
+check "history still has only one entry (no amendment duplication)" "1" "$(jq '.history | length' "$wf44")"
+
+( cd "$d44" && "$LEDGER" work-log --slug sd-build --step build --outcome BOGUS \
+    --scope-delta-phase build --scope-delta-files "z.py" ) >/dev/null 2>&1
+rc44b=$?
+check "the build outcome vocabulary check still rejects an unrecognized token even with scope-delta flags present" "2" "$rc44b"
+check "the rejected call appended no second scope-delta entry" "1" "$(jq '.scopeDelta | length' "$wf44")"
+
+# --- work-log: validation of the new flags ---
+d45=$(sandbox)
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid --scope-delta-phase build --scope-delta-files "a.py" --scope-delta-unmeasured ) >/dev/null 2>&1
+check "--scope-delta-files and --scope-delta-unmeasured are mutually exclusive" "2" "$?"
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid --scope-delta-files "a.py" ) >/dev/null 2>&1
+check "--scope-delta-files without --scope-delta-phase is rejected" "2" "$?"
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid --scope-delta-phase build --amend-file "a.py" ) >/dev/null 2>&1
+check "--amend-file without --amend-reason is rejected" "2" "$?"
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid --amend-reason "why" ) >/dev/null 2>&1
+check "--amend-reason without --amend-file is rejected" "2" "$?"
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid --step build ) >/dev/null 2>&1
+check "--step without --outcome is rejected" "2" "$?"
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid ) >/dev/null 2>&1
+check "a work-log call with nothing to record at all is rejected" "2" "$?"
+
+# --- work-log: --scope-delta-reason (fix-and-retry finding 3, #244) ---
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid --scope-delta-phase build \
+    --scope-delta-files "a.py" --scope-delta-reason dispatch-failed ) >/dev/null 2>&1
+check "--scope-delta-reason without --scope-delta-unmeasured is rejected" "2" "$?"
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid --scope-delta-phase build \
+    --scope-delta-reason dispatch-failed ) >/dev/null 2>&1
+check "--scope-delta-reason alone (no --scope-delta-unmeasured) is rejected" "2" "$?"
+( cd "$d45" && "$LEDGER" work-log --slug sd-invalid --scope-delta-phase build \
+    --scope-delta-unmeasured --scope-delta-reason bogus-reason ) >/dev/null 2>&1
+check "--scope-delta-reason rejects a token outside the closed vocabulary" "2" "$?"
+
+d45r=$(sandbox)
+( cd "$d45r" && "$LEDGER" work-log --slug sd-reason --scope-delta-phase build \
+    --scope-delta-unmeasured --scope-delta-reason dispatch-failed ) >/dev/null 2>&1
+wf45r="$d45r/.studious/work/sd-reason.json"
+check "--scope-delta-reason records on the unmeasured entry" "dispatch-failed" \
+  "$(jq -r '.scopeDelta[0].reason' "$wf45r")"
+
+d45u=$(sandbox)
+( cd "$d45u" && "$LEDGER" work-log --slug sd-no-reason --scope-delta-phase build \
+    --scope-delta-unmeasured ) >/dev/null 2>&1
+wf45u="$d45u/.studious/work/sd-no-reason.json"
+check "an unmeasured entry with no --scope-delta-reason given carries no reason key" "absent" \
+  "$(jq -r '.scopeDelta[0].reason // "absent"' "$wf45u")"
+
 # --- gc collects finished flow state, not only branch-orphaned state (#237) ---
 # The epic path deliberately keeps a story's branch after landing it, so the
 # branch-gone rule alone could never fire: 34 of 35 work files sat pinned at phase
@@ -1221,6 +1361,121 @@ check "gc keeps a branchless non-terminal work file" "yes" \
   "$([ -f "$d38/.studious/work/fresh-feature.json" ] && echo yes || echo no)"
 check "gc names the phase it collected on" "yes" \
   "$(printf '%s' "$out38" | grep -q 'removed finished work file.*phase done' && echo yes || echo no)"
+
+# --- gc keeps, rather than collects, a finished work file with a measured
+# scope-delta cohort (#244, pre-mortem register item 7): the work file is the
+# only copy of declaredFiles/scopeDelta/amendments, so an unconditional
+# collect discards a story's measurement cohort for good. ---
+d46=$(sandbox)
+( cd "$d46" && "$LEDGER" work-set --slug sd-done --title "finished with scope-delta" --phase "done" ) >/dev/null 2>&1
+( cd "$d46" && "$LEDGER" work-log --slug sd-done --scope-delta-phase build --scope-delta-files "a.py" ) >/dev/null 2>&1
+wf46="$d46/.studious/work/sd-done.json"
+
+out46=$( cd "$d46" && "$LEDGER" gc 2>&1 )
+check "gc keeps a finished work file with a measured scope-delta cohort" "yes" \
+  "$([ -f "$wf46" ] && echo yes || echo no)"
+check "gc names the kept file and its scope-delta moment count" "yes" \
+  "$(printf '%s' "$out46" | grep -q 'kept: sd-done still holds 1 measured scope-delta moment' && echo yes || echo no)"
+
+# --- Acceptance round 9 (fix-and-retry): the "kept:" message's day-count must
+# be driven by SCOPE_DELTA_RETENTION_DAYS, not a hardcoded literal — round 7's
+# fix for the "reads as a clock starting now" finding regressed this by
+# hardcoding "14" in the message text instead of interpolating the constant
+# it had replaced. Fix-and-retry finding 2 (#244 round 9) scoped the guard to
+# the terminal-phase path only, so there is exactly one kept: site left. ---
+check "the kept: message site interpolates SCOPE_DELTA_RETENTION_DAYS rather than hardcoding its value" "1" \
+  "$(grep -c 'collects it %s days after its last write' "$LEDGER")"
+check "the kept: message site does not hardcode a bare day count" "0" \
+  "$(grep -c 'collects it 14 days after its last write' "$LEDGER")"
+
+# --- Fix-and-retry finding 4 (#244 round 9): the kept: message names the read
+# verb the retention exists for, not only the two ways to destroy it. ---
+check "the kept: message names gate-ledger work-get as the read verb" "yes" \
+  "$(printf '%s' "$out46" | grep -q 'gate-ledger work-get --slug "sd-done" to read it' && echo yes || echo no)"
+
+out46f=$( cd "$d46" && "$LEDGER" gc --force 2>&1 )
+check "gc --force collects it anyway" "no" \
+  "$([ -f "$wf46" ] && echo yes || echo no)"
+# Fix-and-retry finding 1: the destroying path used to print only the generic
+# "removed finished work file:" line, with no hint anything measured was lost
+# — unlike the keeping path's own "kept: ... still holds N measured
+# scope-delta moment(s)" message just above. --force must name what it threw
+# away.
+check "gc --force names the measured scope-delta moment(s) it discarded" "yes" \
+  "$(printf '%s' "$out46f" | grep -q 'removed finished work file: sd-done.json (phase done, --force discarded 1 measured scope-delta moment(s))' && echo yes || echo no)"
+
+# --- Fix-and-retry finding 2 (#244 round 9): the measured-scope-delta guard
+# applies to the terminal-phase rule only — a parked, non-terminal-phase story
+# whose branch the user deleted never reached acceptance, so its cohort is
+# incomplete by construction and gets no keep. Plain gc (no --force) collects
+# it outright, same as before #244 ever touched this path — this is the
+# regression pin for the option chosen over widening the guard to both rules. ---
+d46b=$(sandbox)
+git -C "$d46b" branch "epic/gone-branch" >/dev/null 2>&1
+( cd "$d46b" && "$LEDGER" work-set --slug sd-branch-gone --title "branch gone, measured, still in flight" --branch "epic/gone-branch" ) >/dev/null 2>&1
+( cd "$d46b" && "$LEDGER" work-log --slug sd-branch-gone --scope-delta-phase build --scope-delta-files "a.py" ) >/dev/null 2>&1
+wf46b="$d46b/.studious/work/sd-branch-gone.json"
+git -C "$d46b" branch -D "epic/gone-branch" >/dev/null 2>&1
+out46b=$( cd "$d46b" && "$LEDGER" gc 2>&1 )
+check "plain gc collects a branch-gone, non-terminal-phase work file outright, even with a measured scope-delta cohort" "no" \
+  "$([ -f "$wf46b" ] && echo yes || echo no)"
+check "gc names the branch-gone collection with the plain, unguarded message" "yes" \
+  "$(printf '%s' "$out46b" | grep -q 'removed stale work file: sd-branch-gone.json (branch epic/gone-branch no longer exists)' && echo yes || echo no)"
+check "the branch-gone path names nothing about scope-delta — the guard never armed there" "no" \
+  "$(printf '%s' "$out46b" | grep -q 'scope-delta' && echo yes || echo no)"
+
+d47=$(sandbox)
+( cd "$d47" && "$LEDGER" work-set --slug sd-done-clean --title "finished, no scope-delta" --phase "done" ) >/dev/null 2>&1
+wf47="$d47/.studious/work/sd-done-clean.json"
+( cd "$d47" && "$LEDGER" gc ) >/dev/null 2>&1
+check "gc still collects a finished work file with no scope-delta data at all, force or not" "no" \
+  "$([ -f "$wf47" ] && echo yes || echo no)"
+
+# --- gc's guard only arms on a MEASURED scope-delta entry (fix-and-retry finding
+# 2): a scope check that dies or can't resolve a diff on the script path writes
+# --scope-delta-unmeasured (`computeScopeDelta`'s dead-end path, workflows/
+# epic-driver.js) — the fallback driver (commands/work-through.md) writes no
+# scope-delta entries at all — so a work file whose cohort is only that must
+# not be pinned by a cohort it never actually measured. ---
+d46u=$(sandbox)
+( cd "$d46u" && "$LEDGER" work-set --slug sd-unmeasured-only --title "died scope check, never measured" --phase "done" ) >/dev/null 2>&1
+( cd "$d46u" && "$LEDGER" work-log --slug sd-unmeasured-only --scope-delta-phase audit --scope-delta-unmeasured ) >/dev/null 2>&1
+wf46u="$d46u/.studious/work/sd-unmeasured-only.json"
+( cd "$d46u" && "$LEDGER" gc ) >/dev/null 2>&1
+check "gc collects (never keeps) a work file whose scope-delta is entirely unmeasured" "no" \
+  "$([ -f "$wf46u" ] && echo yes || echo no)"
+
+# A mixed cohort (one measured entry, one unmeasured) still arms the guard on
+# the measured entry alone — the narrowing only excuses an ALL-unmeasured file.
+d46m=$(sandbox)
+( cd "$d46m" && "$LEDGER" work-set --slug sd-mixed --title "one measured, one not" --phase "done" ) >/dev/null 2>&1
+( cd "$d46m" && "$LEDGER" work-log --slug sd-mixed --scope-delta-phase build --scope-delta-files "a.py" ) >/dev/null 2>&1
+( cd "$d46m" && "$LEDGER" work-log --slug sd-mixed --scope-delta-phase audit-fix-1 --scope-delta-unmeasured ) >/dev/null 2>&1
+wf46m="$d46m/.studious/work/sd-mixed.json"
+( cd "$d46m" && "$LEDGER" gc ) >/dev/null 2>&1
+check "gc still keeps a work file with at least one measured entry, even alongside an unmeasured one" "yes" \
+  "$([ -f "$wf46m" ] && echo yes || echo no)"
+
+# --- gc's keep is bounded by SCOPE_DELTA_RETENTION_DAYS (fix-and-retry finding
+# 1, BLOCKER): the guard's first cut had no terminating condition, so a batch gc
+# never released a landed epic story's work file back to the default (no-`--force`)
+# path at all. A work file whose last write is older than the retention window
+# collects on the next plain `gc`, no `--force` needed. ---
+d46r=$(sandbox)
+( cd "$d46r" && "$LEDGER" work-set --slug sd-stale --title "past its keep window" --phase "done" ) >/dev/null 2>&1
+( cd "$d46r" && "$LEDGER" work-log --slug sd-stale --scope-delta-phase build --scope-delta-files "a.py" ) >/dev/null 2>&1
+wf46r="$d46r/.studious/work/sd-stale.json"
+# A fixed, far-past timestamp — not `date` arithmetic — keeps this
+# deterministic and portable across the BSD/GNU `date` divide (no precedent
+# for `date -d`/`date -j` elsewhere in this suite) without depending on
+# whichever OS runs it.
+tmp46r=$(mktemp)
+jq '.updatedAt = "2020-01-01T00:00:00Z"' "$wf46r" > "$tmp46r" && mv "$tmp46r" "$wf46r"
+out46r=$( cd "$d46r" && "$LEDGER" gc 2>&1 )
+check "gc collects (no --force) a work file whose measured scope-delta cohort is past its retention window" "no" \
+  "$([ -f "$wf46r" ] && echo yes || echo no)"
+check "gc names the retention-window collection distinctly from an ordinary finished-file collection" "yes" \
+  "$(printf '%s' "$out46r" | grep -q 'removed work file past its 14-day scope-delta keep window: sd-stale.json' && echo yes || echo no)"
 
 # --- gc collects epic state only once the epic actually shipped ---
 # `ready` is the driver's finale status and means "ready for you to PR" — the
