@@ -238,7 +238,15 @@ class TestCoachSkillBody(unittest.TestCase):
         )
 
     def test_evidence_and_report_folders_are_named(self) -> None:
-        self.assertIn("docs/jig/evidence/", self.body)
+        # studious #260: the row named the pre-#258 grammar, so every lookup
+        # missed silently. Pin the full grammar `scripts/evidence-capture`
+        # writes (its `target_dir`), not just the root -- the loose form
+        # passed both before and after the fix.
+        self.assertIn("docs/jig/evidence/<date>-<task>-<branch-slug>/", self.body)
+        self.assertNotIn("docs/jig/evidence/<date>-<task>/", self.body)
+        # The reports half stays the bare directory: `scripts/build-report`
+        # writes `<date>-<slug>-build-report.md` under it, and the coach reads
+        # the folder to answer "did /finish already run", not one filename.
         self.assertIn("docs/jig/reports/", self.body)
 
     def test_gate_verdicts_are_read_from_gate_ledger_when_readable(self) -> None:
