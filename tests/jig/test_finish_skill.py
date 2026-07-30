@@ -301,17 +301,16 @@ class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
         )
 
     def test_the_evidence_folder_is_resolved_by_the_script_not_rebuilt(self) -> None:
+        """No assertion here forbids the pre-#258 shape on purpose.
+
+        `tests/jig/test_evidence_path_grammar.py` holds that over every tree in
+        its own `SURFACES`, with a planted-violation control; its docstring
+        carries why a per-file `assertNotIn` could not (#260 acceptance).
+        """
         self.assertIn("evidence-capture resolve --repo <worktree> --branch", self.body)
         self.assertPhraseIn("never rebuild the path from its shape")
         # The image-evidence URL is built from the folder the verb printed.
         self.assertPhraseIn("`<the folder resolve printed>/<label>.<ext>`, that path verbatim")
-        # That the shape it replaces stays gone is enforced repo-wide, over
-        # skills/ + commands/ at once, by tests/jig/test_evidence_path_grammar.py.
-        # An assertNotIn lived here and quoted a phrase this file never
-        # contained ("wrote for it: ..." against a body reading "a hand-rebuilt
-        # ... matches nothing"), so it passed before and after the change it was
-        # written to guard (#260 acceptance). A scan with a planted-string
-        # control cannot be defeated by a paraphrase the same way.
 
     def test_the_branch_argument_names_the_command_that_produces_it(self) -> None:
         # The writer stamps the manifest with `rev-parse --abbrev-ref HEAD`

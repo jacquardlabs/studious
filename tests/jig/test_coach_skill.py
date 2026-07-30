@@ -246,8 +246,11 @@ class TestCoachSkillBody(unittest.TestCase):
         self.assertNotIn("docs/jig/evidence/<date>-<task>/", self.body)
         # The reports half names the whole filename `scripts/build-report`
         # writes, not the bare folder: reports accumulate across stories, so a
-        # folder-level hit says nothing about *this* story (see below).
-        self.assertIn("docs/jig/reports/<date>-<story-slug>-build-report.md", self.body)
+        # folder-level hit says nothing about *this* story (see below). The
+        # `YYYY-MM-DD` placeholder is the spelling `scripts/build-report`'s own
+        # docstring and `skills/finish/SKILL.md:224` already use -- one grammar,
+        # spelled one way, or this row becomes the drift #260 was.
+        self.assertIn("docs/jig/reports/YYYY-MM-DD-<story-slug>-build-report.md", self.body)
 
     def test_evidence_is_read_from_the_manifest_never_a_rebuilt_folder_name(self) -> None:
         # The naming grammar alone is a shape to reconstruct, and two of its
@@ -356,9 +359,10 @@ class TestCoachSkillBody(unittest.TestCase):
             "slug with the epic prefix stripped"
         )
         self.assertPhraseIn("`/finish`'s `--slug` is model-chosen")
-        self.assertPhraseIn(
-            "Match that segment inside the filename and never reconstruct `<date>`"
-        )
+        # Pins the two load-bearing tokens, not the sentence: the date half is
+        # spelled `YYYY-MM-DD` here to match `scripts/build-report` and
+        # `skills/finish/SKILL.md:224`, and rewording the rest must not fail.
+        self.assertPhraseIn("never reconstruct the `YYYY-MM-DD` half")
 
     def test_gate_verdicts_are_read_from_gate_ledger_when_readable(self) -> None:
         # The probe stays — whether the ledger is readable is a real question.

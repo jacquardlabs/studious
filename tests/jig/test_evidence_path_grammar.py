@@ -3,10 +3,12 @@
 studious #260 was one table row in `skills/coach/SKILL.md` naming
 `docs/jig/evidence/<date>-<task>/` -- the shape `scripts/evidence-capture`
 stopped writing when #258 put a branch slug in its `target_dir`. That row's
-own fix is pinned in `test_coach_skill.py`, but the invariant is repo-wide:
-any skill or command naming a folder shape capture does not write sends a
+own fix is pinned in `test_coach_skill.py`, but the invariant is not: any
+model-facing surface naming a folder shape capture does not write sends a
 reader to a folder that cannot exist, and the failure is silent, because "no
-folder found" reads exactly like "no evidence captured."
+folder found" reads exactly like "no evidence captured." `SURFACES` below
+names exactly which trees this scan holds that over, and why `agents/` is not
+one of them.
 
 Asserted as a *positive* form, not as the absence of one literal. An earlier
 draft of this module pinned the single string `docs/jig/evidence/<date>-<task>/`
@@ -22,9 +24,9 @@ carried an `assertNotIn` meant to hold this line for `skills/finish/SKILL.md`
 and quoted a phrase that file never contained ("wrote for it: `docs/jig/
 evidence/<date>-<task>/`" against a body reading "a hand-rebuilt ... matches
 nothing"), so it passed before and after the change it was written to guard.
-One scan over every prompt surface cannot be defeated by a paraphrase, and
-per `test_gate_handoffs.py`'s guard-the-guard convention it proves it fires
-on a planted violation rather than trusting that it would.
+One scan over every surface in `SURFACES` cannot be defeated by a paraphrase,
+and per `test_gate_handoffs.py`'s guard-the-guard convention it proves it
+fires on a planted violation rather than trusting that it would.
 
 Standard library only. Run with:
 
@@ -53,8 +55,12 @@ CURRENT_GRAMMAR = PLACEHOLDER_PREFIX + REQUIRED_TAIL
 # violation for the guard-the-guard case below, never as the assertion itself.
 PRE_258_GRAMMAR = "docs/jig/evidence/<date>-<task>/"
 
-# Every model-facing prompt surface that could send a reader to a folder path.
-SURFACES = ("skills", "commands")
+# Every model-facing surface that could send a reader to a folder path and is not
+# already guarded elsewhere. `agents/` is deliberately absent, not overlooked:
+# `scripts/check_gate_independence.py`'s `ARTIFACTS` regex forbids `docs/jig/evidence`
+# under `agents/*.md` outright, so a stale grammar there fails CI before this scan
+# would see it -- and adding it here would assert a weaker rule over the same files.
+SURFACES = ("skills", "commands", "reference")
 
 # How much of a violation to quote back, so a failure names the wrong shape
 # rather than only its offset.
@@ -67,12 +73,13 @@ def prompt_files() -> list[Path]:
 
 def wrong_shapes(text: str) -> list[str]:
     """Every placeholder evidence path in `text` that is not the current grammar."""
-    return [
-        text[index : index + SNIPPET]
-        for index in range(len(text))
-        if text.startswith(PLACEHOLDER_PREFIX, index)
-        and not text.startswith(CURRENT_GRAMMAR, index)
-    ]
+    found = []
+    index = text.find(PLACEHOLDER_PREFIX)
+    while index != -1:
+        if not text.startswith(CURRENT_GRAMMAR, index):
+            found.append(text[index : index + SNIPPET])
+        index = text.find(PLACEHOLDER_PREFIX, index + 1)
+    return found
 
 
 class TestEvidencePathGrammarOnPromptSurfaces(unittest.TestCase):
@@ -82,6 +89,7 @@ class TestEvidencePathGrammarOnPromptSurfaces(unittest.TestCase):
         self.assertIn(REPO_ROOT / "skills" / "coach" / "SKILL.md", files)
         self.assertIn(REPO_ROOT / "skills" / "finish" / "SKILL.md", files)
         self.assertIn(REPO_ROOT / "commands" / "work-on.md", files)
+        self.assertIn(REPO_ROOT / "reference" / "evidence-format.md", files)
         self.assertGreater(
             len(files),
             20,
