@@ -490,7 +490,12 @@ def test_resumed_process_with_a_narrowable_ledger_verdict_narrows() -> None:
         "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
         "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"], "retries": {"audit": 1}}},
     }
-    ledger_findings = json.dumps({"hasNarrowableVerdict": True, "sha": "deadbeef", "blockingLanes": ["security-auditor"]})
+    # resolvedBranch matches this story's own branch (epic/<slug>--<story>) — since
+    # the round-3 fix-and-recheck fix, a narrowed verdict is trusted only when this
+    # confirms the read happened in this story's own worktree.
+    ledger_findings = json.dumps(
+        {"hasNarrowableVerdict": True, "sha": "deadbeef", "blockingLanes": ["security-auditor"], "resolvedBranch": "epic/epx--a"}
+    )
     rules = [
         {"match": rf"^audit:ledger-scope:{story}$", "result": {"findings": ledger_findings}},
         {"match": rf"^audit:security-auditor:{story}$", "result": {"findings": "clean"}},

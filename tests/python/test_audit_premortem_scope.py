@@ -130,14 +130,17 @@ def test_auditors_constant_never_gains_a_premortem_entry() -> None:
     (narrowed dispatch, carry-forward, a fix-delta pass) — so this test no longer pins
     their exact shape; tests/python/test_delta_scoped_reaudit.py covers that shape.
     `auditFanIn()`'s own call sites underwent the equivalent change under #138 (first-round
-    changeset routing), which threads `routed`/`routedOut` through both call sites — so
-    this test no longer pins their exact shape either; tests/python/test_audit_first_round_routing.py
-    covers that shape. `auditRound`'s call site grew once more under #244 (scope-delta
-    measurement) to thread a computed `scopeDeltaFlags` string through — the finale call
-    site did NOT (a declared set has no single owner at finale altitude, per that design
-    doc's Open Questions), so this test now pins the finale shape exactly but only
-    prefix-matches auditRound's, leaving room for that one additional trailing argument;
-    tests/python/test_scope_delta_measurement.py covers the actual new shape.
+    changeset routing), which threads `routed`/`routedOut` through both call sites, and
+    again under #271's fix cycle round 2 (a trailing `injectionAttempt` boolean, so a
+    detected audit-evasion attempt surfaces in the compiled report instead of vanishing
+    silently) — so this test no longer pins their exact shape either;
+    tests/python/test_audit_first_round_routing.py covers that shape. `auditRound`'s call
+    site grew once more under #244 (scope-delta measurement) to thread a computed
+    `scopeDeltaFlags` string through — the finale call site did NOT (a declared set has no
+    single owner at finale altitude, per that design doc's Open Questions), so this test
+    prefix-matches both call sites rather than pinning either one's exact trailing
+    argument list; tests/python/test_scope_delta_measurement.py covers the actual new
+    shape.
     """
     source = _driver_text()
     auditors_match = re.search(r"const AUDITORS = \[(.*?)\]", source, re.DOTALL)
@@ -154,19 +157,28 @@ def test_auditors_constant_never_gains_a_premortem_entry() -> None:
     )
 
     # Both call sites' auditFanIn signature grew under #138 (first-round changeset
-    # routing) to thread routed/routedOut through, and auditRound's grew once more
-    # under #244 (scope-delta measurement) to append a computed scopeDeltaFlags
-    # string — this test no longer pins auditRound's exact trailing argument,
-    # mirroring the same relaxation this docstring already applied to joinReports
-    # under #130; tests/python/test_scope_delta_measurement.py covers the actual
-    # new shape. finaleAuditRound's call site never gained that argument (a
-    # declared set has no single owner at finale altitude), so it is still pinned
-    # exactly. What this test still guarantees either way: neither call site
+    # routing) to thread routed/routedOut through, and again under #271's fix cycle
+    # round 2 to thread a trailing injectionAttempt boolean — this test no longer
+    # pins their exact shape, mirroring the same relaxation this docstring already
+    # applied to joinReports under #130; tests/python/test_audit_first_round_routing.py
+    # covers the actual new shape. What this test still guarantees: neither call site
     # gained a pre-mortem argument — the carve-out stays prompt-text only.
-    assert "auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut" in source, (
+    # Grew again under operability-routing-parity's acceptance fix cycle (a trailing
+    # frontendMatch boolean, so joinReports/auditFanIn can gate the accessibility
+    # not-covered block without a second hand-derived copy of the flag) — matching
+    # this docstring's own stated intent above, the prefix is checked, not the exact
+    # trailing argument list; tests/python/test_audit_first_round_routing.py covers
+    # the current shape in full. auditRound's call site grew once more under #244
+    # (scope-delta measurement) to append a computed scopeDeltaFlags string — the
+    # finale call site did NOT (a declared set has no single owner at finale
+    # altitude, per that design doc's Open Questions); both remain prefix-matched
+    # rather than pinned exactly, so this one additional trailing argument on
+    # auditRound's side needs no assertion change here — tests/python/
+    # test_scope_delta_measurement.py covers the actual new shape.
+    assert "auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut, injectionAttempt" in source, (
         "auditRound's auditFanIn call site is missing or has an unexpected shape"
     )
-    assert "auditFanIn(null, joined, input.defaultBranch, epicWorktree, '', routed, routedOut)" in source, (
+    assert "auditFanIn(null, joined, input.defaultBranch, epicWorktree, '', routed, routedOut, injectionAttempt" in source, (
         "finaleAuditRound's auditFanIn call site is missing or has an unexpected shape"
     )
     assert "premortem" not in source[source.index("auditFanIn(story, joined,"):source.index("auditFanIn(story, joined,") + 200].lower()

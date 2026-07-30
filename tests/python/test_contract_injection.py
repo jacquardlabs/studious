@@ -89,6 +89,14 @@ CONTRACT_ARG_SUBSTRING = "contract: CONTRACT"
 # finale premortem dispatch, acceptanceRound (product-review dispatch, perf item 10),
 # acceptanceRound (walkthrough dispatch, perf item 10), acceptanceRound (per-story
 # premortem dispatch, acceptance-dispatch-fix Bug 1, 2026-07-23).
+#
+# routingScopeCheckPrompt (#271 fix cycle) is a deliberate exclusion, not an
+# omission this count should grow to cover: it takes `contract` as a positional
+# param (matching its existing dir/base/... shape, never the fields-object
+# convention the builders above use) and carries only §1 of the contract, sliced
+# via `injectionDefensePreamble`, not the full CONTRACT text — see the comment
+# above that function and `test_audit_first_round_routing.py`'s own contract-
+# injection tests for that dispatch's coverage instead.
 EXPECTED_CONTRACT_ARG_COUNT = 8
 
 # The driver's pure, explicitly-parameterized prompt-assembly functions (see
@@ -191,7 +199,7 @@ function attempt(name, fn) {{
 }}
 attempt('audit', () => auditDispatchPrompt({{ ctxBlock: 'CTX-BLOCK', note: 'NOTE', slug: 'epic-slug', storyWorktreePath: '/worktree/story-a', contract }}))
 attempt('finale', () => finaleAuditDispatchPrompt({{ note: 'NOTE', repoRoot: '/repo', epicWorktreePath: '/worktree/__epic', slug: 'epic-slug', defaultBranch: 'main', epicGoal: 'goal text', contract }}))
-attempt('premortem', () => premortemDispatchPrompt({{ repoRoot: '/repo', premortemPath: 'docs/premortem.md', slug: 'epic-slug', epicWorktreePath: '/worktree/__epic', contract }}))
+attempt('premortem', () => premortemDispatchPrompt({{ repoRoot: '/repo', premortemPath: 'docs/premortem.md', slug: 'epic-slug', epicWorktreePath: '/worktree/__epic', note: 'NOTE', contract }}))
 attempt('fixDelta', () => fixDeltaDispatchPrompt({{ ctxBlock: 'CTX-BLOCK', note: 'NOTE', storyWorktreePath: '/worktree/story-a', priorSha: 'abc123', contract }}))
 attempt('finaleFixDelta', () => finaleFixDeltaDispatchPrompt({{ note: 'NOTE', repoRoot: '/repo', epicWorktreePath: '/worktree/__epic', slug: 'epic-slug', defaultBranch: 'main', priorSha: 'abc123', contract }}))
 console.log(JSON.stringify(results))

@@ -44,6 +44,12 @@ DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 # Perf item 10 added acceptanceFanIn's own work-log call site, bumping this from 6.
 WORK_VERB_SLUG_CALL_COUNT = 7
 EPIC_STORY_SET_BARE_SLUG_COUNT = 4
+# #270 fix-and-recheck (Critical, operability-auditor) added a second parkedThisRun
+# push for the merge dispatch — the 'VERIFY MISMATCH' branch verifyMergeLanded can
+# now route to — bumping this from 6 to 7. #270 fix-and-recheck round 6 (SHOULD
+# FIX) consolidated that branch to route through the shared park() helper instead
+# of its own inline push, dropping this back to 6 — the workSlug-tagged push still
+# happens, just inside park() rather than duplicated at the call site.
 DISPLAY_WORK_SLUG_COUNT = 6
 
 

@@ -485,7 +485,7 @@ def _driver_text() -> str:
 def test_routing_scope_check_prompt_gained_an_optional_work_slug_param() -> None:
     source = _driver_text()
     fn = _extract_function(source, "routingScopeCheckPrompt")
-    assert "function routingScopeCheckPrompt(dir, base, workSlugVal)" in fn
+    assert "function routingScopeCheckPrompt(dir, base, contract, workSlugVal)" in fn
     assert "declaredFiles" in fn
     assert "scopeDelta" in fn
 
@@ -505,23 +505,25 @@ def test_resolve_routing_match_flags_threads_work_slug_through() -> None:
     # `_extract_function`'s marker is "function <name>(", which lands just after
     # the `async` keyword — matching `_extract_function`'s own established usage
     # elsewhere in this repo's test suite.
-    assert "function resolveRoutingMatchFlags(dir, base, label, phaseLabel, workSlugVal)" in fn
-    assert "routingScopeCheckPrompt(dir, base, workSlugVal)" in fn
+    assert "function resolveRoutingMatchFlags(dir, base, label, phaseLabel, contract, workSlugVal)" in fn
+    assert "routingScopeCheckPrompt(dir, base, contract, workSlugVal)" in fn
 
 
 def test_finale_call_sites_never_pass_a_work_slug() -> None:
     """A declared set has no single owner at finale altitude (design doc, Open
     Questions) — both finale call sites must stay byte-identical to before this
-    story: no 5th argument."""
+    story on the argument that matters here: they pass the pre-existing `contract`
+    (5th) argument (an unrelated, earlier addition — injection-defense threading,
+    #271) but never a 6th `workSlugVal` argument."""
     source = _driver_text()
-    assert "resolveRoutingMatchFlags(epicWorktree, input.defaultBranch, 'finale:routing-scope', 'Finale')" in source
-    assert "resolveRoutingMatchFlags(epicWorktree, input.defaultBranch, 'finale:premortem-diff', 'Finale')" in source
+    assert "resolveRoutingMatchFlags(epicWorktree, input.defaultBranch, 'finale:routing-scope', 'Finale', CONTRACT)" in source
+    assert "resolveRoutingMatchFlags(epicWorktree, input.defaultBranch, 'finale:premortem-diff', 'Finale', CONTRACT)" in source
 
 
 def test_audit_fan_in_and_acceptance_fan_in_gained_a_scope_delta_flags_param() -> None:
     source = _driver_text()
     audit_fn = _extract_function(source, "auditFanIn")
-    assert "function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut, scopeDeltaFlags)" in audit_fn
+    assert "function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut, injectionAttempt, frontendMatch, scopeDeltaFlags)" in audit_fn
     assert "${scopeDeltaFlags || ''}" in audit_fn
 
     acceptance_fn = _extract_function(source, "acceptanceFanIn")

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Regression tests for eslint.config.mjs (workflows/**/*.js). Proves the
-# config catches the three historically-real defect classes that motivated it —
-# index-misalignment on dead agents, unshift-ordering, fail-open null handling —
-# on reconstructed bad patterns, stays quiet on their fixed equivalents, and
-# lints the real workflows/epic-driver.js clean (documented suppressions and
-# all). Requires network (npx fetches the pinned eslint release; see
-# .github/workflows/ci.yml for the same pin).
+# config catches the four historically-real defect classes that motivated it —
+# index-misalignment on dead agents, unshift-ordering, fail-open null handling,
+# unpinned agent() dispatch — on reconstructed bad patterns, stays quiet on
+# their fixed equivalents, and lints the real workflows/epic-driver.js clean
+# (documented suppressions and all). Requires network (npx fetches the pinned
+# eslint release; see .github/workflows/ci.yml for the same pin).
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -104,6 +104,198 @@ const ready = Boolean(auditOk)
 return { ready }
 EOF
 
+# --- defect class 4: unpinned agent() dispatch (#270) ---
+expect_fail "flags an agent() call with no model or agentType option" "no-unpinned-agent-dispatch" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_fail "flags an agent() call with only one argument" "no-unpinned-agent-dispatch" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it')
+return { r }
+EOF
+
+expect_fail "flags an agent() call whose options come from a variable, not a literal" "no-unpinned-agent-dispatch" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const opts = { label: 'x', phase: 'y', model: 'haiku' }
+const r = await agent('do it', opts)
+return { r }
+EOF
+
+expect_fail "flags a spread inside the options object even if the spread source is pinned" "no-unpinned-agent-dispatch" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const base = { model: 'haiku' }
+const r = await agent('do it', { ...base, label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_pass "an agent() call pinned with an explicit model is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it', { label: 'x', phase: 'y', model: 'haiku', effort: 'low' })
+return { r }
+EOF
+
+expect_pass "an agent() call routed through an agentType is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it', { agentType: 'studious:some-auditor', label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_pass "an unpinned agent() call with a justified suppression is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+// eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned: pending an A/B, not a default
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_fail "a bare suppression with no reason after -- is itself flagged" "has no reason after" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+// eslint-disable-next-line local/no-unpinned-agent-dispatch
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_fail "a suppression with a dash marker but blank text after it is itself flagged" "has no reason after" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+// eslint-disable-next-line local/no-unpinned-agent-dispatch --
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+# --- a bare disable-next-line (no rule list at all) covers every rule, ours
+# included, and is just as silent a default as one that names our rule with
+# no reason ---
+expect_fail "a bare eslint-disable-next-line with no rule list at all is itself flagged" "has no reason after" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+// eslint-disable-next-line
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_pass "a bare eslint-disable-next-line with a reason after -- is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+// eslint-disable-next-line -- deliberately unpinned: pending an A/B, not a default
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+# --- eslint-disable-next-line as a block comment suppresses exactly like the `//`
+# form above, but the rationale check used to filter on `c.type === 'Line'` and
+# silently missed it (#270 fix-and-recheck finding 1) ---
+expect_fail "a block-comment eslint-disable-next-line with no reason is itself flagged" "has no reason after" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+/* eslint-disable-next-line local/no-unpinned-agent-dispatch */
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_pass "a block-comment eslint-disable-next-line with a reason is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+/* eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned: pending an A/B, not a default */
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+# --- a trailing eslint-disable-line, on the call's own line rather than the line
+# above, is the other silently-missed form (#270 fix-and-recheck finding 1) — both
+# `//` and `/* */` syntax ---
+expect_fail "a trailing eslint-disable-line with no reason is itself flagged" "has no reason after" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it', { label: 'x', phase: 'y' }) // eslint-disable-line local/no-unpinned-agent-dispatch
+return { r }
+EOF
+
+expect_pass "a trailing eslint-disable-line with a reason is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it', { label: 'x', phase: 'y' }) // eslint-disable-line local/no-unpinned-agent-dispatch -- deliberately unpinned: pending an A/B, not a default
+return { r }
+EOF
+
+expect_fail "a trailing block-comment eslint-disable-line with no reason is itself flagged" "has no reason after" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it', { label: 'x', phase: 'y' }) /* eslint-disable-line local/no-unpinned-agent-dispatch */
+return { r }
+EOF
+
+expect_pass "a trailing block-comment eslint-disable-line with a reason is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it', { label: 'x', phase: 'y' }) /* eslint-disable-line local/no-unpinned-agent-dispatch -- deliberately unpinned: pending an A/B, not a default */
+return { r }
+EOF
+
+# --- a file-level eslint-disable covers every later line, ours included, and
+# is checked for a rationale the same way (#270 fix-and-recheck finding 3) ---
+expect_fail "a file-level bare eslint-disable with no reason is itself flagged" "A file-level eslint-disable" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+/* eslint-disable */
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_pass "a file-level bare eslint-disable with a reason is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+/* eslint-disable -- deliberately unpinned: pending an A/B, not a default */
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_fail "a file-level eslint-disable naming our rule with no reason is itself flagged" "A file-level eslint-disable" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+/* eslint-disable local/no-unpinned-agent-dispatch */
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_fail "a file-level eslint-disable naming an unrelated rule doesn't suppress a real unpinned dispatch" "no explicit \`model\` or \`agentType\` option" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+/* eslint-disable local/no-fail-open-boolean */
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+# --- a bare file-level eslint-disable with zero unpinned agent() calls to hide is
+# still clean: nothing needed the suppression, so no rationale is owed (test-auditor
+# finding 5, #270 fix-and-recheck round 3 — the sawUnpinned guard existed but had no
+# fixture covering the exact case it exists for) ---
+expect_pass "a bare file-level eslint-disable with no unpinned agent() calls at all is clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+/* eslint-disable */
+const ok = true && false
+const r = await agent('do it', { label: 'x', model: 'haiku' })
+return { r, ok }
+EOF
+
+# --- an inline rule-CONFIGURATION comment (`/* eslint <rule>: "off" */`) is a
+# different directive from eslint-disable(-next-line) entirely, with no `-- reason`
+# convention at all — it silences the named rule file-wide with nothing here able to
+# check it for a rationale (architecture-auditor finding 1, #270 fix-and-recheck
+# round 3). Caught by its own sibling rule, local/no-rule-config-bypass: verified
+# empirically that a report from no-unpinned-agent-dispatch itself about the very
+# comment disabling it is swallowed file-wide, at any anchor line — a same-rule fix
+# is not viable here, unlike the eslint-disable case above. ---
+expect_fail "a rule-configuration comment disabling our rule is itself flagged" "no-rule-config-bypass" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+/* eslint local/no-unpinned-agent-dispatch: "off" */
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_fail "a rule-configuration comment using bare 0 instead of \"off\" is also flagged" "no-rule-config-bypass" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+/* eslint local/no-unpinned-agent-dispatch: 0 */
+const r = await agent('do it', { label: 'x', phase: 'y' })
+return { r }
+EOF
+
+expect_pass "a rule-configuration comment naming an unrelated rule doesn't trip our check" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+/* eslint local/no-fail-open-boolean: "off" */
+const r = await agent('do it', { label: 'x', model: 'haiku' })
+return { r }
+EOF
+
 # --- suppression directives are still checked for staleness ---
 expect_fail "a stale suppression (rule wouldn't have fired) is itself flagged" "Unused eslint-disable directive" <<'EOF'
 export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
@@ -120,6 +312,29 @@ const r = await agent('do it', { label: 'x' })
 log(reslt)
 return { r }
 EOF
+
+# --- harnessShape's line-remap arithmetic (:HARNESS_PREAMBLE_LINES, consumed by
+# postprocess and by firstStatementLine in both exemption checkers) is tied to one
+# shared constant, not three independently hardcoded literals — but a "message
+# substring" fixture like the one above can't actually prove the remap is correct,
+# only that no-undef fired at all. Assert the ACTUAL reported line number instead:
+# `log(reslt)` sits on the real file's own line 3, so a wrapper change that silently
+# added or dropped a preamble line (mis-anchoring every report these functions
+# produce) would shift this to 2 or 4 while the message-substring check above stayed
+# green (architecture-auditor finding 2, #270 fix-and-recheck round 3) ---
+reported_line=$(cd "$ROOT" && npx -y "eslint@$ESLINT_VERSION" --report-unused-disable-directives --format json --stdin --stdin-filename "workflows/fixture.js" - <<'EOF' 2>&1 | node -e "let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>{try{const j=JSON.parse(d); const m=j[0].messages.find(m=>m.ruleId==='no-undef'); console.log(m ? m.line : 'MISSING')}catch(e){console.log('PARSE-ERROR: '+e.message)}})"
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const r = await agent('do it', { label: 'x' })
+log(reslt)
+return { r }
+EOF
+)
+if [ "$reported_line" = "3" ]; then
+  echo "ok   - no-undef's reported line maps back to the real file's own line 3, not a wrapper-shifted one"
+else
+  echo "FAIL - expected no-undef reported at the real file's own line 3, got: $reported_line"
+  fails=$((fails + 1))
+fi
 
 # --- the real file lints clean (documented suppressions and all) ---
 out=$(cd "$ROOT" && npx -y "eslint@$ESLINT_VERSION" --report-unused-disable-directives workflows/epic-driver.js 2>&1)
