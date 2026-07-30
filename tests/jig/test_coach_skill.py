@@ -244,10 +244,42 @@ class TestCoachSkillBody(unittest.TestCase):
         # passed both before and after the fix.
         self.assertIn("docs/jig/evidence/<date>-<task>-<branch-slug>/", self.body)
         self.assertNotIn("docs/jig/evidence/<date>-<task>/", self.body)
-        # The reports half stays the bare directory: `scripts/build-report`
-        # writes `<date>-<slug>-build-report.md` under it, and the coach reads
-        # the folder to answer "did /finish already run", not one filename.
-        self.assertIn("docs/jig/reports/", self.body)
+        # The reports half names the whole filename `scripts/build-report`
+        # writes, not the bare folder: reports accumulate across stories, so a
+        # folder-level hit says nothing about *this* story (see below).
+        self.assertIn("docs/jig/reports/<date>-<story-slug>-build-report.md", self.body)
+
+    def test_evidence_is_read_from_the_manifest_never_a_rebuilt_folder_name(self) -> None:
+        # The naming grammar alone is a shape to reconstruct, and two of its
+        # three tokens are not reconstructible: `<date>` is the capture date,
+        # and `<branch-slug>` is `_gitutil.branch_slug`'s `/`-to-`-` collapse.
+        # So the row must name a read, the way its siblings do -- the same
+        # manifest match `evidence-capture resolve` performs internally.
+        self.assertIn("docs/jig/evidence/*/manifest.json", self.body)
+        self.assertPhraseIn("(Glob), then Read each manifest's own `branch` and `task` fields")
+        self.assertPhraseIn("never a name to reconstruct")
+        self.assertPhraseIn(
+            "the folders whose manifest `branch` equals the current branch"
+        )
+        # The manifest records the branch *name*; matching on the slug would
+        # collapse `feat/foo` and `feat-foo` back together (_gitutil.py).
+        self.assertPhraseIn("the branch *name*, never its slug")
+
+    def test_the_two_empty_evidence_cases_stay_distinguishable(self) -> None:
+        # #260's actual damage: "found nothing" and "captured nothing" read
+        # identically to the human. Both must be reportable apart.
+        self.assertPhraseIn("Report the two empty cases apart")
+        self.assertPhraseIn("no `docs/jig/evidence/` at all")
+        self.assertPhraseIn("the folder existing with no manifest matching this branch")
+
+    def test_a_build_report_counts_only_when_its_slug_names_this_story(self) -> None:
+        # The reports half is load-bearing for routing: the last routing row
+        # terminates the session on a build report ("Nothing to dispatch"), and
+        # reports from unrelated stories already share the folder. A
+        # folder-level read would close out a live story as already done.
+        self.assertPhraseIn("only a report whose `<story-slug>` segment names this story")
+        self.assertPhraseIn("a folder-level hit is not the signal")
+        self.assertPhraseIn('never read it as "already done."')
 
     def test_gate_verdicts_are_read_from_gate_ledger_when_readable(self) -> None:
         # The probe stays — whether the ledger is readable is a real question.

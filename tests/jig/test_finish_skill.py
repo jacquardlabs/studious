@@ -305,8 +305,13 @@ class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
         self.assertPhraseIn("never rebuild the path from its shape")
         # The image-evidence URL is built from the folder the verb printed.
         self.assertPhraseIn("`<the folder resolve printed>/<label>.<ext>`, that path verbatim")
-        # And the shape it replaces must not survive as an instruction.
-        self.assertNotIn("wrote for it: `docs/jig/evidence/<date>-<task>/`", self.body)
+        # That the shape it replaces stays gone is enforced repo-wide, over
+        # skills/ + commands/ at once, by tests/jig/test_evidence_path_grammar.py.
+        # An assertNotIn lived here and quoted a phrase this file never
+        # contained ("wrote for it: ..." against a body reading "a hand-rebuilt
+        # ... matches nothing"), so it passed before and after the change it was
+        # written to guard (#260 acceptance). A scan with a planted-string
+        # control cannot be defeated by a paraphrase the same way.
 
     def test_the_branch_argument_names_the_command_that_produces_it(self) -> None:
         # The writer stamps the manifest with `rev-parse --abbrev-ref HEAD`
