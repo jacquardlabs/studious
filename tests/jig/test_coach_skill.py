@@ -323,6 +323,14 @@ class TestCoachSkillBody(unittest.TestCase):
             '"$(git -C <worktree> rev-parse --abbrev-ref HEAD)" --task <N>`'
         )
         self.assertNotIn("evidence-capture resolve --task", self.body)
+        # Two links this row's usefulness rests on, both prose-only until now.
+        # The declined-folder line above names a condition; without the first
+        # pin, a reword can leave the reader at that condition with no way out
+        # -- the defect /gate-acceptance filed against 30e932b. Without the
+        # second, the command reaches the human as a shape to fill in, and
+        # `<worktree>` is glossed nowhere in this file (#285).
+        self.assertPhraseIn("print the `resolve` command below with it")
+        self.assertPhraseIn("with `<worktree>` and `<N>` already substituted")
 
     def test_the_two_empty_evidence_cases_stay_distinguishable(self) -> None:
         # #260's actual damage: "found nothing" and "captured nothing" read
