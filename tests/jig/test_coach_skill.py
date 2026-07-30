@@ -287,9 +287,16 @@ class TestCoachSkillBody(unittest.TestCase):
         self.assertPhraseIn(
             "don't let it disappear into the empty case either: report it on its own line"
         )
+        # The line is prescribed verbatim, so its wording is contract. It
+        # names the condition, not the issue that created it: PRODUCT.md's
+        # persona is a developer in their own repo with no access to this
+        # plugin's tracker, and "#258" is unactionable there. Provenance
+        # numbers stay in the body prose, which only the model reads.
         self.assertPhraseIn(
-            "N pre-#258 folder(s) carry no `branch` field; not claimed for this branch"
+            "N evidence folder(s) predate branch-stamped capture and carry no "
+            "`branch` field; not claimed for this branch"
         )
+        self.assertNotIn("N pre-#258 folder(s)", self.body)
 
     def test_the_stricter_read_names_the_authoritative_surface(self) -> None:
         # `scripts/evidence-capture` declares itself the one home for
@@ -301,6 +308,18 @@ class TestCoachSkillBody(unittest.TestCase):
         self.assertPhraseIn("two or more return `[ambiguous]` naming the candidate folders")
         self.assertPhraseIn("newest-first by `captured_at`")
         self.assertPhraseIn("that script is authoritative and this read is not")
+        # The row hands the human a command instead of running one, so the
+        # command has to work. `--branch` is `required=True` in
+        # `parse_query_args` (both `resolve` and `list`), so the short form
+        # `resolve --task <N>` argparse-errors with exit 2 -- a dead escape
+        # hatch offered at the moment attribution is already in doubt. Pin the
+        # full form `skills/finish/SKILL.md` runs, and pin the shortened one
+        # out, since this sentence is otherwise the row's only unguarded claim.
+        self.assertPhraseIn(
+            "`scripts/evidence-capture resolve --repo <worktree> --branch "
+            '"$(git -C <worktree> rev-parse --abbrev-ref HEAD)" --task <N>`'
+        )
+        self.assertNotIn("evidence-capture resolve --task", self.body)
 
     def test_the_two_empty_evidence_cases_stay_distinguishable(self) -> None:
         # #260's actual damage: "found nothing" and "captured nothing" read
