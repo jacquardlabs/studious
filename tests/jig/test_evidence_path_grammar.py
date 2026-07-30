@@ -104,9 +104,10 @@ class TestEvidencePathGrammarOnPromptSurfaces(unittest.TestCase):
     def test_the_scan_covers_the_real_surfaces(self) -> None:
         """A wrong root or a typo'd glob would make the scan below vacuous."""
         files = prompt_files()
-        # Deliberately not anchored on skills/coach/SKILL.md: that surface is
-        # slated for deprecation, and a liveness check keyed to a file being
-        # deleted fails the day it goes rather than the day the scan breaks.
+        # One anchor per entry in SURFACES, so this fails when a whole tree
+        # stops being reached -- the failure the glob can actually have. Any
+        # single file may be renamed, split, or retired for reasons that have
+        # nothing to do with this scan, so no one file is load-bearing here.
         self.assertIn(REPO_ROOT / "skills" / "finish" / "SKILL.md", files)
         self.assertIn(REPO_ROOT / "commands" / "work-on.md", files)
         self.assertIn(REPO_ROOT / "reference" / "evidence-format.md", files)
@@ -120,20 +121,23 @@ class TestEvidencePathGrammarOnPromptSurfaces(unittest.TestCase):
     def test_at_least_one_surface_names_the_grammar(self) -> None:
         """Guards the scan against passing because nothing names a path at all.
 
-        Anchored on `skills/finish/SKILL.md`, not `skills/coach/SKILL.md`: the
-        coach is slated for deprecation, and pinning the liveness check to it
-        would force deleting this assertion at removal -- restoring exactly the
-        vacuity it exists to prevent.
+        Asserts *some* surface names it rather than naming which one. A
+        file-specific anchor is only as durable as that file: retire or reword
+        the one it points at and the honest edit is to delete this assertion,
+        which restores exactly the vacuity it exists to prevent. Keyed to the
+        set instead, it survives any single surface changing and still fails
+        the day nothing documents the grammar at all.
         """
         naming = [
             path.relative_to(REPO_ROOT)
             for path in prompt_files()
             if CURRENT_GRAMMAR in path.read_text(encoding="utf-8")
         ]
-        self.assertIn(
-            Path("skills") / "finish" / "SKILL.md",
+        self.assertNotEqual(
+            [],
             naming,
-            f"no durable surface names {CURRENT_GRAMMAR!r}; surfaces naming it: {naming}",
+            f"no surface under {SURFACES} names {CURRENT_GRAMMAR!r} -- the scan "
+            "below would pass over a repo where nothing documents the grammar",
         )
 
     def test_every_named_evidence_path_is_the_current_grammar(self) -> None:
