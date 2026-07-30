@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v2.28.1 (2026-07-30)
+
+### Bug Fixes
+
+- Give the load-bearing surfaces one task-heading grammar
+  ([#266](https://github.com/jacquardlabs/studious/pull/266),
+  [`ce568e3`](https://github.com/jacquardlabs/studious/commit/ce568e360134c7209f12e88c416f032eb6e101c4))
+
+### Documentation
+
+- Commit the driver-hygiene epic's pre-mortem register
+  ([#277](https://github.com/jacquardlabs/studious/pull/277),
+  [`b2a2a9c`](https://github.com/jacquardlabs/studious/commit/b2a2a9c56fe7f4a4c25c148adb0ccbb9fd688cf1))
+
+
 ## v2.28.0 (2026-07-28)
 
 ### Bug Fixes
