@@ -18,24 +18,58 @@ collected" convention already established in this repo.
 """
 from __future__ import annotations
 
+import importlib.util
 import re
+import sys
 from collections import Counter
+from pathlib import Path
 
-TASK_HEADING_RE = re.compile(r"^### Task (\S+) — (.*)$", re.MULTILINE)
 RESTS_ON_RE = re.compile(r"^Rests on:\s*(.*)$", re.MULTILINE)
+
+_PLANPARSE = Path(__file__).resolve().parents[2] / "scripts" / "_planparse.py"
+
+
+def _load_planparse():
+    """Load `scripts/_planparse.py` — the shared task grammar, not either
+    surface's own code (#206).
+
+    This module used to carry its own `^### Task (\\S+) — (.*)$` and split at
+    the next task heading. Both halves diverged from the grammar the scripts
+    actually use, on three inputs: a non-numeric label (`Task 2a`), a hyphen
+    where the em-dash belongs, and a trailing coarser-level section. The last
+    one is the naive-parser bug `skills/build/SKILL.md` Step 1.4 explicitly
+    names — this module absorbed a closing `## Not-here follow-ups` into the
+    preceding task's block, so a `Rests on:` line down there was read as that
+    task's. The cross-surface agreement test never caught any of it because no
+    fixture sat on those boundaries.
+
+    Sharing the *tokenizer* costs nothing this module was built to provide.
+    Its reason to exist is demonstrating step 1.5's derivation — number match,
+    unambiguous title match, never self-referential — and that stays written
+    out here, independently of `plan-lint`'s.
+    """
+    spec = importlib.util.spec_from_file_location("_planparse_for_reference", _PLANPARSE)
+    module = importlib.util.module_from_spec(spec)
+    # `_planparse` defines a dataclass, and `@dataclass` resolves annotations
+    # through `sys.modules[cls.__module__]` — absent that entry it raises.
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(spec.name, None)
+        raise
+    return module
+
+
+_planparse = _load_planparse()
 
 
 def _task_blocks(plan_text: str) -> list[tuple[str, str, str]]:
     """Split `plan_text` into `(label, title, block_text)` triples, one per
-    `### Task <label> — <title>` heading, in document order -- mirroring
-    step 1.4's own "stop at the next `### ` heading" rule."""
-    headings = list(TASK_HEADING_RE.finditer(plan_text))
-    blocks = []
-    for i, match in enumerate(headings):
-        start = match.start()
-        end = headings[i + 1].start() if i + 1 < len(headings) else len(plan_text)
-        blocks.append((match.group(1), match.group(2).strip(), plan_text[start:end]))
-    return blocks
+    task heading, in document order -- the shared grammar's split, so this
+    reference and `plan-lint` cannot disagree on where a task begins, what
+    counts as one, or where it ends."""
+    return _planparse.split_tasks_with_titles(plan_text)
 
 
 def _is_number_match(rests_on_text: str, label: str) -> bool:

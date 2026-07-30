@@ -96,27 +96,19 @@ from _gitutil import git_repo_root  # noqa: E402
 from _planparse import (  # noqa: E402
     COMMAND_TIERS,
     HEADING_LEVEL_1_TO_3_RE,
+    STATUS_FLIP_SUFFIX_RE,  # noqa: F401  (re-export for tests/jig/_load_bearing.py)
     TASK_HEADING_RE,  # noqa: F401  (re-export for tests/_task_split_boundary.py)
+    TASK_HEADING_TITLE_RE,  # noqa: F401  (re-export, same reason)
     TIER_BODY_RE,
     VALID_TIERS,
     Item,
     parse_items,
+    task_title,
 )
 from _planparse import split_tasks as _split_tasks  # noqa: E402
 
 MAX_ITEMS = 5
 PLACEHOLDER_FOLLOWUPS = frozenset({"", "todo", "tbd", "..."})
-
-# Captures a task heading's own title text (after the em-dash), for
-# compute_load_bearing's title-match path (issue #62's sibling gap: the
-# reference tests/_load_bearing.py already matches this way; this was the
-# still-number-only copy). No title (a bare "### Task N" with nothing
-# after it) is fine -- _task_title returns "" and title-match never fires.
-TASK_HEADING_TITLE_RE = re.compile(r"^### Task \d+(?:\s*—\s*(.*))?$", re.MULTILINE)
-# scripts/status-flip's own SUFFIX_RE, duplicated here (scripts are
-# self-contained, not a shared package) so a title comparison ignores the
-# suffix status-flip appends and compares the same text a human reads.
-STATUS_FLIP_SUFFIX_RE = re.compile(r"\s*\[(?:PASS|REPLAN|ESCALATE)\]\s*$")
 # Located by heading *text*, not depth -- issue #23's heading-level fix is
 # the sibling plan-skill story's job, not this linter's.
 NOT_HERE_FOLLOWUPS_HEADING_RE = re.compile(r"^(#{1,6})[ \t]*Not-here follow-ups[ \t]*$", re.IGNORECASE | re.MULTILINE)
@@ -162,14 +154,11 @@ def strip_line_locator(span: str) -> str:
 
 
 def _task_title(block: str) -> str:
-    """The task's own heading title (after the em-dash), with any
-    status-flip suffix stripped -- "" if the heading carries no title at
-    all (a bare `### Task N`)."""
-    first_line = block.splitlines()[0] if block else ""
-    m = TASK_HEADING_TITLE_RE.match(first_line)
-    if not m or not m.group(1):
-        return ""
-    return STATUS_FLIP_SUFFIX_RE.sub("", m.group(1)).strip()
+    """`_planparse.task_title`, kept as a local name so this module's own
+    call sites and tests read unchanged. The grammar moved to `_planparse`
+    (#206) so the test-side reference derives titles from the same source
+    rather than a second regex that drifted."""
+    return task_title(block)
 
 
 def _is_number_match(rests_on_text: str, task_num: str) -> bool:
