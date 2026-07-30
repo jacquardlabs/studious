@@ -265,12 +265,58 @@ class TestCoachSkillBody(unittest.TestCase):
         # collapse `feat/foo` and `feat-foo` back together (_gitutil.py).
         self.assertPhraseIn("the branch *name*, never its slug")
 
+    def test_the_branch_read_is_the_command_that_stamped_the_manifest(self) -> None:
+        # `_gitutil.current_branch` stamps manifests with `rev-parse
+        # --abbrev-ref HEAD` (literal "HEAD" when detached); `git status`
+        # prints "HEAD detached at <sha>" there and matches no manifest. Both
+        # halves are asserted together on purpose: naming the command in the
+        # row while the permitted-tool list still forbids it makes the skill
+        # self-contradictory, so neither half can ship alone.
+        self.assertPhraseIn(
+            "read with `git rev-parse --abbrev-ref HEAD` — the same command "
+            "`scripts/_gitutil.py`'s `current_branch` stamped the manifest with"
+        )
+        self.assertNotIn("equals the current branch (`git status`)", self.body)
+        self.assertPhraseIn("`git rev-parse --abbrev-ref HEAD` (Step 1's branch read")
+
+    def test_unattributable_folders_are_reported_never_folded_into_absence(self) -> None:
+        # Every folder committed under docs/jig/evidence/ today predates #258
+        # and carries no `branch`, so a row that only says "not claimable"
+        # reports "no evidence for this branch" on a repo full of evidence --
+        # PRODUCT.md known problem #2 recurring. Declined is a third case.
+        self.assertPhraseIn(
+            "don't let it disappear into the empty case either: report it on its own line"
+        )
+        self.assertPhraseIn(
+            "N pre-#258 folder(s) carry no `branch` field; not claimed for this branch"
+        )
+
+    def test_the_stricter_read_names_the_authoritative_surface(self) -> None:
+        # `scripts/evidence-capture` declares itself the one home for
+        # branch-to-folder attribution and resolves three ways this row
+        # declines to. The coach is correctly barred from calling it, so the
+        # prose must say it is the stricter reader and not the authority.
+        self.assertPhraseIn("That refusal is deliberately stricter than the script's own rule.")
+        self.assertPhraseIn("resolves with a `[legacy]` token")
+        self.assertPhraseIn("two or more return `[ambiguous]` naming the candidate folders")
+        self.assertPhraseIn("newest-first by `captured_at`")
+        self.assertPhraseIn("that script is authoritative and this read is not")
+
     def test_the_two_empty_evidence_cases_stay_distinguishable(self) -> None:
         # #260's actual damage: "found nothing" and "captured nothing" read
         # identically to the human. Both must be reportable apart.
         self.assertPhraseIn("Report the two empty cases apart")
         self.assertPhraseIn("no `docs/jig/evidence/` at all")
         self.assertPhraseIn("the folder existing with no manifest matching this branch")
+        # The declined case (a manifest with no `branch` at all) must not also
+        # satisfy the second empty case, or a repo whose every folder predates
+        # #258 -- this one -- reports "other stories captured" about folders no
+        # story captured under this grammar, re-creating the collapse above.
+        self.assertPhraseIn(
+            "that second case means manifests that *carry* a `branch` naming a different one"
+        )
+        self.assertPhraseIn("goes on the declined line, and is never reported as another "
+                            "story's capture")
 
     def test_a_build_report_counts_only_when_its_slug_names_this_story(self) -> None:
         # The reports half is load-bearing for routing: the last routing row
@@ -280,6 +326,20 @@ class TestCoachSkillBody(unittest.TestCase):
         self.assertPhraseIn("only a report whose `<story-slug>` segment names this story")
         self.assertPhraseIn("a folder-level hit is not the signal")
         self.assertPhraseIn('never read it as "already done."')
+
+    def test_the_story_slug_the_report_is_matched_against_has_a_source(self) -> None:
+        # A match rule with no readable left-hand side degrades the terminal
+        # routing row to "ask the human" in exactly the case /finish just ran.
+        # /finish's --slug is model-chosen, so name the two slugs the coach
+        # can actually read, and forbid rebuilding the date half.
+        self.assertPhraseIn(
+            "the segment after `--` in `epic/<epic>--<story>`) or from the work file's "
+            "slug with the epic prefix stripped"
+        )
+        self.assertPhraseIn("`/finish`'s `--slug` is model-chosen")
+        self.assertPhraseIn(
+            "Match that segment inside the filename and never reconstruct `<date>`"
+        )
 
     def test_gate_verdicts_are_read_from_gate_ledger_when_readable(self) -> None:
         # The probe stays — whether the ledger is readable is a real question.
@@ -412,9 +472,12 @@ class TestCoachSkillBody(unittest.TestCase):
         # put on one store (#214). It must stay read-only in the same breath: the
         # four reads named, the three writes explicitly refused.
         self.assertPhraseIn(
-            "read-only, always: Read/Glob/Grep, `git log`, `git status`, `command -v`, "
-            "and `gate-ledger`'s four *read* verbs — `gate-get`, `status`, `work-list`, "
-            "`work-get`"
+            "read-only, always: Read/Glob/Grep, `git log`, `git status`, "
+            "`git rev-parse --abbrev-ref HEAD`"
+        )
+        self.assertPhraseIn(
+            "`command -v`, and `gate-ledger`'s four *read* verbs — `gate-get`, "
+            "`status`, `work-list`, `work-get`"
         )
         self.assertPhraseIn("Never `work-set`, never `work-log`, never `record`")
         self.assertPhraseIn("never writes or edits a file")
