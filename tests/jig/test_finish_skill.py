@@ -301,12 +301,19 @@ class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
         )
 
     def test_the_evidence_folder_is_resolved_by_the_script_not_rebuilt(self) -> None:
-        """No assertion here forbids the pre-#258 shape on purpose.
+        """The repo-wide scan does NOT cover this file's grammar line -- pin it here.
 
-        `tests/jig/test_evidence_path_grammar.py` holds that over every tree in
-        its own `SURFACES`, with a planted-violation control; its docstring
-        carries why a per-file `assertNotIn` could not (#260 acceptance).
+        `tests/jig/test_evidence_path_grammar.py` holds the shape invariant over
+        every tree in its own `SURFACES`, with a planted-violation control. It
+        has one deliberate blind spot, and this file is it: line 41 carries the
+        `evidence-grammar: counterexample` sentinel so it can name the pre-#258
+        shape while warning readers off it, and the sentinel exempts the whole
+        line -- including the correct grammar stated on it. An earlier revision
+        of this docstring claimed the scan covered this file; it does not, and
+        without the assertion below the line could revert to the pre-#258 shape
+        with the whole suite green (#260 audit, test-auditor High).
         """
+        self.assertIn("capture writes `docs/jig/evidence/<date>-<task>-<branch-slug>/`", self.body)
         self.assertIn("evidence-capture resolve --repo <worktree> --branch", self.body)
         self.assertPhraseIn("never rebuild the path from its shape")
         # The image-evidence URL is built from the folder the verb printed.
