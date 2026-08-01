@@ -44,7 +44,7 @@ security-auditor: 1 critical, fail
 None.
 
 ### Verdict
-**FIX AND RE-AUDIT** — Critical findings listed.
+**FIX AND RE-REVIEW** — Critical findings listed.
 """
 
 REPORT_UNDER_TIERED = """\
@@ -354,7 +354,7 @@ def test_summarize_verdicts_tallies_tokens_per_arm() -> None:
         score_trial("baseline", "trap", 2, REPORT_DEMOTED, [AUTHZ]),
     ]
     tally = summarize_verdicts(results)
-    assert tally["trap", "baseline"]["FIX AND RE-AUDIT"] == 1
+    assert tally["trap", "baseline"]["FIX AND RE-REVIEW"] == 1
     assert tally["trap", "baseline"]["PASS"] == 1
 
 

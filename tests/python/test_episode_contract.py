@@ -592,5 +592,33 @@ class DeliveryDoorTest(unittest.TestCase):
         self.assertNotIn("FIX AND RE-CHECK", EPIC_DRIVER.read_text(encoding="utf-8"))
 
 
+RUN_GATE_AUDIT_FIXTURES_PY = REPO_ROOT / "scripts" / "run_gate_audit_fixtures.py"
+WORK_THROUGH_MD = REPO_ROOT / "commands" / "work-through.md"
+
+#: The two spellings reference/gate-vocabulary.md replaced with RETRY_TOKEN (#289).
+REPLACED_RETRY_TOKENS = ("FIX AND RE-AUDIT", "FIX AND RE-CHECK")
+
+
+class RetryTokenSweepTest(unittest.TestCase):
+    """Task 6 (#289): every surface that instructs or scores a retry verdict
+    speaks the episode retry token. GATES froze `FIX AND RE-REVIEW` (Task 3),
+    but the driver's embedded compile prompts still told compilers to return a
+    replaced spelling — a compiler following the literal return-list records a
+    token the driver's own retry match never sees, parking every fix cycle.
+    The same drift in the fixture harness's VERDICT_TOKENS scores every
+    new-token verdict as no verdict at all, and /work-through's fallback path
+    reacts to tokens no gate emits anymore."""
+
+    def test_no_replaced_retry_token_survives_in_the_episode_consumers(self) -> None:
+        for path in (EPIC_DRIVER, RUN_GATE_AUDIT_FIXTURES_PY, WORK_THROUGH_MD):
+            text = path.read_text(encoding="utf-8")
+            for token in REPLACED_RETRY_TOKENS:
+                self.assertNotIn(
+                    token, text,
+                    f"{path.relative_to(REPO_ROOT)} still speaks {token!r} — "
+                    f"reference/gate-vocabulary.md replaced it with {RETRY_TOKEN}",
+                )
+
+
 if __name__ == "__main__":
     unittest.main()

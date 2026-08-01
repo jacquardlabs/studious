@@ -366,7 +366,7 @@ integration checkout so the branch is checkoutable from the user's clone:
 trail and remind the user the PR is theirs (`gh pr create` from the epic branch).
 
 A finale gate (audit or acceptance) whose fix cycles run out while it still holds its
-own retry token (`FIX AND RE-AUDIT` / `FIX AND RE-CHECK`) does not end the run reading
+own retry token (`FIX AND RE-REVIEW`) does not end the run reading
 as an unexplained "not ready": it adds one entry to the "Needs you" queue below naming
 the epic, not a story — `<epic-slug>--finale: <gate> returned <verdict> — stalled past
 2 fix cycles`. It is not a `/work-on`-resolvable story like the other entries in that
@@ -391,7 +391,7 @@ Amendments go through this command, never hand-edited state:
   ```
 
   If the park itself carries a diagnosis the next dispatch needs to act on — a stalled
-  `FIX AND RE-CHECK` / `FIX AND RE-AUDIT` cycle's unresolved findings, a walkthrough's
+  `FIX AND RE-REVIEW` cycle's unresolved findings, a walkthrough's
   suggested fix — add it via `--carried-findings`, **never** `--decisions`:
 
   ```bash
