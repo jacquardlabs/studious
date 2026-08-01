@@ -616,6 +616,12 @@ class DeliveryDoorTest(unittest.TestCase):
             "story-scale fix belongs to the work episode's next round",
         )
 
+    def test_report_quotes_round_and_counts_from_episode_get(self) -> None:
+        """Acceptance re-review round: the delivery bound must be visible
+        before it refuses — the door quotes its own episode readout."""
+        self.assertIn("episode-get --gate acceptance", self.door)
+        self.assertIn("round R of C — N open, M carried", self.door)
+
     def test_round_cap_lives_in_code_not_prose(self) -> None:
         self.assertIn(f"{EPISODE_ROUND_CAP}-round cap", self.door)
         self.assertNotIn(

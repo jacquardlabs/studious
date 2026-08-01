@@ -130,6 +130,8 @@ Whatever the verdict, run `gate-ledger episode-get --gate audit` and carry its f
 
 Log with `work-log --step acceptance --outcome "<verdict>" --phase "<phase>"`.
 
+Whatever the verdict, run `gate-ledger episode-get --gate acceptance` and carry its first line into the closing block below, verbatim — same rule as piece 5, same `none recorded` fallback when it prints nothing.
+
 ### 7 · finish
 
 Both gates have passed. Closing out is a handoff, not a gate — there is no verdict to record here.
@@ -156,7 +158,7 @@ Next piece: <name> — <one clause on what it involves>.
 Run /work-on when you're ready, or just say "next".
 ```
 
-When the piece just run was audit (piece 5), insert the work episode's readout as a second line — the `round R of C — N open, M carried` line piece 5 read from `gate-ledger episode-get --gate audit`, verbatim:
+When the piece just run was audit (piece 5) or acceptance (piece 6), insert that episode's readout as a second line — the `round R of C — N open, M carried` line the piece read from `gate-ledger episode-get --gate <audit|acceptance>`, verbatim:
 
 ```text
 Episode: round R of C — N open, M carried

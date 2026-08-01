@@ -44,6 +44,9 @@ The terms the episode rows above are written against, one line each (#289):
 - **lane profile** — the set of specialist review lanes (auditors/reviewers) a round
   dispatches for this changeset: the always-on lanes plus the conditionally-routed
   ones, per `commands/gate-audit.md`'s routing rules.
+- **open** — a finding's status while it awaits its answer. An Important may ride out
+  a terminal `PASS` still `open`: the readout's "N open" beside a pass names unfinished
+  should-fix work, never a blocked verdict — only a Critical blocks.
 - **carried** — a finding's status when it rides through the verdict recorded but
   unfixed, rather than blocking; a Critical reaches `carried` only with a recorded
   waiver (`bin/gate-ledger episode-finding`, per its convergence rules).
