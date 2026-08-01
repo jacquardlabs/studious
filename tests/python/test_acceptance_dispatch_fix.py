@@ -129,11 +129,11 @@ def test_premortem_auditor_realized_findings_feed_compile_prompt_as_third_block(
         {"match": r"^acceptance:product-review:a$", "result": {"findings": "PRODUCT_MARKER looks good"}},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "WALKTHROUGH_MARKER no complaints"}},
         {"match": r"^acceptance:premortem:a$", "result": {"findings": marker}},
-        {"match": r"^acceptance:compile:a$", "result": {"verdict": "FIX AND RE-CHECK", "sha": "a0", "summary": "one blocker"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "HOLD", "sha": "a0", "summary": "one blocker"}},
         # merge:a deliberately unmocked — matches test_acceptance_fanout.py's
         # own established convention for a prompt-content-only assertion; the
         # dispatches and the compile prompt already happened before the merge
-        # phase, and FIX AND RE-CHECK never reaches merge() to begin with.
+        # phase, and HOLD never reaches merge() to begin with.
     ]
     out = _run_driver(epic, rules)
     assert out["ok"], f"driver crashed: {out.get('error')}"
@@ -405,7 +405,7 @@ def test_two_premortem_matches_in_changeset_skip_fallback_and_dispatch() -> None
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:premortem:a$", "result": {"findings": "SHOULD NEVER BE DISPATCHED"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
-        # merge:a and park:a deliberately unmocked: FIX AND RE-CHECK/HOLD never
+        # merge:a and park:a deliberately unmocked: FIX AND RE-REVIEW/HOLD never
         # reaches merge(), and park() falls through to its own try/catch
         # hardening, so the recorded reason is exactly the belt-and-braces
         # override's summary (test_acceptance_fanout.py's established
@@ -755,31 +755,34 @@ def test_fallback_prompt_carries_data_never_instructions_framing() -> None:
 
 # --- Task 4 gap fix (acceptance-dispatch-fix, 2026-07-24, gate-acceptance
 # SHOULD FIX, re-verified by the orchestrator): the belt-and-braces guard
-# only ever coerced an earned-looking SHIP to HOLD — it never touched FIX AND
-# RE-CHECK, trusting the compile prompt's own "at best HOLD" instruction
+# only ever coerced an earned-looking SHIP to HOLD — it never touched the
+# retry token, trusting the compile prompt's own "at best HOLD" instruction
 # alone for that boundary, exactly what the guard's own comment says never to
 # do. Harmless for a transient UNREVIEWED cause (a genuine retry can clear a
 # flake), but Task 4's two multi-candidate causes are NOT transient — a
 # code-fixer cannot resolve a register-directory ambiguity by editing code,
 # it's a human decision about which register is authoritative. If the
-# compiler mistakenly returns FIX AND RE-CHECK for one of those, the
-# unpatched guard let the existing fix-and-retry loop dispatch a code-fixer
-# and re-run acceptanceRound up to MAX_FIX_CYCLES times against the identical
+# compiler mistakenly returns FIX AND RE-REVIEW (acceptance's retry token
+# since #289 Task 3; these mocks originally spoke the replaced FIX AND
+# RE-CHECK, which after that rename would never have entered the retry loop
+# at all — asserting nothing) for one of those, the unpatched guard let the
+# existing fix-and-retry loop dispatch a code-fixer and re-run
+# acceptanceRound up to MAX_FIX_CYCLES times against the identical
 # unresolvable state, instead of the immediate, unambiguous HOLD the design
 # doc specifies. The tests below prove both directions of the fix: the
-# multi-candidate cause now forces HOLD even out of FIX AND RE-CHECK (and,
+# multi-candidate cause now forces HOLD even out of FIX AND RE-REVIEW (and,
 # critically, BEFORE runGate's retry-loop condition is ever checked — no
 # fix:acceptance:a dispatch at all), while every other UNREVIEWED cause keeps
 # its exact pre-existing behavior — SHIP still gets coerced, a genuine FIX
-# AND RE-CHECK still rides through untouched so a real flake can still be
+# AND RE-REVIEW still rides through untouched so a real flake can still be
 # retried through the full fix-and-retry loop.
 
 
-def test_multi_candidate_fix_and_recheck_forced_to_hold_before_retry_loop() -> None:
+def test_multi_candidate_fix_and_re_review_forced_to_hold_before_retry_loop() -> None:
     """A multi-candidate register ambiguity — from either discovery source,
     the changeset naming two candidates directly or the fallback directory
     scan finding two Branch-matching candidates outside it — must force HOLD
-    even when the compiler mistakenly returns FIX AND RE-CHECK, and it must
+    even when the compiler mistakenly returns FIX AND RE-REVIEW, and it must
     do so BEFORE runGate's `while (result.verdict === GATES[gate].retry...)`
     condition is ever evaluated: proven by the total absence of any
     fix:acceptance:a dispatch, not just by the final recorded verdict (a
@@ -796,7 +799,7 @@ def test_multi_candidate_fix_and_recheck_forced_to_hold_before_retry_loop() -> N
         ])},
         {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
-        {"match": r"^acceptance:compile:a$", "result": {"verdict": "FIX AND RE-CHECK", "sha": "a0", "summary": "please address the findings"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "a0", "summary": "please address the findings"}},
         # acceptance:premortem-fallback:a, acceptance:premortem:a, and
         # fix:acceptance:a are all deliberately unmocked: the fallback and
         # premortem-auditor must never fire for a changeset-side
@@ -822,7 +825,7 @@ def test_multi_candidate_fix_and_recheck_forced_to_hold_before_retry_loop() -> N
     assert "epx--a" in changeset_needs_you, f"story a should have parked on a forced HOLD: {changeset_result}"
     changeset_entry = changeset_needs_you["epx--a"]
     assert changeset_entry["verdict"] == "HOLD", (
-        f"the compiler's FIX AND RE-CHECK for a changeset-side multi-candidate ambiguity must be "
+        f"the compiler's FIX AND RE-REVIEW for a changeset-side multi-candidate ambiguity must be "
         f"forced to HOLD, not ridden through into a pointless retry loop: {changeset_entry}"
     )
     assert "premortem-auditor" in changeset_entry["reason"]
@@ -835,7 +838,7 @@ def test_multi_candidate_fix_and_recheck_forced_to_hold_before_retry_loop() -> N
         {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "multiple"})}},
         {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
-        {"match": r"^acceptance:compile:a$", "result": {"verdict": "FIX AND RE-CHECK", "sha": "a0", "summary": "please address the findings"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "a0", "summary": "please address the findings"}},
         # acceptance:premortem:a, fix:acceptance:a, and park:a deliberately
         # unmocked, same convention as above.
     ]
@@ -854,7 +857,7 @@ def test_multi_candidate_fix_and_recheck_forced_to_hold_before_retry_loop() -> N
     assert "epx--a" in fallback_needs_you, f"story a should have parked on a forced HOLD: {fallback_result}"
     fallback_entry = fallback_needs_you["epx--a"]
     assert fallback_entry["verdict"] == "HOLD", (
-        f"the compiler's FIX AND RE-CHECK for a fallback-side multi-candidate ambiguity must be "
+        f"the compiler's FIX AND RE-REVIEW for a fallback-side multi-candidate ambiguity must be "
         f"forced to HOLD, not ridden through into a pointless retry loop: {fallback_entry}"
     )
     assert "premortem-auditor" in fallback_entry["reason"]

@@ -7,6 +7,8 @@ allowed-tools: Read, Glob, Grep, Bash, Task
 
 Code is built, tests pass, audits are clean. This gate checks whether the implementation actually delivers the intended experience. Clean code that ships a bad feature is still a bad feature.
 
+Each invocation is one round of the branch's bounded **delivery episode** (`reference/gate-vocabulary.md`): the episode opens at round 1, allows exactly one re-review round, and closes with exactly one verdict. The round bookkeeping lives in `bin/gate-ledger`'s episode verbs, never in this prompt's own counting. The episode runs once, at the delivery boundary — after the work episode (`/gate-audit`) has closed `PASS`, before the PR opens — never once per fix cycle: a fix at story scale routes into the work episode (Part 4), so this gate never becomes a per-story fix loop.
+
 Read PRODUCT.md first.
 
 ## Part 0 — Establish scope (before dispatching)
@@ -28,7 +30,26 @@ Run `gate-ledger evidence-list --dedupe` once, before dispatching anyone. Empty 
 
 > Before writing a disclaimer that something can't be confirmed without executing it, check the entries above for a command matching what you'd otherwise flag. A matching entry — cite it exactly (the command, `predicate.result`, `capturedAt`) in place of the disclaimer. No matching entry — keep the disclaimer, but say the claim is attested (self-reported, not independently confirmed by this branch's evidence log) rather than leaving it unqualified.
 
-@agent-product-reviewer's dispatch never gets this block — its review makes no execution-pass/fail claim the log's test-result-only shape could back. If `gate-ledger` is not found or `evidence-list` errors, treat it identically to empty output and degrade silently — this is not the "tell the user" case `record` gets below; a missing evidence log only means the report reads exactly as it always has.
+@agent-product-reviewer's dispatch never gets this block — its review makes no execution-pass/fail claim the log's test-result-only shape could back. If `gate-ledger` is not found or `evidence-list` errors, treat it identically to empty output and degrade silently — this is not the "tell the user" case the episode verbs get below; a missing evidence log only means the report reads exactly as it always has.
+
+## Open or re-enter the episode (before dispatching)
+
+Run `gate-ledger gate-get` once, before dispatching anyone. This round **re-enters** the branch's open delivery episode — its one re-review round — only if both of these hold against what it returns for `.gates.acceptance`:
+
+1. `.gates.acceptance.verdict` is exactly `FIX AND RE-REVIEW` — round 1 of this same episode blocked on targeted fixes, and they have presumably landed since.
+2. `.gates.acceptance.sha` is an ancestor of current `HEAD` — check with `git merge-base --is-ancestor <that sha> HEAD`. A non-ancestor (rebase, force-push, squash — history rewritten out from under the recorded verdict) fails this condition.
+
+If `gate-ledger` is not found, `gate-get` errors, or it returns empty output (no ledger recorded — including every branch's first-ever acceptance round), that alone already fails condition 1: this round opens fresh, no special case to detect.
+
+**Both hold → re-enter:** run `gate-ledger episode-round --gate acceptance` and branch on its exit code — the round cap is enforced there, in code, never re-counted here:
+
+- **Exit 0** — this is round 2, the episode's one re-review. Run every Part below in full — fresh eyes, full current changeset; re-entry changes the episode's round, never this gate's scope.
+- **Exit 1** — the 2-round cap: this episode already spent its re-review without converging. Stop before dispatching anyone. Put the choice to the user: reopen a fresh episode (`gate-ledger episode-open --gate acceptance`, a full round 1) or treat the still-standing findings as the rework decision they have become. Never reopen silently — the cap is the episode's stop-and-rethink point, and stepping past it is a deliberate human act.
+- **Exit 2** — no open episode behind the recorded verdict (a ledger written before episodes existed): treat it as a fresh entry below.
+
+**Otherwise → fresh entry:** run `gate-ledger episode-open --gate acceptance` — round 1 of a new delivery episode.
+
+If `gate-ledger` is not found at all, tell the user the episode could not be opened — run the review anyway and report, but say up front that the verdict will not be recorded; do not skip silently.
 
 ## Part 1 — Product review
 
@@ -51,33 +72,33 @@ Close with two gate-specific questions the checklist doesn't ask:
 
 ## Part 4 — Verdict
 
-Map the product-reviewer's severities — and the premortem-auditor's REALIZED findings, which use the same BLOCKER / SHOULD FIX vocabulary — to this gate's verdict:
+Map the product-reviewer's severities — and the premortem-auditor's REALIZED findings, which use the same BLOCKER / SHOULD FIX vocabulary — to this gate's verdict (canonical tokens: `reference/gate-vocabulary.md`):
 
-- **SHIP** — implementation delivers the intended experience; only MINOR/OBSERVATION findings.
-- **FIX AND RE-CHECK** — one or more SHOULD FIX findings, or a BLOCKER fixable with targeted work. List them with severity, then re-run this gate.
-- **HOLD** — a BLOCKER that's a fundamental gap between design intent and implementation, needing rework beyond quick fixes.
+- **SHIP** — implementation delivers the intended experience; only MINOR/OBSERVATION findings. Closes the episode.
+- **FIX AND RE-REVIEW** — one or more SHOULD FIX findings, or a BLOCKER fixable with targeted work. List them with severity, each specific enough to go directly into the engineering chain as a fix task; when the fixes land, this gate re-enters the episode for its one re-review round. **Route by scale:** a fix at story scale — a missing capability, real implementation work rather than a targeted correction — routes into the work episode: it lands as implementation work and `/gate-audit`'s next round judges it before this gate re-reviews. The delivery episode reviews delivery; it never becomes a per-story fix loop, and the round cap in `bin/gate-ledger` refuses in code the third round that loop would need.
+- **HOLD** — a BLOCKER that's a fundamental gap between design intent and implementation, needing rework beyond targeted fixes. Closes the episode; where the rework goes is the user's decision, not this gate's.
 
 If calibrating a finding's severity against precedent — has this exact gap been flagged before, and how was it classified — search cheaply first: `git log --oneline --grep <topic>` against commit messages, not full diffs. Read a matching commit's full diff (`git show`) only if the message/summary doesn't resolve the question; don't default to a full-diff read for a precedent lookup (#142).
 
-For FIX AND RE-CHECK items, be specific enough that they can go directly into the engineering chain as fix tasks.
-
 ## Record the verdict
 
-Before running `gate-ledger record`, commit every file this gate's run wrote or
-modified — there is no prescribed artifact here, but a synthesis this involved can
+Before running `gate-ledger episode-verdict`, commit every file this gate's run wrote
+or modified — there is no prescribed artifact here, but a synthesis this involved can
 produce one anyway (a note, a reconciliation doc), deliberately or on your own
-initiative. `gate-ledger record` stamps the verdict's sha from HEAD at the moment it
+initiative. `episode-verdict` stamps the verdict's sha from HEAD at the moment it
 runs; a file committed afterward leaves the ledger pointing at a commit that doesn't
 yet contain what this run produced, so the PR-time hook and `/work-through`'s finale
 would flag this verdict as stale over a commit that changed nothing substantive. The
 recorded sha must be the same commit a later reader lands on at HEAD.
 
-After stating the verdict, record it to the local gate ledger so the PR-time reminder
-can be specific. Run (substituting the verdict token you just assigned — `SHIP`,
-`FIX AND RE-CHECK`, or `HOLD`):
+After stating the verdict, close the round by recording it — never bare
+`record --gate acceptance`: `episode-verdict` dual-writes the legacy record itself, so
+the PR-time reminder and this gate's own re-entry check read exactly what they always
+have. Run (substituting the verdict token you just assigned — `SHIP`,
+`FIX AND RE-REVIEW`, or `HOLD`, per `reference/gate-vocabulary.md`):
 
 ```bash
-gate-ledger record --gate acceptance --verdict "SHIP"
+gate-ledger episode-verdict --gate acceptance --verdict "SHIP"
 ```
 
 The ledger is local and gitignored — it never enters the repo. If `gate-ledger` is not
