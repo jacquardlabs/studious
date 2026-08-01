@@ -551,6 +551,197 @@ cmd_episode_verdict() {
   cmd_record --gate "$gate" --verdict "$verdict"
 }
 
+# Findings ledger (episode convergence): a finding lives on the gate's open
+# episode under .episodes[<gate>].findings[<fingerprint>] — the fingerprint IS
+# the finding's identity across rounds, chosen by the caller and never
+# normalized here:
+#
+#   {lane, severity, status, round, recordedAt, updatedAt}
+#   + {regressionOf: <fp>}  when first recorded on round 2 as a regression of a
+#                           round-1 finding
+#   + {waiver: <reason>}    when carried under a waiver
+#
+# `severity` is the canonical three-tier ladder (reference/severity-rubric.md):
+# Critical | Important | Track — callers map per-auditor labels into these
+# BEFORE recording, exactly as /gate-audit's orchestrator already does.
+# `status` is open | closed | carried | waived. `round` is stamped from the
+# episode's current round at first record and never moves — it is the fact
+# --regression-of validates against. `lane`/`severity` are fixed at first
+# record: re-recording a fingerprint at a different tier is refused, so a
+# Critical can never be laundered down to dodge the waiver rule below.
+#
+# Two convergence rules enforced HERE, in code, never left to a prompt's own
+# counting (same posture as the round cap above):
+#
+#   1. On round 2 a NEW blocking finding below Critical — status `open`,
+#      severity Important (Track never blocks, per the rubric) — is refused
+#      unless --regression-of names a round-1 finding of this episode. Round 2
+#      exists to fix round 1, not to widen the blocking set; a new Critical
+#      stays recordable because it is the stop signal.
+#   2. A Critical reaches `carried` only with --waiver <reason>, and the
+#      reason lands on the finding record. Carrying an unfixed Critical is an
+#      accountable act, never a silent one.
+#
+# Which agent judges whether something IS a regression stays in prose; this
+# verb only refuses the write shapes those judgments must not produce.
+cmd_episode_finding() {
+  local gate="" lane="" severity="" fingerprint="" status="" regression_of="" waiver=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --gate)          gate="$2"; shift 2 ;;
+      --lane)          lane="$2"; shift 2 ;;
+      --severity)      severity="$2"; shift 2 ;;
+      --fingerprint)   fingerprint="$2"; shift 2 ;;
+      --status)        status="$2"; shift 2 ;;
+      --regression-of) regression_of="$2"; shift 2 ;;
+      --waiver)        waiver="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$gate" ] || [ -z "$fingerprint" ] || [ -z "$status" ]; then
+    echo "gate-ledger: --gate, --fingerprint, and --status required" >&2
+    return 2
+  fi
+  case "$status" in
+    open|closed|carried|waived) ;;
+    *)
+      echo "gate-ledger: --status '$status' is not a recognized finding status;" \
+           "use open, closed, carried, or waived" >&2
+      return 2
+      ;;
+  esac
+  if [ -n "$severity" ]; then
+    case "$severity" in
+      Critical|Important|Track) ;;
+      *)
+        echo "gate-ledger: --severity '$severity' is not a recognized tier;" \
+             "use Critical, Important, or Track (reference/severity-rubric.md)" >&2
+        return 2
+        ;;
+    esac
+  fi
+  if [ -n "$waiver" ] && [ "$status" != "carried" ] && [ "$status" != "waived" ]; then
+    echo "gate-ledger: --waiver requires --status carried or waived" >&2
+    return 2
+  fi
+  if ! have jq || ! have git; then
+    echo "gate-ledger: episode-finding skipped (jq and git required)" >&2
+    return 0
+  fi
+
+  local round; round=$(episode_round_get "$gate")
+  if [ -z "$round" ]; then
+    echo "gate-ledger: no open episode for gate '$gate' on this branch (run episode-open first)" >&2
+    return 2
+  fi
+  case "$round" in
+    *[!0-9]*) echo "gate-ledger: episode-finding: corrupted round '$round' for gate '$gate'" >&2; return 1 ;;
+  esac
+
+  local file; file="$(ledger_dir)/$(branch_slug).json"
+  local existing stored_severity stored_lane
+  existing=$(jq -c --arg g "$gate" --arg fp "$fingerprint" \
+    '.episodes[$g].findings[$fp] // empty' "$file" 2>/dev/null)
+
+  if [ -n "$existing" ]; then
+    # Update path: identity (lane, severity, round) is fixed at first record;
+    # only the status moves, and regression classification is not relitigated.
+    stored_severity=$(printf '%s' "$existing" | jq -r '.severity // ""')
+    stored_lane=$(printf '%s' "$existing" | jq -r '.lane // ""')
+    if [ -n "$severity" ] && [ "$severity" != "$stored_severity" ]; then
+      echo "gate-ledger: episode-finding: severity is fixed at first record" \
+           "('$stored_severity' for '$fingerprint') — a reclassification is a new finding" >&2
+      return 2
+    fi
+    if [ -n "$lane" ] && [ "$lane" != "$stored_lane" ]; then
+      echo "gate-ledger: episode-finding: lane is fixed at first record" \
+           "('$stored_lane' for '$fingerprint')" >&2
+      return 2
+    fi
+    if [ -n "$regression_of" ]; then
+      echo "gate-ledger: --regression-of is set when a finding is first recorded, not on an update" >&2
+      return 2
+    fi
+    severity="$stored_severity"
+  else
+    if [ -z "$lane" ] || [ -z "$severity" ]; then
+      echo "gate-ledger: --lane and --severity required when first recording a finding" >&2
+      return 2
+    fi
+    if [ -n "$regression_of" ]; then
+      if [ "$round" -lt 2 ]; then
+        echo "gate-ledger: --regression-of needs a prior round — this episode is still on round 1" >&2
+        return 1
+      fi
+      local ref_round
+      ref_round=$(jq -r --arg g "$gate" --arg fp "$regression_of" \
+        '.episodes[$g].findings[$fp].round // empty' "$file" 2>/dev/null)
+      if [ "$ref_round" != "1" ]; then
+        echo "gate-ledger: --regression-of '$regression_of' does not name a round-1 finding of this episode" >&2
+        return 1
+      fi
+    fi
+    # Rule 1: round 2 may not widen the blocking set below Critical.
+    if [ "$round" -ge 2 ] && [ "$status" = "open" ] && [ "$severity" = "Important" ] && [ -z "$regression_of" ]; then
+      echo "gate-ledger: episode-finding refused — round $round fixes round 1, it does not widen the" \
+           "blocking set: a new blocking finding below Critical must name --regression-of <round-1" \
+           "fingerprint> (a new Critical, or a non-blocking Track, stays recordable)" >&2
+      return 1
+    fi
+  fi
+
+  # Rule 2: a Critical reaches `carried` only under a recorded waiver. Checked
+  # against the STORED severity on an update (see above), so it cannot be
+  # dodged by restating the finding at a lower tier.
+  if [ "$severity" = "Critical" ] && [ "$status" = "carried" ] && [ -z "$waiver" ]; then
+    echo "gate-ledger: episode-finding refused — a Critical reaches 'carried' only with" \
+         "--waiver <reason>; fix it, or record why it is being carried" >&2
+    return 1
+  fi
+
+  # First record keeps its identity fields and round forever (the `//` default
+  # object only materializes when the fingerprint is new); an update merges
+  # status/updatedAt — and waiver, when given — over the stored record.
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    '.episodes[$g].findings[$fp] =
+       ((.episodes[$g].findings[$fp]
+           // {lane: $lane, severity: $sev, round: ($round | tonumber), recordedAt: $t})
+        + {status: $status, updatedAt: $t}
+        + (if $reg != "" then {regressionOf: $reg} else {} end)
+        + (if $waiver != "" then {waiver: $waiver} else {} end))' \
+    --arg g "$gate" --arg fp "$fingerprint" --arg lane "$lane" --arg sev "$severity" \
+    --arg round "$round" --arg status "$status" --arg reg "$regression_of" \
+    --arg waiver "$waiver" --arg t "$(now_iso)"
+}
+
+cmd_episode_get() { # --gate G -> one line a prose surface can quote verbatim: "round R — N open, M carried"
+  # The findings ledger's read side. Only `open` and `carried` are counted —
+  # they are the two states a verdict has to answer for (`closed` is resolved,
+  # `waived` is explicitly set aside). Prints nothing when no episode is
+  # recorded for the gate, mirroring gate-get/epic-get.
+  local gate=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --gate) gate="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$gate" ]; then
+    echo "gate-ledger: --gate required" >&2
+    return 2
+  fi
+  if ! have jq || ! have git; then return 0; fi
+  local file; file="$(ledger_dir)/$(branch_slug).json"
+  [ -f "$file" ] || return 0
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  jq -r --arg g "$gate" \
+    '.episodes[$g] // empty
+     | ((.findings // {}) | [.[]]) as $fs
+     | "round \(.round) — \([$fs[] | select(.status == "open")] | length) open, \([$fs[] | select(.status == "carried")] | length) carried"' \
+    "$file" 2>/dev/null
+}
+
 work_file_init() { # slug → ensures the work file exists, echoes its path
   local slug="$1"
   local dir; dir=$(work_dir)
@@ -1534,6 +1725,8 @@ case "${1:-}" in
   episode-open)    shift; cmd_episode_open "$@" ;;
   episode-round)   shift; cmd_episode_round "$@" ;;
   episode-verdict) shift; cmd_episode_verdict "$@" ;;
+  episode-finding) shift; cmd_episode_finding "$@" ;;
+  episode-get)     shift; cmd_episode_get "$@" ;;
   work-set)        shift; cmd_work_set "$@" ;;
   work-log)        shift; cmd_work_log "$@" ;;
   work-get)        shift; cmd_work_get "$@" ;;
@@ -1547,5 +1740,5 @@ case "${1:-}" in
   evidence-append) shift; cmd_evidence_append "$@" ;;
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V | episode-finding --gate G --fingerprint F --status open|closed|carried|waived [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
 esac

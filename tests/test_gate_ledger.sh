@@ -1604,5 +1604,130 @@ contains "episode-open signals on stderr when jq is unavailable" \
 check "episode-open does not create a ledger file when jq is unavailable" "no" \
   "$([ -f "$dep6/.studious/gates/feat-foo.json" ] && echo yes || echo no)"
 
+# --- episode-finding: round 1 records a finding with lane, severity, status,
+# and the episode's current round stamped on it ---
+def1=$(sandbox)
+fef1="$def1/.studious/gates/feat-foo.json"
+( cd "$def1" && "$LEDGER" episode-open --gate audit )
+( cd "$def1" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Important --fingerprint sqli-login --status open ); rc=$?
+check "round-1 episode-finding records with exit 0" "0" "$rc"
+check "finding stores lane" "security-auditor" "$(jq -r '.episodes.audit.findings["sqli-login"].lane' "$fef1")"
+check "finding stores severity" "Important" "$(jq -r '.episodes.audit.findings["sqli-login"].severity' "$fef1")"
+check "finding stores status" "open" "$(jq -r '.episodes.audit.findings["sqli-login"].status' "$fef1")"
+check "finding stamps the episode's current round" "1" "$(jq -r '.episodes.audit.findings["sqli-login"].round' "$fef1")"
+
+# --- on round 2 a NEW blocking finding below Critical is refused without
+# --regression-of naming a round-1 finding (regression classification in code) ---
+( cd "$def1" && "$LEDGER" episode-round --gate audit )
+err=$(cd "$def1" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Important --fingerprint new-lint-gap --status open 2>&1 1>/dev/null; echo "rc=$?")
+contains "a round-2 blocking finding below Critical without --regression-of is refused" "--regression-of" "$err"
+contains "the round-2 refusal exits non-zero" "rc=1" "$err"
+check "the refused finding is not recorded" "null" "$(jq -c '.episodes.audit.findings["new-lint-gap"]' "$fef1")"
+
+# ...with --regression-of naming a round-1 finding it records, classified as a regression
+( cd "$def1" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Important --fingerprint sqli-login-again --status open --regression-of sqli-login ); rc=$?
+check "a round-2 regression of a round-1 finding records with exit 0" "0" "$rc"
+check "the regression names its round-1 finding" "sqli-login" \
+  "$(jq -r '.episodes.audit.findings["sqli-login-again"].regressionOf' "$fef1")"
+check "the regression is stamped round 2" "2" "$(jq -r '.episodes.audit.findings["sqli-login-again"].round' "$fef1")"
+
+# --regression-of must name a finding that actually exists at round 1
+err=$(cd "$def1" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Important --fingerprint bogus-reg --status open --regression-of no-such-finding 2>&1 1>/dev/null; echo "rc=$?")
+contains "--regression-of naming an unknown fingerprint is refused" "does not name a round-1 finding" "$err"
+contains "an unknown --regression-of exits non-zero" "rc=1" "$err"
+
+# a NEW Critical stays recordable on round 2 — it is the stop signal, not a widening
+( cd "$def1" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Critical --fingerprint fresh-critical --status open ); rc=$?
+check "a new round-2 Critical records without --regression-of" "0" "$rc"
+
+# a NEW Track is not blocking, so it records freely on round 2
+( cd "$def1" && "$LEDGER" episode-finding --gate audit --lane doc-auditor \
+    --severity Track --fingerprint stale-comment --status open ); rc=$?
+check "a new round-2 Track records without --regression-of" "0" "$rc"
+
+# updating a round-1 finding on round 2 is not a new blocking finding — closing it is the point
+( cd "$def1" && "$LEDGER" episode-finding --gate audit --fingerprint sqli-login --status closed ); rc=$?
+check "closing a round-1 finding on round 2 exits 0" "0" "$rc"
+check "the update moves status to closed" "closed" "$(jq -r '.episodes.audit.findings["sqli-login"].status' "$fef1")"
+check "the update keeps the finding's original round" "1" "$(jq -r '.episodes.audit.findings["sqli-login"].round' "$fef1")"
+check "the update keeps lane and severity" "security-auditor/Important" \
+  "$(jq -r '.episodes.audit.findings["sqli-login"] | .lane + "/" + .severity' "$fef1")"
+
+# --- a Critical reaches carried only with --waiver, recorded on the finding ---
+err=$(cd "$def1" && "$LEDGER" episode-finding --gate audit --fingerprint fresh-critical --status carried 2>&1 1>/dev/null; echo "rc=$?")
+contains "moving a Critical to carried without --waiver is refused" "--waiver" "$err"
+contains "the waiver refusal exits non-zero" "rc=1" "$err"
+check "the refused Critical stays open" "open" "$(jq -r '.episodes.audit.findings["fresh-critical"].status' "$fef1")"
+check "no waiver key lands on a refused carry" "null" "$(jq -r '.episodes.audit.findings["fresh-critical"].waiver // "null"' "$fef1")"
+( cd "$def1" && "$LEDGER" episode-finding --gate audit --fingerprint fresh-critical --status carried \
+    --waiver "mitigated by WAF rule; fix scheduled next sprint" ); rc=$?
+check "a Critical carries with --waiver, exit 0" "0" "$rc"
+check "the waiver reason lands on the finding record" "mitigated by WAF rule; fix scheduled next sprint" \
+  "$(jq -r '.episodes.audit.findings["fresh-critical"].waiver' "$fef1")"
+check "the waived carry moves status to carried" "carried" "$(jq -r '.episodes.audit.findings["fresh-critical"].status' "$fef1")"
+
+# creating a Critical directly as carried is the same rule, same refusal
+err=$(cd "$def1" && "$LEDGER" episode-finding --gate audit --lane infra-auditor \
+    --severity Critical --fingerprint born-carried --status carried 2>&1 1>/dev/null; echo "rc=$?")
+contains "a Critical recorded directly as carried without --waiver is refused" "--waiver" "$err"
+contains "the direct-carry refusal exits non-zero" "rc=1" "$err"
+
+# below Critical, carried needs no waiver
+( cd "$def1" && "$LEDGER" episode-finding --gate audit --fingerprint sqli-login-again --status carried ); rc=$?
+check "an Important carries without --waiver" "0" "$rc"
+
+# severity is fixed at first record — no laundering a Critical down to dodge the waiver rule
+err=$(cd "$def1" && "$LEDGER" episode-finding --gate audit --fingerprint fresh-critical \
+    --severity Important --status closed 2>&1 1>/dev/null; echo "rc=$?")
+contains "re-recording a finding at a different severity is refused" "fixed at first record" "$err"
+contains "a severity change exits non-zero" "rc=2" "$err"
+
+# --- episode-get: one parseable line prose surfaces can quote verbatim ---
+out=$(cd "$def1" && "$LEDGER" episode-get --gate audit)
+check "episode-get reports round and open/carried counts in one line" \
+  "round 2 — 1 open, 2 carried" "$out"
+check "episode-get output is a single line" "1" "$(printf '%s\n' "$out" | wc -l | tr -d ' ')"
+
+# --- episode-get mirrors its sibling read verbs when nothing is recorded ---
+defg=$(sandbox)
+check "episode-get prints nothing when no episode is open" "" "$(cd "$defg" && "$LEDGER" episode-get --gate audit)"
+err=$(cd "$defg" && "$LEDGER" episode-get 2>&1 1>/dev/null; echo "rc=$?")
+contains "episode-get requires --gate" "--gate required" "$err"
+contains "episode-get without --gate exits 2" "rc=2" "$err"
+
+# --- episode-finding validates args and requires an open episode ---
+err=$(cd "$defg" && "$LEDGER" episode-finding --gate audit --lane x --severity Critical \
+    --fingerprint f --status open 2>&1 1>/dev/null; echo "rc=$?")
+contains "episode-finding without an open episode names episode-open" "run episode-open first" "$err"
+contains "episode-finding without an open episode exits 2" "rc=2" "$err"
+( cd "$defg" && "$LEDGER" episode-open --gate audit )
+err=$(cd "$defg" && "$LEDGER" episode-finding --gate audit --lane x --severity Critical --status open 2>&1 1>/dev/null; echo "rc=$?")
+contains "episode-finding requires --fingerprint" "--gate, --fingerprint, and --status required" "$err"
+err=$(cd "$defg" && "$LEDGER" episode-finding --gate audit --lane x --severity Serious \
+    --fingerprint f --status open 2>&1 1>/dev/null; echo "rc=$?")
+contains "episode-finding rejects a severity outside the rubric" "Critical, Important, or Track" "$err"
+err=$(cd "$defg" && "$LEDGER" episode-finding --gate audit --lane x --severity Critical \
+    --fingerprint f --status fixed 2>&1 1>/dev/null; echo "rc=$?")
+contains "episode-finding rejects a status outside the vocabulary" "open, closed, carried, or waived" "$err"
+err=$(cd "$defg" && "$LEDGER" episode-finding --gate audit --fingerprint f2 --status open 2>&1 1>/dev/null; echo "rc=$?")
+contains "a first record requires --lane and --severity" "--lane and --severity required" "$err"
+err=$(cd "$defg" && "$LEDGER" episode-finding --gate audit --lane x --severity Track \
+    --fingerprint f --status open --waiver why 2>&1 1>/dev/null; echo "rc=$?")
+contains "--waiver outside carried/waived is rejected" "--waiver requires --status carried" "$err"
+err=$(cd "$defg" && "$LEDGER" episode-finding --gate audit --lane x --severity Important \
+    --fingerprint r1reg --status open --regression-of f 2>&1 1>/dev/null; echo "rc=$?")
+contains "--regression-of on round 1 is refused (no prior round to regress from)" "still on round 1" "$err"
+
+# --- episode-finding signals on stderr (but still returns 0) when jq is unavailable ---
+stderrfin=$(cd "$dep6" && PATH="$fakebin" "$LEDGER" episode-finding --gate audit --lane x \
+    --severity Critical --fingerprint f --status open 2>&1 1>/dev/null)
+contains "episode-finding signals on stderr when jq is unavailable" \
+  "gate-ledger: episode-finding skipped (jq and git required)" "$stderrfin"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi
