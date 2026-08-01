@@ -436,12 +436,20 @@ cmd_gate_get() {
 # bounds ONE episode, never the branch — a fresh `episode-open` replaces the
 # gate's episode at round 1, which is what makes the cap a stop-and-rethink
 # point rather than a permanent lockout. "Closed by exactly one verdict" is
-# enforced, not assumed: a closed episode (verdict present) refuses
-# episode-round and episode-finding, and episode-verdict refuses to overwrite —
-# reopening is always the explicit episode-open act, and it archives the prior
-# episode (findings, waivers, verdict and all) under `.episodeHistory[<gate>]`
-# so the accountability trail survives the fresh start.
+# enforced, not assumed — and "verdict" there means a TERMINAL one. The shared
+# retry token (reference/gate-vocabulary.md) is a round OUTCOME, not a closing
+# verdict: an episode carrying it is awaiting its re-review, so episode-round
+# re-enters it (clearing the round outcome, keeping the findings) while any
+# other verdict refuses episode-round and episode-finding, and episode-verdict
+# refuses to overwrite — reopening past a terminal verdict is always the
+# explicit episode-open act, which archives the prior episode (findings,
+# waivers, verdict and all) under `.episodeHistory[<gate>]` so the
+# accountability trail survives the fresh start.
 EPISODE_ROUND_CAP=2
+# The one fix-and-retry spelling every episode gate shares — canonical source
+# reference/gate-vocabulary.md; tests/python/test_episode_contract.py pins the
+# two against each other.
+EPISODE_RETRY_VERDICT="FIX AND RE-REVIEW"
 
 episode_round_get() { # gate → prints the current branch's recorded round for that gate's episode, nothing if no episode is open
   local file; file="$(ledger_dir)/$(branch_slug).json"
@@ -512,7 +520,7 @@ cmd_episode_round() {
     return 2
   fi
   local closed; closed=$(episode_verdict_get "$gate")
-  if [ -n "$closed" ]; then
+  if [ -n "$closed" ] && [ "$closed" != "$EPISODE_RETRY_VERDICT" ]; then
     echo "gate-ledger: episode for gate '$gate' is closed (verdict '$closed' recorded) —" \
          "run episode-open to start a fresh one" >&2
     return 2
@@ -530,8 +538,14 @@ cmd_episode_round() {
     return 1
   fi
   local file; file="$(ledger_dir)/$(branch_slug).json"
+  # Re-entering clears the round outcome (the retry token), never the findings:
+  # the episode is open again, awaiting the re-review's own verdict. The
+  # dual-written legacy `.gates` entry keeps the retry token untouched — that is
+  # what the door's re-entry condition and the narrowing read.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  json_update "$file" '.episodes[$g].round = (.episodes[$g].round + 1)' --arg g "$gate"
+  json_update "$file" \
+    '.episodes[$g].round = (.episodes[$g].round + 1)
+     | .episodes[$g] |= del(.verdict, .verdictAt)' --arg g "$gate"
 }
 
 cmd_episode_verdict() {
@@ -560,8 +574,13 @@ cmd_episode_verdict() {
   fi
   local prior; prior=$(episode_verdict_get "$gate")
   if [ -n "$prior" ]; then
-    echo "gate-ledger: episode for gate '$gate' is already closed by verdict '$prior' —" \
-         "an episode is closed by exactly one verdict; run episode-open to re-judge in a fresh one" >&2
+    if [ "$prior" = "$EPISODE_RETRY_VERDICT" ]; then
+      echo "gate-ledger: episode for gate '$gate' carries round outcome '$prior' —" \
+           "run episode-round to re-enter its re-review before recording the next verdict" >&2
+    else
+      echo "gate-ledger: episode for gate '$gate' is already closed by verdict '$prior' —" \
+           "an episode is closed by exactly one verdict; run episode-open to re-judge in a fresh one" >&2
+    fi
     return 1
   fi
   local file rc; file="$(ledger_dir)/$(branch_slug).json"
@@ -680,8 +699,13 @@ cmd_episode_finding() {
   fi
   local closed; closed=$(episode_verdict_get "$gate")
   if [ -n "$closed" ]; then
-    echo "gate-ledger: episode for gate '$gate' is closed (verdict '$closed' recorded) —" \
-         "findings record during a round, before its verdict; run episode-open for a fresh episode" >&2
+    if [ "$closed" = "$EPISODE_RETRY_VERDICT" ]; then
+      echo "gate-ledger: episode for gate '$gate' carries round outcome '$closed' —" \
+           "run episode-round to re-enter its re-review before recording findings" >&2
+    else
+      echo "gate-ledger: episode for gate '$gate' is closed (verdict '$closed' recorded) —" \
+           "findings record during a round, before its verdict; run episode-open for a fresh episode" >&2
+    fi
     return 1
   fi
   case "$round" in
@@ -767,7 +791,7 @@ cmd_episode_finding() {
     --arg waiver "$waiver" --arg t "$(now_iso)"
 }
 
-cmd_episode_get() { # --gate G [--findings] -> one line a prose surface can quote verbatim: "round R — N open, M carried"
+cmd_episode_get() { # --gate G [--findings] -> one line a prose surface can quote verbatim: "round R of C — N open, M carried"
   # The findings ledger's read side. Only `open` and `carried` are counted —
   # they are the two states a verdict has to answer for (`closed` is resolved,
   # `waived` is explicitly set aside). Prints nothing when no episode is
@@ -792,21 +816,21 @@ cmd_episode_get() { # --gate G [--findings] -> one line a prose surface can quot
   [ -f "$file" ] || return 0
   if [ "$findings" -eq 1 ]; then
     # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-    jq -r --arg g "$gate" \
+    jq -r --arg g "$gate" --arg cap "$EPISODE_ROUND_CAP" \
       '.episodes[$g] // empty
        | ((.findings // {}) | to_entries | sort_by(.key)) as $es
        | ([$es[].value]) as $fs
-       | "round \(.round) — \([$fs[] | select(.status == "open")] | length) open, \([$fs[] | select(.status == "carried")] | length) carried",
+       | "round \(.round) of \($cap) — \([$fs[] | select(.status == "open")] | length) open, \([$fs[] | select(.status == "carried")] | length) carried",
          ($es[] | select(.value.status == "open" or .value.status == "carried")
           | "\(.value.status)\t\(.value.severity)\t\(.value.lane)\t\(.key)")' \
       "$file" 2>/dev/null
     return
   fi
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  jq -r --arg g "$gate" \
+  jq -r --arg g "$gate" --arg cap "$EPISODE_ROUND_CAP" \
     '.episodes[$g] // empty
      | ((.findings // {}) | [.[]]) as $fs
-     | "round \(.round) — \([$fs[] | select(.status == "open")] | length) open, \([$fs[] | select(.status == "carried")] | length) carried"' \
+     | "round \(.round) of \($cap) — \([$fs[] | select(.status == "open")] | length) open, \([$fs[] | select(.status == "carried")] | length) carried"' \
     "$file" 2>/dev/null
 }
 

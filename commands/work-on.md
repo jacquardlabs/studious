@@ -118,7 +118,7 @@ Run `/gate-audit`. Each run is one round of the branch's bounded **work episode*
 
 Log with `work-log --step audit --outcome "<verdict>" --phase "<phase>"`.
 
-Whatever the verdict, run `gate-ledger episode-get --gate audit` and carry its first line — `round R — N open, M carried` — into the closing block below, verbatim: the episode's own round and finding counts, never a re-tally of the report. If it prints nothing (no episode recorded on this branch — a legacy ledger, a driver-recorded verdict, or no `jq`), carry `none recorded` instead — never invent counts.
+Whatever the verdict, run `gate-ledger episode-get --gate audit` and carry its first line — `round R of C — N open, M carried` — into the closing block below, verbatim: the episode's own round and finding counts, never a re-tally of the report. If it prints nothing (no episode recorded on this branch — a legacy ledger, a driver-recorded verdict, or no `jq`), carry `none recorded` instead — never invent counts.
 
 ### 6 · acceptance — the delivery episode
 
@@ -156,10 +156,10 @@ Next piece: <name> — <one clause on what it involves>.
 Run /work-on when you're ready, or just say "next".
 ```
 
-When the piece just run was audit (piece 5), insert the work episode's readout as a second line — the `round R — N open, M carried` line piece 5 read from `gate-ledger episode-get --gate audit`, verbatim:
+When the piece just run was audit (piece 5), insert the work episode's readout as a second line — the `round R of C — N open, M carried` line piece 5 read from `gate-ledger episode-get --gate audit`, verbatim:
 
 ```text
-Episode: round R — N open, M carried
+Episode: round R of C — N open, M carried
 ```
 
 When the flow reaches `done` or `stopped`, the last two lines become the wrap-up instead: `done` points at `gh pr create`; `stopped` states the verdict that ended it.

@@ -161,6 +161,38 @@ class EpisodeContractTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("--gate and --verdict required", result.stderr)
 
+    # --- the retry verdict is a round outcome, not a closing verdict ---
+
+    def test_retry_verdict_is_a_round_outcome_round_two_is_reachable(self) -> None:
+        """The acceptance-gate regression (#289 landing, fix round): a round-1
+        `FIX AND RE-REVIEW` must arm re-entry, not close the episode — the
+        episode's whole point is a reachable, findings-carrying round 2."""
+        self.ledger("episode-open", "--gate", "audit")
+        self.ledger("episode-verdict", "--gate", "audit", "--verdict", "FIX AND RE-REVIEW")
+        result = self.ledger("episode-round", "--gate", "audit")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        episode = self.gates_file()["episodes"]["audit"]
+        self.assertEqual(episode["round"], 2)
+        self.assertEqual(
+            set(episode), OPEN_EPISODE_KEYS,
+            "re-entry clears the round outcome — the episode is open again",
+        )
+        self.assertEqual(
+            self.gates_file()["gates"]["audit"]["verdict"], "FIX AND RE-REVIEW",
+            "the dual-written legacy retry token survives re-entry untouched",
+        )
+        self.assertEqual(
+            self.ledger("episode-verdict", "--gate", "audit", "--verdict", "PASS").returncode, 0,
+            "round 2's terminal verdict closes the re-entered episode",
+        )
+
+    def test_terminal_verdict_still_refuses_reentry(self) -> None:
+        self.ledger("episode-open", "--gate", "audit")
+        self.ledger("episode-verdict", "--gate", "audit", "--verdict", "PASS")
+        result = self.ledger("episode-round", "--gate", "audit")
+        self.assertEqual(result.returncode, 2, "terminal close is the fresh-entry signal")
+        self.assertIn("closed", result.stderr)
+
     # --- reopening: the cap bounds one episode, never the branch ---
 
     def test_reopen_replaces_the_episode_and_keeps_the_legacy_record(self) -> None:
@@ -241,7 +273,7 @@ class EpisodeContractTest(unittest.TestCase):
         self.assertEqual(
             result.stdout.splitlines(),
             [
-                "round 1 — 1 open, 1 carried",
+                "round 1 of 2 — 1 open, 1 carried",
                 "carried\tImportant\tdoc-auditor\tdoc-auditor/readme-drift",
                 "open\tCritical\tsecurity-auditor\tsecurity-auditor/cmd-injection",
             ],
@@ -250,7 +282,7 @@ class EpisodeContractTest(unittest.TestCase):
     def test_episode_get_without_findings_flag_is_unchanged(self) -> None:
         self.ledger("episode-open", "--gate", "audit")
         result = self.ledger("episode-get", "--gate", "audit")
-        self.assertEqual(result.stdout.splitlines(), ["round 1 — 0 open, 0 carried"])
+        self.assertEqual(result.stdout.splitlines(), ["round 1 of 2 — 0 open, 0 carried"])
 
 
 #: Episode name → the ledger gate key it judges, mirroring the first two
@@ -336,6 +368,15 @@ class EpisodeVocabularyTest(unittest.TestCase):
 
     # --- Done-means 2: the driver's GATES retry strings match the table ---
 
+    def test_ledger_retry_constant_equals_the_vocabulary_token(self) -> None:
+        """bin/gate-ledger branches on the retry spelling (a round outcome
+        re-enters; a terminal verdict closes) — its constant must equal the
+        vocabulary's one shared retry token or re-entry silently dies again."""
+        ledger_text = LEDGER.read_text(encoding="utf-8")
+        m = re.search(r'^EPISODE_RETRY_VERDICT="([^"]+)"', ledger_text, re.MULTILINE)
+        self.assertIsNotNone(m, "EPISODE_RETRY_VERDICT constant missing from bin/gate-ledger")
+        self.assertEqual(m.group(1), RETRY_TOKEN)
+
     def test_driver_gates_retry_strings_equal_vocabulary_retry_tokens(self) -> None:
         gates_retry = _driver_gates_retry()
         self.assertEqual(
@@ -403,7 +444,7 @@ class GateAuditDoorTest(unittest.TestCase):
 
     def test_report_quotes_round_and_counts_from_episode_get(self) -> None:
         self.assertIn("episode-get --gate audit", self.door)
-        self.assertIn("round R — N open, M carried", self.door)
+        self.assertIn("round R of C — N open, M carried", self.door)
 
     # --- Done means 3: the criteria-conformance lane sits in the roster ---
 
@@ -483,14 +524,14 @@ class NavigatorEpisodeTest(unittest.TestCase):
         piece5 = self.piece(5)
         self.assertIn("episode-get --gate audit", piece5)
         self.assertIn(
-            "round R — N open, M carried", piece5,
+            "round R of C — N open, M carried", piece5,
             "the audit piece must carry the ledger's own round and finding "
             "counts into the closing block, never a re-tally",
         )
 
     def test_closing_block_carries_the_episode_readout(self) -> None:
         closing = self.text[self.text.index("## Close every invocation"):]
-        self.assertIn("round R — N open, M carried", closing)
+        self.assertIn("round R of C — N open, M carried", closing)
 
     def test_navigator_reads_the_episode_but_never_writes_it(self) -> None:
         """Code owns bookkeeping: the doors run the episode's write verbs

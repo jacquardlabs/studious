@@ -43,7 +43,7 @@ If `gate-ledger` is not found, `gate-get` errors, or it returns empty output (no
 
 **Both hold → re-enter:** run `gate-ledger episode-round --gate acceptance` and branch on its exit code — the round cap is enforced there, in code, never re-counted here:
 
-- **Exit 0** — this is round 2, the episode's one re-review. Run every Part below in full — fresh eyes, full current changeset; re-entry changes the episode's round, never this gate's scope.
+- **Exit 0** — this is round 2, the episode's one re-review. Run every Part below in full — fresh eyes, full current changeset; re-entry changes the episode's round, never this gate's scope. (A deliberate deferral, stated so it reads as a decision rather than an omission: the delivery episode records no findings ledger yet — round 2 re-reviews without inherited findings, and the convergence rules the work episode enforces in `bin/gate-ledger` do not yet apply here. The delivery side adopts the ledger with #292's disposition memory.)
 - **Exit 1** — the 2-round cap: this episode already spent its re-review without converging. Stop before dispatching anyone. Put the choice to the user: reopen a fresh episode (`gate-ledger episode-open --gate acceptance`, a full round 1) or treat the still-standing findings as the rework decision they have become. Never reopen silently — the cap is the episode's stop-and-rethink point, and stepping past it is a deliberate human act.
 - **Exit 2** — no open episode behind the recorded verdict (a ledger written before episodes existed): treat it as a fresh entry below.
 

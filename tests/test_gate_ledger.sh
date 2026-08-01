@@ -1690,7 +1690,7 @@ contains "a severity change exits non-zero" "rc=2" "$err"
 # --- episode-get: one parseable line prose surfaces can quote verbatim ---
 out=$(cd "$def1" && "$LEDGER" episode-get --gate audit)
 check "episode-get reports round and open/carried counts in one line" \
-  "round 2 — 1 open, 2 carried" "$out"
+  "round 2 of 2 — 1 open, 2 carried" "$out"
 check "episode-get output is a single line" "1" "$(printf '%s\n' "$out" | wc -l | tr -d ' ')"
 
 # --- episode-get mirrors its sibling read verbs when nothing is recorded ---
@@ -1783,6 +1783,50 @@ check "the archived episode keeps the waived Critical and its reason" \
   "$(jq -r '.episodeHistory.audit[0].findings["crit-a"] | .status + "/" + .waiver' "$fcl")"
 check "a first open still writes no history key" "null" \
   "$(cd "$(sandbox)" && "$LEDGER" episode-open --gate audit >/dev/null && jq -r '.episodeHistory // "null"' ".studious/gates/$(git branch --show-current | tr '/' '-').json")"
+
+# --- acceptance-fix regression: the retry verdict is a round outcome — round 2 is reachable ---
+drt=$(sandbox)
+frt="$drt/.studious/gates/$(cd "$drt" && git branch --show-current | tr '/' '-').json"
+( cd "$drt" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$drt" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Important --fingerprint sec-x --status open ) >/dev/null
+( cd "$drt" && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" ) >/dev/null
+
+# between the round outcome and re-entry, findings and verdicts still refuse — with the re-entry route named
+err=$(cd "$drt" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" 2>&1 1>/dev/null; echo "rc=$?")
+contains "a verdict on a retry-outcome episode points at episode-round" "episode-round" "$err"
+contains "that refusal exits non-zero" "rc=1" "$err"
+err=$(cd "$drt" && "$LEDGER" episode-finding --gate audit --lane x --severity Track \
+    --fingerprint late --status open 2>&1 1>/dev/null; echo "rc=$?")
+contains "a finding on a retry-outcome episode points at episode-round" "episode-round" "$err"
+
+# re-entry: exit 0, round 2, outcome cleared, findings kept, legacy retry token untouched
+( cd "$drt" && "$LEDGER" episode-round --gate audit ); rc=$?
+check "episode-round re-enters past the retry outcome" "0" "$rc"
+check "re-entry advances to round 2" "2" "$(jq -r '.episodes.audit.round' "$frt")"
+check "re-entry clears the round outcome" "null" "$(jq -r '.episodes.audit.verdict // "null"' "$frt")"
+check "re-entry keeps round 1's findings" "open" "$(jq -r '.episodes.audit.findings["sec-x"].status' "$frt")"
+check "the dual-written legacy retry token survives re-entry" "FIX AND RE-REVIEW" \
+  "$(jq -r '.gates.audit.verdict' "$frt")"
+
+# round 2's terminal verdict closes it; a terminal close still refuses re-entry
+( cd "$drt" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" ); rc=$?
+check "round 2's verdict closes the re-entered episode" "0" "$rc"
+err=$(cd "$drt" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "a terminally closed episode still refuses re-entry" "closed" "$err"
+contains "the terminal refusal stays the fresh-entry signal" "rc=2" "$err"
+
+# the cap still binds at the end of round 2's retry outcome
+dcap=$(sandbox)
+( cd "$dcap" && "$LEDGER" episode-open --gate audit && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" \
+    && "$LEDGER" episode-round --gate audit && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" ) >/dev/null
+err=$(cd "$dcap" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "a retry outcome at the cap still refuses a third round" "cap" "$err"
+contains "the cap refusal exits 1 past a retry outcome" "rc=1" "$err"
+
+# episode-get names the bound: "round R of C"
+out=$(cd "$dcap" && "$LEDGER" episode-get --gate audit)
+check "episode-get names the bound in its readout" "round 2 of 2 — 0 open, 0 carried" "$out"
 
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

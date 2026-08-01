@@ -33,11 +33,14 @@ retry state.
 The terms the episode rows above are written against, one line each (#289):
 
 - **episode** — one bounded run of a gate on a branch: opened at a sha, at most two
-  rounds (the first review plus one fix-and-retry) when a gate command drives it —
-  `bin/gate-ledger`'s `episode-open` / `episode-round` / `episode-verdict` refuse the
-  third round and the second verdict in code — and closed by exactly one verdict.
-  The epic driver's own retry cap is a separate constant until #274 collapses the
-  two implementations; this bound governs the episode verbs, not that loop.
+  rounds (the first review plus one fix-and-retry) when the audit or acceptance door
+  drives it — `bin/gate-ledger`'s episode verbs refuse the third round and the second
+  closing verdict in code — and closed by exactly one **terminal** verdict. A round's
+  `FIX AND RE-REVIEW` is that round's *outcome*, not a closing verdict: `episode-round`
+  re-enters past it, clearing the outcome and keeping the findings. The design-review
+  and decide doors adopt the episode verbs in a later landing, and the epic driver's
+  own retry cap is a separate constant until #274 collapses the two implementations —
+  this bound governs the episode verbs, not those loops.
 - **lane profile** — the set of specialist review lanes (auditors/reviewers) a round
   dispatches for this changeset: the always-on lanes plus the conditionally-routed
   ones, per `commands/gate-audit.md`'s routing rules.
