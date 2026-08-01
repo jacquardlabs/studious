@@ -426,19 +426,33 @@ cmd_gate_get() {
 #
 #   {sha, round, openedAt}              after episode-open (round is always 1)
 #   {sha, round, openedAt, verdict, verdictAt}  after episode-verdict
+#   + findings: {<fingerprint>: {lane, severity, round, status, ...}} once
+#     episode-finding records against the episode (full shape at
+#     cmd_episode_finding below)
 #
 # `sha` is the code state the episode's latest judgment saw: HEAD at open, then
 # refreshed by episode-verdict so the episode record and the dual-written legacy
 # `.gates` entry always carry the same verdict and sha. The round cap below
-# bounds ONE episode, never the branch — a fresh `episode-open` fully replaces
-# the gate's episode at round 1 (upsert posture, exactly like `record`), which is
-# what makes the cap a stop-and-rethink point rather than a permanent lockout.
+# bounds ONE episode, never the branch — a fresh `episode-open` replaces the
+# gate's episode at round 1, which is what makes the cap a stop-and-rethink
+# point rather than a permanent lockout. "Closed by exactly one verdict" is
+# enforced, not assumed: a closed episode (verdict present) refuses
+# episode-round and episode-finding, and episode-verdict refuses to overwrite —
+# reopening is always the explicit episode-open act, and it archives the prior
+# episode (findings, waivers, verdict and all) under `.episodeHistory[<gate>]`
+# so the accountability trail survives the fresh start.
 EPISODE_ROUND_CAP=2
 
 episode_round_get() { # gate → prints the current branch's recorded round for that gate's episode, nothing if no episode is open
   local file; file="$(ledger_dir)/$(branch_slug).json"
   [ -f "$file" ] || return 0
   jq -r --arg g "$1" '.episodes[$g].round // empty' "$file" 2>/dev/null
+}
+
+episode_verdict_get() { # gate → prints the episode's verdict if closed, nothing if open or absent
+  local file; file="$(ledger_dir)/$(branch_slug).json"
+  [ -f "$file" ] || return 0
+  jq -r --arg g "$1" '.episodes[$g].verdict // empty' "$file" 2>/dev/null
 }
 
 cmd_episode_open() {
@@ -460,14 +474,17 @@ cmd_episode_open() {
 
   ensure_gitignore
   local file; file=$(gates_file_init)
-  # Full replace of the gate's episode: reopening starts a fresh episode at
-  # round 1 (see the schema comment above). Only `.episodes` is touched — a
-  # prior episode's dual-written `.gates` entry survives, exactly as if a
-  # plain `record` had written it.
+  # Reopening starts a fresh episode at round 1, but never silently discards
+  # the prior one: an existing episode (its findings, waivers, and verdict) is
+  # archived under `.episodeHistory[<gate>]` first, so a carried Critical's
+  # waiver reason survives the reopen (see the schema comment above). A prior
+  # episode's dual-written `.gates` entry survives too, exactly as if a plain
+  # `record` had written it.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     '.schemaVersion = (.schemaVersion // 1)
      | .branch = $b
+     | (if .episodes[$g] then .episodeHistory[$g] = ((.episodeHistory[$g] // []) + [.episodes[$g]]) else . end)
      | .episodes[$g] = {sha: $s, round: 1, openedAt: $t}' \
     --arg b "$(branch_name)" --arg g "$gate" --arg s "$(head_sha)" --arg t "$(now_iso)"
 }
@@ -492,6 +509,12 @@ cmd_episode_round() {
   local round; round=$(episode_round_get "$gate")
   if [ -z "$round" ]; then
     echo "gate-ledger: no open episode for gate '$gate' on this branch (run episode-open first)" >&2
+    return 2
+  fi
+  local closed; closed=$(episode_verdict_get "$gate")
+  if [ -n "$closed" ]; then
+    echo "gate-ledger: episode for gate '$gate' is closed (verdict '$closed' recorded) —" \
+         "run episode-open to start a fresh one" >&2
     return 2
   fi
   case "$round" in
@@ -534,6 +557,12 @@ cmd_episode_verdict() {
   if [ -z "$round" ]; then
     echo "gate-ledger: no open episode for gate '$gate' on this branch (run episode-open first)" >&2
     return 2
+  fi
+  local prior; prior=$(episode_verdict_get "$gate")
+  if [ -n "$prior" ]; then
+    echo "gate-ledger: episode for gate '$gate' is already closed by verdict '$prior' —" \
+         "an episode is closed by exactly one verdict; run episode-open to re-judge in a fresh one" >&2
+    return 1
   fi
   local file rc; file="$(ledger_dir)/$(branch_slug).json"
   # Merge, not replace: the episode keeps its round/openedAt and gains the
@@ -610,6 +639,13 @@ cmd_episode_finding() {
     echo "gate-ledger: --gate, --fingerprint, and --status required" >&2
     return 2
   fi
+  case "$fingerprint" in
+    *[[:space:][:cntrl:]]*)
+      echo "gate-ledger: --fingerprint must be a single token with no whitespace or" \
+           "control characters — it keys the findings map and one line of episode-get --findings" >&2
+      return 2
+      ;;
+  esac
   case "$status" in
     open|closed|carried|waived) ;;
     *)
@@ -641,6 +677,12 @@ cmd_episode_finding() {
   if [ -z "$round" ]; then
     echo "gate-ledger: no open episode for gate '$gate' on this branch (run episode-open first)" >&2
     return 2
+  fi
+  local closed; closed=$(episode_verdict_get "$gate")
+  if [ -n "$closed" ]; then
+    echo "gate-ledger: episode for gate '$gate' is closed (verdict '$closed' recorded) —" \
+         "findings record during a round, before its verdict; run episode-open for a fresh episode" >&2
+    return 1
   fi
   case "$round" in
     *[!0-9]*) echo "gate-ledger: episode-finding: corrupted round '$round' for gate '$gate'" >&2; return 1 ;;
@@ -698,12 +740,14 @@ cmd_episode_finding() {
     fi
   fi
 
-  # Rule 2: a Critical reaches `carried` only under a recorded waiver. Checked
+  # Rule 2: a Critical is set aside — `carried` or `waived`, both meaning it
+  # rides through the verdict unfixed — only under a recorded waiver. Checked
   # against the STORED severity on an update (see above), so it cannot be
-  # dodged by restating the finding at a lower tier.
-  if [ "$severity" = "Critical" ] && [ "$status" = "carried" ] && [ -z "$waiver" ]; then
-    echo "gate-ledger: episode-finding refused — a Critical reaches 'carried' only with" \
-         "--waiver <reason>; fix it, or record why it is being carried" >&2
+  # dodged by restating the finding at a lower tier, and guarded on both
+  # set-aside statuses so it cannot be dodged by the sibling word either.
+  if [ "$severity" = "Critical" ] && { [ "$status" = "carried" ] || [ "$status" = "waived" ]; } && [ -z "$waiver" ]; then
+    echo "gate-ledger: episode-finding refused — a Critical reaches '$status' only with" \
+         "--waiver <reason>; fix it, or record why it is being set aside" >&2
     return 1
   fi
 

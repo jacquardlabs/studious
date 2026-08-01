@@ -1729,5 +1729,60 @@ stderrfin=$(cd "$dep6" && PATH="$fakebin" "$LEDGER" episode-finding --gate audit
 contains "episode-finding signals on stderr when jq is unavailable" \
   "gate-ledger: episode-finding skipped (jq and git required)" "$stderrfin"
 
+# --- audit-cleanup (#291-adjacent): waived shares carried's guard; closed episodes refuse; reopen archives ---
+dcl=$(sandbox)
+fcl="$dcl/.studious/gates/$(cd "$dcl" && git branch --show-current | tr '/' '-').json"
+( cd "$dcl" && "$LEDGER" episode-open --gate audit ) >/dev/null
+
+# a fingerprint is a single token — whitespace/control characters are refused at the write boundary
+err=$(cd "$dcl" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Track --fingerprint "two words" --status open 2>&1 1>/dev/null; echo "rc=$?")
+contains "a fingerprint with whitespace is refused" "single token" "$err"
+contains "the fingerprint refusal is a usage error" "rc=2" "$err"
+
+# Rule 2 guards waived exactly as it guards carried — no sibling-status bypass
+( cd "$dcl" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Critical --fingerprint crit-a --status open ) >/dev/null
+err=$(cd "$dcl" && "$LEDGER" episode-finding --gate audit --fingerprint crit-a --status waived 2>&1 1>/dev/null; echo "rc=$?")
+contains "moving a Critical to waived without --waiver is refused" "--waiver" "$err"
+contains "the waived refusal exits non-zero" "rc=1" "$err"
+check "the refused Critical stays open after the waived attempt" "open" \
+  "$(jq -r '.episodes.audit.findings["crit-a"].status' "$fcl")"
+( cd "$dcl" && "$LEDGER" episode-finding --gate audit --fingerprint crit-a --status waived \
+    --waiver "accepted risk: internal tool, tracked in #291" ); rc=$?
+check "a Critical waives with --waiver, exit 0" "0" "$rc"
+check "the waiver reason lands on the waived finding" "accepted risk: internal tool, tracked in #291" \
+  "$(jq -r '.episodes.audit.findings["crit-a"].waiver' "$fcl")"
+err=$(cd "$dcl" && "$LEDGER" episode-finding --gate audit --lane infra-auditor \
+    --severity Critical --fingerprint born-waived --status waived 2>&1 1>/dev/null; echo "rc=$?")
+contains "a Critical recorded directly as waived without --waiver is refused" "--waiver" "$err"
+
+# closed by exactly one verdict — enforced, not assumed
+( cd "$dcl" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" ) >/dev/null
+err=$(cd "$dcl" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "episode-round on a closed episode names the closure" "closed" "$err"
+contains "episode-round on a closed episode is the fresh-entry signal" "rc=2" "$err"
+err=$(cd "$dcl" && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" 2>&1 1>/dev/null; echo "rc=$?")
+contains "a second verdict on a closed episode is refused" "exactly one verdict" "$err"
+contains "the verdict-overwrite refusal exits non-zero" "rc=1" "$err"
+check "the refused overwrite leaves the recorded verdict standing" "PASS" \
+  "$(jq -r '.episodes.audit.verdict' "$fcl")"
+err=$(cd "$dcl" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Track --fingerprint late-finding --status open 2>&1 1>/dev/null; echo "rc=$?")
+contains "episode-finding on a closed episode is refused" "closed" "$err"
+contains "the late-finding refusal exits non-zero" "rc=1" "$err"
+
+# reopening archives the prior episode — findings, waiver, and verdict survive under episodeHistory
+( cd "$dcl" && "$LEDGER" episode-open --gate audit ) >/dev/null
+check "reopen starts the fresh episode at round 1" "1" "$(jq -r '.episodes.audit.round' "$fcl")"
+check "the fresh episode carries no findings" "null" "$(jq -r '.episodes.audit.findings // "null"' "$fcl")"
+check "reopen archives exactly one prior episode" "1" "$(jq -r '.episodeHistory.audit | length' "$fcl")"
+check "the archived episode keeps its verdict" "PASS" "$(jq -r '.episodeHistory.audit[0].verdict' "$fcl")"
+check "the archived episode keeps the waived Critical and its reason" \
+  "waived/accepted risk: internal tool, tracked in #291" \
+  "$(jq -r '.episodeHistory.audit[0].findings["crit-a"] | .status + "/" + .waiver' "$fcl")"
+check "a first open still writes no history key" "null" \
+  "$(cd "$(sandbox)" && "$LEDGER" episode-open --gate audit >/dev/null && jq -r '.episodeHistory // "null"' ".studious/gates/$(git branch --show-current | tr '/' '-').json")"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi
