@@ -1,0 +1,28 @@
+{
+  "task": "task-3",
+  "date": "2026-08-01",
+  "branch": "build/plan-202608010303",
+  "commit_sha": "449e50517f6a951bf95a982c689c35d82e2f254a",
+  "commit_timestamp": "2026-08-01T13:40:39+00:00",
+  "captured_at": "2026-08-01T13:45:21.547701+00:00",
+  "artifacts": [
+    {
+      "producer": "verify",
+      "label": "results",
+      "source": "/private/tmp/claude-501/-Users-bryan-Projects-studious/5ab90867-f085-4822-8cc6-590a69dee277/scratchpad/task-3/results.json",
+      "path": "results.json"
+    },
+    {
+      "producer": "build",
+      "label": "replay-bundle",
+      "source": "/private/tmp/claude-501/-Users-bryan-Projects-studious/5ab90867-f085-4822-8cc6-590a69dee277/scratchpad/task-3/replay-bundle.json",
+      "path": "replay-bundle.json"
+    },
+    {
+      "producer": "inspector",
+      "label": "report",
+      "source": "/private/tmp/claude-501/-Users-bryan-Projects-studious/5ab90867-f085-4822-8cc6-590a69dee277/scratchpad/task-3/inspector-report.md",
+      "path": "report.md"
+    }
+  ]
+}
