@@ -28,7 +28,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures"
 
-VERDICT_TOKENS: tuple[str, ...] = ("PASS", "FIX AND RE-AUDIT", "NEEDS DISCUSSION")
+VERDICT_TOKENS: tuple[str, ...] = ("PASS", "FIX AND RE-REVIEW", "NEEDS DISCUSSION")
 KNOWN_CATEGORIES: tuple[str, ...] = (
     "security",
     "code quality",
@@ -118,12 +118,12 @@ def extract_verdict(text: str) -> str | None:
     gate-audit.md's own rubric text lists all three tokens, and surrounding
     prose can mention a token in passing (e.g. "not safe to PASS"), so a
     naive substring search is unreliable. The agent's actual verdict is
-    bolded (`**FIX AND RE-AUDIT**`); fall back to the first plain occurrence
+    bolded (`**FIX AND RE-REVIEW**`); fall back to the first plain occurrence
     only if no bolded token is present.
     """
     section = extract_section(text, "Verdict") or text
     bolded = re.search(
-        r"\*\*\s*(PASS|FIX AND RE-AUDIT|NEEDS DISCUSSION)\s*\*\*", section
+        r"\*\*\s*(PASS|FIX AND RE-REVIEW|NEEDS DISCUSSION)\s*\*\*", section
     )
     if bolded:
         return bolded.group(1)

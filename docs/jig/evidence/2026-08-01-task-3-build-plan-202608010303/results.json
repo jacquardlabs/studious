@@ -1,0 +1,27 @@
+{
+  "task": "task-3",
+  "overall": "PASS",
+  "items": [
+    {
+      "id": 1,
+      "kind": "cap",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: tests/python/test_episode_contract.py\nexit code: 0\n--- stdout ---\n\n--- stderr ---\n...................\n----------------------------------------------------------------------\nRan 19 tests in 2.529s\n\nOK\n"
+    },
+    {
+      "id": 2,
+      "kind": "cap",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: tests/python/test_episode_contract.py\nexit code: 0\n--- stdout ---\n\n--- stderr ---\n...................\n----------------------------------------------------------------------\nRan 19 tests in 2.584s\n\nOK\n"
+    },
+    {
+      "id": 3,
+      "kind": "hold",
+      "tier": "script",
+      "status": "PASS",
+      "detail": "command: tests/test_workflows_lint.sh\nexit code: 0\n--- stdout ---\nok   - flags .filter().map() with an index param\nok   - index zipped in before filtering is clean\nok   - flags a bare (non-spread) .unshift() call\nok   - a single spread .unshift() is clean\nok   - flags an &&-derived boolean never checked in negated form\nok   - an &&-derived boolean checked via !flag is clean\nok   - an &&-derived boolean with a justified suppression is clean\nok   - flags an agent() call with no model or agentType option\nok   - flags an agent() call with only one argument\nok   - flags an agent() call whose options come from a variable, not a literal\nok   - flags a spread inside the options object even if the spread source is pinned\nok   - an agent() call pinned with an explicit model is clean\nok   - an agent() call routed through an agentType is clean\nok   - an unpinned agent() call with a justified suppression is clean\nok   - a bare suppression with no reason after -- is itself flagged\nok   - a suppression with a dash marker but blank text after it is itself flagged\nok   - a bare eslint-disable-next-line with no rule list at all is itself flagged\nok   - a bare eslint-disable-next-line with a reason after -- is clean\nok   - a block-comment eslint-disable-next-line with no reason is itself flagged\nok   - a block-comment eslint-disable-next-line with a reason is clean\nok   - a trailing eslint-disable-line with no reason is itself flagged\nok   - a trailing eslint-disable-line with a reason is clean\nok   - a trailing block-comment eslint-disable-line with no reason is itself flagged\nok   - a trailing block-comment eslint-disable-line with a reason is clean\nok   - a file-level bare eslint-disable with no reason is itself flagged\nok   - a file-level bare eslint-disable with a reason is clean\nok   - a file-level eslint-disable naming our rule with no reason is itself flagged\nok   - a file-level eslint-disable naming an unrelated rule doesn't suppress a real unpinned dispatch\nok   - a bare file-level eslint-disable with no unpinned agent() calls at all is clean\nok   - a rule-configuration comment disabling our rule is itself flagged\nok   - a rule-configuration comment using bare 0 instead of \"off\" is also flagged\nok   - a rule-configuration comment naming an unrelated rule doesn't trip our check\nok   - a stale suppression (rule wouldn't have fired) is itself flagged\nok   - no-undef catches a misspelled identifier\nok   - no-undef's reported line maps back to the real file's own line 3, not a wrapper-shifted one\nok   - workflows/epic-driver.js lints clean\nok   - node --check passes on workflows/epic-driver.js\n----\nall workflows lint tests passed\n\n--- stderr ---\n"
+    }
+  ]
+}

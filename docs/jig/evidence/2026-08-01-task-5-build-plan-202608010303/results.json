@@ -1,0 +1,34 @@
+{
+  "task": "task-5",
+  "overall": "PASS",
+  "items": [
+    {
+      "id": 1,
+      "kind": "cap",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: tests/python/test_episode_contract.py\nexit code: 0\n--- stdout ---\n\n--- stderr ---\n..............................................\n----------------------------------------------------------------------\nRan 46 tests in 3.610s\n\nOK\n"
+    },
+    {
+      "id": 2,
+      "kind": "cap",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: tests/python/test_episode_contract.py\nexit code: 0\n--- stdout ---\n\n--- stderr ---\n..............................................\n----------------------------------------------------------------------\nRan 46 tests in 3.598s\n\nOK\n"
+    },
+    {
+      "id": 3,
+      "kind": "cap",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: tests/python/test_episode_contract.py\nexit code: 0\n--- stdout ---\n\n--- stderr ---\n..............................................\n----------------------------------------------------------------------\nRan 46 tests in 3.607s\n\nOK\n"
+    },
+    {
+      "id": 4,
+      "kind": "hold",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: tests/python/test_episode_contract.py\nexit code: 0\n--- stdout ---\n\n--- stderr ---\n..............................................\n----------------------------------------------------------------------\nRan 46 tests in 3.624s\n\nOK\n"
+    }
+  ]
+}

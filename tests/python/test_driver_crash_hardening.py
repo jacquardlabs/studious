@@ -553,7 +553,7 @@ def test_finale_audit_stall_past_cap_produces_needsyou_entry_naming_the_gate_and
     rules = [
         *LAND_STORY_A_RULES,
         *FINALE_AUDITORS_PASS,
-        {"match": r"^finale:audit-compile$", "result": {"verdict": "FIX AND RE-AUDIT", "sha": "f1", "summary": "still broken"}},
+        {"match": r"^finale:audit-compile$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "f1", "summary": "still broken"}},
         {"match": r"^finale:fix:audit$", "result": {"status": "done", "sha": "f2", "summary": "attempted a fix", "evidence": "ran tests"}},
         {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "f3", "summary": "ok"}},
     ]
@@ -566,10 +566,10 @@ def test_finale_audit_stall_past_cap_produces_needsyou_entry_naming_the_gate_and
     assert len(stalled) == 1, f"expected exactly one finale needsYou entry, got: {result['needsYou']}"
     entry = stalled[0]
     assert entry["gate"] == "audit"
-    assert entry["verdict"] == "FIX AND RE-AUDIT"
+    assert entry["verdict"] == "FIX AND RE-REVIEW"
     assert f"stalled past {MAX_FIX_CYCLES} fix cycles" in entry["reason"]
     # Existing behavior (the finale field itself) must be unchanged too.
-    assert result["finale"]["audit"]["verdict"] == "FIX AND RE-AUDIT"
+    assert result["finale"]["audit"]["verdict"] == "FIX AND RE-REVIEW"
     assert result["finale"]["ready"] is False
 
 
@@ -579,7 +579,7 @@ def test_finale_acceptance_stall_past_cap_produces_needsyou_entry_naming_the_gat
         *LAND_STORY_A_RULES,
         *FINALE_AUDITORS_PASS,
         {"match": r"^finale:audit-compile$", "result": {"verdict": "PASS", "sha": "f1", "summary": "clean"}},
-        {"match": r"^finale:acceptance$", "result": {"verdict": "FIX AND RE-CHECK", "sha": "f3", "summary": "not shippable"}},
+        {"match": r"^finale:acceptance$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "f3", "summary": "not shippable"}},
         {"match": r"^finale:fix:acceptance$", "result": {"status": "done", "sha": "f4", "summary": "attempted a fix", "evidence": "ran tests"}},
     ]
     out = _run_driver(epic, rules)
@@ -591,9 +591,9 @@ def test_finale_acceptance_stall_past_cap_produces_needsyou_entry_naming_the_gat
     assert len(stalled) == 1, f"expected exactly one finale needsYou entry, got: {result['needsYou']}"
     entry = stalled[0]
     assert entry["gate"] == "acceptance"
-    assert entry["verdict"] == "FIX AND RE-CHECK"
+    assert entry["verdict"] == "FIX AND RE-REVIEW"
     assert f"stalled past {MAX_FIX_CYCLES} fix cycles" in entry["reason"]
-    assert result["finale"]["acceptance"]["verdict"] == "FIX AND RE-CHECK"
+    assert result["finale"]["acceptance"]["verdict"] == "FIX AND RE-REVIEW"
     assert result["finale"]["ready"] is False
 
 

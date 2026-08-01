@@ -91,10 +91,12 @@ def test_drops_are_named_in_the_summary() -> None:
     )
 
 
-def test_only_confirmed_criticals_drive_fix_and_reaudit() -> None:
+def test_only_confirmed_criticals_drive_fix_and_re_review() -> None:
+    # FIX AND RE-REVIEW is the work episode's retry token since #289 (Task 3),
+    # replacing FIX AND RE-AUDIT — reference/gate-vocabulary.md is canonical.
     section = _challenge_section()
-    assert re.search(r"FIX AND RE-AUDIT", section), (
-        "challenge step doesn't tie back to the FIX AND RE-AUDIT verdict — nothing "
+    assert re.search(r"FIX AND RE-REVIEW", section), (
+        "challenge step doesn't tie back to the FIX AND RE-REVIEW verdict — nothing "
         "says only a surviving Critical can still flip it"
     )
 

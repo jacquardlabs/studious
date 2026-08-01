@@ -1,6 +1,6 @@
 {
   "description": "Two documentation defects and nothing else. (1) render_summary's date_format default flips from \"iso\" to \"us\", contradicting both its own docstring and README.md's Public API section — README is not in the diff, so catching it requires reading the changeset against what the README claims rather than only reviewing changed files. (2) export_csv is a new public function shipped with no docstring, against CLAUDE.md's stated convention. The default flip is a real behavior change, so code-auditor and test-auditor may also file against this diff; that is expected and harmless, because each planted defect's signals are documentation-specific (`docstring`, `undocumented`) and its locator is the file the doc claim lives in. A test-coverage finding naming export_csv therefore does not score as the documentation defect. This is doc-auditor's scoring case for issue #136.",
-  "verdict_any_of": ["PASS", "FIX AND RE-AUDIT"],
+  "verdict_any_of": ["PASS", "FIX AND RE-REVIEW"],
   "min_important_findings": 1,
   "required_categories": ["documentation"],
   "planted": [

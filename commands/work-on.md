@@ -20,8 +20,8 @@ Read PRODUCT.md at the project root first.
 | 2 | design | handoff — Studious steps back | a design doc exists satisfying `reference/design-doc-contract.md` |
 | 3 | design-review | `/gate-design-review` | **PROCEED TO PLAN** |
 | 4 | build | handoff — Studious steps back | implementation commits exist on the feature branch |
-| 5 | audit | `/gate-audit` | **PASS** at HEAD |
-| 6 | acceptance | `/gate-acceptance` | **SHIP** at HEAD |
+| 5 | audit | `/gate-audit` | **PASS** closes the work episode |
+| 6 | acceptance | `/gate-acceptance` | **SHIP** closes the delivery episode |
 | 7 | finish | handoff — Studious steps back | the branch is closed out: scaffolding removed, evidence assembled, PR opened or the work merged/parked |
 
 Piece 4 covers planning as well as building — the route it hands to (`/plan` then `/build`) is two skills but one handoff, so there is no separate plan piece to stop at.
@@ -52,7 +52,7 @@ gate-ledger work-set --slug "<slug>" --title "<title>" --source "<issue #N or: i
 
 The work file's `phase` names the next piece, but verify it against evidence before running anything, and correct the file when they disagree — evidence wins:
 
-- **Gate verdicts** — read via the ledger tool, never the raw file: `gate-ledger gate-get` prints the current branch's recorded verdicts as JSON (`.gates.<gate>.verdict` / `.gates.<gate>.sha`); empty output means nothing recorded yet. For audit and acceptance a passing verdict counts only at the current HEAD sha; commits since mean that gate is due again.
+- **Gate verdicts** — read via the ledger tool, never the raw file: `gate-ledger gate-get` prints the current branch's recorded verdicts as JSON (`.gates.<gate>.verdict` / `.gates.<gate>.sha`); empty output means nothing recorded yet. Staleness is **episode-scoped** (`reference/gate-vocabulary.md`), never a cross-gate sha comparison: a verdict belongs to the episode that recorded it, and each gate's own door decides from its episode record whether the next run re-enters that episode or opens a fresh one — don't re-derive that here from sha drift. Verdicts route the flow forward only. An acceptance-side verdict, or the fix commits its findings produce, never re-arms `audit`: the work episode's `PASS` stands as that episode's verdict. Where those fixes get judged is the delivery door's own routing call (`commands/gate-acceptance.md` owns it): a targeted fix re-enters the delivery episode's re-review round, and a story-scale fix goes through a fresh work episode first — a fresh episode the door opens, never a re-arming of the closed one, and never a phase bounce back to piece 5 from here. The only other backward route is the user explicitly asking for one. (The PR-time reminder still compares recorded shas to HEAD and may nag after post-verdict commits; it is non-blocking by design.)
 - **Design doc** — the `designDoc` path in the work file, else discover a candidate the way `/gate-design-review` does. When found, record it: `work-set --design-doc "<path>"`.
 - **Pre-mortem register** — `docs/studious/premortems/<doc-slug>.md`, where `<doc-slug>` is the recorded `designDoc`'s filename without its extension — `/gate-design-review` names the register after the design doc, not the feature slug, so don't reuse this flow's `<slug>` here. A register found at that path with a `Branch:` header matching the current branch is evidence design-review already returned **PROCEED TO PLAN**.
 - **Build progress** — implementation commits since the design-review sha. If the phase says `build` and there are none, the build piece isn't done: say so rather than advancing (re-offering the handoff is fine).
@@ -108,25 +108,29 @@ The flow hands off rather than builds. Hand over the working context, then stop:
 
 Log `work-log --step build --outcome HANDED-OFF`. Phase stays `build`; the evidence check advances it when implementation commits exist.
 
-### 5 · audit
+### 5 · audit — the work episode
 
-Run `/gate-audit`, then:
+Run `/gate-audit`. Each run is one round of the branch's bounded **work episode**; the door owns the episode bookkeeping (`bin/gate-ledger`'s episode verbs: open, re-enter, verdict, with the round cap enforced in code), so never count rounds or decide re-entry here. Then:
 
-- **PASS** → phase `acceptance`
-- **FIX AND RE-AUDIT** → phase stays `audit`; the next piece is fixing the critical findings, then re-audit
+- **PASS** → phase `acceptance`; the work episode is closed
+- **FIX AND RE-REVIEW** → phase stays `audit`; the next piece is fixing the blocking findings, then running `/gate-audit` again — that run **re-enters the same episode** for its one re-review round, narrowed to the blocking lanes, never a fresh audit from scratch. If the door reports the round cap instead, surface its choice — reopen a fresh episode or take the still-open findings to discussion — and let the user make it.
 - **NEEDS DISCUSSION** → phase stays `audit`; surface the concerns — the user decides how to resolve them
 
 Log with `work-log --step audit --outcome "<verdict>" --phase "<phase>"`.
 
-### 6 · acceptance
+Whatever the verdict, run `gate-ledger episode-get --gate audit` and carry its first line — `round R of C — N open, M carried` — into the closing block below, verbatim: the episode's own round and finding counts, never a re-tally of the report. If it prints nothing (no episode recorded on this branch — a legacy ledger, a driver-recorded verdict, or no `jq`), carry `none recorded` instead — never invent counts.
 
-Run `/gate-acceptance`, then:
+### 6 · acceptance — the delivery episode
 
-- **SHIP** → phase `finish`
-- **FIX AND RE-CHECK** → phase stays `acceptance`
-- **HOLD** → phase stays `acceptance`; surface the product concerns
+`/gate-acceptance` is the branch's bounded **delivery episode**, and it runs at the delivery boundary — after the work episode closed `PASS`, before the PR — never as a per-fix loop. Run it, then:
+
+- **SHIP** → phase `finish`; the delivery episode is closed
+- **FIX AND RE-REVIEW** → phase stays `acceptance`; the next piece is landing the listed fixes, then running `/gate-acceptance` again for the episode's one re-review round. The door itself routes a story-scale fix through the work episode (`commands/gate-acceptance.md` owns that routing); an acceptance verdict never re-arms the work episode from here.
+- **HOLD** → phase stays `acceptance`; surface the product concerns — rework beyond targeted fixes is the user's call
 
 Log with `work-log --step acceptance --outcome "<verdict>" --phase "<phase>"`.
+
+Whatever the verdict, run `gate-ledger episode-get --gate acceptance` and carry its first line into the closing block below, verbatim — same rule as piece 5, same `none recorded` fallback when it prints nothing.
 
 ### 7 · finish
 
@@ -152,6 +156,12 @@ After the piece finishes, end with exactly this shape and nothing after it:
 Flow: <slug> — piece <k>/7 (<name>): <outcome>.
 Next piece: <name> — <one clause on what it involves>.
 Run /work-on when you're ready, or just say "next".
+```
+
+When the piece just run was audit (piece 5) or acceptance (piece 6), insert that episode's readout as a second line — the `round R of C — N open, M carried` line the piece read from `gate-ledger episode-get --gate <audit|acceptance>`, verbatim:
+
+```text
+Episode: round R of C — N open, M carried
 ```
 
 When the flow reaches `done` or `stopped`, the last two lines become the wrap-up instead: `done` points at `gh pr create`; `stopped` states the verdict that ended it.

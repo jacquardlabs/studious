@@ -31,5 +31,6 @@ Never introduce a fourth tier; map every auditor's labels into these three.
 | frontend-reviewer | BUG | PERFORMANCE, ARCHITECTURE | CLEANUP |
 | web-design-guidelines (a11y) | blocking a11y failures (no keyboard access, contrast failures on core flows) | other a11y gaps | polish |
 | premortem-auditor | BLOCKER (REALIZED) | SHOULD FIX (REALIZED, register-integrity) | OBSERVATION (CAN'T VERIFY / staleness) |
+| product-reviewer (criteria conformance) | BLOCKER | SHOULD FIX | MINOR, OBSERVATION |
 
 A new auditor registers its own row here rather than requiring a hand-edit anywhere else.

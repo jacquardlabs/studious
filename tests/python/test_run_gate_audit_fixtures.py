@@ -42,7 +42,7 @@ None.
 None.
 
 ### Verdict
-**FIX AND RE-AUDIT** — Critical findings listed. Fix these, then re-run `/gate-audit`.
+**FIX AND RE-REVIEW** — Critical findings listed. Fix these, then re-run `/gate-audit`.
 """
 
 PASS_WITH_IMPORTANT_REPORT = """\
@@ -74,8 +74,8 @@ def test_extract_verdict_pass() -> None:
     assert extract_verdict(PASS_REPORT) == "PASS"
 
 
-def test_extract_verdict_fix_and_re_audit() -> None:
-    assert extract_verdict(FIX_REPORT) == "FIX AND RE-AUDIT"
+def test_extract_verdict_fix_and_re_review() -> None:
+    assert extract_verdict(FIX_REPORT) == "FIX AND RE-REVIEW"
 
 
 def test_extract_verdict_needs_discussion() -> None:
@@ -89,8 +89,8 @@ def test_extract_verdict_missing_returns_none() -> None:
 def test_extract_verdict_ignores_trailing_token_in_prose() -> None:
     # "PASS" appears later in the sentence than the actual bolded verdict —
     # a naive last-match search would misread this as PASS.
-    text = "### Verdict\n**FIX AND RE-AUDIT** — not safe to PASS to the acceptance gate.\n"
-    assert extract_verdict(text) == "FIX AND RE-AUDIT"
+    text = "### Verdict\n**FIX AND RE-REVIEW** — not safe to PASS to the acceptance gate.\n"
+    assert extract_verdict(text) == "FIX AND RE-REVIEW"
 
 
 def test_parse_clean_report_has_no_findings() -> None:
@@ -103,7 +103,7 @@ def test_parse_clean_report_has_no_findings() -> None:
 
 def test_parse_critical_security_report() -> None:
     parsed = parse_audit_report(FIX_REPORT)
-    assert parsed.verdict == "FIX AND RE-AUDIT"
+    assert parsed.verdict == "FIX AND RE-REVIEW"
     assert parsed.critical_count == 1
     assert parsed.important_count == 0
     assert "security" in parsed.categories_mentioned
@@ -120,7 +120,7 @@ def test_parse_pass_with_important_finding() -> None:
 def test_evaluate_passes_when_expectations_met() -> None:
     parsed = parse_audit_report(FIX_REPORT)
     expected = Expectation(
-        verdict_any_of=("FIX AND RE-AUDIT", "NEEDS DISCUSSION"),
+        verdict_any_of=("FIX AND RE-REVIEW", "NEEDS DISCUSSION"),
         min_critical_findings=1,
         required_categories=("security",),
     )
@@ -129,7 +129,7 @@ def test_evaluate_passes_when_expectations_met() -> None:
 
 def test_evaluate_fails_on_wrong_verdict() -> None:
     parsed = parse_audit_report(PASS_REPORT)
-    expected = Expectation(verdict_any_of=("FIX AND RE-AUDIT",))
+    expected = Expectation(verdict_any_of=("FIX AND RE-REVIEW",))
     failures = evaluate(parsed, expected)
     assert len(failures) == 1
     assert "verdict" in failures[0]
@@ -145,7 +145,7 @@ def test_evaluate_fails_on_missing_critical_findings() -> None:
 def test_evaluate_fails_on_unexpected_critical_findings() -> None:
     parsed = parse_audit_report(FIX_REPORT)
     expected = Expectation(
-        verdict_any_of=("FIX AND RE-AUDIT",), max_critical_findings=0
+        verdict_any_of=("FIX AND RE-REVIEW",), max_critical_findings=0
     )
     failures = evaluate(parsed, expected)
     assert any("critical finding" in f for f in failures)
@@ -268,7 +268,7 @@ None.
 
 ## Verdict
 
-**FIX AND RE-AUDIT** — authorization is enforced nowhere.
+**FIX AND RE-REVIEW** — authorization is enforced nowhere.
 """
 
 
@@ -288,7 +288,7 @@ def test_extract_section_stops_at_the_next_same_level_heading() -> None:
 
 def test_extract_section_on_a_nested_report_counts_the_finding() -> None:
     parsed = parse_audit_report(NESTED_REPORT)
-    assert parsed.verdict == "FIX AND RE-AUDIT"
+    assert parsed.verdict == "FIX AND RE-REVIEW"
     assert parsed.critical_count >= 1
     assert parsed.important_count >= 1
 

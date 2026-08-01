@@ -70,32 +70,39 @@ def test_gate_design_review_no_longer_defers_the_register_commit() -> None:
 
 def test_gate_acceptance_states_commit_before_record() -> None:
     """gate-acceptance.md's Record section states the ordering rule up front, ahead
-    of the `gate-ledger record` invocation — generic, since there is no prescribed
-    write on this gate (issue #99's observed emergent-doc case)."""
+    of the recording invocation — generic, since there is no prescribed write on
+    this gate (issue #99's observed emergent-doc case). The gate records via
+    `episode-verdict` since the delivery-episode rewrite (#289, Task 5); the
+    ordering rule is unchanged — commit first, then record."""
     text = GATE_ACCEPTANCE.read_text()
     section = _record_section(text)
 
-    assert "Before running `gate-ledger record`" in section, (
-        "no explicit 'before running gate-ledger record' ordering statement"
+    assert "Before running `gate-ledger episode-verdict`" in section, (
+        "no explicit 'before running gate-ledger episode-verdict' ordering statement"
     )
 
-    rule_pos = section.index("Before running `gate-ledger record`")
+    rule_pos = section.index("Before running `gate-ledger episode-verdict`")
     bash_pos = section.index("```bash")
     assert rule_pos < bash_pos, (
-        "commit-before-record rule must precede the gate-ledger record invocation"
+        "commit-before-record rule must precede the episode-verdict invocation"
     )
 
     assert "HEAD" in section, "rule does not explain the sha-vs-HEAD mechanism"
 
 
 def test_verdict_vocab_unchanged() -> None:
-    """Acceptance criteria: no change to verdict vocabulary or decision logic."""
+    """Acceptance criteria: no change to verdict vocabulary or decision logic.
+
+    The acceptance retry token here is `FIX AND RE-REVIEW`, not this story's
+    original `FIX AND RE-CHECK` — #289 (Tasks 3 and 5) renamed it in
+    reference/gate-vocabulary.md, which is canonical. This test still locks
+    that the commit-ordering story's surfaces carry a full three-token set."""
     design_text = GATE_DESIGN_REVIEW.read_text()
     for token in ("PROCEED TO PLAN", "REVISE", "RETHINK"):
         assert token in design_text, f"gate-design-review lost verdict token {token!r}"
 
     acceptance_text = GATE_ACCEPTANCE.read_text()
-    for token in ("SHIP", "FIX AND RE-CHECK", "HOLD"):
+    for token in ("SHIP", "FIX AND RE-REVIEW", "HOLD"):
         assert token in acceptance_text, f"gate-acceptance lost verdict token {token!r}"
 
 

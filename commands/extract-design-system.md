@@ -80,7 +80,7 @@ For each detected surface, extract its specific patterns.
 ### Plugin / prompt tooling (if present)
 For a Claude Code plugin (or any product whose interface *is* a set of commands/prompts), the user-facing surface is the commands and their output contracts:
 - Command naming convention (verb-first? `noun-verb`? prefix like `gate-`/`deep-`?).
-- The verdict/output vocabulary each command emits — the canonical result tokens (e.g. `BUILD` / `BUILD SMALLER` / `DEFER` / `DON'T BUILD`; `PASS` / `FIX AND RE-AUDIT`). These are the plugin's most important interface contract; list each command's vocabulary and flag any drift between commands that should share one.
+- The verdict/output vocabulary each command emits — the canonical result tokens (e.g. `BUILD` / `BUILD SMALLER` / `DEFER` / `DON'T BUILD`; `PASS` / `FIX AND RE-REVIEW`). These are the plugin's most important interface contract; list each command's vocabulary and flag any drift between commands that should share one.
 - Severity/tier vocabulary used in reports (e.g. Critical / Important / Minor) and whether it's consistent across commands.
 - Report/output structure conventions (section ordering, summary-first, how findings are grouped).
 - Natural-language trigger conventions (how skills shim to commands) and frontmatter conventions (description style, allowed-tools).

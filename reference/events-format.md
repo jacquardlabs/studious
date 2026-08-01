@@ -56,7 +56,7 @@ keeps the log a runtime transition trail, not a mirror of every plan edit.
 ### Example lines
 
 ```json
-{"at":"2026-07-11T14:02:03Z","epic":"worker-evidence-and-board","story":"board-events-log","kind":"gate-verdict","gate":"audit","verdict":"FIX AND RE-AUDIT","sha":"a1b2c3d"}
+{"at":"2026-07-11T14:02:03Z","epic":"worker-evidence-and-board","story":"board-events-log","kind":"gate-verdict","gate":"audit","verdict":"FIX AND RE-REVIEW","sha":"a1b2c3d"}
 {"at":"2026-07-11T14:05:11Z","epic":"worker-evidence-and-board","story":"board-events-log","kind":"story","bumpRetryGate":"audit","retries":1}
 {"at":"2026-07-11T14:19:40Z","epic":"worker-evidence-and-board","story":"board-events-log","kind":"gate-verdict","gate":"audit","verdict":"PASS","sha":"d4e5f6a"}
 {"at":"2026-07-11T14:19:41Z","epic":"worker-evidence-and-board","story":"board-events-log","kind":"step","step":"audit","outcome":"PASS","phase":"merge","sha":"d4e5f6a"}

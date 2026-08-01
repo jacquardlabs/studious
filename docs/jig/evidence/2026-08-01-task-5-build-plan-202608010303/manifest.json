@@ -1,0 +1,22 @@
+{
+  "task": "task-5",
+  "date": "2026-08-01",
+  "branch": "build/plan-202608010303",
+  "commit_sha": "a4859b61514e0a9600d692fac8415c60f48728cd",
+  "commit_timestamp": "2026-08-01T14:48:37+00:00",
+  "captured_at": "2026-08-01T14:49:49.343315+00:00",
+  "artifacts": [
+    {
+      "producer": "verify",
+      "label": "results",
+      "source": "/private/tmp/claude-501/-Users-bryan-Projects-studious/5ab90867-f085-4822-8cc6-590a69dee277/scratchpad/task-5/results.json",
+      "path": "results.json"
+    },
+    {
+      "producer": "build",
+      "label": "replay-bundle",
+      "source": "/private/tmp/claude-501/-Users-bryan-Projects-studious/5ab90867-f085-4822-8cc6-590a69dee277/scratchpad/task-5/replay-bundle.json",
+      "path": "replay-bundle.json"
+    }
+  ]
+}

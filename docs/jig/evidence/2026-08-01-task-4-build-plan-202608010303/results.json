@@ -1,0 +1,34 @@
+{
+  "task": "task-4",
+  "overall": "PASS",
+  "items": [
+    {
+      "id": 1,
+      "kind": "cap",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: tests/python/test_episode_contract.py\nexit code: 0\n--- stdout ---\n\n--- stderr ---\n................................\n----------------------------------------------------------------------\nRan 32 tests in 3.679s\n\nOK\n"
+    },
+    {
+      "id": 2,
+      "kind": "cap",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: tests/python/test_episode_contract.py\nexit code: 0\n--- stdout ---\n\n--- stderr ---\n................................\n----------------------------------------------------------------------\nRan 32 tests in 3.718s\n\nOK\n"
+    },
+    {
+      "id": 3,
+      "kind": "cap",
+      "tier": "test-backed",
+      "status": "PASS",
+      "detail": "command: tests/python/test_episode_contract.py\nexit code: 0\n--- stdout ---\n\n--- stderr ---\n................................\n----------------------------------------------------------------------\nRan 32 tests in 3.625s\n\nOK\n"
+    },
+    {
+      "id": 4,
+      "kind": "hold",
+      "tier": "script",
+      "status": "PASS",
+      "detail": "command: scripts/check_gate_independence.py\nexit code: 0\n--- stdout ---\nGate independence check passed: none of 31 gate files requires a build skill.\n\n--- stderr ---\n"
+    }
+  ]
+}

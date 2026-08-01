@@ -97,8 +97,10 @@ rest of the read. Neither case drops or corrupts a later, well-formed line.
 
 ## What never changes at this layer
 
-Every status/verdict token — `PASS`, `FIX AND RE-AUDIT`, `landed`, `parked`, `pending`,
-gate names, etc. — passes through **unmodified** from the blackboard and events files.
+Every status/verdict token — `PASS`, `FIX AND RE-REVIEW`, `landed`, `parked`, `pending`,
+gate names, etc. — passes through **unmodified** from the blackboard and events files
+(records written before the retry-token rename carry the earlier spellings; they pass
+through just as opaquely).
 This schema performs no web-layer renaming of gate-ledger's own vocabulary (issue #98's
 "Same state/verdict vocabulary as CLI and schema; no web-only words," `reference/
 gate-vocabulary.md`) — a future `board-ui` can cite the CLI's own resolution commands
