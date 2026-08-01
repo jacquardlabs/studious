@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Episode-record contract for bin/gate-ledger's episode verbs (#289).
 
 Freezes the schema every later episode consumer reads or writes:
