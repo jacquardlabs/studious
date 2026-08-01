@@ -48,7 +48,7 @@ def test_precompute_step_stamps_under_a_named_heading() -> None:
 
 def test_precompute_step_covers_full_changeset_auditors_only() -> None:
     section = _precompute_section()
-    assert re.search(r"1[–-]7, 9, 10, and 11", section), (
+    assert re.search(r"1[–-]7 and 9[–-]12", section), (
         "precompute step doesn't name which auditors receive the stamped diff"
     )
     # The fix-delta cross-lane pass was removed by the episode-door story (#289,

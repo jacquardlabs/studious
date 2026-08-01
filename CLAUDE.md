@@ -138,7 +138,7 @@ design records under a third-party product's name and was deleted rather than re
 committed design records are the fourth document class the disposability rule exists to
 prevent, and 35 stale specs are 35 surfaces of the drift #147 tracks in PRODUCT.md.
 
-**A gate-acceptance fix patches the design doc too.** When a `FIX AND RE-CHECK` cycle
+**A gate-acceptance fix patches the design doc too.** When a `FIX AND RE-REVIEW` cycle
 changes what a `SKILL.md` actually does, update the design doc that behavior was ratified
 against in the same commit as the prose and its regression tests. The doc is alive on the
 branch during exactly that cycle, so this costs nothing then and is unrecoverable after

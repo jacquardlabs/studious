@@ -2484,7 +2484,7 @@ if (landedCount + droppedCount === allSettled.length && landedCount > 0) {
   log('All stories landed/dropped — running the epic finale on the integration branch')
 
   // Acceptance's raced first round is independent of audit's VERDICT — a `FIX AND
-  // RE-AUDIT` doesn't change what acceptance is judging, since acceptance evaluates
+  // RE-REVIEW` doesn't change what acceptance is judging, since acceptance evaluates
   // the epic against its goal and stories' acceptance criteria, not against audit's
   // own findings. It is NOT independent of audit's FIXERS — a fix cycle commits to
   // the same epic branch acceptance just read — so race the two finale gates here,

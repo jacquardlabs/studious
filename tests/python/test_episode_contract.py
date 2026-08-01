@@ -594,6 +594,10 @@ class DeliveryDoorTest(unittest.TestCase):
 
 RUN_GATE_AUDIT_FIXTURES_PY = REPO_ROOT / "scripts" / "run_gate_audit_fixtures.py"
 WORK_THROUGH_MD = REPO_ROOT / "commands" / "work-through.md"
+BOARD_SCHEMA_MD = REPO_ROOT / "reference" / "board-schema.md"
+EVENTS_FORMAT_MD = REPO_ROOT / "reference" / "events-format.md"
+EXTRACT_DESIGN_SYSTEM_MD = REPO_ROOT / "commands" / "extract-design-system.md"
+REPO_CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 
 #: The two spellings reference/gate-vocabulary.md replaced with RETRY_TOKEN (#289).
 REPLACED_RETRY_TOKENS = ("FIX AND RE-AUDIT", "FIX AND RE-CHECK")
@@ -610,7 +614,15 @@ class RetryTokenSweepTest(unittest.TestCase):
     reacts to tokens no gate emits anymore."""
 
     def test_no_replaced_retry_token_survives_in_the_episode_consumers(self) -> None:
-        for path in (EPIC_DRIVER, RUN_GATE_AUDIT_FIXTURES_PY, WORK_THROUGH_MD):
+        for path in (
+            EPIC_DRIVER,
+            RUN_GATE_AUDIT_FIXTURES_PY,
+            WORK_THROUGH_MD,
+            BOARD_SCHEMA_MD,
+            EVENTS_FORMAT_MD,
+            EXTRACT_DESIGN_SYSTEM_MD,
+            REPO_CLAUDE_MD,
+        ):
             text = path.read_text(encoding="utf-8")
             for token in REPLACED_RETRY_TOKENS:
                 self.assertNotIn(
