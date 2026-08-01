@@ -1,0 +1,40 @@
+{
+  "task_id": "task-4",
+  "title": "/gate-audit becomes the work-episode door",
+  "checkpoint_block": "### Task 4 \u2014 `/gate-audit` becomes the work-episode door\nWhy now:    the finding factory dies here \u2014 ledger-carried findings replace the fix-delta pass.\nRead first: `commands/gate-audit.md`, `reference/audit-compilation.md`, `agents/product-reviewer.md`, `tests/python/test_delta_scoped_reaudit.py`, `tests/python/test_audit_compilation_doc_split.py`\nRests on:   Task 2, Task 3\nRisk:       REPLAN-RISK\nDo:         rewrite `commands/gate-audit.md` to open and re-enter the episode via `episode-open`/`episode-verdict` (never bare `record --gate audit`), read the findings ledger on re-entry and inject open and carried findings into lane dispatch prompts, add the criteria-conformance lane (`agents/product-reviewer.md` acceptance mode at story scale), keep `blockingLanes` narrowing as the lane profile, and report round and counts from `episode-get`. Remove the fix-delta cross-lane pass from `commands/gate-audit.md` and `reference/audit-compilation.md` \u2014 Task 2's regression classification replaces its role. Update the pinning tests this breaks (`tests/python/test_delta_scoped_reaudit.py`, `tests/python/test_audit_compilation_doc_split.py`, `tests/python/test_gate_audit_challenge_step.py`); extend `tests/python/test_episode_contract.py`.\nNot here:   `commands/gate-acceptance.md` and `commands/work-on.md` (Task 5); door renames; board.\n\nDone means:\n1. [cap]  `commands/gate-audit.md` records via `episode-open`/`episode-verdict` and never bare `record --gate audit`   (tier: test-backed `tests/python/test_episode_contract.py`)\n2. [cap]  the fix-delta pass is absent from `commands/gate-audit.md` and `reference/audit-compilation.md`, and re-entry instructions name ledger-finding injection   (tier: test-backed `tests/python/test_episode_contract.py`)\n3. [cap]  a criteria-conformance lane dispatching `agents/product-reviewer.md`'s acceptance mode sits in the lane roster   (tier: test-backed `tests/python/test_episode_contract.py`)\n4. [hold] gate independence holds \u2014 the episode door invokes no build skill and requires no build artifact   (tier: script `scripts/check_gate_independence.py`)\nEvidence: verify output for items 1\u20134, captured at task PASS.\n\n",
+  "verify": {
+    "task": "task-4",
+    "overall": "PASS",
+    "items": [
+      {
+        "id": 1,
+        "kind": "cap",
+        "tier": "test-backed",
+        "status": "PASS",
+        "detail": "command: tests/python/test_episode_contract.py\nexit code: 0\n--- stdout ---\n\n--- stderr ---\n................................\n----------------------------------------------------------------------\nRan 32 tests in 3.679s\n\nOK\n"
+      },
+      {
+        "id": 2,
+        "kind": "cap",
+        "tier": "test-backed",
+        "status": "PASS",
+        "detail": "command: tests/python/test_episode_contract.py\nexit code: 0\n--- stdout ---\n\n--- stderr ---\n................................\n----------------------------------------------------------------------\nRan 32 tests in 3.718s\n\nOK\n"
+      },
+      {
+        "id": 3,
+        "kind": "cap",
+        "tier": "test-backed",
+        "status": "PASS",
+        "detail": "command: tests/python/test_episode_contract.py\nexit code: 0\n--- stdout ---\n\n--- stderr ---\n................................\n----------------------------------------------------------------------\nRan 32 tests in 3.625s\n\nOK\n"
+      },
+      {
+        "id": 4,
+        "kind": "hold",
+        "tier": "script",
+        "status": "PASS",
+        "detail": "command: scripts/check_gate_independence.py\nexit code: 0\n--- stdout ---\nGate independence check passed: none of 31 gate files requires a build skill.\n\n--- stderr ---\n"
+      }
+    ]
+  },
+  "model": "inherited: claude-fable-5"
+}
