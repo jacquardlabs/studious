@@ -1,6 +1,6 @@
 # Pre-mortem — persona-driven restructure of the delivery flow
 
-- Branch: feat/persona-restructure
+- Branch: build/plan-202608010303
 - SHA: 7435381
 - Date: 2026-07-31
 
