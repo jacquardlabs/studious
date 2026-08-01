@@ -1136,7 +1136,7 @@ def test_retry_narrowing_operates_within_the_routed_roster_never_a_routed_out_la
     }
     always_run = ["security-auditor", "code-auditor", "doc-auditor", "architecture-auditor", "test-auditor", "operability-auditor"]
     blocking_result = {
-        "verdict": "FIX AND RE-AUDIT", "sha": "s1", "summary": "security found a critical",
+        "verdict": "FIX AND RE-REVIEW", "sha": "s1", "summary": "security found a critical",
         "blockingLanes": ["security-auditor"],
     }
     rules = [
@@ -1186,7 +1186,7 @@ def test_routing_scope_recomputes_each_round_not_cached_across_the_retry_loop() 
     }
     always_run = ["security-auditor", "code-auditor", "doc-auditor", "architecture-auditor", "test-auditor", "operability-auditor"]
     blocking_result = {
-        "verdict": "FIX AND RE-AUDIT", "sha": "s1", "summary": "security found a critical",
+        "verdict": "FIX AND RE-REVIEW", "sha": "s1", "summary": "security found a critical",
         "blockingLanes": ["security-auditor"],
     }
     rules = [

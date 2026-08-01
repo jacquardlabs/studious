@@ -335,7 +335,7 @@ def test_retry_narrows_to_blocking_lanes_and_fix_delta_pass_only() -> None:
         "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
     }
     blocking_result = {
-        "verdict": "FIX AND RE-AUDIT", "sha": "s1", "summary": "security + test found criticals",
+        "verdict": "FIX AND RE-REVIEW", "sha": "s1", "summary": "security + test found criticals",
         "blockingLanes": ["security-auditor", "test-auditor"],
     }
     rules = [
@@ -366,7 +366,7 @@ def test_retry_narrows_to_blocking_lanes_and_fix_delta_pass_only() -> None:
     needs_you = {e["story"]: e for e in out["result"]["needsYou"]}
     assert "epx--a" in needs_you
     assert needs_you["epx--a"]["gate"] == "audit"
-    assert needs_you["epx--a"]["verdict"] == "FIX AND RE-AUDIT"
+    assert needs_you["epx--a"]["verdict"] == "FIX AND RE-REVIEW"
 
 
 def test_retry_compile_prompt_carries_forward_non_blocking_lanes_and_never_confuses_them_with_died() -> None:
@@ -380,7 +380,7 @@ def test_retry_compile_prompt_carries_forward_non_blocking_lanes_and_never_confu
         "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
     }
     blocking_result = {
-        "verdict": "FIX AND RE-AUDIT", "sha": "s1", "summary": "security found a critical",
+        "verdict": "FIX AND RE-REVIEW", "sha": "s1", "summary": "security found a critical",
         "blockingLanes": ["security-auditor"],
     }
     rules = [

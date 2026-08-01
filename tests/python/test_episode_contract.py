@@ -22,6 +22,7 @@ assertions.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import tempfile
 import unittest
@@ -29,6 +30,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LEDGER = REPO_ROOT / "bin" / "gate-ledger"
+VOCABULARY = REPO_ROOT / "reference" / "gate-vocabulary.md"
+EPIC_DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 
 #: The frozen key sets — exact, not subset: a new field on an episode record is
 #: a contract change and must land here in the same commit that writes it.
@@ -181,6 +184,107 @@ class EpisodeContractTest(unittest.TestCase):
         self.assertEqual(set(data["episodes"]), {"audit", "acceptance"})
         self.assertEqual(set(data["episodes"]["acceptance"]), OPEN_EPISODE_KEYS)
         self.assertEqual(set(data["episodes"]["audit"]), CLOSED_EPISODE_KEYS)
+
+
+#: Episode name → the ledger gate key it judges, mirroring the first two
+#: columns of reference/gate-vocabulary.md's episode table. `bet` has no
+#: fix-and-retry token and no epic-driver GATES entry.
+EPISODE_LEDGER_GATES = {
+    "bet": "decide",
+    "design": "design-review",
+    "work": "audit",
+    "delivery": "acceptance",
+}
+
+#: The one fix-and-retry spelling both review episodes share (#289).
+RETRY_TOKEN = "FIX AND RE-REVIEW"
+
+
+def _vocabulary_rows() -> dict[str, dict[str, str]]:
+    """Episode table rows of reference/gate-vocabulary.md, keyed by episode.
+
+    Backticks are stripped from cell values so a token cell reads as the bare
+    token (`FIX AND RE-REVIEW`, not '`FIX AND RE-REVIEW`').
+    """
+    rows: dict[str, dict[str, str]] = {}
+    for line in VOCABULARY.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [c.replace("`", "").strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) == 6 and cells[0] in EPISODE_LEDGER_GATES:
+            episode, gate, command, proceed, retry, stop = cells
+            rows[episode] = {
+                "gate": gate,
+                "command": command,
+                "proceed": proceed,
+                "retry": retry,
+                "stop": stop,
+            }
+    return rows
+
+
+def _driver_gates_retry() -> dict[str, str]:
+    """workflows/epic-driver.js's GATES constant, as gate key → retry token."""
+    source = EPIC_DRIVER.read_text(encoding="utf-8")
+    block = re.search(r"const GATES = \{(.*?)\n\}", source, re.DOTALL)
+    assert block is not None, "workflows/epic-driver.js no longer declares const GATES"
+    return dict(re.findall(r"'?([\w-]+)'?:\s*\{[^}]*\bretry:\s*'([^']*)'", block.group(1)))
+
+
+class EpisodeVocabularyTest(unittest.TestCase):
+    """Task 3 (#289): the episode verdict tokens are frozen in
+    reference/gate-vocabulary.md, and the epic driver's GATES retry strings
+    equal the table's fix-and-retry tokens rather than guessing their own."""
+
+    # --- Done-means 1: the vocabulary table carries the episode rows ---
+
+    def test_vocabulary_carries_all_four_episode_rows(self) -> None:
+        self.assertEqual(set(_vocabulary_rows()), set(EPISODE_LEDGER_GATES))
+
+    def test_episode_rows_name_their_ledger_gates(self) -> None:
+        rows = _vocabulary_rows()
+        for episode, gate in EPISODE_LEDGER_GATES.items():
+            self.assertEqual(rows[episode]["gate"], gate)
+
+    def test_work_and_delivery_retry_token_is_exactly_fix_and_re_review(self) -> None:
+        rows = _vocabulary_rows()
+        self.assertEqual(rows["work"]["retry"], RETRY_TOKEN)
+        self.assertEqual(rows["delivery"]["retry"], RETRY_TOKEN)
+
+    def test_work_and_delivery_proceed_and_stop_tokens_unchanged(self) -> None:
+        rows = _vocabulary_rows()
+        self.assertEqual(rows["work"]["proceed"], "PASS")
+        self.assertEqual(rows["work"]["stop"], "NEEDS DISCUSSION")
+        self.assertEqual(rows["delivery"]["proceed"], "SHIP")
+        self.assertEqual(rows["delivery"]["stop"], "HOLD")
+
+    def test_bet_and_design_tokens_unchanged(self) -> None:
+        rows = _vocabulary_rows()
+        self.assertEqual(rows["bet"]["proceed"], "BUILD · BUILD SMALLER")
+        self.assertEqual(rows["bet"]["retry"], "—")
+        self.assertEqual(rows["bet"]["stop"], "DEFER · DON'T BUILD")
+        self.assertEqual(rows["design"]["proceed"], "PROCEED TO PLAN")
+        self.assertEqual(rows["design"]["retry"], "REVISE")
+        self.assertEqual(rows["design"]["stop"], "RETHINK")
+
+    # --- Done-means 2: the driver's GATES retry strings match the table ---
+
+    def test_driver_gates_retry_strings_equal_vocabulary_retry_tokens(self) -> None:
+        gates_retry = _driver_gates_retry()
+        self.assertEqual(
+            set(gates_retry),
+            {"design-review", "audit", "acceptance"},
+            "GATES roster changed — update EPISODE_LEDGER_GATES and this test together",
+        )
+        vocabulary_retry = {
+            row["gate"]: row["retry"] for row in _vocabulary_rows().values()
+        }
+        for gate, retry in gates_retry.items():
+            self.assertEqual(
+                retry,
+                vocabulary_retry[gate],
+                f"GATES['{gate}'].retry drifted from reference/gate-vocabulary.md",
+            )
 
 
 if __name__ == "__main__":

@@ -865,11 +865,11 @@ def test_transient_unreviewed_cause_fix_and_recheck_rides_through_unforced() -> 
     """The overcorrection check: a transient UNREVIEWED cause (here, a died
     product-reviewer dispatch — same shape as a died dispatch or an
     empty-changeset scope-check, none of them a multi-candidate ambiguity)
-    must NOT be forced to HOLD when the compiler returns FIX AND RE-CHECK.
+    must NOT be forced to HOLD when the compiler returns FIX AND RE-REVIEW.
     It must ride through exactly as it did before this fix, all the way
     through runGate's real fix-and-retry loop (fix:acceptance:a dispatched
     once per cycle, up to MAX_FIX_CYCLES), landing on a final FIX AND
-    RE-CHECK park once cycles are exhausted — proving the multi-candidate fix
+    RE-REVIEW park once cycles are exhausted — proving the multi-candidate fix
     did not widen the guard to swallow the working retry path too."""
     epic = _one_story_acceptance_epic()
     rules = [
@@ -879,9 +879,9 @@ def test_transient_unreviewed_cause_fix_and_recheck_rides_through_unforced() -> 
         # never a multi-candidate one.
         {"match": r"^acceptance:product-review:a$", "result": None},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
-        {"match": r"^acceptance:compile:a$", "result": {"verdict": "FIX AND RE-CHECK", "sha": "a0", "summary": "fix the thing"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "a0", "summary": "fix the thing"}},
         {"match": r"^fix:acceptance:a$", "result": {"status": "done", "sha": "a1", "summary": "attempted a fix", "evidence": "ran tests"}},
-        # merge:a and park:a deliberately unmocked — FIX AND RE-CHECK never
+        # merge:a and park:a deliberately unmocked — FIX AND RE-REVIEW never
         # reaches merge(), and park() falls through to its own try/catch
         # hardening (established convention above).
     ]
@@ -890,7 +890,7 @@ def test_transient_unreviewed_cause_fix_and_recheck_rides_through_unforced() -> 
     labels = [c["label"] for c in out["calls"]]
     assert labels.count("fix:acceptance:a") == 2, (
         f"a transient UNREVIEWED cause (died product-reviewer) must let a genuine FIX AND "
-        f"RE-CHECK ride through into the existing fix-and-retry loop, unforced, running the "
+        f"RE-REVIEW ride through into the existing fix-and-retry loop, unforced, running the "
         f"loop the full MAX_FIX_CYCLES rather than being short-circuited to an immediate HOLD "
         f"park. calls: {labels}"
     )
@@ -899,9 +899,9 @@ def test_transient_unreviewed_cause_fix_and_recheck_rides_through_unforced() -> 
     needs_you = {e["story"]: e for e in result["needsYou"]}
     assert "epx--a" in needs_you, f"story a should have parked after exhausting its fix cycles: {result}"
     entry = needs_you["epx--a"]
-    assert entry["verdict"] == "FIX AND RE-CHECK", (
+    assert entry["verdict"] == "FIX AND RE-REVIEW", (
         f"a died product-reviewer (a transient cause) must never be coerced to HOLD — it must "
-        f"still ride through as FIX AND RE-CHECK, exactly as it did before the multi-candidate "
+        f"still ride through as FIX AND RE-REVIEW, exactly as it did before the multi-candidate "
         f"fix: {entry}"
     )
     assert "unreviewed lane(s)" not in entry["reason"], (

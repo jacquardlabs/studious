@@ -76,8 +76,8 @@ const epicWorktree = requireWorktree(worktrees.epic, 'the __epic integration wor
 const FULL_PROFILE = ['design', 'design-review', 'build', 'audit', 'acceptance']
 const GATES = {
   'design-review': { proceed: 'PROCEED TO PLAN', retry: 'REVISE', command: 'gate-design-review' },
-  audit: { proceed: 'PASS', retry: 'FIX AND RE-AUDIT', command: 'gate-audit' },
-  acceptance: { proceed: 'SHIP', retry: 'FIX AND RE-CHECK', command: 'gate-acceptance' },
+  audit: { proceed: 'PASS', retry: 'FIX AND RE-REVIEW', command: 'gate-audit' },
+  acceptance: { proceed: 'SHIP', retry: 'FIX AND RE-REVIEW', command: 'gate-acceptance' },
 }
 const WORKER_PHASES = ['design', 'build']
 const MAX_FIX_CYCLES = 2

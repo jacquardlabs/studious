@@ -909,7 +909,7 @@ def test_fixer_prompt_names_the_correct_fix_cycle_phase() -> None:
         "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
     }
     blocking_result = {
-        "verdict": "FIX AND RE-AUDIT", "sha": "s1", "summary": "security found a critical",
+        "verdict": "FIX AND RE-REVIEW", "sha": "s1", "summary": "security found a critical",
         "blockingLanes": ["security-auditor"],
     }
     rules = [

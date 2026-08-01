@@ -34,12 +34,12 @@ the same tokens.
 
 ### Gate verdict vocabularies
 
-| Command | Verdict tokens (canonical) | Source of truth | Consumers |
-|---------|----------------------------|-----------------|-----------|
-| `gate-should-we-build` | `BUILD` · `BUILD SMALLER` · `DEFER` · `DON'T BUILD` | `commands/gate-should-we-build.md` | skill `evaluate-feature-idea` · `/work-on` |
-| `gate-design-review` | `PROCEED TO PLAN` · `REVISE` · `RETHINK` | `commands/gate-design-review.md` | skill `review-design-before-build` · `/work-on` |
-| `gate-audit` | `PASS` · `FIX AND RE-AUDIT` · `NEEDS DISCUSSION` | `commands/gate-audit.md` | `/work-on` (no skill shim) |
-| `gate-acceptance` | `SHIP` · `FIX AND RE-CHECK` · `HOLD` | `commands/gate-acceptance.md` | skill `acceptance-check-before-merge` · `/work-on` |
+| Episode | Command | Verdict tokens (canonical) | Source of truth | Consumers |
+|---------|---------|----------------------------|-----------------|-----------|
+| bet | `gate-should-we-build` | `BUILD` · `BUILD SMALLER` · `DEFER` · `DON'T BUILD` | `commands/gate-should-we-build.md` | skill `evaluate-feature-idea` · `/work-on` |
+| design | `gate-design-review` | `PROCEED TO PLAN` · `REVISE` · `RETHINK` | `commands/gate-design-review.md` | skill `review-design-before-build` · `/work-on` |
+| work | `gate-audit` | `PASS` · `FIX AND RE-REVIEW` · `NEEDS DISCUSSION` | `commands/gate-audit.md` | `/work-on` (no skill shim) |
+| delivery | `gate-acceptance` | `SHIP` · `FIX AND RE-REVIEW` · `HOLD` | `commands/gate-acceptance.md` | skill `acceptance-check-before-merge` · `/work-on` |
 
 Each vocabulary is three or four tokens: one "proceed," one "fix and retry," and (most)
 one "stop/rethink." The canonical listing and per-gate breakdown now live in

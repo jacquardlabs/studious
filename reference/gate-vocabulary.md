@@ -10,17 +10,44 @@ consumers. `commands/work-on.md` cites this file instead of restating token defi
 
 Every gate emits exactly one of: **proceed** (continue the flow), **fix and retry** (address
 findings, then re-run this gate), or **stop / rethink** (a deeper problem — the user decides
-how to resolve it). The tokens differ per gate; the shape doesn't.
+how to resolve it). The tokens differ per episode; the shape doesn't.
 
-| Gate | Command (source of truth) | Proceed | Fix and retry | Stop / rethink |
-|------|---------------------------|---------|----------------|-----------------|
-| decide | `commands/gate-should-we-build.md` | `BUILD` · `BUILD SMALLER` | — | `DEFER` · `DON'T BUILD` |
-| design-review | `commands/gate-design-review.md` | `PROCEED TO PLAN` | `REVISE` | `RETHINK` |
-| audit | `commands/gate-audit.md` | `PASS` | `FIX AND RE-AUDIT` | `NEEDS DISCUSSION` |
-| acceptance | `commands/gate-acceptance.md` | `SHIP` | `FIX AND RE-CHECK` | `HOLD` |
+| Episode | Ledger gate | Command (source of truth) | Proceed | Fix and retry | Stop / rethink |
+|---------|-------------|---------------------------|---------|----------------|-----------------|
+| bet | `decide` | `commands/gate-should-we-build.md` | `BUILD` · `BUILD SMALLER` | — | `DEFER` · `DON'T BUILD` |
+| design | `design-review` | `commands/gate-design-review.md` | `PROCEED TO PLAN` | `REVISE` | `RETHINK` |
+| work | `audit` | `commands/gate-audit.md` | `PASS` | `FIX AND RE-REVIEW` | `NEEDS DISCUSSION` |
+| delivery | `acceptance` | `commands/gate-acceptance.md` | `SHIP` | `FIX AND RE-REVIEW` | `HOLD` |
 
-Note: `decide` has no "fix and retry" token — `BUILD SMALLER` is a scoped-down proceed, not a
+The bet and design rows carry the same tokens they always have. The work and delivery
+episodes share one fix-and-retry spelling, `FIX AND RE-REVIEW` (#289) — one retry token
+for both review episodes, replacing `FIX AND RE-AUDIT` and `FIX AND RE-CHECK`. The
+"Ledger gate" column is the key `bin/gate-ledger` and `commands/work-on.md` record
+under; the episode name is the vocabulary the gate prose and reports speak.
+
+Note: bet has no "fix and retry" token — `BUILD SMALLER` is a scoped-down proceed, not a
 retry state.
+
+### Episode terms
+
+The terms the episode rows above are written against, one line each (#289):
+
+- **episode** — one bounded run of a gate on a branch: opened at a sha, at most two
+  rounds (the first review plus one fix-and-retry), closed by exactly one verdict
+  (`bin/gate-ledger`'s `episode-open` / `episode-round` / `episode-verdict`).
+- **lane profile** — the set of specialist review lanes (auditors/reviewers) a round
+  dispatches for this changeset: the always-on lanes plus the conditionally-routed
+  ones, per `commands/gate-audit.md`'s routing rules.
+- **carried** — a finding's status when it rides through the verdict recorded but
+  unfixed, rather than blocking; a Critical reaches `carried` only with a recorded
+  waiver (`bin/gate-ledger episode-finding`, per its convergence rules).
+
+### Task-status `PASS` is a different table (#174)
+
+The work episode's `PASS` above is a gate verdict recorded in the ledger. A `/build`
+task-status `[PASS]` is a `PLAN.md` heading suffix written by `scripts/status-flip`, and
+belongs to `DESIGN.md`'s build-execution vocabulary table, never this one. Name which
+one you mean whenever both could be read.
 
 ## Advisory verdicts (not phase-gating)
 
