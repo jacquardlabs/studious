@@ -251,7 +251,11 @@ def test_gate_audit_md_and_epic_driver_agree_on_the_ten_lane_roster() -> None:
     assert len(driver_lanes) == 11
 
     gate_audit_text = GATE_AUDIT_MD.read_text()
-    start = gate_audit_text.index("## Resolve re-audit scope")
+    # Since the episode-door story (#289, Task 4) the narrowing roster lives in
+    # gate-audit.md's episode step (which also tracks a twelfth lane,
+    # product-reviewer, that the driver doesn't dispatch — the driver fails
+    # closed to a full round on any entry outside its own eleven).
+    start = gate_audit_text.index("## Open or re-enter the episode")
     end = gate_audit_text.index("## Launch all auditors")
     scope_section = gate_audit_text[start:end]
     missing = [lane for lane in driver_lanes if lane not in scope_section]

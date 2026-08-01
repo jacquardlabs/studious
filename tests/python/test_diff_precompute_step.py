@@ -46,16 +46,25 @@ def test_precompute_step_stamps_under_a_named_heading() -> None:
     assert "Shared contract" in section, "precompute step doesn't say the diff rides alongside the Shared contract block"
 
 
-def test_precompute_step_covers_full_changeset_auditors_not_fix_delta() -> None:
+def test_precompute_step_covers_full_changeset_auditors_only() -> None:
     section = _precompute_section()
     assert re.search(r"1[–-]7, 9, 10, and 11", section), (
         "precompute step doesn't name which auditors receive the stamped diff"
     )
-    assert re.search(r"fix-delta", section, re.IGNORECASE), (
-        "precompute step doesn't address the fix-delta cross-lane pass at all"
+    # The fix-delta cross-lane pass was removed by the episode-door story (#289,
+    # Task 4) — the findings ledger's regression classification replaced its
+    # role, so no mention of it may reappear here.
+    assert not re.search(r"fix-delta", section, re.IGNORECASE), (
+        "precompute step mentions the retired fix-delta cross-lane pass"
+    )
+    # The criteria-conformance lane (14) is excluded by design: its agent has no
+    # Bash, so the block's git-diff fallback instruction is unusable for it.
+    assert re.search(r"criteria-conformance", section), (
+        "precompute step doesn't say why the criteria-conformance lane is excluded"
     )
     assert re.search(r"exclude", section, re.IGNORECASE), (
-        "precompute step doesn't explicitly exclude the fix-delta pass from the stamped diff"
+        "precompute step doesn't explicitly exclude the criteria-conformance lane "
+        "from the stamped diff"
     )
 
 

@@ -10,9 +10,10 @@
 #     those verbs for the record's schema. `status` and every other legacy reader
 #     branch only on `.branch`/`.gates`, so the object rides along inertly.
 #     A gate's entry optionally carries `blockingLanes` (delta-scoped re-audit, #130):
-#     set only via `record --gate audit --blocking-lanes L1,L2` when the audit verdict
-#     is FIX AND RE-AUDIT; read back via `gate-get` by commands/gate-audit.md and
-#     workflows/epic-driver.js to narrow the *next* re-audit's dispatch width. Absent on
+#     set via `record --gate audit --blocking-lanes L1,L2` — or through
+#     `episode-verdict`'s passthrough of the same flag (#289) — when the audit verdict
+#     is the retry token; read back via `gate-get` by commands/gate-audit.md and
+#     workflows/epic-driver.js to narrow the *next* round's dispatch width. Absent on
 #     every other verdict and on every record written before this field existed —
 #     indistinguishable from "malformed," which both readers fail closed on (full audit).
 #   .studious/work/<feature-slug>.json  — per-feature flow position for /work-on
@@ -511,11 +512,12 @@ cmd_episode_round() {
 }
 
 cmd_episode_verdict() {
-  local gate="" verdict=""
+  local gate="" verdict="" blocking_lanes=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --gate)    gate="$2"; shift 2 ;;
-      --verdict) verdict="$2"; shift 2 ;;
+      --gate)           gate="$2"; shift 2 ;;
+      --verdict)        verdict="$2"; shift 2 ;;
+      --blocking-lanes) blocking_lanes="$2"; shift 2 ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
@@ -548,7 +550,13 @@ cmd_episode_verdict() {
   # hook, the epic driver, board-ui) see a record indistinguishable from one a
   # gate command wrote directly, events append included. Same process, same
   # HEAD: the sha cmd_record stamps is the sha written just above.
-  cmd_record --gate "$gate" --verdict "$verdict"
+  # --blocking-lanes passes through untouched (#289): the lane profile is
+  # legacy-record data cmd_record already owns, never a new episode field.
+  if [ -n "$blocking_lanes" ]; then
+    cmd_record --gate "$gate" --verdict "$verdict" --blocking-lanes "$blocking_lanes"
+  else
+    cmd_record --gate "$gate" --verdict "$verdict"
+  fi
 }
 
 # Findings ledger (episode convergence): a finding lives on the gate's open
@@ -715,15 +723,19 @@ cmd_episode_finding() {
     --arg waiver "$waiver" --arg t "$(now_iso)"
 }
 
-cmd_episode_get() { # --gate G -> one line a prose surface can quote verbatim: "round R — N open, M carried"
+cmd_episode_get() { # --gate G [--findings] -> one line a prose surface can quote verbatim: "round R — N open, M carried"
   # The findings ledger's read side. Only `open` and `carried` are counted —
   # they are the two states a verdict has to answer for (`closed` is resolved,
   # `waived` is explicitly set aside). Prints nothing when no episode is
-  # recorded for the gate, mirroring gate-get/epic-get.
-  local gate=""
+  # recorded for the gate, mirroring gate-get/epic-get. With --findings (#289,
+  # the re-entry read /gate-audit injects into lane dispatches), the summary
+  # line is followed by one fingerprint-sorted, tab-separated line per finding
+  # in those same two statuses: status, severity, lane, fingerprint.
+  local gate="" findings=0
   while [ $# -gt 0 ]; do
     case "$1" in
-      --gate) gate="$2"; shift 2 ;;
+      --gate)     gate="$2"; shift 2 ;;
+      --findings) findings=1; shift ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
@@ -734,6 +746,18 @@ cmd_episode_get() { # --gate G -> one line a prose surface can quote verbatim: "
   if ! have jq || ! have git; then return 0; fi
   local file; file="$(ledger_dir)/$(branch_slug).json"
   [ -f "$file" ] || return 0
+  if [ "$findings" -eq 1 ]; then
+    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+    jq -r --arg g "$gate" \
+      '.episodes[$g] // empty
+       | ((.findings // {}) | to_entries | sort_by(.key)) as $es
+       | ([$es[].value]) as $fs
+       | "round \(.round) — \([$fs[] | select(.status == "open")] | length) open, \([$fs[] | select(.status == "carried")] | length) carried",
+         ($es[] | select(.value.status == "open" or .value.status == "carried")
+          | "\(.value.status)\t\(.value.severity)\t\(.value.lane)\t\(.key)")' \
+      "$file" 2>/dev/null
+    return
+  fi
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   jq -r --arg g "$gate" \
     '.episodes[$g] // empty
@@ -1740,5 +1764,5 @@ case "${1:-}" in
   evidence-append) shift; cmd_evidence_append "$@" ;;
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V | episode-finding --gate G --fingerprint F --status open|closed|carried|waived [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
 esac

@@ -72,7 +72,9 @@ def test_reference_file_contains_the_extracted_rules() -> None:
     assert "Confirmed" in text and "Downgraded" in text and "Dropped" in text, (
         "critical-challenge process outcomes are missing"
     )
-    for token in ("PASS", "FIX AND RE-AUDIT", "NEEDS DISCUSSION"):
+    # FIX AND RE-REVIEW is the work episode's retry token since #289 (Task 3),
+    # replacing FIX AND RE-AUDIT — reference/gate-vocabulary.md is canonical.
+    for token in ("PASS", "FIX AND RE-REVIEW", "NEEDS DISCUSSION"):
         assert token in text, f"verdict tier {token!r} is missing"
 
 

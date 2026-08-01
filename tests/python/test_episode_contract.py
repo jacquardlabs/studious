@@ -186,6 +186,72 @@ class EpisodeContractTest(unittest.TestCase):
         self.assertEqual(set(data["episodes"]["acceptance"]), OPEN_EPISODE_KEYS)
         self.assertEqual(set(data["episodes"]["audit"]), CLOSED_EPISODE_KEYS)
 
+    # --- Task 4 (#289): episode-verdict carries the lane profile ---
+
+    def test_verdict_forwards_blocking_lanes_to_the_legacy_record(self) -> None:
+        """`/gate-audit` records via episode-verdict only, so the blockingLanes
+        narrowing data must ride through it to the dual-written legacy record —
+        the shape the next round's re-entry check (`gate-get`) already reads.
+        The episode record itself stays exactly CLOSED_EPISODE_KEYS: the lane
+        profile is legacy-record data, not a new episode field."""
+        self.ledger("episode-open", "--gate", "audit")
+        result = self.ledger(
+            "episode-verdict", "--gate", "audit",
+            "--verdict", "FIX AND RE-REVIEW",
+            "--blocking-lanes", "security-auditor, test-auditor",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = self.gates_file()
+        self.assertEqual(
+            data["gates"]["audit"]["blockingLanes"],
+            ["security-auditor", "test-auditor"],
+        )
+        self.assertEqual(set(data["episodes"]["audit"]), CLOSED_EPISODE_KEYS)
+
+    def test_verdict_without_blocking_lanes_writes_no_lane_field(self) -> None:
+        self.ledger("episode-open", "--gate", "audit")
+        self.ledger("episode-verdict", "--gate", "audit", "--verdict", "PASS")
+        self.assertEqual(set(self.gates_file()["gates"]["audit"]), LEGACY_GATE_KEYS)
+
+    # --- Task 4 (#289): episode-get --findings, the re-entry read side ---
+
+    def test_findings_flag_lists_open_and_carried_lines(self) -> None:
+        """`episode-get --gate G --findings` prints the summary line, then one
+        tab-separated line (status, severity, lane, fingerprint) per finding in
+        the two statuses a verdict answers for — `closed` and `waived` never
+        appear. Lines are fingerprint-sorted so the output is deterministic."""
+        self.ledger("episode-open", "--gate", "audit")
+        self.ledger(
+            "episode-finding", "--gate", "audit",
+            "--fingerprint", "security-auditor/cmd-injection",
+            "--lane", "security-auditor", "--severity", "Critical", "--status", "open",
+        )
+        self.ledger(
+            "episode-finding", "--gate", "audit",
+            "--fingerprint", "doc-auditor/readme-drift",
+            "--lane", "doc-auditor", "--severity", "Important", "--status", "carried",
+        )
+        self.ledger(
+            "episode-finding", "--gate", "audit",
+            "--fingerprint", "test-auditor/flaky-retry",
+            "--lane", "test-auditor", "--severity", "Important", "--status", "closed",
+        )
+        result = self.ledger("episode-get", "--gate", "audit", "--findings")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout.splitlines(),
+            [
+                "round 1 — 1 open, 1 carried",
+                "carried\tImportant\tdoc-auditor\tdoc-auditor/readme-drift",
+                "open\tCritical\tsecurity-auditor\tsecurity-auditor/cmd-injection",
+            ],
+        )
+
+    def test_episode_get_without_findings_flag_is_unchanged(self) -> None:
+        self.ledger("episode-open", "--gate", "audit")
+        result = self.ledger("episode-get", "--gate", "audit")
+        self.assertEqual(result.stdout.splitlines(), ["round 1 — 0 open, 0 carried"])
+
 
 #: Episode name → the ledger gate key it judges, mirroring the first two
 #: columns of reference/gate-vocabulary.md's episode table. `bet` has no
@@ -285,6 +351,96 @@ class EpisodeVocabularyTest(unittest.TestCase):
                 retry,
                 vocabulary_retry[gate],
                 f"GATES['{gate}'].retry drifted from reference/gate-vocabulary.md",
+            )
+
+
+GATE_AUDIT_MD = REPO_ROOT / "commands" / "gate-audit.md"
+AUDIT_COMPILATION_MD = REPO_ROOT / "reference" / "audit-compilation.md"
+
+
+class GateAuditDoorTest(unittest.TestCase):
+    """Task 4 (#289): `commands/gate-audit.md` is the work episode's door.
+
+    It opens and re-enters the episode via the ledger's episode verbs, injects
+    the findings ledger on re-entry instead of running a fix-delta cross-lane
+    pass, and dispatches a criteria-conformance lane. Static prose pins, same
+    posture as test_gate_audit_challenge_step.py."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.door = GATE_AUDIT_MD.read_text(encoding="utf-8")
+        cls.compilation = AUDIT_COMPILATION_MD.read_text(encoding="utf-8")
+
+    # --- Done means 1: episode verbs, never bare record ---
+
+    def test_door_opens_and_reenters_via_episode_verbs(self) -> None:
+        self.assertIn("episode-open --gate audit", self.door)
+        self.assertIn("episode-round --gate audit", self.door)
+        self.assertIn("episode-verdict --gate audit", self.door)
+
+    def test_door_never_runs_bare_record(self) -> None:
+        self.assertIsNone(
+            re.search(r"gate-ledger record\b", self.door),
+            "commands/gate-audit.md still records via bare `gate-ledger record` "
+            "instead of episode-verdict",
+        )
+
+    # --- Done means 2: fix-delta gone, ledger-finding injection named ---
+
+    def test_fix_delta_pass_is_absent_from_both_surfaces(self) -> None:
+        for name, text in (("commands/gate-audit.md", self.door),
+                           ("reference/audit-compilation.md", self.compilation)):
+            self.assertNotIn(
+                "fix-delta", text.lower(),
+                f"{name} still carries the fix-delta cross-lane pass — the episode "
+                "findings ledger's regression classification replaced its role",
+            )
+
+    def test_reentry_names_ledger_finding_injection(self) -> None:
+        self.assertIn("episode-get --gate audit --findings", self.door)
+        self.assertIn("Findings ledger for this episode", self.door)
+        self.assertIn("`open` and `carried`", self.door)
+
+    def test_report_quotes_round_and_counts_from_episode_get(self) -> None:
+        self.assertIn("episode-get --gate audit", self.door)
+        self.assertIn("round R — N open, M carried", self.door)
+
+    # --- Done means 3: the criteria-conformance lane sits in the roster ---
+
+    def test_criteria_conformance_lane_dispatches_product_reviewer(self) -> None:
+        self.assertIn("criteria-conformance", self.door)
+        self.assertIn("@agent-product-reviewer", self.door)
+        self.assertIn(
+            "When reviewing an IMPLEMENTATION", self.door,
+            "the criteria lane must name product-reviewer's implementation "
+            "(acceptance) mode, not its design-review mode",
+        )
+
+    def test_criteria_lane_is_narrowing_tracked(self) -> None:
+        """product-reviewer joins the narrowing-tracked lane roster the episode
+        step names, so a criteria-only blocker can narrow round 2 to it."""
+        start = self.door.index("## Open or re-enter the episode")
+        end = self.door.index("## Launch all auditors")
+        self.assertIn("product-reviewer", self.door[start:end])
+
+    def test_criteria_lane_has_a_severity_rubric_row(self) -> None:
+        rubric = (REPO_ROOT / "reference" / "severity-rubric.md").read_text(encoding="utf-8")
+        self.assertRegex(
+            rubric, r"(?m)^\| product-reviewer[^|]*\| BLOCKER \| SHOULD FIX \| MINOR, OBSERVATION \|",
+            "reference/severity-rubric.md has no product-reviewer row — the "
+            "compile step cannot tier the criteria lane's findings without one",
+        )
+
+    # --- vocabulary conformance (#289, Task 3): one retry token ---
+
+    def test_door_speaks_fix_and_re_review_never_the_replaced_token(self) -> None:
+        for name, text in (("commands/gate-audit.md", self.door),
+                           ("reference/audit-compilation.md", self.compilation)):
+            self.assertIn(RETRY_TOKEN, text, f"{name} never names the retry token")
+            self.assertNotIn(
+                "FIX AND RE-AUDIT", text,
+                f"{name} still speaks the retry token reference/gate-vocabulary.md "
+                "replaced with FIX AND RE-REVIEW",
             )
 
 
