@@ -2,6 +2,90 @@
 
 <!-- version list -->
 
+## v2.29.0 (2026-08-01)
+
+### Bug Fixes
+
+- Guard waived Criticals, enforce episode closure, archive on reopen (gate-audit round 1 cleanup)
+  ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+- Make test_episode_contract.py directly executable for tier verification
+  ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+- Make the delivery episode's bound visible before it refuses
+  ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+- Reconcile episode-flow seams flagged by the audit round
+  ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+- Retry verdict is a round outcome — round 2 reachable again (acceptance fix round)
+  ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+- Sweep replaced retry tokens from driver prompts and fixture harness
+  ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+### Chores
+
+- Capture task-1 verification evidence ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+- Capture task-2 verification evidence ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+- Capture task-3 verification evidence ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+- Capture task-4 verification evidence ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+- Capture task-5 verification evidence ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+- Capture task-6 verification evidence ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+### Documentation
+
+- Point the pre-mortem register at the branch that carries the work
+  ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+- Record pre-mortem register for persona-restructure design review
+  ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+### Features
+
+- Add episode findings ledger with regression classification and Critical waiver
+  ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+- Add episode verbs with a 2-round cap and legacy dual-write to gate-ledger
+  ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+- Land episode verdict vocabulary with one FIX AND RE-REVIEW retry token
+  ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+- Land the Reviewer episode — bounded, findings-carrying gate rounds
+  ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+- Make /gate-audit the work-episode door ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+- Scope staleness to episodes and put acceptance at the delivery boundary
+  ([#301](https://github.com/jacquardlabs/studious/pull/301),
+  [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
+
+
 ## v2.28.3 (2026-07-30)
 
 ### Bug Fixes
