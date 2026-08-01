@@ -1503,5 +1503,106 @@ check "gc keeps a ready epic whose branch is still live" "yes" \
 check "gc keeps a running epic" "yes" \
   "$([ -f "$d39/.studious/epics/running-epic.json" ] && echo yes || echo no)"
 
+# --- episode-open records sha and opens round 1; no legacy record yet (#289) ---
+dep1=$(sandbox)
+fep1="$dep1/.studious/gates/feat-foo.json"
+( cd "$dep1" && "$LEDGER" episode-open --gate audit )
+check "episode-open creates the branch-slug ledger file" "yes" "$([ -f "$fep1" ] && echo yes || echo no)"
+check "episode-open records HEAD sha" "$(git -C "$dep1" rev-parse --short HEAD)" "$(jq -r '.episodes.audit.sha' "$fep1")"
+check "episode-open opens round 1" "1" "$(jq -r '.episodes.audit.round' "$fep1")"
+check "episode-open stamps openedAt (not null)" "yes" \
+  "$([ "$(jq -r '.episodes.audit.openedAt' "$fep1")" != "null" ] && echo yes || echo no)"
+check "episode-open stores the branch name" "feat/foo" "$(jq -r '.branch' "$fep1")"
+check "episode-open alone writes no legacy per-gate record" "null" "$(jq -c '.gates.audit' "$fep1")"
+contains "episode-open self-heals .gitignore" ".studious/" "$(cat "$dep1/.gitignore")"
+
+# --- episode-verdict records the verdict and dual-writes the legacy per-gate
+# record with the same verdict and sha, so status/gate-get readers run untouched ---
+( cd "$dep1" && "$LEDGER" episode-verdict --gate audit --verdict PASS )
+check "episode-verdict records the verdict on the episode" "PASS" "$(jq -r '.episodes.audit.verdict' "$fep1")"
+check "episode-verdict stamps verdictAt (not null)" "yes" \
+  "$([ "$(jq -r '.episodes.audit.verdictAt' "$fep1")" != "null" ] && echo yes || echo no)"
+check "exactly one episode record exists for the gate" "1" "$(jq '.episodes | length' "$fep1")"
+check "episode-verdict dual-writes the legacy verdict" "PASS" "$(jq -r '.gates.audit.verdict' "$fep1")"
+check "legacy record sha matches the episode record sha" \
+  "$(jq -r '.episodes.audit.sha' "$fep1")" "$(jq -r '.gates.audit.sha' "$fep1")"
+check "legacy record shape matches record's own (verdict, sha, ranAt)" \
+  '["verdict","sha","ranAt"]' "$(jq -c '.gates.audit | keys_unsorted' "$fep1")"
+
+# --- episode-round increments once; a third round is refused in code (2-round cap) ---
+dep2=$(sandbox)
+fep2="$dep2/.studious/gates/feat-foo.json"
+( cd "$dep2" && "$LEDGER" episode-open --gate audit )
+( cd "$dep2" && "$LEDGER" episode-round --gate audit ); rc=$?
+check "episode-round exits 0 within the cap" "0" "$rc"
+check "episode-round increments the round to 2" "2" "$(jq -r '.episodes.audit.round' "$fep2")"
+err=$(cd "$dep2" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "a third episode-round is refused naming the 2-round cap" "2-round cap" "$err"
+contains "a third episode-round exits non-zero" "rc=1" "$err"
+check "a refused round leaves the recorded round at 2" "2" "$(jq -r '.episodes.audit.round' "$fep2")"
+
+# --- episode-round / episode-verdict require an open episode ---
+dep3=$(sandbox)
+err=$(cd "$dep3" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "episode-round without an open episode names episode-open" "run episode-open first" "$err"
+contains "episode-round without an open episode exits 2" "rc=2" "$err"
+err=$(cd "$dep3" && "$LEDGER" episode-verdict --gate audit --verdict PASS 2>&1 1>/dev/null; echo "rc=$?")
+contains "episode-verdict without an open episode names episode-open" "run episode-open first" "$err"
+contains "episode-verdict without an open episode exits 2" "rc=2" "$err"
+check "no verdict was recorded without an open episode" "no" \
+  "$([ -f "$dep3/.studious/gates/feat-foo.json" ] && [ "$(jq -c '.gates' "$dep3/.studious/gates/feat-foo.json")" != "{}" ] && echo yes || echo no)"
+
+# --- episode verbs validate required args before touching any file ---
+err=$(cd "$dep3" && "$LEDGER" episode-open 2>&1 1>/dev/null; echo "rc=$?")
+contains "episode-open requires --gate" "--gate required" "$err"
+contains "episode-open without --gate exits 2" "rc=2" "$err"
+err=$(cd "$dep3" && "$LEDGER" episode-verdict --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "episode-verdict requires --gate and --verdict" "--gate and --verdict required" "$err"
+contains "episode-verdict without --verdict exits 2" "rc=2" "$err"
+
+# --- a fresh episode-open replaces the finished episode: the round cap bounds
+# one episode, never the branch's lifetime ---
+( cd "$dep1" && "$LEDGER" episode-open --gate audit )
+check "reopening resets the round to 1" "1" "$(jq -r '.episodes.audit.round' "$fep1")"
+check "reopening drops the prior episode's verdict (fresh episode)" "null" "$(jq -r '.episodes.audit.verdict // "null"' "$fep1")"
+check "reopening leaves the prior dual-written legacy record in place" "PASS" "$(jq -r '.gates.audit.verdict' "$fep1")"
+
+# --- status for an episode-written branch matches the per-gate shape the
+# PR-time hook parses today — the dual-write keeps legacy readers untouched ---
+dep4=$(sandbox)
+( cd "$dep4" && "$LEDGER" episode-open --gate audit )
+( cd "$dep4" && "$LEDGER" episode-verdict --gate audit --verdict PASS )
+( cd "$dep4" && "$LEDGER" episode-open --gate acceptance )
+( cd "$dep4" && "$LEDGER" episode-verdict --gate acceptance --verdict SHIP )
+out=$(cd "$dep4" && "$LEDGER" status)
+check "status for an episode-written branch matches the legacy proceed message verbatim" \
+  "audit (PASS) and acceptance (SHIP) ran on this branch at HEAD — proceed." "$out"
+
+# an episode-written branch missing a gate reports it exactly like a record-written one
+dep5=$(sandbox)
+( cd "$dep5" && "$LEDGER" episode-open --gate audit )
+( cd "$dep5" && "$LEDGER" episode-verdict --gate audit --verdict PASS )
+out=$(cd "$dep5" && "$LEDGER" status)
+contains "episode-written branch missing acceptance reports it in the legacy shape" \
+  "acceptance never ran on this branch" "$out"
+
+# staleness machinery reads an episode-written record identically
+( cd "$dep5" && git commit -q --allow-empty -m more )
+out=$(cd "$dep5" && "$LEDGER" status)
+contains "status flags a stale episode-written verdict with the legacy wording" \
+  "audit ran 1 commit ago — re-run before merging" "$out"
+
+# --- gate-get on an episode-written branch still prints the legacy .gates shape ---
+out=$(cd "$dep4" && "$LEDGER" gate-get)
+contains "gate-get on an episode-written branch includes the dual-written verdict" '"verdict": "PASS"' "$out"
+
+# --- episode verbs signal on stderr (but still return 0) when jq is unavailable ---
+dep6=$(sandbox)
+stderr6=$(cd "$dep6" && PATH="$fakebin" "$LEDGER" episode-open --gate audit 2>&1 1>/dev/null)
+contains "episode-open signals on stderr when jq is unavailable" \
+  "gate-ledger: episode-open skipped (jq and git required)" "$stderr6"
+check "episode-open does not create a ledger file when jq is unavailable" "no" \
+  "$([ -f "$dep6/.studious/gates/feat-foo.json" ] && echo yes || echo no)"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

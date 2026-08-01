@@ -5,6 +5,10 @@
 #   .studious/gates/<branch-slug>.json  — per-branch gate verdicts. Written by the
 #     gate commands (via `record`); read by the PR-time hook (via `status`) and by
 #     /work-on's evidence check (via `gate-get`) — never read as a raw file by callers.
+#     The same file also carries `episodes` (#289): one bounded gate episode per
+#     gate, written via `episode-open`/`episode-round`/`episode-verdict` — see
+#     those verbs for the record's schema. `status` and every other legacy reader
+#     branch only on `.branch`/`.gates`, so the object rides along inertly.
 #     A gate's entry optionally carries `blockingLanes` (delta-scoped re-audit, #130):
 #     set only via `record --gate audit --blocking-lanes L1,L2` when the audit verdict
 #     is FIX AND RE-AUDIT; read back via `gate-get` by commands/gate-audit.md and
@@ -244,6 +248,14 @@ append_event() { # epic, story, kind, jq-object filter for the kind's own fields
   return 0
 }
 
+gates_file_init() { # ensures the current branch's gates file exists, echoes its path
+  local dir; dir=$(ledger_dir)
+  mkdir -p "$dir"
+  local file; file="$dir/$(branch_slug).json"
+  [ -f "$file" ] || printf '{"schemaVersion":1,"branch":"","gates":{}}' > "$file"
+  printf '%s' "$file"
+}
+
 cmd_record() {
   local gate="" verdict="" blocking_lanes=""
   while [ $# -gt 0 ]; do
@@ -264,10 +276,7 @@ cmd_record() {
   fi
 
   ensure_gitignore
-  local dir; dir=$(ledger_dir)
-  mkdir -p "$dir"
-  local file; file="$dir/$(branch_slug).json"
-  [ -f "$file" ] || printf '{"schemaVersion":1,"branch":"","gates":{}}' > "$file"
+  local file; file=$(gates_file_init)
 
   local branch sha rc
   branch="$(branch_name)"
@@ -408,6 +417,138 @@ cmd_gate_get() {
   local file; file="$(ledger_dir)/$slug.json"
   [ -f "$file" ] || return 0
   cat "$file"
+}
+
+# Gate episodes (#289): one bounded run of a gate on a branch — opened at a sha,
+# advanced by at most one fix round, closed by a verdict. The record lives in the
+# same per-branch gates file as `.gates`, under `.episodes[<gate>]`:
+#
+#   {sha, round, openedAt}              after episode-open (round is always 1)
+#   {sha, round, openedAt, verdict, verdictAt}  after episode-verdict
+#
+# `sha` is the code state the episode's latest judgment saw: HEAD at open, then
+# refreshed by episode-verdict so the episode record and the dual-written legacy
+# `.gates` entry always carry the same verdict and sha. The round cap below
+# bounds ONE episode, never the branch — a fresh `episode-open` fully replaces
+# the gate's episode at round 1 (upsert posture, exactly like `record`), which is
+# what makes the cap a stop-and-rethink point rather than a permanent lockout.
+EPISODE_ROUND_CAP=2
+
+episode_round_get() { # gate → prints the current branch's recorded round for that gate's episode, nothing if no episode is open
+  local file; file="$(ledger_dir)/$(branch_slug).json"
+  [ -f "$file" ] || return 0
+  jq -r --arg g "$1" '.episodes[$g].round // empty' "$file" 2>/dev/null
+}
+
+cmd_episode_open() {
+  local gate=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --gate) gate="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$gate" ]; then
+    echo "gate-ledger: --gate required" >&2
+    return 2
+  fi
+  if ! have jq || ! have git; then
+    echo "gate-ledger: episode-open skipped (jq and git required)" >&2
+    return 0
+  fi
+
+  ensure_gitignore
+  local file; file=$(gates_file_init)
+  # Full replace of the gate's episode: reopening starts a fresh episode at
+  # round 1 (see the schema comment above). Only `.episodes` is touched — a
+  # prior episode's dual-written `.gates` entry survives, exactly as if a
+  # plain `record` had written it.
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    '.schemaVersion = (.schemaVersion // 1)
+     | .branch = $b
+     | .episodes[$g] = {sha: $s, round: 1, openedAt: $t}' \
+    --arg b "$(branch_name)" --arg g "$gate" --arg s "$(head_sha)" --arg t "$(now_iso)"
+}
+
+cmd_episode_round() {
+  local gate=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --gate) gate="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$gate" ]; then
+    echo "gate-ledger: --gate required" >&2
+    return 2
+  fi
+  if ! have jq || ! have git; then
+    echo "gate-ledger: episode-round skipped (jq and git required)" >&2
+    return 0
+  fi
+
+  local round; round=$(episode_round_get "$gate")
+  if [ -z "$round" ]; then
+    echo "gate-ledger: no open episode for gate '$gate' on this branch (run episode-open first)" >&2
+    return 2
+  fi
+  case "$round" in
+    *[!0-9]*) echo "gate-ledger: episode-round: corrupted round '$round' for gate '$gate'" >&2; return 1 ;;
+  esac
+  # The cap is enforced HERE, in code, never left to a prompt's own counting
+  # ("code owns bookkeeping"): round 1 is the gate's first run, round 2 its one
+  # fix-and-re-check, and a third round is refused — exit 1 (a state refusal,
+  # distinct from the arg-validation 2s above) so a driver can branch on it.
+  if [ "$round" -ge "$EPISODE_ROUND_CAP" ]; then
+    echo "gate-ledger: episode-round refused for gate '$gate' — round $round is already recorded and" \
+         "the ${EPISODE_ROUND_CAP}-round cap allows no third round; record a verdict, or episode-open a fresh episode" >&2
+    return 1
+  fi
+  local file; file="$(ledger_dir)/$(branch_slug).json"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" '.episodes[$g].round = (.episodes[$g].round + 1)' --arg g "$gate"
+}
+
+cmd_episode_verdict() {
+  local gate="" verdict=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --gate)    gate="$2"; shift 2 ;;
+      --verdict) verdict="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$gate" ] || [ -z "$verdict" ]; then
+    echo "gate-ledger: --gate and --verdict required" >&2
+    return 2
+  fi
+  if ! have jq || ! have git; then
+    echo "gate-ledger: episode-verdict skipped (jq and git required)" >&2
+    return 0
+  fi
+
+  local round; round=$(episode_round_get "$gate")
+  if [ -z "$round" ]; then
+    echo "gate-ledger: no open episode for gate '$gate' on this branch (run episode-open first)" >&2
+    return 2
+  fi
+  local file rc; file="$(ledger_dir)/$(branch_slug).json"
+  # Merge, not replace: the episode keeps its round/openedAt and gains the
+  # verdict; `sha` is refreshed to HEAD — the code state this verdict judged —
+  # so it always equals the sha the dual-write below stamps.
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    '.episodes[$g] = (.episodes[$g] + {verdict: $v, sha: $s, verdictAt: $t})' \
+    --arg g "$gate" --arg v "$verdict" --arg s "$(head_sha)" --arg t "$(now_iso)"
+  rc=$?
+  [ "$rc" -eq 0 ] || return "$rc"
+  # Dual-write the legacy per-gate record through cmd_record itself — not a
+  # reimplementation of its jq — so `status`/`gate-get` readers (the PR-time
+  # hook, the epic driver, board-ui) see a record indistinguishable from one a
+  # gate command wrote directly, events append included. Same process, same
+  # HEAD: the sha cmd_record stamps is the sha written just above.
+  cmd_record --gate "$gate" --verdict "$verdict"
 }
 
 work_file_init() { # slug → ensures the work file exists, echoes its path
@@ -1390,6 +1531,9 @@ case "${1:-}" in
   record)          shift; cmd_record "$@" ;;
   status)          shift; cmd_status "$@" ;;
   gate-get)        shift; cmd_gate_get "$@" ;;
+  episode-open)    shift; cmd_episode_open "$@" ;;
+  episode-round)   shift; cmd_episode_round "$@" ;;
+  episode-verdict) shift; cmd_episode_verdict "$@" ;;
   work-set)        shift; cmd_work_set "$@" ;;
   work-log)        shift; cmd_work_log "$@" ;;
   work-get)        shift; cmd_work_get "$@" ;;
@@ -1403,5 +1547,5 @@ case "${1:-}" in
   evidence-append) shift; cmd_evidence_append "$@" ;;
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
 esac
