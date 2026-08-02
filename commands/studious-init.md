@@ -65,6 +65,7 @@ Create these directories if they don't exist:
 - `docs/studious/security-reviews/`
 - `docs/studious/readme-reviews/`
 - `docs/studious/prompt-reviews/`
+- `docs/studious/outcome-reviews/`
 
 Add a `.gitkeep` to each empty directory so they're tracked in git.
 
@@ -110,6 +111,7 @@ Language conventions `code-auditor` enforces at `/gate-audit`. Document the rule
 | Security health | Monthly | `/deep-review security` |
 | README drift | After a release or feature batch | `/deep-review readme` |
 | All reviews + summary | As needed | `/deep-review` |
+| Outcome review (post-ship) | Quarterly or after a milestone closes | `/review-outcomes` |
 
 ### After each review
 

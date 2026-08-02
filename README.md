@@ -190,6 +190,7 @@ Every command Studious ships, for quick reference:
 | `/finish` | Closes out a `BUILT` branch: evidence table, follow-ups, build report, merge decision. |
 | `/coach` | Reads the repo and names the single next action in the build loop. |
 | `/deep-review [area]` | Runs the periodic review suite: one area, or all 7 with a compiled summary. |
+| `/review-outcomes [weeks]` | Grades shipped merges against the fixes and reverts that followed them. Recommend-only. |
 | `/extract-design-system` | Extracts the interface design system from the codebase into DESIGN.md. |
 | `/extract-product-context` | Extracts product context from the codebase into PRODUCT.md. |
 
