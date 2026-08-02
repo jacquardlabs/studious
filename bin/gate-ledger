@@ -429,6 +429,10 @@ cmd_gate_get() {
 #   + findings: {<fingerprint>: {lane, severity, round, status, ...}} once
 #     episode-finding records against the episode (full shape at
 #     cmd_episode_finding below)
+#   + blockingByRound: {"<round>": <count>} — the blocking-finding count each
+#     round left behind, snapshotted by episode-round (#291)
+#   + escalated: {round, blocking, priorBlocking, at} — set when episode-round
+#     refuses a non-converging round (#291); the human decides from there
 #
 # `sha` is the code state the episode's latest judgment saw: HEAD at open, then
 # refreshed by episode-verdict so the episode record and the dual-written legacy
@@ -444,7 +448,8 @@ cmd_gate_get() {
 # refuses to overwrite — reopening past a terminal verdict is always the
 # explicit episode-open act, which archives the prior episode (findings,
 # waivers, verdict and all) under `.episodeHistory[<gate>]` so the
-# accountability trail survives the fresh start.
+# accountability trail survives the fresh start — readable back via
+# `episode-get --history`, never only by hand-written jq (#300).
 EPISODE_ROUND_CAP=2
 # The one fix-and-retry spelling every episode gate shares — canonical source
 # reference/gate-vocabulary.md; tests/python/test_episode_contract.py pins the
@@ -461,6 +466,25 @@ episode_verdict_get() { # gate → prints the episode's verdict if closed, nothi
   local file; file="$(ledger_dir)/$(branch_slug).json"
   [ -f "$file" ] || return 0
   jq -r --arg g "$1" '.episodes[$g].verdict // empty' "$file" 2>/dev/null
+}
+
+episode_blocking_count() { # gate → how many findings the episode currently carries in a
+  # merge-blocking state: status `open` at Critical or Important (Track never blocks, per
+  # reference/severity-rubric.md; carried/waived/rejected-as-noise are all set aside). Always
+  # prints a number — 0 when there is no episode, no findings, or no readable file.
+  local file count; file="$(ledger_dir)/$(branch_slug).json"
+  count=""
+  if [ -f "$file" ]; then
+    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+    count=$(jq -r --arg g "$1" \
+      '[(.episodes[$g].findings // {})[]
+        | select(.status == "open" and (.severity == "Critical" or .severity == "Important"))]
+       | length' "$file" 2>/dev/null)
+  fi
+  case "$count" in
+    ''|*[!0-9]*) count=0 ;;
+  esac
+  printf '%s' "$count"
 }
 
 cmd_episode_open() {
@@ -528,6 +552,41 @@ cmd_episode_round() {
   case "$round" in
     *[!0-9]*) echo "gate-ledger: episode-round: corrupted round '$round' for gate '$gate'" >&2; return 1 ;;
   esac
+  local file; file="$(ledger_dir)/$(branch_slug).json"
+  local blocking prior
+  blocking=$(episode_blocking_count "$gate")
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  prior=$(jq -r --arg g "$gate" --arg r "$((round - 1))" \
+    '.episodes[$g].blockingByRound[$r] // empty' "$file" 2>/dev/null)
+  case "$prior" in
+    ''|*[!0-9]*) prior="" ;;
+  esac
+  # Convergence, checked BEFORE the cap (#291): the cap bounds the loop but
+  # cannot tell "converged" from "gave up" — both exit the same way. So a round
+  # that failed to strictly reduce the blocking set is refused here, in code,
+  # and the episode is marked escalated: a human decides, rather than the loop
+  # spending its last round. Exit 3 keeps that distinct from the cap's exit 1,
+  # because the two put different choices to the operator.
+  #
+  # A prior count of 0 is not a convergence signal — nothing strictly decreases
+  # from none — so the comparison runs only against a non-zero predecessor.
+  #
+  # Latent under the current cap, deliberately: EPISODE_ROUND_CAP=2 permits
+  # exactly one advance per episode, so no round reaches this check with a
+  # predecessor recorded. This is the guard that becomes live the moment the cap
+  # moves — not dead code by accident.
+  if [ -n "$prior" ] && [ "$prior" -gt 0 ] && [ "$blocking" -ge "$prior" ]; then
+    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+    json_update "$file" \
+      '.episodes[$g].escalated = {round: ($r | tonumber), blocking: ($b | tonumber),
+                                  priorBlocking: ($p | tonumber), at: $t}' \
+      --arg g "$gate" --arg r "$round" --arg b "$blocking" --arg p "$prior" --arg t "$(now_iso)"
+    echo "gate-ledger: episode-round refused for gate '$gate' — round $round carries $blocking blocking" \
+         "finding(s) against the prior round's $prior: the episode is not converging, and it is now marked" \
+         "escalated. Put the choice to a human — waive what will not be fixed, or episode-open a fresh" \
+         "episode — before spending another round" >&2
+    return 3
+  fi
   # The cap is enforced HERE, in code, never left to a prompt's own counting
   # ("code owns bookkeeping"): round 1 is the gate's first run, round 2 its one
   # fix-and-re-check, and a third round is refused — exit 1 (a state refusal,
@@ -537,15 +596,18 @@ cmd_episode_round() {
          "the ${EPISODE_ROUND_CAP}-round cap allows no third round; record a verdict, or episode-open a fresh episode" >&2
     return 1
   fi
-  local file; file="$(ledger_dir)/$(branch_slug).json"
   # Re-entering clears the round outcome (the retry token), never the findings:
   # the episode is open again, awaiting the re-review's own verdict. The
   # dual-written legacy `.gates` entry keeps the retry token untouched — that is
-  # what the door's re-entry condition and the narrowing read.
+  # what the door's re-entry condition and the narrowing read. The round being
+  # left behind banks its blocking count first: that snapshot is the only thing
+  # the next round's convergence check has to compare against.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     '.episodes[$g].round = (.episodes[$g].round + 1)
-     | .episodes[$g] |= del(.verdict, .verdictAt)' --arg g "$gate"
+     | .episodes[$g].blockingByRound = ((.episodes[$g].blockingByRound // {}) + {($r): ($b | tonumber)})
+     | .episodes[$g] |= del(.verdict, .verdictAt)' \
+    --arg g "$gate" --arg r "$round" --arg b "$blocking"
 }
 
 cmd_episode_verdict() {
@@ -619,8 +681,16 @@ cmd_episode_verdict() {
 #
 # `severity` is the canonical three-tier ladder (reference/severity-rubric.md):
 # Critical | Important | Track — callers map per-auditor labels into these
-# BEFORE recording, exactly as /gate-audit's orchestrator already does.
-# `status` is open | closed | carried | waived. `round` is stamped from the
+# BEFORE recording, exactly as /gate-audit's orchestrator already does. A
+# Critical must cite the objective anchor its tier rests on (the anchors table
+# in that same rubric); a Critical filed with no anchor is recorded Important
+# instead — that judgment happens before the write, since severity is fixed at
+# first record here.
+# `status` is open | closed | carried | waived | rejected-as-noise. The last is
+# the disposition memory (#292): the human or the compile step ruled the finding
+# non-actionable, and that ruling is durable — later rounds read it back through
+# `episode-get --findings` and suppress findings similar to it (same lane, same
+# fingerprint) instead of re-manufacturing them. `round` is stamped from the
 # episode's current round at first record and never moves — it is the fact
 # --regression-of validates against. `lane`/`severity` are fixed at first
 # record: re-recording a fingerprint at a different tier is refused, so a
@@ -634,12 +704,23 @@ cmd_episode_verdict() {
 #      unless --regression-of names a round-1 finding of this episode. Round 2
 #      exists to fix round 1, not to widen the blocking set; a new Critical
 #      stays recordable because it is the stop signal.
-#   2. A Critical reaches `carried` only with --waiver <reason>, and the
-#      reason lands on the finding record. Carrying an unfixed Critical is an
+#   2. A Critical reaches any set-aside status — `carried`, `waived`, or
+#      `rejected-as-noise` — only with --waiver <reason>, and the reason lands
+#      on the finding record. Setting an unfixed Critical aside is an
 #      accountable act, never a silent one.
 #
 # Which agent judges whether something IS a regression stays in prose; this
 # verb only refuses the write shapes those judgments must not produce.
+finding_status_is_set_aside() { # status → true when it rides through the verdict unfixed
+  # The three statuses that dispose of a finding without resolving it. `closed`
+  # is resolved and `open` is unresolved; these three are the accountable middle,
+  # and they share one guard so no sibling word can dodge it.
+  case "$1" in
+    carried|waived|rejected-as-noise) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 cmd_episode_finding() {
   local gate="" lane="" severity="" fingerprint="" status="" regression_of="" waiver=""
   while [ $# -gt 0 ]; do
@@ -666,10 +747,10 @@ cmd_episode_finding() {
       ;;
   esac
   case "$status" in
-    open|closed|carried|waived) ;;
+    open|closed|carried|waived|rejected-as-noise) ;;
     *)
       echo "gate-ledger: --status '$status' is not a recognized finding status;" \
-           "use open, closed, carried, or waived" >&2
+           "use open, closed, carried, waived, or rejected-as-noise" >&2
       return 2
       ;;
   esac
@@ -683,8 +764,8 @@ cmd_episode_finding() {
         ;;
     esac
   fi
-  if [ -n "$waiver" ] && [ "$status" != "carried" ] && [ "$status" != "waived" ]; then
-    echo "gate-ledger: --waiver requires --status carried or waived" >&2
+  if [ -n "$waiver" ] && ! finding_status_is_set_aside "$status"; then
+    echo "gate-ledger: --waiver requires --status carried, waived, or rejected-as-noise" >&2
     return 2
   fi
   if ! have jq || ! have git; then
@@ -764,12 +845,14 @@ cmd_episode_finding() {
     fi
   fi
 
-  # Rule 2: a Critical is set aside — `carried` or `waived`, both meaning it
-  # rides through the verdict unfixed — only under a recorded waiver. Checked
-  # against the STORED severity on an update (see above), so it cannot be
-  # dodged by restating the finding at a lower tier, and guarded on both
-  # set-aside statuses so it cannot be dodged by the sibling word either.
-  if [ "$severity" = "Critical" ] && { [ "$status" = "carried" ] || [ "$status" = "waived" ]; } && [ -z "$waiver" ]; then
+  # Rule 2: a Critical is set aside — `carried`, `waived`, or
+  # `rejected-as-noise`, all three meaning it rides through the verdict unfixed
+  # — only under a recorded waiver. Checked against the STORED severity on an
+  # update (see above), so it cannot be dodged by restating the finding at a
+  # lower tier, and guarded on every set-aside status so it cannot be dodged by
+  # a sibling word either — dismissing a Critical as noise is the same
+  # accountable act as carrying it.
+  if [ "$severity" = "Critical" ] && finding_status_is_set_aside "$status" && [ -z "$waiver" ]; then
     echo "gate-ledger: episode-finding refused — a Critical reaches '$status' only with" \
          "--waiver <reason>; fix it, or record why it is being set aside" >&2
     return 1
@@ -791,19 +874,35 @@ cmd_episode_finding() {
     --arg waiver "$waiver" --arg t "$(now_iso)"
 }
 
-cmd_episode_get() { # --gate G [--findings] -> one line a prose surface can quote verbatim: "round R of C — N open, M carried"
+cmd_episode_get() { # --gate G [--findings | --history] -> one line a prose surface can quote verbatim: "round R of C — N open, M carried"
   # The findings ledger's read side. Only `open` and `carried` are counted —
   # they are the two states a verdict has to answer for (`closed` is resolved,
-  # `waived` is explicitly set aside). Prints nothing when no episode is
-  # recorded for the gate, mirroring gate-get/epic-get. With --findings (#289,
-  # the re-entry read /gate-audit injects into lane dispatches), the summary
-  # line is followed by one fingerprint-sorted, tab-separated line per finding
-  # in those same two statuses: status, severity, lane, fingerprint.
-  local gate="" findings=0
+  # `waived` and `rejected-as-noise` are explicitly set aside). Prints nothing
+  # when no episode is recorded for the gate, mirroring gate-get/epic-get.
+  #
+  # --findings (#289, the re-entry read /gate-audit injects into lane
+  # dispatches) follows the summary line with two fingerprint-sorted, tab-
+  # separated blocks — compaction (#298) is what keeps a later round's
+  # inheritance a digest rather than a transcript:
+  #
+  #   detail (open, carried):   <status>\t<severity>\t<lane>\t<fingerprint>
+  #   digest (everything else): digest\t<lane>\t<fingerprint>\t<status>\t<round>
+  #
+  # A round-2 dispatch inherits full detail only for what is still live; a
+  # disposed finding costs one line, which is all the suppression contract
+  # needs to match a re-manufactured finding against it (#292) — lane and
+  # fingerprint, the two match keys, both as fields rather than as a naming
+  # convention a reader has to parse out of the fingerprint.
+  #
+  # --history (#300) is the accountability read: every archived episode plus the
+  # current one, each with its verdict, counts, escalation, and the reason text
+  # behind every waiver — the word the operator typed, shown back to them.
+  local gate="" findings=0 history=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --gate)     gate="$2"; shift 2 ;;
       --findings) findings=1; shift ;;
+      --history)  history=1; shift ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
@@ -811,9 +910,27 @@ cmd_episode_get() { # --gate G [--findings] -> one line a prose surface can quot
     echo "gate-ledger: --gate required" >&2
     return 2
   fi
+  if [ "$findings" -eq 1 ] && [ "$history" -eq 1 ]; then
+    echo "gate-ledger: --findings and --history are separate reads; pass one" >&2
+    return 2
+  fi
   if ! have jq || ! have git; then return 0; fi
   local file; file="$(ledger_dir)/$(branch_slug).json"
   [ -f "$file" ] || return 0
+  if [ "$history" -eq 1 ]; then
+    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+    jq -r --arg g "$gate" --arg cap "$EPISODE_ROUND_CAP" \
+      '((.episodeHistory[$g] // []) | map({e: ., current: false}))
+       + (if .episodes[$g] then [{e: .episodes[$g], current: true}] else [] end)
+       | to_entries[]
+       | (.key + 1) as $n | .value.current as $cur | .value.e as $e
+       | (($e.findings // {}) | to_entries | sort_by(.key)) as $es
+       | "episode \($n)\(if $cur then " (current)" else "" end) — opened \($e.openedAt // "?") at \($e.sha // "?"), round \($e.round) of \($cap), \(if $e.verdict then "verdict \($e.verdict)" else "no verdict yet" end) — \([$es[].value | select(.status == "open")] | length) open, \([$es[].value | select(.status == "carried")] | length) carried",
+         (if $e.escalated then "escalated\tround \($e.escalated.round)\t\($e.escalated.blocking) blocking, prior round \($e.escalated.priorBlocking)" else empty end),
+         ($es[] | select(.value.waiver) | "waiver\t\(.key)\t\(.value.status)\t\(.value.waiver)")' \
+      "$file" 2>/dev/null
+    return
+  fi
   if [ "$findings" -eq 1 ]; then
     # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
     jq -r --arg g "$gate" --arg cap "$EPISODE_ROUND_CAP" \
@@ -822,7 +939,9 @@ cmd_episode_get() { # --gate G [--findings] -> one line a prose surface can quot
        | ([$es[].value]) as $fs
        | "round \(.round) of \($cap) — \([$fs[] | select(.status == "open")] | length) open, \([$fs[] | select(.status == "carried")] | length) carried",
          ($es[] | select(.value.status == "open" or .value.status == "carried")
-          | "\(.value.status)\t\(.value.severity)\t\(.value.lane)\t\(.key)")' \
+          | "\(.value.status)\t\(.value.severity)\t\(.value.lane)\t\(.key)"),
+         ($es[] | select(.value.status != "open" and .value.status != "carried")
+          | "digest\t\(.value.lane)\t\(.key)\t\(.value.status)\t\(.value.round)")' \
       "$file" 2>/dev/null
     return
   fi
@@ -1832,5 +1951,5 @@ case "${1:-}" in
   evidence-append) shift; cmd_evidence_append "$@" ;;
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
 esac

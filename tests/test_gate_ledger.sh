@@ -1713,7 +1713,7 @@ err=$(cd "$defg" && "$LEDGER" episode-finding --gate audit --lane x --severity S
 contains "episode-finding rejects a severity outside the rubric" "Critical, Important, or Track" "$err"
 err=$(cd "$defg" && "$LEDGER" episode-finding --gate audit --lane x --severity Critical \
     --fingerprint f --status fixed 2>&1 1>/dev/null; echo "rc=$?")
-contains "episode-finding rejects a status outside the vocabulary" "open, closed, carried, or waived" "$err"
+contains "episode-finding rejects a status outside the vocabulary" "open, closed, carried, waived, or rejected-as-noise" "$err"
 err=$(cd "$defg" && "$LEDGER" episode-finding --gate audit --fingerprint f2 --status open 2>&1 1>/dev/null; echo "rc=$?")
 contains "a first record requires --lane and --severity" "--lane and --severity required" "$err"
 err=$(cd "$defg" && "$LEDGER" episode-finding --gate audit --lane x --severity Track \
@@ -1827,6 +1827,134 @@ contains "the cap refusal exits 1 past a retry outcome" "rc=1" "$err"
 # episode-get names the bound: "round R of C"
 out=$(cd "$dcap" && "$LEDGER" episode-get --gate audit)
 check "episode-get names the bound in its readout" "round 2 of 2 — 0 open, 0 carried" "$out"
+
+# --- convergence (#291): a round that does not strictly reduce the blocking set is
+# refused and the episode is marked escalated, ahead of the cap ---
+#
+# The cap permits exactly one advance per episode, so no episode reaches a round that
+# HAS a recorded predecessor on its own — the comparison arm is exercised by seeding
+# `blockingByRound` directly, the same way the guard will read it when the cap moves.
+dcv=$(sandbox)
+fcv="$dcv/.studious/gates/feat-foo.json"
+( cd "$dcv" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dcv" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Critical --fingerprint security-auditor/sqli --status open ) >/dev/null
+( cd "$dcv" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Important --fingerprint code-auditor/dup --status open ) >/dev/null
+( cd "$dcv" && "$LEDGER" episode-finding --gate audit --lane doc-auditor \
+    --severity Track --fingerprint doc-auditor/typo --status open ) >/dev/null
+
+# first round: no predecessor to compare against, so the check cannot refuse
+( cd "$dcv" && "$LEDGER" episode-round --gate audit ); rc=$?
+check "the first episode-round has no prior round and is not refused" "0" "$rc"
+check "the round it left banks its blocking count (Track never blocks)" "2" \
+  "$(jq -r '.episodes.audit.blockingByRound["1"]' "$fcv")"
+check "an allowed round records no escalation" "null" "$(jq -r '.episodes.audit.escalated // "null"' "$fcv")"
+
+# non-decrease: the blocking set held at 2 against a prior round of 2 — refused, escalated
+jq '.episodes.audit.blockingByRound = {"1": 2, "2": 2} | .episodes.audit.round = 3' "$fcv" > "$fcv.t" && mv "$fcv.t" "$fcv"
+err=$(cd "$dcv" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "a non-decreasing round is refused as non-convergence" "not converging" "$err"
+contains "the convergence refusal exits 3, distinct from the cap's 1" "rc=3" "$err"
+check "the refused round does not advance" "3" "$(jq -r '.episodes.audit.round' "$fcv")"
+check "the refusal marks the episode escalated at that round" "3" "$(jq -r '.episodes.audit.escalated.round' "$fcv")"
+check "the escalation records both counts" "2/2" \
+  "$(jq -r '.episodes.audit.escalated | (.blocking|tostring) + "/" + (.priorBlocking|tostring)' "$fcv")"
+
+# decrease: the identical state against a prior round of 3 is converging, so the
+# convergence check passes it through — and what stops it is the cap, on its own exit
+# code, with no escalation recorded. Same findings, different predecessor, different refusal.
+jq '.episodes.audit.blockingByRound = {"1": 2, "2": 3} | del(.episodes.audit.escalated)' "$fcv" > "$fcv.t" && mv "$fcv.t" "$fcv"
+err=$(cd "$dcv" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "a strictly decreasing round passes the convergence check to the cap" "2-round cap" "$err"
+contains "a converging round is refused as the cap's exit 1, never as escalation" "rc=1" "$err"
+check "a converging round records no escalation" "null" "$(jq -r '.episodes.audit.escalated // "null"' "$fcv")"
+
+# a prior round of 0 is not a convergence signal — nothing strictly decreases from none,
+# and the 2-round cap stays the bound there (the pre-existing no-findings path)
+dcv0=$(sandbox)
+( cd "$dcv0" && "$LEDGER" episode-open --gate audit && "$LEDGER" episode-round --gate audit ) >/dev/null
+err=$(cd "$dcv0" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "a zero prior count leaves the cap as the bound, not escalation" "2-round cap" "$err"
+contains "that refusal is still the cap's exit 1" "rc=1" "$err"
+
+# --- disposition memory (#292): rejected-as-noise is a recordable disposition ---
+drn=$(sandbox)
+frn="$drn/.studious/gates/feat-foo.json"
+( cd "$drn" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$drn" && "$LEDGER" episode-finding --gate audit --lane doc-auditor --severity Track \
+    --fingerprint doc-auditor/nit --status rejected-as-noise --waiver "style preference, not a defect" ); rc=$?
+check "a finding records as rejected-as-noise with exit 0" "0" "$rc"
+check "the disposition lands on the record" "rejected-as-noise" \
+  "$(jq -r '.episodes.audit.findings["doc-auditor/nit"].status' "$frn")"
+check "the rejection reason lands with it" "style preference, not a defect" \
+  "$(jq -r '.episodes.audit.findings["doc-auditor/nit"].waiver' "$frn")"
+
+# a Critical dismissed as noise is the same accountable act as carrying one
+( cd "$drn" && "$LEDGER" episode-finding --gate audit --lane security-auditor --severity Critical \
+    --fingerprint security-auditor/xss --status open ) >/dev/null
+err=$(cd "$drn" && "$LEDGER" episode-finding --gate audit --fingerprint security-auditor/xss \
+    --status rejected-as-noise 2>&1 1>/dev/null; echo "rc=$?")
+contains "dismissing a Critical as noise without --waiver is refused" "--waiver" "$err"
+contains "the noise-dismissal refusal exits non-zero" "rc=1" "$err"
+check "the refused Critical stays open" "open" "$(jq -r '.episodes.audit.findings["security-auditor/xss"].status' "$frn")"
+( cd "$drn" && "$LEDGER" episode-finding --gate audit --fingerprint security-auditor/xss \
+    --status rejected-as-noise --waiver "reflected in a dev-only fixture page" ); rc=$?
+check "a Critical dismissed as noise with --waiver records" "0" "$rc"
+
+# a rejected finding is disposed of, so it is neither open nor carried in the counts
+check "rejected-as-noise counts as neither open nor carried" "round 1 of 2 — 0 open, 0 carried" \
+  "$(cd "$drn" && "$LEDGER" episode-get --gate audit)"
+
+# --- compaction (#298): disposed findings inherit as one-line digests ---
+( cd "$drn" && "$LEDGER" episode-finding --gate audit --lane code-auditor --severity Important \
+    --fingerprint code-auditor/leak --status open ) >/dev/null
+( cd "$drn" && "$LEDGER" episode-finding --gate audit --lane test-auditor --severity Important \
+    --fingerprint test-auditor/gap --status closed ) >/dev/null
+out=$(cd "$drn" && "$LEDGER" episode-get --gate audit --findings)
+check "--findings keeps full detail for the open finding" \
+  "$(printf 'open\tImportant\tcode-auditor\tcode-auditor/leak')" \
+  "$(printf '%s\n' "$out" | sed -n 2p)"
+check "--findings digests the rejected finding to one line, lane and all" \
+  "$(printf 'digest\tdoc-auditor\tdoc-auditor/nit\trejected-as-noise\t1')" \
+  "$(printf '%s\n' "$out" | sed -n 3p)"
+check "--findings digests the noise-dismissed Critical too" \
+  "$(printf 'digest\tsecurity-auditor\tsecurity-auditor/xss\trejected-as-noise\t1')" \
+  "$(printf '%s\n' "$out" | sed -n 4p)"
+check "--findings digests the closed finding rather than dropping it" \
+  "$(printf 'digest\ttest-auditor\ttest-auditor/gap\tclosed\t1')" \
+  "$(printf '%s\n' "$out" | sed -n 5p)"
+check "--findings emits exactly one line per finding plus the summary" "5" \
+  "$(printf '%s\n' "$out" | wc -l | tr -d ' ')"
+
+# --- accountability (#300): episode-get --history reads back what the ledger archived ---
+dhi=$(sandbox)
+( cd "$dhi" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dhi" && "$LEDGER" episode-finding --gate audit --lane security-auditor --severity Critical \
+    --fingerprint security-auditor/ssrf --status carried --waiver "metadata IP blocked at the egress proxy" ) >/dev/null
+( cd "$dhi" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" ) >/dev/null
+( cd "$dhi" && "$LEDGER" episode-open --gate audit ) >/dev/null
+hist=$(cd "$dhi" && "$LEDGER" episode-get --gate audit --history)
+contains "--history renders the archived episode and its verdict" "episode 1 — opened" "$hist"
+contains "--history names the archived verdict" "verdict PASS" "$hist"
+contains "--history shows the waiver reason back to the operator" \
+  "$(printf 'waiver\tsecurity-auditor/ssrf\tcarried\tmetadata IP blocked at the egress proxy')" "$hist"
+contains "--history marks the live episode as current" "episode 2 (current)" "$hist"
+contains "--history reports an unfinished episode as such" "no verdict yet" "$hist"
+check "--history prints nothing for a gate with no episode" "" "$(cd "$dhi" && "$LEDGER" episode-get --gate acceptance --history)"
+err=$(cd "$dhi" && "$LEDGER" episode-get --gate audit --history --findings 2>&1 1>/dev/null; echo "rc=$?")
+contains "--history and --findings are separate reads" "pass one" "$err"
+contains "asking for both exits 2" "rc=2" "$err"
+
+# an escalated episode reads its escalation back in the same quotable style
+( cd "$dhi" && "$LEDGER" episode-finding --gate audit --lane code-auditor --severity Important \
+    --fingerprint code-auditor/dead --status open ) >/dev/null
+fhi="$dhi/.studious/gates/feat-foo.json"
+jq '.episodes.audit.round = 2 | .episodes.audit.blockingByRound = {"1": 1}' "$fhi" > "$fhi.t" && mv "$fhi.t" "$fhi"
+( cd "$dhi" && "$LEDGER" episode-round --gate audit ) 2>/dev/null
+contains "--history renders an escalation line" \
+  "$(printf 'escalated\tround 2\t1 blocking, prior round 1')" \
+  "$(cd "$dhi" && "$LEDGER" episode-get --gate audit --history)"
 
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi
