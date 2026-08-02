@@ -55,10 +55,27 @@ supervised, evidence-first flow instead.
    slugs, source issues, acceptance criteria, dependency edges, a gate profile each, an
    epic goal statement, a concurrency cap, and an epic pre-mortem. Present the whole
    plan — the user can only approve what they can see.
-3. Stop and iterate. The user trims, reorders, re-scopes, drops. Nothing is recorded
-   and nothing runs until they explicitly approve.
 
-4. **Settle the open forks in one interview — the epic's only scheduled human turn.**
+3. **Classify every story — `epic-default` (driven unattended) or `story-supervised`
+   (handed back as a `/work-on` piece, still in the epic).** State each story's expected
+   file surface as part of the decomposition, then apply
+   `reference/epic-plan-contract.md`'s "Story class" section to it — that section is the
+   rule; read it and use it rather than working from memory of these two names.
+
+   Print the class and its one-clause reason next to each story in the plan. Two of the
+   three supervised triggers are computed from what the plan already holds; "first
+   story on an unfamiliar surface" is your judgment — label it as a call, not a
+   computation, and let the user overturn it at approval.
+
+   Say plainly, before approval, which stories are supervised and **which stories
+   depend on them** — a dependent of a supervised story cannot run until the user lands
+   it, and an epic whose first story is supervised does nothing on its first driver
+   invocation. A user must not discover that after approving.
+
+4. Stop and iterate. The user trims, reorders, re-scopes, drops, and may reclassify any
+   story. Nothing is recorded and nothing runs until they explicitly approve.
+
+5. **Settle the open forks in one interview — the epic's only scheduled human turn.**
 
    Every dispatched phase runs in a subagent with no human in its loop. A worker that
    meets an unanswered product fork can only guess or park, and a guess is worse. So
@@ -98,7 +115,7 @@ supervised, evidence-first flow instead.
    ask the same questions in the conversation — the point is that a human answers them
    before dispatch, not that viva mediates it.
 
-5. On approval, record exactly what was approved. Derive `<slug>` from the epic title:
+6. On approval, record exactly what was approved. Derive `<slug>` from the epic title:
 
    ```bash
    gate-ledger epic-set --slug "<slug>" --title "<title>" --source "<milestone M | issue #N | label L>" \
@@ -117,7 +134,18 @@ supervised, evidence-first flow instead.
    diagnosed later, mid-flight, is never folded in; see Un-park below for where that
    goes instead.
 
-   One `epic-story-set` per story, then:
+   One `epic-story-set` per story. Then, for each story classed `story-supervised`,
+   one more call recording the class as a park — the driver's already-parked path
+   surfaces it in "Needs you" on the first run instead of dispatching it, so this needs
+   no new field and no driver change:
+
+   ```bash
+   gate-ledger epic-story-set --epic "<slug>" --slug "<story>" \
+     --status parked --reason "story-supervised: <the one clause that classed it> — take it through /work-on"
+   ```
+
+   The `story-supervised:` prefix is what the closing report reads to render the entry
+   without a gate (see "Close every invocation the same way"). Then:
 
    - Write the epic pre-mortem register to `docs/studious/premortems/<slug>-epic.md`
      and record it: `gate-ledger epic-set --slug "<slug>" --premortem "<path>"`.
@@ -136,16 +164,19 @@ supervised, evidence-first flow instead.
      anywhere below. Bare `--slug` answers for the epic's `__epic` integration
      checkout; `--story <story>` answers for a story's.
 
-6. Close with the report block below. Driving starts on the next invocation — approval
+7. Close with the report block below. Driving starts on the next invocation — approval
    and execution never share one.
 
-**No human approves a design doc on this path. State that plainly to the user at
-approval time — don't let them discover it at the epic PR.**
+**No human approves a design doc on the `epic-default` path. State that plainly to the
+user at approval time — don't let them discover it at the epic PR.** A
+`story-supervised` story is the other half of that sentence: it never reaches an
+unattended design phase at all, so its doc is signed off in `/work-on` like any
+story-scale feature.
 
 The driver's default profile is `design → design-review → build → audit → acceptance`:
 a dispatched worker drafts the design doc and `/gate-design-review` reviews it against
-`reference/design-doc-contract.md` on every story. Two constraints force this, and
-neither is a preference:
+`reference/design-doc-contract.md` on every story it drives. Two constraints force
+this, and neither is a preference:
 
 - **A subagent cannot open a browser.** viva's sign-off is a human at a keyboard, and
   there isn't one inside a dispatched phase running three-at-a-time in parallel
@@ -162,9 +193,20 @@ human approving — do not describe it to the user as an equivalent substitute. 
 front-loading moves is the **interview**, which has no substitute at all; the sign-off
 is genuinely reduced, not relocated.
 
-Story-scale work through `/work-on` keeps the human in every round — a design doc there
-gets both a viva sign-off and the gate. The inconsistency between the two scales is
-known and tracked (issue #210); it is not a licence to improvise a third behaviour here.
+**The review model on this pipeline, decided (#210):** a story routed `epic-default`
+relies on `/gate-design-review`'s agent review, because that class is defined by a
+mechanically verifiable surface — the gate can check the thing a human would have
+checked — while a story whose surface a gate cannot verify mechanically is classed
+`story-supervised` at plan time and routed to `/work-on`, where it keeps its viva
+sign-off.
+
+That is one rule read at two scales, not two pipelines that drifted: a human signs off
+where a gate cannot verify mechanically. It is also not a softening of the paragraph
+above — an agent reviewing still isn't a human approving, and for an `epic-default`
+story the sign-off is genuinely gone, not covered. What the story class buys is that
+the stories where that trade doesn't hold never take it. A story the user wants signed
+off by hand is a story reclassified `story-supervised` at approval, never an improvised
+third behaviour here.
 
 ## Driver — every later invocation
 
@@ -712,6 +754,8 @@ Needs you:
     (<phase>: <outcome> (<Nm>) → <phase>: <outcome> (<Nm>) → ...)
     <scope line>
     gate-ledger work-get --slug "<slug>--<story>"
+  - <story>: story-supervised — <one clause: why it's yours>
+    /work-on "<slug>--<story>" — branch epic/<slug>--<story>, cut from epic/<slug>
 Landed this run: <story> — <phase>: <outcome> (<Nm>) → <phase>: <outcome> (<Nm>) → ...
   <scope line>
   gate-ledger work-get --slug "<slug>--<story>"
@@ -774,6 +818,15 @@ story parks under that name rather than `audit`'s, since the audit dispatch this
 gates never ran. Read it as "stuck before the audit gate could even start," not as a
 fourth thing to re-run by hand.
 
+A story parked at plan time as `story-supervised` is the one entry with no gate and no
+verdict at all — its recorded reason starts `story-supervised:`, and it takes the
+second `Needs you` bullet form above. Never manufacture a `returned PARKED` for it:
+nothing ran, nothing failed, and the entry is a handoff, not a failure. It also has no
+work file yet, so its three sub-lines — the phase trail, the `<scope line>`, and the
+`work-get` line — are omitted rather than degraded; rendering
+`scope: unavailable (could not read the work file)` for a story that was never
+dispatched reports a read failure that didn't happen.
+
 When the epic reaches `ready`, the last line becomes the
 `gh pr create` handoff; `stopped` states what ended it. A parked story is always also
 a valid `/work-on` feature — say so when the queue is non-empty; taking a story over
@@ -786,6 +839,20 @@ the missing one at the path `gate-ledger worktree-path --slug "<slug>" --story
 report's own "Needs you" entry prints the epic-qualified name `<slug>--<story>`; split
 it on `--` to get the two values (e.g. `m6-wave1--ledger-scope-fix` → `--slug
 m6-wave1 --story ledger-scope-fix`).
+
+A `story-supervised` park is the other exception to "inside its worktree": it was
+parked before anything dispatched, so it has neither branch nor worktree yet. The user
+takes it over from their own checkout — `/work-on "<the printed slug>"`, working on
+`epic/<slug>--<story>` (the branch name the driver would have used, cut from the epic
+branch) so its gate verdicts record where the epic reads them. The printed slug matters
+as much as the branch: `/work-on` writes the design doc and build evidence into that
+same epic-qualified work file, which is what Reconcile reads for the two profiled
+phases that leave no verdict. Once its profiled gates have proceeded at that branch's
+HEAD, un-park it (`--status pending`, per Un-park above) and the next `/work-through`
+run reconciles it to the `merge` sentinel and lands it without re-running a thing.
+Leave its gate profile as approved — `/work-on` covers every phase in the default one,
+so a trimmed-for-supervision profile buys nothing and risks reconciling to a phase the
+driver would then run unattended.
 
 In the `outside <N>` rendering's bracketed `scope:` clauses,
 `amended`, the amendment-orphan clause, and the trailing outside-file list are each

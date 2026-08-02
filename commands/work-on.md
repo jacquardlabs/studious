@@ -97,6 +97,12 @@ Run `/gate-design-review` against the recorded doc, then:
 
 Log with `work-log --step design-review --outcome "<verdict>" --phase "<phase>"`.
 
+**The review model on this pipeline (#210):** a design doc here gets a human sign-off —
+viva inside `/design`, or whatever your route's equivalent is — *and* this gate, because
+a human signs off where a gate cannot verify mechanically, which is the same rule that
+sends prompt-prose and idea-shaped stories here from `/work-through`'s plan piece
+(`reference/epic-plan-contract.md`, "Story class") rather than into an unattended epic.
+
 ### 4 · build — handoff
 
 The flow hands off rather than builds. Hand over the working context, then stop:
