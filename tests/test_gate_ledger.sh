@@ -1956,5 +1956,65 @@ contains "--history renders an escalation line" \
   "$(printf 'escalated\tround 2\t1 blocking, prior round 1')" \
   "$(cd "$dhi" && "$LEDGER" episode-get --gate audit --history)"
 
+
+# --- telemetry-dispatch: the routing store's dispatch line (#132) ---
+dt=$(sandbox)
+tf="$dt/.studious/telemetry/feat-foo.jsonl"
+( cd "$dt" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch \
+    --run-id run-7 --step-id lane-1 --parent-step-id feat-foo:audit \
+    --skill gate-audit --role security-auditor --routing-reason static --capturer hook \
+    --feature round=2 --feature narrowed=true --feature note=hello ) >/dev/null
+check "telemetry-dispatch writes one line" "1" "$(wc -l < "$tf" | tr -d ' ')"
+check "dispatch kind" "dispatch" "$(jq -r '.kind' "$tf")"
+check "dispatch capturer is the caller-declared path" "hook" "$(jq -r '.capturer' "$tf")"
+check "dispatch carries run_id" "run-7" "$(jq -r '.run_id' "$tf")"
+check "dispatch carries parent_step_id" "feat-foo:audit" "$(jq -r '.parent_step_id' "$tf")"
+check "task_id defaults to the branch" "feat/foo" "$(jq -r '.task_id' "$tf")"
+check "model falls back to the agent's frontmatter" "opus" "$(jq -r '.model' "$tf")"
+check "effort falls back to the agent's frontmatter" "high" "$(jq -r '.effort' "$tf")"
+check "numeric feature coerces to a number" "number" "$(jq -r '.features.round | type' "$tf")"
+check "boolean feature coerces to a boolean" "boolean" "$(jq -r '.features.narrowed | type' "$tf")"
+check "non-scalar feature stays a string" "string" "$(jq -r '.features.note | type' "$tf")"
+check "telemetry store is gitignored" "" "$(cd "$dt" && git status --porcelain .studious 2>/dev/null)"
+
+# an explicit --model/--effort wins over the agent file (the driver pins some lanes itself)
+( cd "$dt" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id run-7 --step-id lane-2 \
+    --role security-auditor --routing-reason override --model sonnet --effort medium ) >/dev/null
+check "explicit --model overrides the frontmatter" "sonnet" "$(jq -rs '.[1].model' "$tf")"
+check "override is an accepted routing reason" "override" "$(jq -rs '.[1].routing_reason' "$tf")"
+
+# a role with no agent file records empty tiers rather than inventing them
+( cd "$dt" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id run-7 --step-id lane-3 \
+    --role fix-delta --routing-reason static ) >/dev/null
+check "unknown role leaves model empty" "" "$(jq -rs '.[2].model' "$tf")"
+
+# --- telemetry-dispatch validation ---
+check "missing --role exits 2" "2" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s --routing-reason static >/dev/null 2>&1; echo $?)"
+check "free-text routing reason exits 2" "2" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s --role x --routing-reason "because" >/dev/null 2>&1; echo $?)"
+check "classifier routing reason is accepted" "0" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s4 --role x --routing-reason classifier:v3 >/dev/null 2>&1; echo $?)"
+check "ab-arm routing reason is accepted" "0" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s5 --role x --routing-reason ab:control >/dev/null 2>&1; echo $?)"
+check "unknown capturer exits 2" "2" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s --role x --routing-reason static --capturer agent >/dev/null 2>&1; echo $?)"
+
+# --- record's outcome label (#133), joinable to the dispatch lines above ---
+do_=$(sandbox)
+of="$do_/.studious/telemetry/feat-foo.jsonl"
+( cd "$do_" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id run-9 --step-id lane-1 \
+    --role code-auditor --routing-reason static ) >/dev/null
+( cd "$do_" && "$LEDGER" record --gate audit --verdict "FIX AND RE-REVIEW" ) >/dev/null
+check "record appends exactly one outcome line" "1" "$(jq -rs '[.[] | select(.kind=="outcome")] | length' "$of")"
+check "outcome carries the closed-enum verdict verbatim" "FIX AND RE-REVIEW" "$(jq -rs '.[1].verdict' "$of")"
+check "outcome capturer is the ledger itself" "ledger" "$(jq -rs '.[1].capturer' "$of")"
+check "outcome joins to the run the dispatch recorded" "run-9" "$(jq -rs '.[1].run_id' "$of")"
+check "outcome step_id is the gate step" "feat-foo:audit" "$(jq -rs '.[1].step_id' "$of")"
+check "outcome records the verdict's sha" "$(git -C "$do_" rev-parse --short HEAD)" "$(jq -rs '.[1].sha' "$of")"
+
+# a verdict with no dispatch telemetry is still labelled, with nothing to join to
+dn=$(sandbox)
+( cd "$dn" && "$LEDGER" record --gate acceptance --verdict SHIP ) >/dev/null
+nf="$dn/.studious/telemetry/feat-foo.jsonl"
+check "an unjoinable verdict is still labelled" "SHIP" "$(jq -r '.verdict' "$nf")"
+check "its run_id is empty, not invented" "" "$(jq -r '.run_id' "$nf")"
+check "record still reports success" "0" "$(cd "$dn" && "$LEDGER" record --gate audit --verdict PASS >/dev/null 2>&1; echo $?)"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

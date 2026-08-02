@@ -116,6 +116,7 @@ DISPATCH_FUNCTION_NAMES = (
     "requireContract",
     "requireFields",
     "diffBlock",
+    "telemetryBlock",
     "auditDispatchPrompt",
     "finaleAuditDispatchPrompt",
     "premortemDispatchPrompt",
@@ -200,6 +201,12 @@ function attempt(name, fn) {{
 attempt('audit', () => auditDispatchPrompt({{ ctxBlock: 'CTX-BLOCK', note: 'NOTE', slug: 'epic-slug', storyWorktreePath: '/worktree/story-a', contract }}))
 attempt('finale', () => finaleAuditDispatchPrompt({{ note: 'NOTE', repoRoot: '/repo', epicWorktreePath: '/worktree/__epic', slug: 'epic-slug', defaultBranch: 'main', epicGoal: 'goal text', contract }}))
 attempt('premortem', () => premortemDispatchPrompt({{ repoRoot: '/repo', premortemPath: 'docs/premortem.md', slug: 'epic-slug', epicWorktreePath: '/worktree/__epic', note: 'NOTE', contract }}))
+// Same site again with a populated telemetry block (#132): the block splices in
+// between the task text and the contract, so a probe that only ever passes
+// `telemetry: undefined` renders '' and never builds the prompt the driver actually
+// ships. Both callers of this probe iterate every entry, so this one gets the
+// contract-verbatim assertion and the fail-closed assertion for free.
+attempt('audit-with-telemetry', () => auditDispatchPrompt({{ ctxBlock: 'CTX-BLOCK', note: 'NOTE', slug: 'epic-slug', storyWorktreePath: '/worktree/story-a', contract, telemetry: {{ runId: 'epic:s:1', stepId: 'story-a:audit:r2:security-auditor', parentStepId: 'epic-s--story-a:audit', taskId: 'epic/s--story-a', skill: 'gate-audit', role: 'security-auditor', routingReason: 'override', features: {{ round: 2 }} }} }}))
 attempt('fixDelta', () => fixDeltaDispatchPrompt({{ ctxBlock: 'CTX-BLOCK', note: 'NOTE', storyWorktreePath: '/worktree/story-a', priorSha: 'abc123', contract }}))
 attempt('finaleFixDelta', () => finaleFixDeltaDispatchPrompt({{ note: 'NOTE', repoRoot: '/repo', epicWorktreePath: '/worktree/__epic', slug: 'epic-slug', defaultBranch: 'main', priorSha: 'abc123', contract }}))
 console.log(JSON.stringify(results))

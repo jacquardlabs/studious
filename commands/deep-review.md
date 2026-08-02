@@ -44,6 +44,8 @@ Spawn the one matching agent with the Task tool. It already knows its full workf
 
 Before Phase 1, run one Glob/Grep pass against the prompt-surface signature table in `reference/prompt-checklist.md` (Claude Code plugin and `.claude/` layouts, assistant instruction files, prompt-template directories, LLM SDK call sites). If the repo has no prompt surface, note "No prompt surface detected — prompts review skipped." and spawn six reviewers below, not seven — the same way the audit gate skips its web lanes at project level. The agent's own self-skip is the backstop for a single-area `/deep-review prompts` run on a promptless repo.
 
+Dispatch telemetry for every reviewer you spawn — run, step, role, and the model and effort that agent's file pins — is appended by `hooks/dispatch-telemetry.sh` on the `Task` tool, with no step for you to run and nothing to pass. Schema: `reference/telemetry-format.md`. Nothing here reads it.
+
 ### Phase 1 — Run all seven reviews in parallel
 
 Spawn all seven subagents simultaneously with the Task tool (or six, when the prompt-surface check above found none) — do not run them sequentially. Use the `subagent_type` values from the table above. Each agent already knows its full workflow — just tell it the project path and today's date. Run them all with `run_in_background: true`. In this same batch, also spawn `code-auditor` for the **idiom feedback step**'s Step 1 below — its repo-wide sweep has no data dependency on `review-codebase-health`'s own report (Step 2 reads code-auditor's finished output, not review-codebase-health's), so it does not need to wait for that reviewer to return; spawning it concurrently removes a whole review's latency from this phase's critical path.

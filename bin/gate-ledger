@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # gate-ledger — read/write Studious's local, gitignored .studious/ state.
 #
-# Five stores in the consuming project:
+# Six stores in the consuming project:
 #   .studious/gates/<branch-slug>.json  — per-branch gate verdicts. Written by the
 #     gate commands (via `record`); read by the PR-time hook (via `status`) and by
 #     /work-on's evidence check (via `gate-get`) — never read as a raw file by callers.
@@ -46,7 +46,16 @@
 #     of verification commands run while a story is armed (one JSON object per
 #     line; written via `evidence-append` by hooks/evidence-capture.sh; read via
 #     `evidence-list` — see reference/evidence-format.md).
-# All five stores are anchored to the MAIN working tree (see repo_root), so
+#   .studious/telemetry/<branch-slug>.jsonl — append-only routing telemetry: one
+#     `dispatch` line per review agent sent out (written via `telemetry-dispatch`
+#     by hooks/dispatch-telemetry.sh and by workflows/epic-driver.js's fan-out
+#     prompts) and one `outcome` line per gate verdict (written by `record` as a
+#     side effect). Joined, they tie a model choice at dispatch time to the verdict
+#     it produced — see reference/telemetry-format.md, which is the contract.
+#     A sidecar `.studious/telemetry/<branch-slug>.run` holds the last run id seen
+#     on that branch, so `record` can attribute a verdict to a run without any
+#     prompt carrying the id. No reader in this plugin; nothing branches on it.
+# All six stores are anchored to the MAIN working tree (see repo_root), so
 # agents running in linked worktrees (e.g. /work-through story worktrees)
 # share one .studious/ store instead of fragmenting it per worktree.
 #
@@ -117,6 +126,19 @@ evidence_dir() {
     printf '%s/.studious/evidence' "$root"
   else
     printf '.studious/evidence'
+  fi
+}
+
+telemetry_dir() {
+  # Same root-anchoring as ledger_dir, different store. An auditor dispatched
+  # into a linked story worktree still lands its dispatch line in the MAIN
+  # tree's .studious/telemetry/, so one branch's dispatches and its verdicts
+  # share a file and can be joined without a cross-worktree read.
+  local root
+  if root=$(repo_root); then
+    printf '%s/.studious/telemetry' "$root"
+  else
+    printf '.studious/telemetry'
   fi
 }
 
@@ -249,6 +271,30 @@ append_event() { # epic, story, kind, jq-object filter for the kind's own fields
   return 0
 }
 
+append_telemetry() { # capturer, kind, jq-object filter for the kind's own fields, then --arg/--argjson pairs for it
+  # The routing store's shared writer, modelled on append_event(): one jq -nc
+  # object per call, >> the branch's .jsonl, no read-modify-write, best-effort
+  # and silent on the happy path. `capturer` is passed by the calling verb, not
+  # by a flag the caller of that verb controls, so a line's provenance is fixed
+  # by which code path wrote it (see reference/telemetry-format.md).
+  local capturer="$1" kind="$2" fields="$3"
+  shift 3
+  if ! have jq || ! have git; then return 0; fi
+  local dir; dir=$(telemetry_dir)
+  mkdir -p "$dir" 2>/dev/null
+  local file; file="$dir/$(branch_slug).jsonl"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  if ! jq -nc "$@" \
+      --arg at "$(now_iso)" --arg kind "$kind" --arg capturer "$capturer" \
+      '{at: $at, kind: $kind, capturer: $capturer} + ('"$fields"')' >> "$file" 2>/dev/null
+  then
+    echo "gate-ledger: telemetry-append failed (kind $kind) — primary write unaffected" >&2
+  fi
+  return 0
+}
+
+telemetry_run_file() { printf '%s/%s.run' "$(telemetry_dir)" "$(branch_slug)"; }
+
 gates_file_init() { # ensures the current branch's gates file exists, echoes its path
   local dir; dir=$(ledger_dir)
   mkdir -p "$dir"
@@ -311,6 +357,22 @@ cmd_record() {
       append_event "$epicSlug" "$storySlug" "gate-verdict" '{gate: $gate, verdict: $verdict, sha: $sha}' \
         --arg gate "$gate" --arg verdict "$verdict" --arg sha "$sha"
     fi
+    # Outcome label (#133): the gate-time right side of the routing join, written
+    # here — the one site every verdict already passes through — rather than asked
+    # of four dispatch prompts that would each have to remember it. Unconditional:
+    # a verdict recorded in a run that emitted no dispatch telemetry still gets a
+    # label, with an empty run_id, because there is nothing for it to join to
+    # anyway. run_id comes from the branch's own run file, so no prompt carries an
+    # id; step_id defaults to the gate step every dispatch line's parent_step_id
+    # already points at. See reference/telemetry-format.md.
+    local run_id="" run_file
+    run_file=$(telemetry_run_file)
+    [ -f "$run_file" ] && run_id=$(head -n 1 "$run_file" 2>/dev/null)
+    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+    append_telemetry "ledger" "outcome" \
+      '{run_id: $run_id, step_id: $step_id, task_id: $task_id, gate: $gate, verdict: $verdict, sha: $sha}' \
+      --arg run_id "$run_id" --arg step_id "$(branch_slug):$gate" --arg task_id "$branch" \
+      --arg gate "$gate" --arg verdict "$verdict" --arg sha "$sha"
   fi
   return "$rc"
 }
@@ -1883,6 +1945,93 @@ cmd_evidence_append() { # append-only: one jq -nc object per call, >> the branch
                     configuration: [{name: $command}]}}' >> "$file"
 }
 
+cmd_telemetry_dispatch() { # append-only: one `dispatch` line per review agent sent out
+  local run_id="" step_id="" parent_step_id="" task_id="" skill="" role=""
+  local model="" effort="" routing_reason="" capturer="driver"
+  local features=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --run-id)         run_id="$2"; shift 2 ;;
+      --step-id)        step_id="$2"; shift 2 ;;
+      --parent-step-id) parent_step_id="$2"; shift 2 ;;
+      --task-id)        task_id="$2"; shift 2 ;;
+      --skill)          skill="$2"; shift 2 ;;
+      --role)           role="$2"; shift 2 ;;
+      --model)          model="$2"; shift 2 ;;
+      --effort)         effort="$2"; shift 2 ;;
+      --routing-reason) routing_reason="$2"; shift 2 ;;
+      --capturer)       capturer="$2"; shift 2 ;;
+      --feature)        features+=("$2"); shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$run_id" ] || [ -z "$step_id" ] || [ -z "$role" ] || [ -z "$routing_reason" ]; then
+    echo "gate-ledger: --run-id, --step-id, --role, and --routing-reason required" >&2
+    return 2
+  fi
+  case "$capturer" in
+    hook|driver) ;;
+    *) echo "gate-ledger: --capturer must be 'hook' or 'driver'" >&2; return 2 ;;
+  esac
+  # routing_reason is a closed prefix set, validated here rather than trusted:
+  # a free-text reason makes the column unqueryable, which is the one thing this
+  # record exists for. `override` covers anything that displaced the static
+  # roster (a narrowed re-audit round is the case today).
+  case "$routing_reason" in
+    static|override|classifier:v[0-9]*|ab:?*) ;;
+    *) echo "gate-ledger: --routing-reason must be static, override, classifier:v<N>, or ab:<arm>" >&2; return 2 ;;
+  esac
+  if ! have jq || ! have git; then
+    echo "gate-ledger: telemetry-dispatch skipped (jq and git required)" >&2
+    return 0
+  fi
+
+  # model/effort resolve from the agent's own frontmatter when the caller didn't
+  # state them, so both write paths get the pin from ONE place instead of each
+  # re-deriving it — the hook has no reason to know how an agent file is shaped,
+  # and the driver only states a tier for the lanes it pins itself. `inherit` is
+  # recorded verbatim; it is the live signal for #136, not a value to normalize
+  # away. A role with no agent file (e.g. the driver's fix-delta pass) simply
+  # leaves both empty unless flags supplied them.
+  local agent_file="${CLAUDE_PLUGIN_ROOT:-}/agents/${role}.md"
+  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$agent_file" ]; then
+    [ -n "$model" ]  || model=$(sed -n 's/^model:[[:space:]]*//p' "$agent_file" | head -n 1)
+    [ -n "$effort" ] || effort=$(sed -n 's/^effort:[[:space:]]*//p' "$agent_file" | head -n 1)
+  fi
+  [ -n "$task_id" ] || task_id=$(branch_name)
+
+  # --feature k=v pairs into one object, values coerced to number/boolean when
+  # they parse as one so a downstream comparison doesn't have to cast strings.
+  local feature_json="{}" pair key val
+  if [ ${#features[@]} -gt 0 ]; then
+    for pair in "${features[@]}"; do
+      key="${pair%%=*}"; val="${pair#*=}"
+      [ -n "$key" ] && [ "$key" != "$pair" ] || continue
+      feature_json=$(printf '%s' "$feature_json" | jq -c --arg k "$key" --arg v "$val" \
+        '.[$k] = (if ($v | test("^-?[0-9]+(\\.[0-9]+)?$")) then ($v | tonumber)
+                  elif $v == "true" then true elif $v == "false" then false
+                  else $v end)') || feature_json="{}"
+    done
+  fi
+
+  ensure_gitignore
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  append_telemetry "$capturer" "dispatch" \
+    '{run_id: $run_id, step_id: $step_id, parent_step_id: $parent_step_id, task_id: $task_id,
+      skill: $skill, role: $role, model: $model, effort: $effort,
+      routing_reason: $routing_reason, features: $features}' \
+    --arg run_id "$run_id" --arg step_id "$step_id" --arg parent_step_id "$parent_step_id" \
+    --arg task_id "$task_id" --arg skill "$skill" --arg role "$role" \
+    --arg model "$model" --arg effort "$effort" --arg routing_reason "$routing_reason" \
+    --argjson features "$feature_json"
+
+  # Remember this run for the branch, so cmd_record's outcome line can join to it
+  # without any prompt having to carry a run id (reference/telemetry-format.md,
+  # "How a verdict finds its run"). Best-effort like every write in this verb.
+  printf '%s\n' "$run_id" > "$(telemetry_run_file)" 2>/dev/null || true
+  return 0
+}
+
 cmd_evidence_list() { # optional --branch B: print that branch's evidence .jsonl verbatim; optional --dedupe: collapse to one record per distinct command (most recent wins), nothing if absent
   local branch="" dedupe=""
   while [ $# -gt 0 ]; do
@@ -1950,6 +2099,7 @@ case "${1:-}" in
   worktree-path)   shift; cmd_worktree_path "$@" ;;
   evidence-append) shift; cmd_evidence_append "$@" ;;
   evidence-list)   shift; cmd_evidence_list "$@" ;;
+  telemetry-dispatch) shift; cmd_telemetry_dispatch "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | telemetry-dispatch --run-id R --step-id S --role RL --routing-reason static|override|classifier:vN|ab:ARM [--parent-step-id P] [--task-id T] [--skill K] [--model M] [--effort E] [--capturer hook|driver] [--feature k=v ...] | gc [--force]}" >&2; exit 2 ;;
 esac
