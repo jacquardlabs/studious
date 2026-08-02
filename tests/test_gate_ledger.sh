@@ -2016,5 +2016,76 @@ check "an unjoinable verdict is still labelled" "SHIP" "$(jq -r '.verdict' "$nf"
 check "its run_id is empty, not invented" "" "$(jq -r '.run_id' "$nf")"
 check "record still reports success" "0" "$(cd "$dn" && "$LEDGER" record --gate audit --verdict PASS >/dev/null 2>&1; echo $?)"
 
+# --- appetite, canary, and the zero-landed stop-loss (#144, #268, #297) ---
+da=$(sandbox)
+( cd "$da" && "$LEDGER" epic-set --slug pricey --title "Priced epic" --goal g \
+    --appetite-tokens 4200000 --appetite-episodes 3 --canary on ) >/dev/null
+( cd "$da" && "$LEDGER" epic-story-set --epic pricey --slug alpha --title A ) >/dev/null
+ef="$da/.studious/epics/pricey.json"
+check "epic-set stores the token appetite" "4200000" "$(jq -r '.appetite.tokens' "$ef")"
+check "epic-set stores the open-episode appetite" "3" "$(jq -r '.appetite.openEpisodes' "$ef")"
+check "epic-set stores canary as a boolean" "true" "$(jq -r '.canary' "$ef")"
+check "--canary off records false, not the string" "false" \
+  "$(cd "$da" && "$LEDGER" epic-set --slug pricey --canary off >/dev/null && jq -r '.canary' "$ef")"
+# One flag must not clobber the other half of the appetite object.
+( cd "$da" && "$LEDGER" epic-set --slug pricey --appetite-tokens 5000000 ) >/dev/null
+check "setting tokens alone preserves openEpisodes" "3" "$(jq -r '.appetite.openEpisodes' "$ef")"
+
+check "--appetite-tokens rejects zero" "2" \
+  "$(cd "$da" && "$LEDGER" epic-set --slug pricey --appetite-tokens 0 >/dev/null 2>&1; echo $?)"
+check "--appetite-tokens rejects a dollar figure" "2" \
+  "$(cd "$da" && "$LEDGER" epic-set --slug pricey --appetite-tokens '40USD' >/dev/null 2>&1; echo $?)"
+check "--appetite-episodes rejects a negative" "2" \
+  "$(cd "$da" && "$LEDGER" epic-set --slug pricey --appetite-episodes -1 >/dev/null 2>&1; echo $?)"
+check "--canary rejects anything but on/off" "2" \
+  "$(cd "$da" && "$LEDGER" epic-set --slug pricey --canary sometimes >/dev/null 2>&1; echo $?)"
+
+# epic-run-log is the write half of the stop-loss: if /work-through skips it the
+# stop-loss never arms, so the append and the computed refusal are both pinned.
+check "reconcile reports no stop-loss before any run" "false" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.refuse')"
+check "reconcile counts zero consecutive zero-landed runs" "0" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.consecutiveZeroLanded')"
+( cd "$da" && "$LEDGER" epic-run-log --slug pricey --landed 0 ) >/dev/null
+check "one zero-landed run does not arm the stop-loss" "false" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.refuse')"
+( cd "$da" && "$LEDGER" epic-run-log --slug pricey --landed 0 ) >/dev/null
+check "two zero-landed runs arm it (the third dispatch is refused)" "true" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.refuse')"
+check "the count is the run's own, not a total" "2" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.consecutiveZeroLanded')"
+check "the limit travels with the payload" "2" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.limit')"
+( cd "$da" && "$LEDGER" epic-run-log --slug pricey --landed 2 ) >/dev/null
+check "a landing run resets the streak" "0" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.consecutiveZeroLanded')"
+( cd "$da" && "$LEDGER" epic-run-log --slug pricey --landed 0 ) >/dev/null
+check "only the trailing run of zeros counts" "1" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.consecutiveZeroLanded')"
+check "each invocation appends exactly one run record" "4" "$(jq -r '.runs | length' "$ef")"
+check "run records carry a timestamp" "true" \
+  "$(jq -r '[.runs[] | (.at | type == "string" and length > 0)] | all' "$ef")"
+
+check "epic-run-log rejects a non-numeric count" "2" \
+  "$(cd "$da" && "$LEDGER" epic-run-log --slug pricey --landed many >/dev/null 2>&1; echo $?)"
+check "epic-run-log requires --landed" "2" \
+  "$(cd "$da" && "$LEDGER" epic-run-log --slug pricey >/dev/null 2>&1; echo $?)"
+check "epic-run-log refuses an unrecorded epic" "2" \
+  "$(cd "$da" && "$LEDGER" epic-run-log --slug ghost --landed 1 >/dev/null 2>&1; echo $?)"
+
+# Run history is bounded — the stop-loss only ever reads the tail.
+db=$(sandbox)
+( cd "$db" && "$LEDGER" epic-set --slug longrun --title L ) >/dev/null
+for _ in $(seq 1 25); do ( cd "$db" && "$LEDGER" epic-run-log --slug longrun --landed 1 ) >/dev/null; done
+check "run history is capped, not unbounded" "20" "$(jq -r '.runs | length' "$db/.studious/epics/longrun.json")"
+
+# An epic recorded before these fields existed must still reconcile.
+dc=$(sandbox)
+( cd "$dc" && "$LEDGER" epic-set --slug legacy --title L ) >/dev/null
+check "an epic with no appetite reconciles" "false" \
+  "$(cd "$dc" && "$LEDGER" epic-reconcile --slug legacy | jq -r '.stopLoss.refuse')"
+check "absent appetite reads as null, not a default" "null" \
+  "$(cd "$dc" && "$LEDGER" epic-reconcile --slug legacy | jq -r '.epic.appetite')"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

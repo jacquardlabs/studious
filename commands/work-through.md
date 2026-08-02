@@ -39,6 +39,14 @@ supervised, evidence-first flow instead.
 - **`$ARGUMENTS` is empty** — if exactly one epic has status `approved`, `running`, or
   `ready`, drive it. If several, list them and ask which — don't guess. If none, invite
   `/work-through [milestone, epic issue, or label]`.
+**Strip a trailing `--override-stop-loss` from `$ARGUMENTS` before matching anything
+below**, and carry it as a flag into Reconcile. It is the operator's explicit consent to
+dispatch past the zero-landed refusal and means nothing else: it is never implied by
+re-invoking, never carried into a later invocation, and never part of an epic's name.
+Matching it as one would send `/work-through <epic> --override-stop-loss` down the
+"anything else starts a new epic" path and try to resolve the whole string as a
+milestone.
+
 - **`$ARGUMENTS` matches an epic in flight** (slug or title) — drive that one.
 - **Anything else starts a new epic.** Resolve it read-only with `gh`:
   - a milestone name or number → `gh issue list --milestone "<M>" --state open --json number,title,body,labels`
@@ -96,11 +104,42 @@ supervised, evidence-first flow instead.
    The computation proposes; the user decides at approval, and a story whose trim they
    overturn is recorded with the full five.
 
-5. Stop and iterate. The user trims, reorders, re-scopes, drops, and may reclassify any
-   story or restore any trimmed gate. Nothing is recorded and nothing runs until they
-   explicitly approve.
+5. **Price the plan, and propose the appetite the user approves with it.** Read
+   `reference/epic-pricing.md` and follow it — that file is the rule, including where
+   the multiplicand comes from and why the number is denominated in tokens.
 
-6. **Settle the open forks in one interview — the epic's only scheduled human turn.**
+   Compute the estimate from what the plan already holds: each story's gate profile
+   from step 4, priced per phase, plus one epic finale, ranged from no fix cycles to
+   every gate taking its full allowance. Prefer this project's own measured history
+   (`.studious/telemetry/*.jsonl` joined on `task_id`, prior run reports, `cctx` if the
+   user has it); fall back to the pinned floor table and **label that result a
+   provisional floor estimate** — never present a floor as a measurement.
+
+   Show the per-story lines, the rung the numbers came from, and the range. A bare
+   total is not a price the user can trim toward.
+
+   Then propose two numbers, and say plainly that approving the plan approves both:
+
+   - **Appetite in tokens** — the p99 of the measured distribution, or the top of the
+     computed range on the floor rung. If the user wants a tighter number, take it, and
+     state the tradeoff once: a too-small appetite does not stop the work cleanly, it
+     silently scopes it down, so a tight appetite buys a degraded result rather than a
+     smaller one.
+   - **Appetite in open episodes** — how many stories may be awaiting judgment or human
+     action at once. Propose the concurrency cap. Count the `story-supervised` stories
+     from step 3 against it out loud: if the plan parks three of them and the number is
+     three, the first invocation dispatches nothing, and the user must know that before
+     approving rather than after.
+
+   State the canary here too: the first invocation runs exactly one dependency-free
+   story end to end and releases the rest only if it lands. Name which story that will
+   be. It is on unless the user turns it off.
+
+6. Stop and iterate. The user trims, reorders, re-scopes, drops, and may reclassify any
+   story, restore any trimmed gate, or move either appetite number. Nothing is recorded
+   and nothing runs until they explicitly approve.
+
+7. **Settle the open forks in one interview — the epic's only scheduled human turn.**
 
    Every dispatched phase runs in a subagent with no human in its loop. A worker that
    meets an unanswered product fork can only guess or park, and a guess is worse. So
@@ -140,15 +179,21 @@ supervised, evidence-first flow instead.
    ask the same questions in the conversation — the point is that a human answers them
    before dispatch, not that viva mediates it.
 
-7. On approval, record exactly what was approved. Derive `<slug>` from the epic title:
+8. On approval, record exactly what was approved. Derive `<slug>` from the epic title:
 
    ```bash
    gate-ledger epic-set --slug "<slug>" --title "<title>" --source "<milestone M | issue #N | label L>" \
-     --goal "<goal statement>" --branch "epic/<slug>" --concurrency <cap> --status approved
+     --goal "<goal statement>" --branch "epic/<slug>" --concurrency <cap> --status approved \
+     --appetite-tokens <approved tokens> --appetite-episodes <approved open episodes> \
+     --canary <on|off>
    gate-ledger epic-story-set --epic "<slug>" --slug "<story>" --title "<story title>" \
      --source "issue #N" --criteria "<criteria>" --decisions "<answered forks>" \
      --deps "<dep-a,dep-b>" --gates "<profile>"
    ```
+
+   `--appetite-tokens` is a token count, never a dollar figure — the ledger rejects
+   anything but a positive integer, and the driver compares it against a token budget.
+   Record the numbers the user actually approved, not the ones step 5 proposed.
 
    `--decisions` carries that story's answers as one line — `fork: answer; fork: answer`
    — distilled from `.viva/answers.json` (`choice`, plus `note` when the human added
@@ -189,7 +234,7 @@ supervised, evidence-first flow instead.
      anywhere below. Bare `--slug` answers for the epic's `__epic` integration
      checkout; `--story <story>` answers for a story's.
 
-8. Close with the report block below. Driving starts on the next invocation — approval
+9. Close with the report block below. Driving starts on the next invocation — approval
    and execution never share one.
 
 **No human approves a design doc on the `epic-default` path. State that plainly to the
@@ -274,6 +319,36 @@ recorded `designDoc` exists on disk (`.designDocExists`), and whether a story re
 story with `landedButUnmerged: true` isn't landed; flag it and correct the recorded
 status via `gate-ledger` rather than trusting it.
 
+**Pre-flight on that same payload, before any dispatch — zero model tokens.** Every
+check below is a read of `$reconcile_json`, which is already in hand; none of them
+dispatches anything, and that is the point — a run that is going to be refused must
+cost nothing to refuse.
+
+- **Stop-loss.** `.stopLoss.refuse` is `true` once the recorded run history shows
+  `.stopLoss.limit` consecutive invocations that landed nothing. When it is true,
+  **stop and report — do not dispatch.** Say how many consecutive zero-landed runs
+  there were and what the run reports said, and ask the user to either fix the cause or
+  re-invoke with an explicit override (`/work-through <epic> --override-stop-loss`),
+  which is the only thing that clears it. Never decide on the epic's behalf that this
+  run will be different; two runs already were not. The threshold is computed in
+  `bin/gate-ledger` and read here — never compare a count against a number of your own
+  in this prose.
+- **Recorded gate shas versus HEAD.** A story whose `.gate` verdict was recorded at a
+  sha other than `.storyBranchHeadSha` has evidence that no longer describes its
+  branch; its next phase is the gate that has to re-run, not the one after it. This is
+  the same rule the next-phase derivation below already applies — pre-flight is where
+  you say out loud which stories it moved backwards, so a re-run that looks like
+  repeated work is legible.
+- **Branches that cannot land as they stand.** `.landedButUnmerged: true` on a story
+  recorded `landed`, or a recorded `designDoc` with `.designDocExists: false`, means
+  state and evidence disagree. Correct the record via `gate-ledger` before dispatch, or
+  the run spends a story's worth of tokens rediscovering it.
+- **Story class is already handled.** A story whose surface belongs in `/work-on` was
+  parked at plan time (step 3), so the driver's already-parked path surfaces it rather
+  than dispatching it. Do not re-derive that classification here and do not warn about
+  it — routing it was the plan's job, and doing it twice invites the two answers to
+  disagree.
+
 From the reconciled state, derive each unfinished story's **next phase** (first phase
 in its gate profile whose evidence is missing) exactly as before. One special value: if
 every profiled gate has already proceeded at the story branch's HEAD and only the merge
@@ -357,6 +432,16 @@ Call the Workflow tool with `scriptPath` set to that file and `args`:
 }
 ```
 
+**The approved appetite rides in `.epic` — do not re-derive or re-price it here.**
+`appetite.tokens`, `appetite.openEpisodes`, and `canary` are fields the plan piece
+recorded, and the script reads them off the same `.epic` object you are already passing
+verbatim. Set the Workflow call's own run budget to the approved
+`appetite.tokens`: the script reads the substrate's `budget` primitive to cap dispatch,
+so a run invoked with a larger budget than the user approved has no ceiling where the
+user thought there was one. If the substrate exposes no budget primitive, the script
+says so in its returned `budget.note` and the run report must repeat it — an
+unenforceable ceiling has to look different from an enforced one.
+
 The script schedules the DAG under the concurrency cap, dispatches workers
 (`reference/worker-contract.md`) and gates, applies the verdict rules mechanically
 (fix-and-retry verdicts: fixer + fresh-eyes gate re-run, capped; judgment verdicts:
@@ -407,6 +492,15 @@ from before the switch, so it still renders through the jq below exactly as the
 script path would, even while you are driving it now. This is a stated round-one
 limitation of the driver-only design, not a claim that the two modes fully agree
 on everything they do.
+
+**The ceilings on this path, honestly stated.** Apply the canary and the open-episode
+appetite yourself, from the recorded `.epic`: dispatch one dependency-free story first
+and release the rest only once it lands, and stop dispatching new stories once the
+number awaiting you reaches `appetite.openEpisodes` (counting stories parked at plan
+time). Report those as `Held:` entries exactly as the script's are rendered. The
+**token ceiling does not exist on this path** — there is no budget primitive outside
+the Workflow substrate to read — so say so in the run report's `Budget:` line rather
+than implying a ceiling held.
 
 Apply verdicts exactly as the script does:
 
@@ -781,11 +875,33 @@ prefix renders whenever `<M>` is a usable bound (at least `<N>`); a caller or
 fixture with no `.history` (every pre-round-8 fixture in this section) degrades to
 the plain, undecorated `<N> moment(s) measured` it always rendered.
 
+**Record what this run landed, before you render anything — on the driver path only.**
+This section is also where the plan piece's final step sends you, and a plan-piece run
+dispatched nothing: writing a run record there would log a zero-landed run for an epic
+that was never driven, arming the stop-loss against the first real invocation. If no
+driver (script or fallback) ran in this invocation, skip this write entirely and render
+the plan-approval summary. Otherwise, one call, with the driver's own returned `landed`
+count:
+
+```bash
+gate-ledger epic-run-log --slug "<slug>" --landed <the driver's `landed` field>
+```
+
+This is the write that arms the zero-landed stop-loss the next invocation reads
+(Reconcile above). It is not optional bookkeeping and it is not a judgment: pass the
+number the driver returned, never a number you reasoned to. Skipping it leaves the
+stop-loss permanently disarmed, which is the exact failure #268 measured — three runs
+that each landed nothing and nothing in the flow noticing.
+
 End with exactly this shape and nothing after it:
 
 ```text
-Epic: <slug> — <landed>/<total> landed, <parked> parked, <blocked> blocked on them.
+Epic: <slug> — <landed>/<total> landed, <parked> parked, <held> held, <blocked> blocked on them.
+Budget: <no runtime ceiling — the approved appetite was not enforced this run | enforced, <remaining> tokens left of <approvedTokens>>
+Canary: <story> — <landed | parked>; <released the rest | the rest stayed held>
 Degraded narrowings: <degradedNarrowings> — this many ledger-scope-check rounds this run couldn't be trusted (a resolved-branch mismatch, an unconfirmed narrowing, or the check itself unavailable) and paid a full unnarrowed round instead. Which story and which of the three, story by story, is in the run's log lines, not this count.
+Held (nothing to decide — a ceiling stopped dispatch, not a verdict):
+  - <story>: <the driver's own reason for this story, verbatim>
 Needs you:
   - <story>: <gate> returned <verdict> — <one clause: what's needed>
     (<phase>: <outcome> (<Nm>) → <phase>: <outcome> (<Nm>) → ...)
@@ -845,6 +961,23 @@ position instead, never omitted, never a bare `(resumed)` alone, and never a
 manufactured number. Omit `Degraded narrowings:` when the driver's returned
 `degradedNarrowings` is 0 — a zero carries no signal worth a line. Omit `Needs you:`
 when nothing is parked.
+
+**`Held:` is never folded into `Needs you:`, and never omitted when non-empty.** A held
+story reached no gate and earned no verdict — a ceiling the user approved stopped it
+being dispatched at all (the token appetite, the open-episode appetite, or a canary
+that didn't land). There is nothing for the user to judge about it, and printing it as
+a park would turn an approved ceiling into what looks like a fresh pile of problems.
+Print each held story with the driver's own `reason` verbatim; that string already
+names which ceiling and what is in the queue. Omit the whole `Held:` block when the
+driver's `held` array is empty, which is the ordinary case.
+
+**`Budget:` always renders**, including — especially — when the driver reports
+`budget.enforced: false`. That is the line that tells the user their approved appetite
+went unenforced this run because the substrate exposed no budget primitive; a run with
+no ceiling must not look identical to a run that stayed under one. Never infer
+enforcement from the fact that nothing was held. **`Canary:` renders only when the
+driver returned one** (a resumed epic that has already landed a story returns `null`,
+and a line about a canary that didn't run is noise).
 
 `<gate>` in a `Needs you:` line is usually one of this flow's own profiled gates
 (`design-review`, `audit`, `acceptance`), each re-runnable by hand — but it can also

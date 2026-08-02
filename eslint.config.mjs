@@ -367,12 +367,20 @@ export default [
         parallel: 'readonly',
         log: 'readonly',
         phase: 'readonly',
+        // The Workflow substrate's budget primitive (budget.total / .spent() /
+        // .remaining()), read by epic-driver.js's budgetRemaining() to cap
+        // dispatch at the approved appetite (#144). Declared here so the read is
+        // linted like any other global; the accessor still probes it defensively
+        // at runtime, because a substrate that doesn't supply it must degrade to
+        // "no ceiling" rather than throw.
+        budget: 'readonly',
         // Built-ins this file actually uses. Hand-declared rather than
         // pulled from an env/globals package, per the "one dependency-free
         // file" design — extend this list if a future workflows/ file uses
         // another built-in.
         Boolean: 'readonly',
         JSON: 'readonly',
+        Number: 'readonly',
         Object: 'readonly',
         Promise: 'readonly',
         Set: 'readonly',

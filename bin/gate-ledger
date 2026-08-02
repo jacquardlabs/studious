@@ -32,7 +32,11 @@
 #     `scopeDelta` entry already counted as outside the declaration; an amendment
 #     never removes or edits a `scopeDelta` entry and never changes any count — see
 #     the design doc this story's SHA cites for the full mechanism.
-#   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /work-through (written via epic-set / epic-story-set; read via epic-get / epic-list).
+#   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /work-through (written via epic-set / epic-story-set / epic-run-log; read via epic-get / epic-reconcile / epic-list).
+#     Alongside the plan it carries the epic's approved appetite (`appetite.tokens`,
+#     `appetite.openEpisodes`), its canary flag, and `runs` — one record per driver
+#     invocation with the count of stories that landed, which is what arms the
+#     zero-landed stop-loss epic-reconcile computes (#268, #144, #297).
 #   .studious/epics/<epic-slug>.events.jsonl — append-only status-transition and
 #     verdict-recording trail for stories running under that epic (one JSON object
 #     per line, appended by the shared `append_event()` helper from `record`,
@@ -1320,8 +1324,19 @@ epic_file_init() { # slug → ensures the epic file exists, echoes its path
   printf '%s' "$file"
 }
 
+# Zero-landed stop-loss (#268). Two consecutive invocations that landed nothing
+# arm the refusal; the third dispatch is the one refused. The threshold lives
+# here, not in commands/work-through.md — a prompt comparing a counter against a
+# literal is the retry-counting-in-prose defect CLAUDE.md names. epic-reconcile
+# computes the boolean; the prose reads it.
+EPIC_ZERO_LANDED_LIMIT=2
+# How many run records an epic file keeps. The stop-loss only ever reads the
+# tail, so an unbounded array would grow for no reader.
+EPIC_RUN_HISTORY_CAP=20
+
 cmd_epic_set() {
   local slug="" title="" src="" goal="" branch="" premortem="" concurrency="" status=""
+  local appetite_tokens="" appetite_episodes="" canary=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --slug)        slug="$2"; shift 2 ;;
@@ -1330,6 +1345,9 @@ cmd_epic_set() {
       --goal)        goal="$2"; shift 2 ;;
       --branch)      branch="$2"; shift 2 ;;
       --premortem)   premortem="$2"; shift 2 ;;
+      --appetite-tokens)   appetite_tokens="$2"; shift 2 ;;
+      --appetite-episodes) appetite_episodes="$2"; shift 2 ;;
+      --canary)      canary="$2"; shift 2 ;;
       --concurrency) concurrency="$2"; shift 2 ;;
       --status)      status="$2"; shift 2 ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
@@ -1342,6 +1360,18 @@ cmd_epic_set() {
   case "$concurrency" in
     '') ;; # not provided: fine, left unset in the jq update
     *[!0-9]*|0) echo "gate-ledger: --concurrency must be a positive integer" >&2; return 2 ;;
+  esac
+  case "$appetite_tokens" in
+    '') ;;
+    *[!0-9]*|0) echo "gate-ledger: --appetite-tokens must be a positive integer (tokens, not dollars)" >&2; return 2 ;;
+  esac
+  case "$appetite_episodes" in
+    '') ;;
+    *[!0-9]*|0) echo "gate-ledger: --appetite-episodes must be a positive integer" >&2; return 2 ;;
+  esac
+  case "$canary" in
+    ''|on|off) ;;
+    *) echo "gate-ledger: --canary must be 'on' or 'off'" >&2; return 2 ;;
   esac
   if ! have jq || ! have git; then
     echo "gate-ledger: epic-set skipped (jq and git required)" >&2
@@ -1368,9 +1398,14 @@ cmd_epic_set() {
      | (if $branch != "" then .branch      = $branch else . end)
      | (if $pm     != "" then .premortem   = $pm     else . end)
      | (if $conc   != "" then .concurrency = ($conc | tonumber) else . end)
-     | (if $status != "" then .status      = $status else . end)' \
+     | (if $status != "" then .status      = $status else . end)
+     | (if $apTok  != "" then .appetite = ((.appetite // {}) | .tokens = ($apTok | tonumber)) else . end)
+     | (if $apEp   != "" then .appetite = ((.appetite // {}) | .openEpisodes = ($apEp | tonumber)) else . end)
+     | (if $canary != "" then .canary = ($canary == "on") else . end)' \
     --arg title "$title" --arg src "$src" --arg goal "$goal" --arg branch "$branch" \
-    --arg pm "$premortem" --arg conc "$concurrency" --arg status "$status" --arg t "$(now_iso)"
+    --arg pm "$premortem" --arg conc "$concurrency" --arg status "$status" \
+    --arg apTok "$appetite_tokens" --arg apEp "$appetite_episodes" --arg canary "$canary" \
+    --arg t "$(now_iso)"
   rc=$?
 
   if [ "$rc" -eq 0 ] && [ -n "$status" ]; then
@@ -1378,6 +1413,49 @@ cmd_epic_set() {
     append_event "$slug" "" "epic-status" '{status: $status}' --arg status "$status"
   fi
   return "$rc"
+}
+
+cmd_epic_run_log() { # --slug E --landed N -> appends one per-invocation landed count
+  # The write half of the zero-landed stop-loss (#268). Separate verb rather than
+  # an epic-set flag for the same reason work-log is separate from work-set: this
+  # appends an event, it does not set a field. commands/work-through.md calls it
+  # once at the close of every driver invocation, with the count the driver
+  # returned — the only number a run report can be wrong about without the
+  # stop-loss ever arming, which is why tests/test_gate_ledger.sh pins it.
+  local slug="" landed=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --slug)   slug="$2"; shift 2 ;;
+      --landed) landed="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$slug" ] || [ -z "$landed" ]; then
+    echo "gate-ledger: --slug and --landed required" >&2
+    return 2
+  fi
+  case "$landed" in
+    *[!0-9]*) echo "gate-ledger: --landed must be a non-negative integer" >&2; return 2 ;;
+  esac
+  if ! have jq || ! have git; then
+    echo "gate-ledger: epic-run-log skipped (jq and git required)" >&2
+    return 0
+  fi
+  slug=$(slugify "$slug")
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug reduced to nothing after slugify" >&2
+    return 2
+  fi
+  local file; file="$(epic_dir)/$slug.json"
+  if [ ! -f "$file" ]; then
+    echo "gate-ledger: no epic file for '$slug' (run epic-set first)" >&2
+    return 2
+  fi
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    '.updatedAt = $t
+     | .runs = (((.runs // []) + [{at: $t, landed: ($n | tonumber)}]) | .[-($cap | tonumber):])' \
+    --arg n "$landed" --arg cap "$EPIC_RUN_HISTORY_CAP" --arg t "$(now_iso)"
 }
 
 cmd_epic_get() {
@@ -1698,8 +1776,22 @@ cmd_epic_reconcile() { # --slug E -> one JSON payload replacing work-through's ~
       '$stories + {($s): $story}')
   done <<< "$story_slugs"
 
+  # Zero-landed stop-loss (#268), computed here rather than compared in prose.
+  # `consecutiveZeroLanded` counts the trailing run of invocations that landed
+  # nothing; `refuse` is true once that run reaches the limit, meaning the
+  # dispatch this reconcile is preparing would be the (limit + 1)th consecutive
+  # zero-landed one. An epic with no `runs` yet (recorded before this field
+  # existed, or never driven) reads 0 / false — absence is not evidence of a
+  # stalled epic.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  jq -n --argjson epic "$epic_json" --argjson stories "$stories_json" '{epic: $epic, stories: $stories}'
+  jq -n --argjson epic "$epic_json" --argjson stories "$stories_json" --arg limit "$EPIC_ZERO_LANDED_LIMIT" \
+    '($limit | tonumber) as $lim
+     | (reduce (($epic.runs // []) | reverse | .[]) as $r
+         ({streak: 0, done: false};
+          if .done then . elif ($r.landed // 0) == 0 then .streak += 1 else .done = true end)
+        | .streak) as $zeros
+     | {epic: $epic, stories: $stories,
+        stopLoss: {consecutiveZeroLanded: $zeros, limit: $lim, refuse: ($zeros >= $lim)}}'
 }
 
 cmd_epic_list() {
@@ -2094,6 +2186,7 @@ case "${1:-}" in
   epic-set)        shift; cmd_epic_set "$@" ;;
   epic-get)        shift; cmd_epic_get "$@" ;;
   epic-story-set)  shift; cmd_epic_story_set "$@" ;;
+  epic-run-log)    shift; cmd_epic_run_log "$@" ;;
   epic-reconcile)  shift; cmd_epic_reconcile "$@" ;;
   epic-list)       shift; cmd_epic_list "$@" ;;
   worktree-path)   shift; cmd_worktree_path "$@" ;;
@@ -2101,5 +2194,5 @@ case "${1:-}" in
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   telemetry-dispatch) shift; cmd_telemetry_dispatch "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | telemetry-dispatch --run-id R --step-id S --role RL --routing-reason static|override|classifier:vN|ab:ARM [--parent-step-id P] [--task-id T] [--skill K] [--model M] [--effort E] [--capturer hook|driver] [--feature k=v ...] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] [--appetite-tokens N] [--appetite-episodes N] [--canary on|off] | epic-run-log --slug E --landed N | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | telemetry-dispatch --run-id R --step-id S --role RL --routing-reason static|override|classifier:vN|ab:ARM [--parent-step-id P] [--task-id T] [--skill K] [--model M] [--effort E] [--capturer hook|driver] [--feature k=v ...] | gc [--force]}" >&2; exit 2 ;;
 esac

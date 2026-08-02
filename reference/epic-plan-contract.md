@@ -20,6 +20,9 @@ or unjudgeable story later.
 | Gate profile per story | Which of design → design-review → build → audit → acceptance run for this story. Default is all five. Audit is never trimmed. Trimming is proposed by the planner, decided by the user at approval — computed from the plan's own data by the "Gate profile" section below, not from what a planning session happened to notice. |
 | Epic pre-mortem | Cross-story failure modes — integration seams, shared-schema drift, sequencing risk — written to `docs/studious/premortems/<epic-slug>-epic.md` and verified at the epic finale by `agents/premortem-auditor.md`. |
 | Concurrency cap | How many stories may run at once. Default 3. |
+| Estimated cost | What the plan will cost to run, in tokens, computed per `reference/epic-pricing.md` and shown with its per-story parts and its fix-cycle range. Not recorded — it is the reasoning behind the appetite below, which is. |
+| Appetite | Two numbers the user approves alongside the scope: **tokens**, the ceiling `workflows/epic-driver.js` holds at runtime, and **open episodes**, the maximum stories that may be awaiting judgment or human action at once. Proposed from the estimate; recorded via `epic-set --appetite-tokens` / `--appetite-episodes`. |
+| Canary | Whether the first invocation dispatches exactly one story and waits for it to land before releasing the rest. On by default. Recorded via `epic-set --canary on\|off`. |
 
 ## Story class — what the driver runs unattended, and what it hands back
 
@@ -104,6 +107,35 @@ with all four values — the three permit/block reads and the priced lanes — s
 decides against a stated, reproducible recommendation. Not a silent default, and not a
 silent trim.
 
+## Appetite and canary — the plan's two ceilings and its first story
+
+Scope and spend are approved together. The estimate is computed from the plan's own
+data (`reference/epic-pricing.md`: N stories x their gate profiles x per-lane rates,
+plus the epic finale, ranged over the fix cycles the driver allows) and shown with its
+parts. What the user approves and what gets recorded is the **appetite** — two numbers,
+because two different things run out:
+
+- **Tokens.** A correct-but-expensive plan is bounded by a ceiling the driver holds at
+  runtime against the Workflow budget primitive. A story that would start with the
+  budget spent is held, not dispatched; a story already in flight parks instead, since
+  work on its branch has to be accounted for.
+- **Open episodes.** A plan that is cheap in tokens can still hand back more judgment
+  work than one person can absorb. This number caps how many stories may be awaiting a
+  human at once, regardless of token headroom, and a `story-supervised` story counts
+  against it from the moment the plan parks it.
+
+**The canary is the third ceiling, and it is on time rather than on quantity.** The
+first invocation of a fresh epic dispatches exactly one dependency-free story through
+its whole profile and releases the rest only once it lands. A canary that parks holds
+the fleet: the point is that a bad plan, a product bug, or an outage costs one story to
+discover rather than a full-width run. Once any story has landed, the plan is proven
+and later invocations widen immediately — the canary is not a per-invocation tax.
+
+Both consequences must be visible before approval, not discovered after: an epic whose
+canary parks lands nothing on its first run, and an epic whose open-episode number is
+already consumed by `story-supervised` stories dispatches nothing until the user clears
+them.
+
 ## Approval
 
 Approval is explicit — the user says so after seeing the full plan. Silence, a partial
@@ -130,8 +162,11 @@ follows the mid-flight-story rule above.
 - `bin/gate-ledger` — `epic-story-set` stores them; a new required element here needs a
   flag there, or the plan piece has nowhere to put it.
 - `workflows/epic-driver.js` — reads them back. `ctx()` threads `criteria` and
-  `decisions` into every dispatch prompt; `deps` and `gates` drive the scheduler. An
-  element the driver never reads is a documentation-only element, and should say so.
+  `decisions` into every dispatch prompt; `deps` and `gates` drive the scheduler;
+  `appetite` and `canary` bound what it dispatches. An element the driver never reads
+  is a documentation-only element, and should say so.
+- `reference/epic-pricing.md` — how the estimate behind the appetite is computed, and
+  the only place per-lane rates live.
 
 Two of the elements above are documentation-only in exactly that sense. The **stated
 file surface** is never recorded — it exists to be classified from, and its recorded
@@ -140,6 +175,11 @@ either: `story-supervised` is carried by the `status`/`reason` the plan piece re
 the story with, and `epic-default` is simply the absence of that park. Neither needs a
 new `gate-ledger` flag, and adding one would give the driver a second thing to
 disagree with the schedule about.
+
+The **estimated cost** is plan-time-only in that same sense: it is shown at approval
+and never recorded, because what the driver enforces is the appetite the user approved,
+not the arithmetic that proposed it. Recording the estimate would create a second
+number for a later run to disagree with.
 
 The gate-profile computation's four inputs are plan-time-only in the same sense. Its
 output rides the `--gates` flag that already exists, so nothing there needs a new field;

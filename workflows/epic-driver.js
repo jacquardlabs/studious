@@ -48,6 +48,66 @@ const stories = epic.stories || {}
 const cap = epic.concurrency || 5
 const repoRoot = input.repoRoot
 
+// ---------- appetite: two numbers, one approval (#144, #296, #297) ----------
+//
+// The plan the user approved carries an appetite in TOKENS and an appetite in
+// CONCURRENT OPEN EPISODES. Tokens bound what a correct-but-expensive plan can
+// spend; open episodes bound how much judgment work the run may pile in front of
+// the human. #297's evidence is that the second number is the one that actually
+// binds at ship time — M11 spent 22M tokens and handed back 21 fix-round verdicts
+// for one person to absorb — so a token ceiling alone leaves that failure mode
+// fully funded. Both are read here; neither is computed here (the estimate that
+// produced them is commands/work-through.md's job at plan approval, priced from
+// reference/epic-pricing.md).
+const appetite = epic.appetite || {}
+// Fallback is the concurrency cap, deliberately NOT a tighter constant: an epic
+// recorded before appetite existed must not silently lose throughput to a number
+// nobody approved. At the fallback, the cap only bites once the human already has
+// `cap` items queued — which is the same amount of work the scheduler was already
+// willing to have in flight.
+const openEpisodeCap = appetite.openEpisodes || cap
+const appetiteTokens = typeof appetite.tokens === 'number' ? appetite.tokens : null
+
+// The Workflow substrate exposes a `budget` global (budget.total / .spent() /
+// .remaining()) to scripts it runs. This file cannot verify that from inside the
+// repo, so every read goes through this one accessor and it probes defensively:
+// a substrate without the primitive, or one whose remaining() throws or returns a
+// non-number, degrades to "no runtime ceiling" rather than to a wrong number.
+// Returns tokens remaining, or null when there is no usable ceiling — callers
+// must treat null as "unbounded, and say so", never as zero.
+function budgetRemaining() {
+  if (typeof budget === 'undefined' || !budget) return null
+  if (typeof budget.remaining !== 'function') return null
+  let r
+  try { r = budget.remaining() } catch { return null }
+  // Number.isFinite covers NaN and ±Infinity in one check: neither is a ceiling,
+  // and treating either as one would compare as "not exhausted" forever.
+  if (!Number.isFinite(r)) return null
+  return r
+}
+
+// Reported in the run's return value so an operator can tell "ran under the
+// approved ceiling" from "ran with no ceiling at all" — a distinction that is
+// invisible if the driver simply never mentions the budget it couldn't read.
+function budgetCeilingReport() {
+  const remaining = budgetRemaining()
+  if (remaining === null) {
+    return {
+      enforced: false,
+      approvedTokens: appetiteTokens,
+      note: 'no runtime ceiling: the Workflow budget primitive was unavailable, so the approved appetite was not enforced during this run',
+    }
+  }
+  return {
+    enforced: true,
+    approvedTokens: appetiteTokens,
+    remaining,
+    note: appetiteTokens === null
+      ? 'runtime ceiling enforced from the run budget; this epic has no recorded appetite to compare it against'
+      : '',
+  }
+}
+
 // The worktree layout — the `.studious/worktrees` root, the `__epic` sentinel for
 // the integration checkout, one directory per in-flight story — has exactly one
 // owner: bin/gate-ledger's worktree_path() (#166). This script cannot ask it
@@ -1559,9 +1619,16 @@ const sem = makeSemaphore(cap)
 // __epic worktree race git's index.lock, and the loser reads as a spurious
 // "conflict" park of a healthy story.
 const mergeSem = makeSemaphore(1)
-const outcome = {}            // story → 'landed' | 'parked' | 'dropped' | 'blocked'
+const outcome = {}            // story → 'landed' | 'parked' | 'dropped' | 'blocked' | 'held'
 const parkedThisRun = []      // {story, gate, verdict, reason}
 const landedThisRun = []      // {story, trail}
+// Held ≠ parked. A parked story reached a gate and earned a verdict; a held story
+// was never dispatched, because the run hit a ceiling the user approved (#144's
+// tokens, #297's open episodes) or the canary didn't land (#268). Nothing is wrong
+// with it and nothing about it needs judging — re-running /work-through after
+// clearing the queue picks it up unchanged. Keeping the two lists separate is what
+// stops a ceiling from reading as N new problems in "Needs you".
+const heldThisRun = []        // {story, reason}
 // Acceptance fix cycle (SHOULD FIX): counts ledgerAuditPrior's three degrade paths
 // (branch mismatch, unconfirmed/missing resolvedBranch, check-unavailable error) —
 // every case where a narrowed retry was possible in principle but couldn't be
@@ -1586,6 +1653,48 @@ const doneResolvers = {}
 const donePromises = {}
 for (const s of Object.keys(stories)) donePromises[s] = new Promise(r => (doneResolvers[s] = r))
 function settle(story, how) { outcome[story] = how; doneResolvers[story](how) }
+
+// Every story sitting in this run's "Needs you" queue is one episode awaiting a
+// human — a story the plan parked as `story-supervised` counts exactly as much as
+// one this run parked on a gate verdict, because both are work the person has to
+// come back to before the epic moves. That inclusiveness is the point of #297: the
+// cap is on the queue's depth, not on how the entries got there.
+function openEpisodes() { return parkedThisRun.length }
+
+// An itemised list of what is actually in the queue. A stall the operator cannot
+// itemise reads as a hang, so the refusal reason names the episodes rather than
+// only their count.
+function openEpisodeList() {
+  return parkedThisRun
+    .map(p => (p.gate ? `${p.story} (${p.gate} ${p.verdict})` : `${p.story} (${p.verdict})`))
+    .join(', ')
+}
+
+// The two runtime ceilings, checked in one place so a story is refused for exactly
+// one stated reason and the held entry can carry it verbatim. Returns a reason
+// string, or null to dispatch.
+//
+// Token ceiling first: it is the harder constraint (no headroom means no work can
+// be done at all), and reporting "budget exhausted" is more actionable than
+// reporting an episode cap that the exhausted budget would have hit anyway.
+// One read per decision, not two: budgetRemaining() is a live call into the
+// substrate, so re-reading it between the test and the message could report a
+// different number than the one that decided the refusal.
+function budgetExhausted() {
+  const remaining = budgetRemaining()
+  return remaining !== null && remaining <= 0 ? remaining : null
+}
+
+function dispatchRefusal() {
+  const remaining = budgetExhausted()
+  if (remaining !== null) {
+    return `epic budget exhausted (${remaining} tokens remaining of the approved appetite) — re-run /work-through with fresh budget to continue`
+  }
+  if (openEpisodes() >= openEpisodeCap) {
+    return `open-episode cap reached (${openEpisodes()}/${openEpisodeCap} awaiting you: ${openEpisodeList()}) — land or clear those before more stories dispatch`
+  }
+  return null
+}
 
 // Dependency cycles in a malformed plan would deadlock the promise graph
 // forever. Kahn's algorithm up front finds every story that can never settle
@@ -2274,11 +2383,47 @@ async function runStory(story) {
     }
   }
   const trail = []
+  // Whether this story has spent anything yet THIS run. A story refused before its
+  // first dispatch is held (nothing spent, nothing to judge); one refused after is
+  // parked (work is on its branch and an operator has to decide what happens to
+  // it). A resumed story starting mid-profile has still spent nothing this run, so
+  // `started` tracks this run's dispatches, not the story's lifetime.
+  let started = false
 
   while (idx < profile.length) {
     const phaseName = profile[idx]
     const nextPhase = profile[idx + 1] || 'merge'
     await sem.acquire()
+    // Checked AFTER the slot is acquired, not before: a story queued behind the
+    // semaphore must re-read the counters at the moment it would actually
+    // dispatch, so a sibling that parked while it waited counts against the
+    // open-episode cap. Checking at launch would read every counter at t=0, when
+    // all of them are still empty, and the cap would only ever catch parks
+    // inherited from the plan.
+    //
+    // The episode cap governs NEW dispatch only ("the scheduler stops dispatching
+    // new stories" — #297), so it is tested once, before this story's first phase.
+    // The budget is tested every iteration: a run out of tokens cannot continue an
+    // in-flight story either.
+    const refusal = !started
+      ? dispatchRefusal()
+      : (budgetExhausted() !== null
+        ? `epic budget exhausted mid-story at "${phaseName}" — re-run /work-through with fresh budget to resume`
+        : null)
+    if (refusal) {
+      sem.release()
+      if (!started) {
+        log(`${story}: held — ${refusal}`)
+        heldThisRun.push({ story: workSlug(story), reason: refusal })
+        return settle(story, 'held')
+      }
+      // Mid-story: real work is on the branch, so this is a verdict-carrying park,
+      // not a hold. park()'s own recording dispatch is haiku/low and may itself be
+      // refused by an exhausted budget — park() already catches that and falls back
+      // to the in-memory entry, so the operator still sees it in "Needs you".
+      return park(story, phaseName, 'BUDGET EXHAUSTED', refusal)
+    }
+    started = true
     // Recorded instead of acted on immediately inside the catch below so
     // sem.release() keeps running exactly once, from the one `finally` —
     // acting inside `catch` too would need its own release call and risk a
@@ -2526,6 +2671,64 @@ for (const s of downstream) {
   })
   settle(s, 'parked')
 }
+// ---------- canary: one story proves the plan before the fleet widens (#268) ----------
+//
+// The driver dispatched every runnable story at t=0, so a bad plan, a product bug,
+// or an outage cost a full-width run (~1-4M subagent tokens) to discover. #268
+// prices the alternative: a canaried bad plan costs ~0.4M tokens — one story's
+// first pass — instead of ~4M. That arithmetic only holds if a canary that does
+// NOT land holds the remaining stories. The issue's own wording ("release the
+// remaining stories only after it lands or parks with a recorded verdict") reads
+// either way, and this file settles it in the direction the issue's cost evidence
+// requires: landing releases the fleet, anything else holds it and reports why.
+// Widening on a parked canary would refund exactly the full-width run the canary
+// exists to avoid, leaving the canary as nothing but a serialization of story one.
+//
+// Canary applies only while the epic has landed nothing. Once a story has landed,
+// the plan is proven at least once and re-canarying every resumed invocation would
+// serialize the rest of the epic for no information. `epic.canary === false` (the
+// plan's own opt-out, recorded by `gate-ledger epic-set --canary off`) skips it.
+function alreadySettledStatus(s) {
+  const st = stories[s].status
+  return st === 'landed' || st === 'dropped' || st === 'parked'
+}
+function depsLandedAtStart(s) {
+  return (stories[s].deps || []).every(d => !(d in stories) || stories[d].status === 'landed')
+}
+const runnable = Object.keys(stories).filter(s => !outcome[s])
+// eslint-disable-next-line local/no-fail-open-boolean -- neither operand is a dispatch result that could arrive null: both are reads of the reconciled plan this run was handed. The rule's failure mode (a died agent collapsing into the same value as an explicit negative) cannot occur here, and the falsy branch is the safe one either way — no canary means the epic is already proven or the plan opted out, not that a check was skipped.
+const canaryEnabled = epic.canary !== false &&
+  !Object.keys(stories).some(s => stories[s].status === 'landed')
+// The canary must be a story that would actually dispatch: not already settled,
+// and not blocked behind a dependency. A story that only blocks proves nothing.
+const canaryStory = canaryEnabled
+  ? runnable.find(s => !alreadySettledStatus(s) && depsLandedAtStart(s))
+  : null
+
+if (canaryStory) {
+  log(`canary: dispatching ${canaryStory} alone; ${runnable.length - 1} other stor${runnable.length - 1 === 1 ? 'y stays' : 'ies stay'} unstarted until it lands`)
+  try {
+    await runStory(canaryStory)
+  } catch (err) {
+    // runStory is designed never to reject (#128 crash hardening, proven end to end
+    // by tests/python/test_driver_crash_hardening.py). This is the one place it is
+    // awaited outside Promise.all's already-hardened path, where a rejection would
+    // take the whole run down with no report at all — guarded rather than trusted,
+    // because the cost of being wrong here is every other story's result.
+    const c = crashParkArgs('canary', err)
+    await park(canaryStory, c.gate, c.verdict, c.reason)
+  }
+  if (outcome[canaryStory] !== 'landed') {
+    const reason = `canary ${workSlug(canaryStory)} ${outcome[canaryStory] || 'did not settle'} — the fleet stays held so a bad plan costs one story, not the whole run; fix or re-plan, then re-run /work-through`
+    const heldCount = runnable.filter(s => s !== canaryStory && !outcome[s]).length
+    log(`canary did not land (${outcome[canaryStory]}) — holding ${heldCount} unstarted stor${heldCount === 1 ? 'y' : 'ies'}`)
+    for (const s of runnable.filter(x => x !== canaryStory && !outcome[x])) {
+      heldThisRun.push({ story: workSlug(s), reason })
+      settle(s, 'held')
+    }
+  }
+}
+
 await Promise.all(Object.keys(stories).filter(s => !outcome[s]).map(s => runStory(s)))
 
 const allSettled = Object.values(outcome)
@@ -2652,6 +2855,14 @@ return {
   landed: landedCount,
   dropped: droppedCount,
   blocked: allSettled.filter(o => o === 'blocked').length,
+  // Held stories are reported separately from needsYou on purpose — see
+  // heldThisRun's own comment. `landed` is also what commands/work-through.md
+  // records via `gate-ledger epic-run-log --landed`, which is what arms the
+  // zero-landed stop-loss on the next invocation.
+  held: heldThisRun,
+  canary: canaryStory ? { story: workSlug(canaryStory), outcome: outcome[canaryStory] } : null,
+  budget: budgetCeilingReport(),
+  openEpisodeCap,
   total: allSettled.length,
   degradedNarrowings,
   finale,
