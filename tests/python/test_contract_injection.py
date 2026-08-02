@@ -121,6 +121,10 @@ DISPATCH_FUNCTION_NAMES = (
     "requireFields",
     "diffBlock",
     "telemetryBlock",
+    # The GitHub read-only invariant every finale-altitude builder stamps (#276).
+    # Extracted verbatim like every other helper here, never restated: a test that
+    # reimplemented it would go on passing after the real text drifted.
+    "githubReadOnlyInvariant",
     "auditDispatchPrompt",
     "finaleAuditDispatchPrompt",
     "premortemDispatchPrompt",

@@ -22,7 +22,11 @@ epic → the driver.
   (`reference/worker-contract.md`); the two never share context. A gate judges the
   diff and the doc, never a worker's transcript.
 - **GitHub is read-only.** Never create or edit issues; never open PRs — after the
-  finale the branch is the user's (`gh pr create`).
+  finale the branch is the user's (`gh pr create`). This binds every dispatched agent,
+  not just you: the driver stamps the invariant into each dispatch prompt it builds and
+  watches the open-issue/open-PR counts across the run, reporting any change as an
+  anomaly (#276). Dispatching by hand on the fallback path means carrying the same
+  sentence into the prompt yourself.
 - **Judgment verdicts always stop the story** and wait for the user. Autonomy never
   absorbs a RETHINK, NEEDS DISCUSSION, or HOLD; unknown verdicts park too, never
   advance.
@@ -493,6 +497,17 @@ script path would, even while you are driving it now. This is a stated round-one
 limitation of the driver-only design, not a claim that the two modes fully agree
 on everything they do.
 
+**The mechanical completion gate and the assignment record are script-path only**, the
+same honestly-stated limitation as scope-delta above. On the script path the driver
+records each worker dispatch's assignment (`gate-ledger work-assign`) before the phase
+runs and verifies the contracted artifacts itself afterward — a commit on the story
+branch, plus the design doc and declared file set (design) or a logged build step
+(build) — nudging once and then parking rather than believing a worker's own account of
+its output (#294, #295). You are dispatching by hand here, so neither happens unless you
+do it: record the assignment before you dispatch if you want a successor to rehydrate
+from it, and check the branch and the work file yourself before you advance a story's
+phase. Do not report a phase as complete on the dispatched agent's word alone.
+
 **The ceilings on this path, honestly stated.** Apply the canary and the open-episode
 appetite yourself, from the recorded `.epic`: dispatch one dependency-free story first
 and release the rest only once it lands, and stop dispatching new stories once the
@@ -900,6 +915,8 @@ Epic: <slug> — <landed>/<total> landed, <parked> parked, <held> held, <blocked
 Budget: <no runtime ceiling — the approved appetite was not enforced this run | enforced, <remaining> tokens left of <approvedTokens>>
 Canary: <story> — <landed | parked>; <released the rest | the rest stayed held>
 Degraded narrowings: <degradedNarrowings> — this many ledger-scope-check rounds this run couldn't be trusted (a resolved-branch mismatch, an unconfirmed narrowing, or the check itself unavailable) and paid a full unnarrowed round instead. Which story and which of the three, story by story, is in the run's log lines, not this count.
+Anomalies (facts, not verdicts — nothing here is waiting on a decision, but read it):
+  - <kind> at <where>: <the driver's own detail, verbatim>
 Held (nothing to decide — a ceiling stopped dispatch, not a verdict):
   - <story>: <the driver's own reason for this story, verbatim>
 Needs you:
@@ -961,6 +978,16 @@ position instead, never omitted, never a bare `(resumed)` alone, and never a
 manufactured number. Omit `Degraded narrowings:` when the driver's returned
 `degradedNarrowings` is 0 — a zero carries no signal worth a line. Omit `Needs you:`
 when nothing is parked.
+
+**`Anomalies:` is never folded into `Needs you:` either, and never omitted when
+non-empty.** The driver's `anomalies` array carries crash-class facts a run must not
+swallow (#276, #278): `github-write` — the repo's open-issue or open-PR count changed
+while this run held GitHub read-only, so either a dispatch wrote GitHub state or a
+human did mid-run; `park-committed` — a park dispatch, which is contracted to record a
+park and nothing else, moved the story branch. Neither is a verdict and neither parked
+anything: print each entry with the driver's own `detail` verbatim, and never
+manufacture a remedy for it. Omit the whole block when the array is empty, which is the
+ordinary case.
 
 **`Held:` is never folded into `Needs you:`, and never omitted when non-empty.** A held
 story reached no gate and earned no verdict — a ceiling the user approved stopped it

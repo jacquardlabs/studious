@@ -2207,5 +2207,54 @@ check "the refused token left the recorded one untouched" "delivery-boundary" \
 check "the altitude rides through epic-reconcile to the driver" "delivery-boundary" \
   "$(cd "$dh" && "$LEDGER" epic-reconcile --slug altitude | jq -r '.epic.acceptanceAltitude')"
 
+# --- assignment-in-ledger (#295): work-assign ---
+di=$(sandbox)
+( cd "$di" && "$LEDGER" work-assign --slug "asg-epic--s1" --phase design \
+    --brief "author the design doc for story s1" \
+    --artifacts "commit, designDoc " \
+    --branch "epic/asg-epic--s1" --worktree "/tmp/wt/s1" )
+wfi="$di/.studious/work/asg-epic-s1.json"
+check "work-assign creates the work file" "yes" "$([ -f "$wfi" ] && echo yes || echo no)"
+check "work-assign records the phase" "design" "$(jq -r '.assignment.phase' "$wfi")"
+check "work-assign records the brief verbatim" "author the design doc for story s1" \
+  "$(jq -r '.assignment.brief' "$wfi")"
+check "work-assign trims each contracted artifact but keeps the dispatcher's own order" '["commit","designDoc"]' \
+  "$(jq -c '.assignment.artifacts' "$wfi")"
+check "work-assign records no file set of its own (declaredFiles has one owner)" "absent" \
+  "$(jq -r '.assignment | if has("declaredFiles") then "present" else "absent" end' "$wfi")"
+check "work-assign records the branch" "epic/asg-epic--s1" "$(jq -r '.assignment.branch' "$wfi")"
+check "work-assign records the worktree" "/tmp/wt/s1" "$(jq -r '.assignment.worktree' "$wfi")"
+check "work-assign stamps the sha it was written at" "$(git -C "$di" rev-parse --short HEAD)" \
+  "$(jq -r '.assignment.sha' "$wfi")"
+check "the first assignment is also the first history entry" "1" "$(jq -r '.assignments | length' "$wfi")"
+
+# A second assignment replaces .assignment (what a successor rehydrates from) and
+# APPENDS to .assignments (what makes the earlier dispatch auditable after the fact).
+( cd "$di" && "$LEDGER" work-assign --slug "asg-epic--s1" --phase build \
+    --brief "implement the recorded design" --artifacts "commit" )
+check "a later assignment moves .assignment to the current phase" "build" "$(jq -r '.assignment.phase' "$wfi")"
+check "a later assignment appends rather than overwriting the history" "2" "$(jq -r '.assignments | length' "$wfi")"
+check "the earlier assignment is still readable in full" "author the design doc for story s1" \
+  "$(jq -r '.assignments[0].brief' "$wfi")"
+( cd "$di" && "$LEDGER" work-assign --slug "asg-epic--s1" --phase build --brief "b" )
+check "an omitted --artifacts leaves the key off entirely (never an empty list)" "absent" \
+  "$(jq -r '.assignment | if has("artifacts") then "present" else "absent" end' "$wfi")"
+( cd "$di" && "$LEDGER" work-assign --slug "asg-epic--s1" --phase build --brief "b" --artifacts "" )
+check "an explicit empty --artifacts records a real contract for no artifact" '[]' \
+  "$(jq -c '.assignment.artifacts' "$wfi")"
+
+check "work-assign refuses a call with no --phase" "2" \
+  "$(cd "$di" && "$LEDGER" work-assign --slug asg-none --brief b >/dev/null 2>&1; echo $?)"
+check "work-assign refuses a call with no --brief" "2" \
+  "$(cd "$di" && "$LEDGER" work-assign --slug asg-none --phase design >/dev/null 2>&1; echo $?)"
+check "a refused work-assign wrote no work file at all" "no" \
+  "$([ -f "$di/.studious/work/asg-none.json" ] && echo yes || echo no)"
+check "work-assign refuses an unknown flag" "2" \
+  "$(cd "$di" && "$LEDGER" work-assign --slug asg-none --phase design --brief b --nope x >/dev/null 2>&1; echo $?)"
+check "work-assign preserves fields work-set already wrote" "Fancy" \
+  "$(cd "$di" && "$LEDGER" work-set --slug asg-epic--s2 --title Fancy >/dev/null; \
+     "$LEDGER" work-assign --slug asg-epic--s2 --phase design --brief b >/dev/null; \
+     jq -r '.title' "$di/.studious/work/asg-epic-s2.json")"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

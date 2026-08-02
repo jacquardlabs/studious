@@ -32,6 +32,14 @@
 #     `scopeDelta` entry already counted as outside the declaration; an amendment
 #     never removes or edits a `scopeDelta` entry and never changes any count — see
 #     the design doc this story's SHA cites for the full mechanism.
+#     Assignment fields (#295), written via `work-assign`: `assignment` — the current
+#     dispatch's own phase, brief, contracted artifacts, branch, and worktree, computed
+#     by the dispatcher and recorded before the work starts, so a successor to a
+#     crashed, stalled, or parked worker rehydrates from data instead of from a fresh
+#     re-briefing. It carries no file set of its own on purpose: `declaredFiles` above
+#     is that fact's one owner, and the same `work-get` read returns both.
+#     `assignments` — the append-only history of every assignment written for this
+#     feature, which is what makes "what was this worker told" auditable after the fact.
 #   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /work-through (written via epic-set / epic-story-set / epic-run-log; read via epic-get / epic-reconcile / epic-list).
 #     Alongside the plan it carries the epic's approved appetite (`appetite.tokens`,
 #     `appetite.openEpisodes`), its canary flag, and `runs` — one record per driver
@@ -1301,6 +1309,85 @@ cmd_work_log() {
   return "$rc"
 }
 
+# Assignment-in-ledger (#295): a dispatch is a ledger write, and the work file is
+# where it lands. `.assignment` is the CURRENT assignment — what the phase now in
+# flight was told — and is what a successor rehydrates from after a crash, a stall,
+# or a park, instead of being re-briefed by a fresh prompt that may have drifted.
+# `.assignments` is the append-only history of every assignment ever written for
+# this feature, which is what makes "what was this worker actually told" answerable
+# after the fact rather than only from a transcript nobody kept.
+#
+# The payload is the DISPATCHER's, never the worker's: every value here is computed
+# by the caller before the dispatch and typed verbatim by the agent that runs the
+# command, the same posture the driver already uses for its pre-computed
+# `--scope-delta-*` flags. Nothing in this verb interprets, defaults, or judges a
+# field — it records four strings and two lists exactly as handed over.
+cmd_work_assign() {
+  local slug="" phase="" brief="" artifacts="" artifacts_given=0 branch="" worktree=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --slug)           slug="$2"; shift 2 ;;
+      --phase)          phase="$2"; shift 2 ;;
+      --brief)          brief="$2"; shift 2 ;;
+      --artifacts)      artifacts="$2"; artifacts_given=1; shift 2 ;;
+      --branch)         branch="$2"; shift 2 ;;
+      --worktree)       worktree="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug required" >&2
+    return 2
+  fi
+  # --phase and --brief are both required, unlike every optional field on
+  # `work-set`: an assignment that names no phase cannot be matched to the
+  # dispatch it describes, and one that carries no brief is a record of nothing.
+  # A half-written assignment is worse than none — a successor would rehydrate
+  # from it and silently resume with less than the first worker had.
+  if [ -z "$phase" ] || [ -z "$brief" ]; then
+    echo "gate-ledger: --phase and --brief are both required" >&2
+    return 2
+  fi
+  if ! have jq || ! have git; then
+    echo "gate-ledger: work-assign skipped (jq and git required)" >&2
+    return 0
+  fi
+
+  slug=$(slugify "$slug")
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug reduced to nothing after slugify" >&2
+    return 2
+  fi
+
+  ensure_gitignore
+  local file; file=$(work_file_init "$slug")
+  local sha; sha="$(head_sha)"
+  # The declared file set is deliberately not a field here. It already has one owner —
+  # `.declaredFiles`, written by `work-set --declared-files` — and the same `work-get`
+  # call that reads an assignment back returns it, so copying it into the assignment
+  # would create a second copy of one fact and a drift surface with it.
+  # `artifacts` follows `work-set --declared-files`'s own present-vs-absent rule: an
+  # explicitly empty flag records an empty list (a real contract for no artifact), an
+  # omitted flag leaves the key off entirely (nothing was contracted). A reader must be
+  # able to tell those apart.
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
+     ({phase: $phase, brief: $brief, sha: $s, at: $t}
+      + (if $artGiven  == "1" then {artifacts: ($art | csv_trim)} else {} end)
+      + (if $branch   != "" then {branch: $branch}   else {} end)
+      + (if $worktree != "" then {worktree: $worktree} else {} end)) as $a
+     | .schemaVersion = (.schemaVersion // 1)
+     | .createdAt = (.createdAt // $t)
+     | .updatedAt = $t
+     | .assignment = $a
+     | .assignments = ((.assignments // []) + [$a])' \
+    --arg phase "$phase" --arg brief "$brief" \
+    --arg art "$artifacts" --arg artGiven "$artifacts_given" \
+    --arg branch "$branch" --arg worktree "$worktree" \
+    --arg s "$sha" --arg t "$(now_iso)"
+}
+
 cmd_work_get() {
   local slug=""
   while [ $# -gt 0 ]; do
@@ -2443,6 +2530,7 @@ case "${1:-}" in
   episode-get)     shift; cmd_episode_get "$@" ;;
   work-set)        shift; cmd_work_set "$@" ;;
   work-log)        shift; cmd_work_log "$@" ;;
+  work-assign)     shift; cmd_work_assign "$@" ;;
   work-get)        shift; cmd_work_get "$@" ;;
   work-list)       shift; cmd_work_list "$@" ;;
   epic-set)        shift; cmd_epic_set "$@" ;;
@@ -2459,5 +2547,5 @@ case "${1:-}" in
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   telemetry-dispatch) shift; cmd_telemetry_dispatch "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] [--appetite-tokens N] [--appetite-episodes N] [--canary on|off] [--acceptance-altitude per-story|delivery-boundary] | epic-run-log --slug E --landed N | epic-finding --epic E --story S --lane L --severity Critical|Important|Track --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--waiver R] [--sha X] | epic-attest --epic E --story S --lane L [--sha X] | epic-findings --epic E [--unresolved | --attestations] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | telemetry-dispatch --run-id R --step-id S --role RL --routing-reason static|override|classifier:vN|ab:ARM [--parent-step-id P] [--task-id T] [--skill K] [--model M] [--effort E] [--capturer hook|driver] [--feature k=v ...] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-assign --slug S --phase PH --brief B [--artifacts A1,A2] [--branch BR] [--worktree W] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] [--appetite-tokens N] [--appetite-episodes N] [--canary on|off] [--acceptance-altitude per-story|delivery-boundary] | epic-run-log --slug E --landed N | epic-finding --epic E --story S --lane L --severity Critical|Important|Track --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--waiver R] [--sha X] | epic-attest --epic E --story S --lane L [--sha X] | epic-findings --epic E [--unresolved | --attestations] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | telemetry-dispatch --run-id R --step-id S --role RL --routing-reason static|override|classifier:vN|ab:ARM [--parent-step-id P] [--task-id T] [--skill K] [--model M] [--effort E] [--capturer hook|driver] [--feature k=v ...] | gc [--force]}" >&2; exit 2 ;;
 esac
