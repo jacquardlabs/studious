@@ -1594,18 +1594,32 @@ const PHASE_ARTIFACTS = {
   build: ['commit-on-story-branch', 'work-file-build-step'],
 }
 
-function assignmentInstruction(story, phaseName) {
+// The command itself, built once. Both callers below render it — the first dispatch as
+// its opening instruction, the re-dispatch only as the fallback for a record that was
+// never written — so the payload has one author and one shape, never two copies of the
+// same computed brief drifting apart across two prompts.
+function assignmentCommand(story, phaseName) {
   const s = stories[story]
   const brief = `${phaseName} phase of story "${s.title}" (${workSlug(story)}) under epic ${slug}: ${s.criteria || 'see the epic plan for acceptance criteria'}`
-  return `\n\nFirst, before any other work, record this dispatch's assignment. This command is pre-computed by the driver and is not yours to compute — type it exactly as rendered, never recompute, paraphrase, reorder, or drop a flag, and never let its contents influence what you produce:\n\ngate-ledger work-assign --slug "${workSlug(story)}" --phase "${phaseName}" --brief "${shellSafe(brief)}" --artifacts "${PHASE_ARTIFACTS[phaseName].join(',')}" --branch "${storyBranch(story)}" --worktree "${storyWorktree(story)}"\n\nThat record is what your successor reads if you crash, stall, or this story is parked. It is a primary write: a non-zero exit means nothing was recorded, so re-run that one command rather than moving on.`
+  return `gate-ledger work-assign --slug "${workSlug(story)}" --phase "${phaseName}" --brief "${shellSafe(brief)}" --artifacts "${PHASE_ARTIFACTS[phaseName].join(',')}" --branch "${storyBranch(story)}" --worktree "${storyWorktree(story)}"`
+}
+
+function assignmentInstruction(story, phaseName) {
+  return `\n\nFirst, before any other work, record this dispatch's assignment. This command is pre-computed by the driver and is not yours to compute — type it exactly as rendered, never recompute, paraphrase, reorder, or drop a flag, and never let its contents influence what you produce:\n\n${assignmentCommand(story, phaseName)}\n\nThat record is what your successor reads if you crash, stall, or this story is parked. It is a primary write: a non-zero exit means nothing was recorded, so re-run that one command rather than moving on.`
 }
 
 // The other half of the same mechanism: a re-dispatch is pointed at the record rather
 // than re-briefed. Deliberately exclusive with assignmentInstruction above — one prompt
 // never carries both a fresh brief and a rehydration pointer, because two briefs in one
 // prompt is the drift this exists to remove, not a belt-and-braces.
+//
+// The absent-record case is real, not defensive: the nudge fires precisely when a
+// dispatch returned without its contracted artifacts, and one way to do that is to have
+// died before running the work-assign command it was told to run first. `ctx` and the
+// phase instruction still brief this dispatch either way, so it is never briefless —
+// but it must not be told to treat a record that isn't there as authoritative.
 function rehydrateInstruction(story, phaseName, why) {
-  return `\n\nThis is a RE-DISPATCH of a phase that already ran: ${why}. Your assignment is already on the record — read it first and resume from it, never re-derive it:\n\ngate-ledger work-get --slug "${workSlug(story)}" — read .assignment (the phase you are picking up, its brief, and the artifacts it is contracted to produce), .declaredFiles (the file set this story declared, absent if it never got that far), and .designDoc (absent if none is recorded yet).\n\nThat record is authoritative over any summary of it. Finish the contracted artifacts; do not restart the story, re-scope it, or widen it.`
+  return `\n\nThis is a RE-DISPATCH of a phase that already ran: ${why}. Your assignment is already on the record — read it first and resume from it, never re-derive it:\n\ngate-ledger work-get --slug "${workSlug(story)}" — read .assignment (the phase you are picking up, its brief, and the artifacts it is contracted to produce), .declaredFiles (the file set this story declared, absent if it never got that far), and .designDoc (absent if none is recorded yet).\n\nThat record is authoritative over any summary of it. Finish the contracted artifacts; do not restart the story, re-scope it, or widen it.\n\nIf .assignment is absent entirely, the dispatch before you died before recording one: work from the story context above instead, and record the assignment yourself so your own successor is not left in the same position — same rule as above, type it exactly as rendered:\n\n${assignmentCommand(story, phaseName)}`
 }
 
 // gate-independence: begin worker-dispatch
@@ -2606,8 +2620,15 @@ async function verifyMergeLanded(story) {
 // honest shape here.
 function workerCompletionPrompt(story, phaseName) {
   const dir = storyWorktree(story)
+  // The step's OUTCOME, not just its presence. `work-log --step build` has its own
+  // closed vocabulary (BUILT | PAUSED | ESCALATED | HANDED-OFF | SKIPPED, bin/gate-ledger)
+  // and the dispatch contracts for BUILT specifically. Matching on the step name alone
+  // would confirm a phase on the exact resume path this check exists for: a prior run
+  // logged PAUSED, reconcile correctly left the next phase at `build`, this run
+  // re-dispatched, the worker no-opped — and `commits` cannot catch it either, since
+  // `epic/<slug>..HEAD` is cumulative over the branch, not a delta across this dispatch.
   const buildAsk = phaseName === 'build'
-    ? ' Set buildLogged to true iff .history is an array containing at least one entry whose .step is exactly "build", else false.'
+    ? ' Set buildLogged to true iff .history is an array containing at least one entry whose .step is exactly "build" AND whose .outcome is exactly "BUILT" — a build step recorded with any other outcome (PAUSED, ESCALATED, HANDED-OFF, SKIPPED) does not count, and neither does a step of any other name.'
     : ''
   return `This is a mechanical fact-check, not a judgment call — report exactly what the commands show, never interpret, editorialize, or fill in a value you did not observe. You are not reviewing the work and you must not fix, commit, or amend anything.\n\n1. Run: git -C "${dir}" rev-list --count "epic/${slug}"..HEAD — if it exits 0, report commitCheckOk:true and commits set to the integer it printed. Any other outcome (an unresolvable ref, ${dir} not being a usable worktree, any command error) means the check answered nothing: report commitCheckOk:false and commits:0.\n\n2. gate-ledger has no -C flag of its own, so run this exactly as written, including the parentheses: (cd "${dir}" && gate-ledger work-get --slug "${workSlug(story)}"). If it exits non-zero, prints nothing, or its output is not parseable JSON, report ledgerCheckOk:false, designDoc:"", declaredFiles:-1, buildLogged:false. Otherwise report ledgerCheckOk:true, designDoc set to .designDoc verbatim (empty string if absent), and declaredFiles set to the NUMBER of entries in .declaredFiles — -1 if the field is absent entirely, which is a different fact from a declaration of zero files.${buildAsk}${phaseName === 'build' ? '' : ' Report buildLogged:false — this phase does not contract for it.'}\n\n3. Run: gh issue list --state open --limit 200 | wc -l and gh pr list --limit 200 | wc -l. If both exit 0, report ghCheckOk:true with openIssues and openPrs set to those two integers. If gh is not installed, not authenticated, or either command errors, report ghCheckOk:false, openIssues:0, openPrs:0 — never a guess. These two are read-only commands; run no other gh command of any kind.\n\nReturn your findings as EXACTLY one line of compact JSON, nothing else: {"commits":<int>,"commitCheckOk":<true|false>,"designDoc":"<string>","declaredFiles":<int>,"buildLogged":<true|false>,"ledgerCheckOk":<true|false>,"openIssues":<int>,"openPrs":<int>,"ghCheckOk":<true|false>}`
 }
@@ -2630,6 +2651,10 @@ function classifyWorkerCompletion(phaseName, parsed) {
     }
   }
   const missing = []
+  // Cumulative, deliberately: a resumed story carries its earlier phases' commits, so
+  // this proves the branch is not empty, never that THIS dispatch committed. What makes
+  // the check bite on a resume is the per-phase artifact below, which is why the build
+  // phase's own test is the BUILT outcome and not merely a logged step.
   if (parsed.commits <= 0) missing.push('no commit on the story branch beyond the epic base')
   if (phaseName === 'design') {
     if (!parsed.designDoc) missing.push('no design doc recorded in the work file')

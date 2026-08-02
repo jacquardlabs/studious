@@ -197,10 +197,79 @@ def test_a_first_dispatch_writes_its_assignment_and_a_redispatch_reads_it() -> N
     worker = _extract_function(source, "workerPrompt")
     assert "assignmentInstruction(story, phaseName)" in worker
     assert "rehydrateInstruction(story, phaseName, redispatchWhy)" in worker
-    assert "gate-ledger work-assign" in _extract_function(source, "assignmentInstruction")
     rehydrate = _extract_function(source, "rehydrateInstruction")
     assert "gate-ledger work-get" in rehydrate
-    assert "work-assign" not in rehydrate
+    # A re-dispatch leads with the record, never with a fresh brief. It may still fall
+    # back to writing one, since the dispatch it succeeds may have died before recording
+    # anything — but only as the absent-record case, and only through the one shared
+    # builder, so the payload never exists in two hand-maintained copies.
+    assert "If .assignment is absent entirely" in rehydrate
+    for caller in ("assignmentInstruction", "rehydrateInstruction"):
+        assert "assignmentCommand(story, phaseName)" in _extract_function(source, caller), caller
+    assert "gate-ledger work-assign" in _extract_function(source, "assignmentCommand")
+
+
+def test_a_build_phase_is_confirmed_by_the_outcome_not_the_step_name() -> None:
+    """The resume path #294 exists for: a prior run logged PAUSED and the phase no-ops.
+
+    `work-log --step build` has a closed outcome vocabulary and the dispatch contracts
+    for BUILT; matching on the step name alone would confirm a re-dispatched phase that
+    produced nothing, since `epic/<slug>..HEAD` still carries the prior run's commits.
+    """
+    prompt = _extract_function(DRIVER.read_text(), "workerCompletionPrompt")
+    assert '.outcome is exactly "BUILT"' in prompt
+    for refused in ("PAUSED", "ESCALATED", "HANDED-OFF", "SKIPPED"):
+        assert refused in prompt, refused
+
+
+def test_the_tripwire_baselines_silently_and_fires_once_on_a_change() -> None:
+    """#276's mechanism, executed: a first reading is a baseline, never an anomaly."""
+    source = DRIVER.read_text()
+    src = _extract_function(source, "noteGithubCounts")
+    script = f"""
+      const anomalies = []
+      const log = () => {{}}
+      let lastGithubCounts = null
+      {src}
+      noteGithubCounts('a', {{ openIssues: 4, openPrs: 1 }})
+      const afterBaseline = anomalies.length
+      noteGithubCounts('b', {{ openIssues: 4, openPrs: 1 }})
+      const afterSame = anomalies.length
+      noteGithubCounts('c', {{ openIssues: 5, openPrs: 1 }})
+      noteGithubCounts('d', {{ openIssues: 5, openPrs: 1 }})
+      process.stdout.write(JSON.stringify(
+        {{ afterBaseline, afterSame, total: anomalies.length, entry: anomalies[0] }}))
+    """
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out["afterBaseline"] == 0, "the first reading establishes the baseline"
+    assert out["afterSame"] == 0, "an unchanged count is not an anomaly"
+    assert out["total"] == 1, "the change fires once, and the new count becomes the baseline"
+    assert out["entry"]["kind"] == "github-write"
+    assert out["entry"]["where"] == "c"
+
+
+def test_the_tripwire_ignores_a_reading_it_never_got() -> None:
+    """A failed `gh` read arrives as null and must not read as 'every issue closed'."""
+    src = _extract_function(DRIVER.read_text(), "noteGithubCounts")
+    script = f"""
+      const anomalies = []
+      const log = () => {{}}
+      let lastGithubCounts = {{ openIssues: 4, openPrs: 1 }}
+      {src}
+      noteGithubCounts('a', null)
+      process.stdout.write(JSON.stringify(anomalies.length))
+    """
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == 0
 
 
 def test_the_assignment_verb_exists_and_is_documented() -> None:
