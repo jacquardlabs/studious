@@ -127,10 +127,29 @@ without its parts.
 - `bin/gate-ledger` — stores them on the epic (`appetite.tokens`,
   `appetite.openEpisodes`) and computes the zero-landed stop-loss from the `runs`
   history `epic-run-log` appends.
-- `workflows/epic-driver.js` — enforces both at runtime and prices nothing. It reads
-  `epic.appetite` and the Workflow `budget` primitive; it holds undispatched stories
-  when either ceiling is reached. If it ever computed a rate, that would be a second
-  source of truth for cost.
+- `workflows/epic-driver.js` — enforces at runtime and prices nothing. If it ever
+  computed a rate, that would be a second source of truth for cost. The two numbers are
+  **not** enforced the same way, and the difference is worth stating rather than
+  flattening into "it holds when either ceiling is reached":
+  - **Open episodes is read straight off the epic.** `appetite.openEpisodes` is the
+    ceiling (falling back to the concurrency cap when an epic predates the field), and a
+    story is held before its first dispatch once the queue is that deep. Every entry in
+    the "Needs you" queue counts, including one the plan parked as `story-supervised`.
+  - **Tokens is enforced through the Workflow `budget` primitive, not by comparing
+    against `appetite.tokens` directly.** The driver reads `budget.remaining()`; the two
+    are the same number only because `commands/work-through.md` sets the Workflow call's
+    own budget to the approved appetite when it invokes the script. `appetite.tokens` is
+    read and reported (`budget.approvedTokens`) so the run report can show what was
+    approved beside what was enforced — and a substrate with no usable primitive reports
+    `enforced: false` rather than degrading to a silent unbounded run.
+
+  The token ceiling is compared at these points, and only these: before a story's first
+  dispatch (held), at every phase boundary within a story (parked, since work is already
+  on the branch), before each fixer dispatch and each re-check inside a gate's own retry
+  loop (parked), and at the epic finale's entrance (held as `<slug>--finale`, since the
+  finale is nobody's story). It is **not** compared
+  between the finale's own fix cycles — a finale that has begun runs its bounded cycles
+  out. Overshoot is therefore bounded by one finale gate's fix allowance, not by zero.
 - `reference/telemetry-format.md` — the measured rung's store. When a per-dispatch
   token count lands there, rung 1 stops being a dispatch count priced with the floor,
   and this file's ladder is what has to say so.

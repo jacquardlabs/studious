@@ -2215,6 +2215,23 @@ check "the count is the run's own, not a total" "2" \
   "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.consecutiveZeroLanded')"
 check "the limit travels with the payload" "2" \
   "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.limit')"
+# --override-stop-loss is the receiver for the flag the refusal itself tells the
+# operator to re-invoke with (#268, #276/#278: never print an instruction with no
+# mechanism behind it). It suppresses the refusal and records that it did.
+check "the override suppresses an armed refusal" "false" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey --override-stop-loss | jq -r '.stopLoss.refuse')"
+check "a suppressed refusal is reported as overridden" "true" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey --override-stop-loss | jq -r '.stopLoss.overridden')"
+check "the override consents to dispatch, it does not reset the count" "2" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey --override-stop-loss | jq -r '.stopLoss.consecutiveZeroLanded')"
+check "the next invocation without the flag refuses again" "true" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.refuse')"
+dov=$(sandbox)
+( cd "$dov" && "$LEDGER" epic-set --slug unarmed --title U ) >/dev/null
+check "the flag at a healthy epic is a no-op, not a suppressed refusal" "false" \
+  "$(cd "$dov" && "$LEDGER" epic-reconcile --slug unarmed --override-stop-loss | jq -r '.stopLoss.overridden')"
+check "epic-reconcile still rejects an unknown flag" "2" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey --override-everything >/dev/null 2>&1; echo $?)"
 ( cd "$da" && "$LEDGER" epic-run-log --slug pricey --landed 2 ) >/dev/null
 check "a landing run resets the streak" "0" \
   "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.consecutiveZeroLanded')"

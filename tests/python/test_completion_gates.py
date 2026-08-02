@@ -94,6 +94,31 @@ def test_a_design_phase_declaring_zero_files_still_declared() -> None:
     assert _classify("design", declaredFiles=0)["status"] == "confirmed"
 
 
+def test_a_design_phase_that_could_not_commit_is_confirmed_by_its_recorded_doc() -> None:
+    """A design record is disposable by contract — `docs/design/<slug>.md` is gitignored
+    (CLAUDE.md, "Where a design record lives") and the ledger writes into `.studious/`,
+    also gitignored — so a design worker that did everything right can leave zero commits
+    on the story branch. Requiring one unconditionally would burn a nudge and park every
+    design-phase story on such a repo as INCOMPLETE."""
+    assert _classify("design", commits=0)["status"] == "confirmed"
+
+
+def test_a_design_phase_with_neither_evidence_path_is_still_missing() -> None:
+    """The relaxation is an either/or, not a removal: an explicit declaration of zero
+    files is a real declaration but it is not evidence any design work happened, so with
+    no commit either there is nothing the driver has independently seen."""
+    out = _classify("design", commits=0, declaredFiles=0)
+    assert out["status"] == "missing"
+    assert "no commit" in out["reason"]
+
+
+def test_the_build_phase_never_takes_the_design_phase_s_alternative() -> None:
+    """Build's contracted artifact is a commit, and a recorded design doc does not
+    substitute for it — the relaxation is scoped to the phase whose artifact is
+    legitimately gitignored."""
+    assert _classify("build", commits=0)["status"] == "missing"
+
+
 def test_a_build_phase_without_its_logged_step_is_missing() -> None:
     out = _classify("build", buildLogged=False)
     assert out["status"] == "missing"

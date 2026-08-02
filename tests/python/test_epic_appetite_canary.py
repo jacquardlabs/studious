@@ -156,6 +156,53 @@ def test_canary_off_dispatches_the_fleet_at_once() -> None:
     assert {e["story"] for e in result["landedThisRun"]} == {"epx--b"}
 
 
+def test_a_failed_canary_never_reclassifies_a_plan_parked_story_as_held() -> None:
+    """A story the plan already parked has its own recorded outcome. The canary's hold
+    loop must skip it exactly as the canary's SELECTION already does — overwriting it
+    with the canary's hold reason would drop it out of "Needs you" and lose the park
+    reason it was carrying, turning a story awaiting a human into one that looks like it
+    is merely waiting on a ceiling."""
+    epic = _epic(filler=True)  # story c is parked in the plan
+    epic["stories"]["c"]["reason"] = "story-supervised: take it through /work-on"
+    out = _run_driver(epic, [*A_PARKS, *B_LANDS])
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    result = out["result"]
+
+    held = {h["story"] for h in result["held"]}
+    assert "epx--c" not in held, f"the plan-parked story was reclassified as held: {result['held']}"
+    needs_you = {e["story"]: e for e in result["needsYou"]}
+    assert "epx--c" in needs_you, f"the plan-parked story left the queue: {result['needsYou']}"
+    assert "story-supervised" in needs_you["epx--c"]["reason"], (
+        f"the plan's own park reason was overwritten: {needs_you['epx--c']}"
+    )
+    assert "epx--b" in held, "the canary still has to hold the genuinely unstarted story"
+
+
+def test_a_plan_parked_story_counts_against_the_cap_before_the_canary_dispatches() -> None:
+    """#297's cap is on the queue's depth, and a resumed at-cap epic is exactly the case
+    it exists for. The canary is dispatched before the fleet, so if the plan's own parks
+    are only counted afterwards the canary runs a whole story past the ceiling the user
+    approved before the cap is ever compared against the real queue."""
+    epic = _epic(filler=True, appetite={"tokens": 4000000, "openEpisodes": 1})
+    out = _run_driver(epic, [*A_LANDS, *B_LANDS, *B_VERIFY])
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    result = out["result"]
+
+    held = {h["story"]: h["reason"] for h in result["held"]}
+    assert "epx--a" in held, f"the canary dispatched past the open-episode cap: {result}"
+    assert "open-episode cap" in held["epx--a"]
+    assert not any(c["label"].endswith(":a") for c in out["calls"]), (
+        f"the canary was dispatched at the cap: {[c['label'] for c in out['calls']]}"
+    )
+    # The fleet stays home behind a held canary, but the reason must name the ceiling —
+    # "fix or re-plan" would send the operator at a plan that was never in question.
+    assert "epx--b" in held, f"the fleet widened behind a held canary: {result['held']}"
+    assert "held before it dispatched" in held["epx--b"], held["epx--b"]
+    # Not just the shape of the sentence — the ceiling itself has to be interpolated in,
+    # or the message degrades to a generic "a ceiling stopped it" that names no remedy.
+    assert "open-episode cap" in held["epx--b"], held["epx--b"]
+
+
 def test_canary_is_skipped_once_a_story_has_already_landed() -> None:
     """A resumed epic with a landed story has a plan proven at least once —
     re-canarying every invocation would serialize the remainder for no
@@ -274,6 +321,77 @@ def test_budget_running_out_mid_story_parks_rather_than_holds() -> None:
     # The released slot is proven by story b still being able to acquire one and
     # reach a terminal state rather than hanging on the semaphore forever.
     assert result["total"] == 2
+
+
+def test_an_exhausted_budget_holds_the_finale_instead_of_starting_its_fan_out() -> None:
+    """The finale is the single largest fan-out in a run — ~13 dispatches plus bounded
+    fixer rounds — and it used to start unconditionally the moment every story settled,
+    with no ceiling compared at its entrance. Held, not parked: nothing there earned a
+    verdict, and re-running with fresh budget picks it up unchanged."""
+    out = _run_driver(
+        _epic(appetite={"tokens": 1000, "openEpisodes": 5}),
+        [*A_LANDS, *B_LANDS, *B_VERIFY],
+        # Positive while the two stories run, zero by the time the finale is reached.
+        preamble=(
+            "let __calls = 0;"
+            "globalThis.budget = { total: 1000, spent: () => 0,"
+            " remaining: () => (++__calls <= 2 ? 900 : 0) }"
+        ),
+    )
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    result = out["result"]
+
+    assert result["landed"] == 2, f"both stories should still have landed: {result}"
+    assert result["finale"] is None, "the finale ran past an exhausted budget"
+    assert not any(c["label"].startswith("finale:") for c in out["calls"]), (
+        f"a finale lane was dispatched with the budget spent: {[c['label'] for c in out['calls']]}"
+    )
+    held = {h["story"]: h["reason"] for h in result["held"]}
+    assert "epx--finale" in held, f"the skipped finale left no trace in the report: {result}"
+    assert "budget exhausted before the finale" in held["epx--finale"]
+    assert not any(e["story"] == "epx--finale" for e in result["needsYou"]), (
+        "an approved ceiling is not a verdict awaiting judgment"
+    )
+
+
+def test_a_gate_retry_loop_checks_the_budget_before_it_dispatches_a_fixer() -> None:
+    """A gate's own retry loop can spend two unpinned fixers plus two full audit
+    fan-outs between two phase-boundary checks — the largest uninterrupted spend in a
+    story. Parked, not held: real work is on the branch."""
+    rules = [
+        {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
+        {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
+        {"match": r"^acceptance:product-review:a$", "result": {"findings": "concerns"}},
+        {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "concerns"}},
+        {"match": r"^acceptance:compile:a$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "a1", "summary": "criterion 2 has no evidence"}},
+        {"match": r"^park:a$", "result": {"verdict": "PARKED", "sha": "a1", "summary": "out of budget"}},
+        *B_LANDS,
+    ]
+    out = _run_driver(
+        _epic(appetite={"tokens": 1000, "openEpisodes": 5}),
+        rules,
+        # Positive for the canary's own pre-dispatch check, zero from the retry loop on.
+        preamble=(
+            "let __calls = 0;"
+            "globalThis.budget = { total: 1000, spent: () => 0,"
+            " remaining: () => (++__calls <= 1 ? 900 : 0) }"
+        ),
+    )
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    result = out["result"]
+
+    labels = [c["label"] for c in out["calls"]]
+    assert not any(label.startswith("fix:") for label in labels), (
+        f"a fixer was dispatched with the budget spent: {labels}"
+    )
+    needs_you = {e["story"]: e for e in result["needsYou"]}
+    assert "epx--a" in needs_you, f"the story was not parked: {result}"
+    assert needs_you["epx--a"]["verdict"] == "BUDGET EXHAUSTED"
+    # The findings the last round already paid for ride along into the recorded park, so
+    # resuming does not re-audit to rediscover them.
+    park_prompt = next(c["prompt"] for c in out["calls"] if c["label"] == "park:a")
+    assert "criterion 2 has no evidence" in park_prompt, park_prompt
+    assert "budget exhausted" in park_prompt, park_prompt
 
 
 def test_ample_budget_enforces_without_blocking() -> None:

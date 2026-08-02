@@ -2200,10 +2200,18 @@ cmd_epic_reconcile() { # --slug E -> one JSON payload replacing work-through's ~
   # is actually an ancestor of the epic branch. This verb only aggregates and
   # computes; it never corrects a mismatch or decides a story's next phase —
   # that judgment stays in commands/work-through.md's prose.
-  local slug=""
+  local slug="" override="false"
   while [ $# -gt 0 ]; do
     case "$1" in
       --slug) slug="$2"; shift 2 ;;
+      # The operator's explicit consent to dispatch past the zero-landed stop-loss,
+      # for this one invocation (#268). It belongs here because this is where
+      # `.stopLoss.refuse` is computed — commands/work-through.md strips the same flag
+      # off `$ARGUMENTS` and passes it through, so the instruction that refusal prints
+      # ("re-invoke with --override-stop-loss") reaches a receiver that exists. It
+      # suppresses the refusal for this read and nothing else: no state is written, the
+      # streak keeps counting, and the next invocation without the flag refuses again.
+      --override-stop-loss) override="true"; shift ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
@@ -2253,15 +2261,27 @@ cmd_epic_reconcile() { # --slug E -> one JSON payload replacing work-through's ~
   # zero-landed one. An epic with no `runs` yet (recorded before this field
   # existed, or never driven) reads 0 / false — absence is not evidence of a
   # stalled epic.
+  #
+  # `--override-stop-loss` suppresses `refuse` and sets `overridden` in its place, so a
+  # reader can tell "never refused" from "refused, and the operator consented anyway."
+  # `overridden` is true only when the flag was passed AND the streak had actually
+  # reached the limit: a flag passed at a healthy epic is a no-op that must not read as
+  # a suppressed refusal in the run report. `consecutiveZeroLanded` is reported
+  # unchanged either way — the override is consent to dispatch, never a reset of the
+  # count, so the next invocation without the flag refuses again.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  jq -n --argjson epic "$epic_json" --argjson stories "$stories_json" --arg limit "$EPIC_ZERO_LANDED_LIMIT" \
+  jq -n --argjson epic "$epic_json" --argjson stories "$stories_json" \
+    --arg limit "$EPIC_ZERO_LANDED_LIMIT" --argjson override "$override" \
     '($limit | tonumber) as $lim
      | (reduce (($epic.runs // []) | reverse | .[]) as $r
          ({streak: 0, done: false};
           if .done then . elif ($r.landed // 0) == 0 then .streak += 1 else .done = true end)
         | .streak) as $zeros
+     | ($zeros >= $lim) as $hit
      | {epic: $epic, stories: $stories,
-        stopLoss: {consecutiveZeroLanded: $zeros, limit: $lim, refuse: ($zeros >= $lim)}}'
+        stopLoss: {consecutiveZeroLanded: $zeros, limit: $lim,
+                   refuse: ($hit and ($override | not)),
+                   overridden: ($hit and $override)}}'
 }
 
 cmd_epic_list() {
@@ -2668,5 +2688,5 @@ case "${1:-}" in
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   telemetry-dispatch) shift; cmd_telemetry_dispatch "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-assign --slug S --phase PH --brief B [--artifacts A1,A2] [--branch BR] [--worktree W] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] [--appetite-tokens N] [--appetite-episodes N] [--canary on|off] [--acceptance-altitude per-story|delivery-boundary] | epic-run-log --slug E --landed N | epic-finding --epic E --story S --lane L --severity Critical|Important|Track --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--waiver R] [--sha X] | epic-attest --epic E --story S --lane L [--sha X] | epic-findings --epic E [--unresolved | --attestations] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | telemetry-dispatch --run-id R --step-id S --role RL --routing-reason static|override|classifier:vN|ab:ARM [--parent-step-id P] [--task-id T] [--skill K] [--model M] [--effort E] [--capturer hook|driver] [--feature k=v ...] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-assign --slug S --phase PH --brief B [--artifacts A1,A2] [--branch BR] [--worktree W] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] [--appetite-tokens N] [--appetite-episodes N] [--canary on|off] [--acceptance-altitude per-story|delivery-boundary] | epic-run-log --slug E --landed N | epic-finding --epic E --story S --lane L --severity Critical|Important|Track --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--waiver R] [--sha X] | epic-attest --epic E --story S --lane L [--sha X] | epic-findings --epic E [--unresolved | --attestations] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S [--override-stop-loss] | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | telemetry-dispatch --run-id R --step-id S --role RL --routing-reason static|override|classifier:vN|ab:ARM [--parent-step-id P] [--task-id T] [--skill K] [--model M] [--effort E] [--capturer hook|driver] [--feature k=v ...] | gc [--force]}" >&2; exit 2 ;;
 esac

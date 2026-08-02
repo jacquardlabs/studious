@@ -35,10 +35,20 @@ before any dispatch, not after a design doc nobody signed off on reaches the epi
   verification, and its source issue already carries acceptance criteria with
   citations.
 - **`story-supervised`** — the story stays in the epic but is handed to `/work-on`.
-  Any **one** of: its stated file surface is majority prompt-prose
-  (`skills/*/SKILL.md`, `commands/*.md`, `agents/*.md`, `reference/*.md`); or its
-  source is a raw idea with no acceptance criteria; or it is the epic's first story
-  on a surface this epic hasn't worked before.
+  Any **one** of: its stated file surface is majority prompt-prose — **matched against
+  `reference/audit-routing-signals.md`'s Prompt signal list, never a list restated
+  here**; or its source is a raw idea with no acceptance criteria; or it is the epic's
+  first story on a surface this epic hasn't worked before.
+
+  That citation is load-bearing, not a style preference. The canonical list reaches well
+  past the four obvious plugin globs: it also covers `.claude/agents/**`,
+  `.claude/commands/**`, `.claude/skills/**`, `output-styles/**`, `CLAUDE.md` at any
+  depth, `AGENTS.md`, `.cursorrules`, `GEMINI.md`, and any path whose name contains
+  `prompt`, and it gates `reference/**` on the repo being a Claude Code plugin. A story
+  whose stated surface is `.claude/commands/**`, `prompts/`, or `AGENTS.md` is
+  prompt-prose by that list and matches no narrower inline copy — which would classify it
+  `epic-default` and dispatch it unattended, the exact outcome this trigger exists to
+  prevent.
 
 The first two triggers are computations over data the plan already holds — the stated
 file surface is the plan's own, and whether the source issue carries acceptance

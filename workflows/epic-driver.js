@@ -1589,8 +1589,18 @@ function ctx(story) {
 // --declared-files` — and the same `work-get` call that rehydrates the assignment
 // returns it. A second copy in a second field is a drift surface for a fact that never
 // needed one.
+//
+// The design phase's first entry is an either/or, and deliberately so (#294): a design
+// record is disposable by contract in a Studious-governed repo — `docs/design/<slug>.md`
+// is gitignored (CLAUDE.md, "Where a design record lives"), and the ledger's own writes
+// land in `.studious/`, also gitignored — so a design worker that did everything right
+// can legitimately leave zero commits on the story branch. Contracting for a commit
+// unconditionally would burn a nudge and park EVERY design-phase story on such a repo as
+// INCOMPLETE. classifyWorkerCompletion below accepts either side of the `-or-`, and this
+// string is what tells the worker the same thing, so the ask and the check stay one fact
+// rather than two hand-maintained copies.
 const PHASE_ARTIFACTS = {
-  design: ['commit-on-story-branch', 'work-file-design-doc', 'work-file-declared-files'],
+  design: ['commit-on-story-branch-or-nonempty-declared-files', 'work-file-design-doc', 'work-file-declared-files'],
   build: ['commit-on-story-branch', 'work-file-build-step'],
 }
 
@@ -1678,12 +1688,20 @@ function gatePrompt(story, gate, nextPhase) {
 // claim of anything — it just means the finale runs that lane, which is the fail-closed
 // direction.
 //
+// The objective-anchor requirement (#293) lives in THIS instruction, not in
+// reference/audit-compilation.md, because this is the epic pipeline's single
+// findings-recording surface: both compilers that write to the epic ledger — the audit
+// compile prompt and the acceptance compile prompt — render this function, while
+// audit-compilation.md is read by the audit compiler alone. Putting the rule here is what
+// makes reference/severity-rubric.md's "a Critical without an anchor is recorded
+// Important" one rule across both doors rather than two half-implementations.
+//
 // Story-scoped only: `story` is null at the finale, where findings belong to the
 // integration pass, not to any one story, and the closure lane below reads them rather
 // than recording new ones.
 function epicLedgerInstruction(story, dir, laneNames) {
   if (!story) return ''
-  return `\n\nEpic findings ledger (#281) — record BEFORE you record the verdict, from inside ${dir}, and only for findings that survived your challenge. Each finding is recorded once for the whole epic under a fingerprint you choose: a short, stable kebab-case token naming the defect (e.g. "security-token-in-log"), reused verbatim on every later round that touches the same finding. Severity is the canonical ladder from reference/severity-rubric.md (Critical | Important | Track), mapped from the lane's own label exactly as you already map it for this verdict.\n\nFor each surviving finding new to this round: gate-ledger epic-finding --epic "${slug}" --story "${story}" --lane "<short lane name>" --severity "<tier>" --fingerprint "<token>" --status open\nFor each finding a fix has resolved since it was raised (check what is already on the record first: gate-ledger epic-findings --epic "${slug}" --unresolved): re-record the SAME fingerprint with --status closed — the sha is stamped from HEAD, and that is what the epic finale verifies against instead of re-auditing the whole epic. A Critical you are setting aside rather than fixing needs --status carried --waiver "<reason>"; the tool refuses it otherwise.\nFor each lane among {${laneNames}} whose report above contained NO findings at all: gate-ledger epic-attest --epic "${slug}" --story "${story}" --lane "<short lane name>" — one clean-lane attestation, which is what lets the epic finale carry that lane forward instead of re-running it over the integration diff. Attest only what genuinely reported nothing; a lane you did not dispatch, one that died, or one carried forward is never attested.\n\nThese ledger writes are primary writes: a non-zero exit means nothing was recorded, so re-run that one command rather than moving on.`
+  return `\n\nEpic findings ledger (#281) — record BEFORE you record the verdict, from inside ${dir}, and only for findings that survived your challenge. Each finding is recorded once for the whole epic under a fingerprint you choose: a short, stable kebab-case token naming the defect (e.g. "security-token-in-log"), reused verbatim on every later round that touches the same finding. Severity is the canonical ladder from reference/severity-rubric.md (Critical | Important | Track), mapped from the lane's own label the way that file's per-auditor table maps it — and, for Critical only, subject to that same file's "Objective anchors" rule before the write: a Critical is only recorded Critical when the report cites the objective anchor its lane owns (read the table there; do not work from memory), and a finding labelled Critical whose report cites no such anchor is recorded --severity Important instead, with the missing anchor named in your compiled summary. Severity is fixed at first record, so this decision is made before the ledger write, never reclassified after. This is not optional here: an unanchored Critical recorded on this ledger parks the story's entire dependent subtree, so the anchor is what stands between a self-assessed label and a whole branch of the epic stopping.\n\nFor each surviving finding new to this round: gate-ledger epic-finding --epic "${slug}" --story "${story}" --lane "<short lane name>" --severity "<tier>" --fingerprint "<token>" --status open\nFor each finding a fix has resolved since it was raised (check what is already on the record first: gate-ledger epic-findings --epic "${slug}" --unresolved): re-record the SAME fingerprint with --status closed — the sha is stamped from HEAD, and that is what the epic finale verifies against instead of re-auditing the whole epic. A Critical you are setting aside rather than fixing needs --status carried --waiver "<reason>"; the tool refuses it otherwise.\nFor each lane among {${laneNames}} whose report above contained NO findings at all: gate-ledger epic-attest --epic "${slug}" --story "${story}" --lane "<short lane name>" — one clean-lane attestation, which is what lets the epic finale carry that lane forward instead of re-running it over the integration diff. Attest only what genuinely reported nothing; a lane you did not dispatch, one that died, or one carried forward is never attested.\n\nThese ledger writes are primary writes: a non-zero exit means nothing was recorded, so re-run that one command rather than moving on.`
 }
 
 function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut, injectionAttempt, frontendMatch, scopeDeltaFlags) {
@@ -1928,6 +1946,19 @@ function openEpisodeList() {
 function budgetExhausted() {
   const remaining = budgetRemaining()
   return remaining !== null && remaining <= 0 ? remaining : null
+}
+
+// The gate-level counterpart to the phase-boundary refusal below: a verdict shaped so
+// runStory's existing "anything unknown: park" path records it, carrying the last
+// round's own findings forward verbatim so the operator resumes from them instead of
+// paying for a re-audit that rediscovers what this run already knows. Pure — every
+// value it needs is an argument or a module constant.
+function budgetPark(gate, where, remaining, result, sha) {
+  return {
+    verdict: 'BUDGET EXHAUSTED',
+    summary: `epic budget exhausted at the "${gate}" gate, ${where} (${remaining} tokens remaining of the approved appetite) — no further dispatch was made for this story. The last round's findings stand and are the ones to resume from: ${(result && result.summary) || '(none recorded)'}`,
+    sha: sha || '',
+  }
 }
 
 function dispatchRefusal() {
@@ -2468,6 +2499,19 @@ async function runGate(story, gate, nextPhase) {
   if (!result) return { verdict: 'NEEDS DISCUSSION', summary: 'gate agent died; treating as judgment verdict', sha: '' }
 
   while (result.verdict === GATES[gate].retry && attempts < MAX_FIX_CYCLES) {
+    // #144/#268: the ceiling is checked HERE, not only at the phase boundary runStory
+    // owns. A single gate's retry loop can spend two unpinned fixer dispatches plus two
+    // full audit fan-outs between two of those boundary checks, which is the largest
+    // uninterrupted spend in a story — an approved appetite that is only compared at
+    // phase entry can be overshot by that whole amount before anything notices.
+    // Returning a non-proceed verdict parks the story (runStory's "anything unknown:
+    // park"), which is the right shape: real work is on the branch and an operator has
+    // to decide what happens to it. The findings from the last round ride along in the
+    // summary so the park is resumable without re-auditing to rediscover them.
+    let outOfBudget = budgetExhausted()
+    if (outOfBudget !== null) {
+      return budgetPark(gate, `before dispatching the fixer for fix cycle ${attempts + 1}/${MAX_FIX_CYCLES}`, outOfBudget, result, result.sha)
+    }
     attempts++
     log(`${story}: ${gate} → ${result.verdict}; fix cycle ${attempts}/${MAX_FIX_CYCLES}`)
     // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#136): this one dispatch writes the actual fix code for whichever gate (design-review/audit/acceptance) retried, across every story's own tech stack — its right tier is a cost/quality tradeoff nobody has A/B'd yet (see #136's "don't drop a merge-blocking agent's tier without an A/B"), not a decision to make silently here.
@@ -2475,6 +2519,12 @@ async function runGate(story, gate, nextPhase) {
       { label: `fix:${gate}:${story}`, phase: `story:${story}`, schema: WORKER_RESULT })
     if (!fix || fix.status === 'blocked') {
       return { verdict: 'NEEDS DISCUSSION', summary: (fix && fix.summary) || 'fixer blocked', sha: (fix && fix.sha) || '' }
+    }
+    // Re-checked before the re-audit: the fixer that just ran is itself an unpinned
+    // dispatch, so the budget it left behind is not the one tested above.
+    outOfBudget = budgetExhausted()
+    if (outOfBudget !== null) {
+      return budgetPark(gate, `after fix cycle ${attempts}/${MAX_FIX_CYCLES} landed, before re-checking it`, outOfBudget, result, fix.sha || result.sha)
     }
     // Fresh eyes: a brand-new gate agent judges the fixed changeset. The just-evaluated
     // `result` (this round's compiled verdict, including its blockingLanes) is threaded
@@ -2651,14 +2701,25 @@ function classifyWorkerCompletion(phaseName, parsed) {
     }
   }
   const missing = []
-  // Cumulative, deliberately: a resumed story carries its earlier phases' commits, so
-  // this proves the branch is not empty, never that THIS dispatch committed. What makes
-  // the check bite on a resume is the per-phase artifact below, which is why the build
-  // phase's own test is the BUILT outcome and not merely a logged step.
-  if (parsed.commits <= 0) missing.push('no commit on the story branch beyond the epic base')
   if (phaseName === 'design') {
     if (!parsed.designDoc) missing.push('no design doc recorded in the work file')
     if (parsed.declaredFiles < 0) missing.push('no declared file set recorded in the work file')
+  }
+  // The design phase's own alternative to a commit (PHASE_ARTIFACTS above): a recorded
+  // design doc plus a non-empty declared file set. A design record is gitignored by
+  // contract in a Studious-governed repo, so requiring a commit there would park every
+  // correctly-executed design phase. `> 0`, not `>= 0`: an explicit declaration of zero
+  // files is a real declaration (it satisfies the artifact test above) but it is not
+  // evidence any design work happened, so it cannot stand in for a commit.
+  const designDocStandsIn = phaseName === 'design' && Boolean(parsed.designDoc) && parsed.declaredFiles > 0
+  // Cumulative, deliberately: a resumed story carries its earlier phases' commits, so
+  // this proves the branch is not empty, never that THIS dispatch committed. What makes
+  // the check bite on a resume is the per-phase artifact above, which is why the build
+  // phase's own test is the BUILT outcome and not merely a logged step.
+  if (parsed.commits <= 0 && !designDocStandsIn) {
+    missing.push(phaseName === 'design'
+      ? 'no commit on the story branch beyond the epic base, and no recorded design doc with a non-empty declared file set to stand in for one'
+      : 'no commit on the story branch beyond the epic base')
   }
   if (phaseName === 'build' && !parsed.buildLogged) missing.push('no build step recorded in the work file history')
   if (missing.length) return { status: 'missing', reason: missing.join('; ') }
@@ -3303,6 +3364,19 @@ function alreadySettledStatus(s) {
 function depsLandedAtStart(s) {
   return (stories[s].deps || []).every(d => !(d in stories) || stories[d].status === 'landed')
 }
+// Settle the plan's already-settled stories BEFORE the canary, not inside the
+// Promise.all after it (#297). Every one of these calls is dispatch-free — runStory's
+// first three branches record and settle synchronously — so this costs nothing and
+// changes nothing about what runs. What it changes is WHEN the queue is populated: a
+// plan-parked story is an open episode from the moment the run starts, and the canary's
+// own dispatchRefusal() reads openEpisodes(). Draining after the canary meant a resumed
+// at-cap epic ran a whole story past the ceiling the user approved before the cap was
+// ever compared against the real queue — the ceiling arriving one full story late is the
+// same defect as no ceiling at all, for that story. The dependency-cycle loops above
+// already seed the queue this way; this extends the same order to the plan's own parks.
+for (const s of Object.keys(stories)) {
+  if (!outcome[s] && alreadySettledStatus(s)) await runStory(s)
+}
 const runnable = Object.keys(stories).filter(s => !outcome[s])
 // eslint-disable-next-line local/no-fail-open-boolean -- neither operand is a dispatch result that could arrive null: both are reads of the reconciled plan this run was handed. The rule's failure mode (a died agent collapsing into the same value as an explicit negative) cannot occur here, and the falsy branch is the safe one either way — no canary means the epic is already proven or the plan opted out, not that a check was skipped.
 const canaryEnabled = epic.canary !== false &&
@@ -3327,10 +3401,23 @@ if (canaryStory) {
     await park(canaryStory, c.gate, c.verdict, c.reason)
   }
   if (outcome[canaryStory] !== 'landed') {
-    const reason = `canary ${workSlug(canaryStory)} ${outcome[canaryStory] || 'did not settle'} — the fleet stays held so a bad plan costs one story, not the whole run; fix or re-plan, then re-run /work-through`
-    const heldCount = runnable.filter(s => s !== canaryStory && !outcome[s]).length
+    // A canary that was HELD hit a ceiling the user approved (#144's tokens, #297's
+    // open episodes) — it was never dispatched, so nothing about the plan is in
+    // question and "fix or re-plan" would send the operator at the wrong remedy. The
+    // fleet still stays home either way; only the reason differs.
+    const reason = outcome[canaryStory] === 'held'
+      ? `canary ${workSlug(canaryStory)} was held before it dispatched — ${(heldThisRun.find(h => h.story === workSlug(canaryStory)) || {}).reason || 'a ceiling stopped it'}; the fleet stays held behind it, and clearing that ceiling releases both`
+      : `canary ${workSlug(canaryStory)} ${outcome[canaryStory] || 'did not settle'} — the fleet stays held so a bad plan costs one story, not the whole run; fix or re-plan, then re-run /work-through`
+    // Already-settled stories are excluded for the same reason the canary SELECTION
+    // excludes them: a story the plan recorded as parked or dropped has its own
+    // outcome on the record, and overwriting it with the canary's hold reason would
+    // drop it out of "Needs you" and lose the park reason it was carrying. (The
+    // pre-drain above already settles them, so `!outcome[x]` covers this today; the
+    // explicit test keeps the loop correct independent of that ordering.)
+    const heldable = s => s !== canaryStory && !outcome[s] && !alreadySettledStatus(s)
+    const heldCount = runnable.filter(heldable).length
     log(`canary did not land (${outcome[canaryStory]}) — holding ${heldCount} unstarted stor${heldCount === 1 ? 'y' : 'ies'}`)
-    for (const s of runnable.filter(x => x !== canaryStory && !outcome[x])) {
+    for (const s of runnable.filter(heldable)) {
       heldThisRun.push({ story: workSlug(s), reason })
       settle(s, 'held')
     }
@@ -3344,7 +3431,25 @@ const landedCount = allSettled.filter(o => o === 'landed').length
 const droppedCount = allSettled.filter(o => o === 'dropped').length
 let finale = null
 
-if (landedCount + droppedCount === allSettled.length && landedCount > 0) {
+// #144/#268: the finale is the single largest fan-out in a run — ~13 dispatches, plus up
+// to MAX_FIX_CYCLES unpinned fixer rounds per gate — and before this it started
+// unconditionally the moment every story settled, with no ceiling compared at its
+// entrance. A run whose approved appetite is already spent must not open it. Held, not
+// parked, for exactly the reason heldThisRun exists: nothing here earned a verdict and
+// nothing about it is waiting on a judgment call — a ceiling the user approved stopped a
+// dispatch, and re-running with fresh budget picks it up unchanged. The pseudo-story name
+// mirrors stalledFinaleEntry's `<slug>--finale`, the shape the report already renders for
+// an epic-altitude entry that is not a `/work-on`-resolvable story.
+// eslint-disable-next-line local/no-fail-open-boolean -- neither operand is a dispatch result that could arrive null: both are counts over this run's own settled outcomes, computed above. The rule's failure mode (a died agent collapsing into the same value as an explicit negative) cannot occur here, and falsy is the safe branch either way — it means the finale does not run, which is what a run with unsettled stories already wanted.
+const finaleReached = landedCount + droppedCount === allSettled.length && landedCount > 0
+const finaleBudget = finaleReached ? budgetExhausted() : null
+if (finaleBudget !== null) {
+  const reason = `epic budget exhausted before the finale (${finaleBudget} tokens remaining of the approved appetite) — every story settled, but the cross-story finale (audit fan-out, acceptance against the epic goal, pre-mortem verification) was not started, so this epic is not marked ready. Re-run /work-through with fresh budget to run it.`
+  log(`finale: held — ${reason}`)
+  heldThisRun.push({ story: `${slug}--finale`, reason })
+}
+
+if (finaleReached && finaleBudget === null) {
   phase('Finale')
   log('All stories landed/dropped — running the epic finale on the integration branch')
 

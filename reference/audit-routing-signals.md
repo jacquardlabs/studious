@@ -5,9 +5,13 @@ rules `commands/gate-audit.md` (auditor 9, auditor 11, auditor 12, and auditors 
 per-changeset clause) and `workflows/epic-driver.js`'s mechanical routing dispatch both apply. Neither restates these
 lists inline — both point here, so there is exactly one list to ever drift from.
 `commands/work-through.md`'s plan piece reads the same lists a third time, against a
-story's *stated* file surface, to say which lanes a proposed gate profile is priced for
-(`reference/epic-plan-contract.md`, "Gate profile"). That read is display-only and never
-recorded: the driver still derives every actual routing decision from the real changeset. Auditor 10
+story's *stated* file surface, for the two reads `reference/epic-plan-contract.md`
+specifies: which lanes a proposed gate profile is priced for ("Gate profile"), and
+whether a story's surface is majority prompt-prose and therefore `story-supervised`
+rather than unattended ("Story class", which cites the Prompt signal section below).
+Neither restates a list either. The pricing read is display-only and never recorded: the
+driver still derives every actual routing decision from the real changeset. The
+story-class read *is* recorded, as the story's class at plan approval. Auditor 10
 (operability) is deliberately not covered here: its skip condition is content-judged ("Judge
 from the diff's content… not file paths alone" — see `commands/gate-audit.md:56`), not a
 file-pattern rule, and there is no reliable file-name proxy for "does this code serve

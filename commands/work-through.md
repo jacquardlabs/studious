@@ -309,6 +309,12 @@ call resolves all of it:
 reconcile_json=$(gate-ledger epic-reconcile --slug "<slug>")
 ```
 
+**Append `--override-stop-loss` to that call, and only to that call, when the
+invocation carried the flag** (stripped from `$ARGUMENTS` in Resolve the epic above).
+That is the flag's one receiver: it suppresses `.stopLoss.refuse` for this read and
+sets `.stopLoss.overridden` in its place. Never carry it into any other `gate-ledger`
+verb, and never add it because a prior invocation had it.
+
 `$reconcile_json`'s `.epic` field is the same epic-and-stories state a bare `epic-get`
 returns. Each `.stories.<story>` entry (keyed by the bare story slug) carries that story's
 work-file state (`.work` — every epic-dispatched work file is recorded under the
@@ -329,14 +335,22 @@ dispatches anything, and that is the point — a run that is going to be refused
 cost nothing to refuse.
 
 - **Stop-loss.** `.stopLoss.refuse` is `true` once the recorded run history shows
-  `.stopLoss.limit` consecutive invocations that landed nothing. When it is true,
-  **stop and report — do not dispatch.** Say how many consecutive zero-landed runs
-  there were and what the run reports said, and ask the user to either fix the cause or
-  re-invoke with an explicit override (`/work-through <epic> --override-stop-loss`),
-  which is the only thing that clears it. Never decide on the epic's behalf that this
-  run will be different; two runs already were not. The threshold is computed in
-  `bin/gate-ledger` and read here — never compare a count against a number of your own
-  in this prose.
+  `.stopLoss.limit` consecutive invocations that landed nothing **and this invocation
+  carried no override**. When it is true, **stop and report — do not dispatch.** Say how
+  many consecutive zero-landed runs there were and what the run reports said, and ask
+  the user to either fix the cause or re-invoke with an explicit override
+  (`/work-through <epic> --override-stop-loss`), which is the only thing that clears it.
+  Never decide on the epic's behalf that this run will be different; two runs already
+  were not. The threshold is computed in `bin/gate-ledger` and read here — never compare
+  a count against a number of your own in this prose.
+
+  **The override's exemption is `.stopLoss.overridden`, not your own memory of the
+  flag.** `epic-reconcile` computes it: `true` means the streak had genuinely reached
+  the limit and the flag suppressed the refusal, which is the only case worth saying out
+  loud. When it is `true`, dispatch, and open the run report by naming it — how many
+  consecutive zero-landed runs were overridden, and that the streak keeps counting, so
+  the next invocation without the flag refuses again. Read the two fields as computed;
+  never infer one from the other or re-derive either from `.consecutiveZeroLanded`.
 - **Recorded gate shas versus HEAD.** A story whose `.gate` verdict was recorded at a
   sha other than `.storyBranchHeadSha` has evidence that no longer describes its
   branch; its next phase is the gate that has to re-run, not the one after it. This is
@@ -912,7 +926,7 @@ End with exactly this shape and nothing after it:
 
 ```text
 Epic: <slug> — <landed>/<total> landed, <parked> parked, <held> held, <blocked> blocked on them.
-Budget: <no runtime ceiling — the approved appetite was not enforced this run | enforced, <remaining> tokens left of <approvedTokens>>
+Budget: <no runtime ceiling — the approved appetite was not enforced this run | enforced, <remaining> tokens left of <approvedTokens> | enforced, <remaining> tokens left — this epic has no recorded appetite to compare it against>
 Canary: <story> — <landed | parked>; <released the rest | the rest stayed held>
 Degraded narrowings: <degradedNarrowings> — this many ledger-scope-check rounds this run couldn't be trusted (a resolved-branch mismatch, an unconfirmed narrowing, or the check itself unavailable) and paid a full unnarrowed round instead. Which story and which of the three, story by story, is in the run's log lines, not this count.
 Anomalies (facts, not verdicts — nothing here is waiting on a decision, but read it):
@@ -998,13 +1012,26 @@ Print each held story with the driver's own `reason` verbatim; that string alrea
 names which ceiling and what is in the queue. Omit the whole `Held:` block when the
 driver's `held` array is empty, which is the ordinary case.
 
+One held entry is not a story: `<slug>--finale`, written when every story settled but
+the token ceiling was already reached before the epic finale's fan-out could start. It
+renders in this block like any other — the driver's `reason` verbatim — and the same
+"nothing to decide" reading holds: the epic is simply not marked `ready` yet, and
+re-running with fresh budget runs the finale. It has no work file, so the phase-duration
+reconstruction below skips it exactly as it skips the finale's own stalled-gate entry.
+
 **`Budget:` always renders**, including — especially — when the driver reports
 `budget.enforced: false`. That is the line that tells the user their approved appetite
 went unenforced this run because the substrate exposed no budget primitive; a run with
 no ceiling must not look identical to a run that stayed under one. Never infer
-enforcement from the fact that nothing was held. **`Canary:` renders only when the
-driver returned one** (a resumed epic that has already landed a story returns `null`,
-and a line about a canary that didn't run is noise).
+enforcement from the fact that nothing was held. The rendering that omits `of
+<approvedTokens>` is for `{enforced: true, approvedTokens: null}` — an epic recorded
+before the appetite fields existed, running under a real substrate ceiling that no
+approved number was ever compared to. The driver supplies its own `budget.note` for that
+case; render it rather than printing `of null`, and never collapse it into the
+unenforced wording, which would claim there was no ceiling when there was one.
+
+**`Canary:` renders only when the driver returned one** (a resumed epic that has already
+landed a story returns `null`, and a line about a canary that didn't run is noise).
 
 `<gate>` in a `Needs you:` line is usually one of this flow's own profiled gates
 (`design-review`, `audit`, `acceptance`), each re-runnable by hand — but it can also
