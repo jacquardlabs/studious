@@ -1687,6 +1687,43 @@ err=$(cd "$def1" && "$LEDGER" episode-finding --gate audit --fingerprint fresh-c
 contains "re-recording a finding at a different severity is refused" "fixed at first record" "$err"
 contains "a severity change exits non-zero" "rc=2" "$err"
 
+# --- the widening rule holds on the UPDATE path too: a round-2 finding cannot reach
+# `open` in two calls when one call is refused. Own sandbox, so def1's counts below
+# stay the ones its own sequence produced. ---
+dwid=$(sandbox)
+fwid="$dwid/.studious/gates/feat-foo.json"
+( cd "$dwid" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dwid" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Important --fingerprint r1-known --status open ) >/dev/null
+( cd "$dwid" && "$LEDGER" episode-round --gate audit ) >/dev/null
+
+# a round-2 finding parked as `carried` first (which the rule does not refuse)...
+( cd "$dwid" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Important --fingerprint r2-sneak --status carried ); rc=$?
+check "a new round-2 Important records as carried (not blocking, not refused)" "0" "$rc"
+# ...cannot then be flipped `open`: that is the same widening the first-record path refuses
+err=$(cd "$dwid" && "$LEDGER" episode-finding --gate audit --fingerprint r2-sneak \
+    --status open 2>&1 1>/dev/null; echo "rc=$?")
+contains "re-recording a round-2 finding as open is refused as widening" "--regression-of" "$err"
+contains "the update-path widening refusal exits non-zero" "rc=1" "$err"
+check "the refused update leaves the finding carried" "carried" \
+  "$(jq -r '.episodes.audit.findings["r2-sneak"].status' "$fwid")"
+
+# a round-1 finding restated as still-standing on round 2 is NOT widening — it is the
+# whole point of round 2, and the rule keys on the first-record round to let it through
+( cd "$dwid" && "$LEDGER" episode-finding --gate audit --fingerprint r1-known --status carried ) >/dev/null
+( cd "$dwid" && "$LEDGER" episode-finding --gate audit --fingerprint r1-known --status open ); rc=$?
+check "a round-1 finding may be re-opened on round 2" "0" "$rc"
+check "the re-opened round-1 finding keeps its original round" "1" \
+  "$(jq -r '.episodes.audit.findings["r1-known"].round' "$fwid")"
+
+# a round-2 finding admitted as a classified regression stays updatable to open
+( cd "$dwid" && "$LEDGER" episode-finding --gate audit --lane code-auditor --severity Important \
+    --fingerprint r2-regression --status open --regression-of r1-known ) >/dev/null
+( cd "$dwid" && "$LEDGER" episode-finding --gate audit --fingerprint r2-regression --status closed ) >/dev/null
+( cd "$dwid" && "$LEDGER" episode-finding --gate audit --fingerprint r2-regression --status open ); rc=$?
+check "a classified round-2 regression may be re-opened" "0" "$rc"
+
 # --- episode-get: one parseable line prose surfaces can quote verbatim ---
 out=$(cd "$def1" && "$LEDGER" episode-get --gate audit)
 check "episode-get reports round and open/carried counts in one line" \
@@ -1739,6 +1776,40 @@ err=$(cd "$dcl" && "$LEDGER" episode-finding --gate audit --lane security-audito
     --severity Track --fingerprint "two words" --status open 2>&1 1>/dev/null; echo "rc=$?")
 contains "a fingerprint with whitespace is refused" "single token" "$err"
 contains "the fingerprint refusal is a usage error" "rc=2" "$err"
+
+# --lane carries the same guard: it is a field of a tab-separated detail line that
+# /gate-audit injects verbatim into the next round's lane dispatch prompts
+err=$(cd "$dcl" && "$LEDGER" episode-finding --gate audit --lane "$(printf 'x\tforged\tline')" \
+    --severity Track --fingerprint lane-tabs --status open 2>&1 1>/dev/null; echo "rc=$?")
+contains "a lane with tabs is refused" "--lane must be a single token" "$err"
+contains "the lane refusal is a usage error" "rc=2" "$err"
+check "the refused lane records nothing" "null" "$(jq -r '.episodes.audit.findings["lane-tabs"] // "null"' "$fcl")"
+
+# --waiver is prose, so spaces must survive — only control characters are refused,
+# because those are what forge an extra episode-get --history line
+err=$(cd "$dcl" && "$LEDGER" episode-finding --gate audit --lane security-auditor --severity Critical \
+    --fingerprint waiver-nl --status carried \
+    --waiver "$(printf 'ok\nwaiver\tforged\tline\tinjected')" 2>&1 1>/dev/null; echo "rc=$?")
+contains "a waiver with a newline is refused" "--waiver must not contain control characters" "$err"
+contains "the waiver refusal is a usage error" "rc=2" "$err"
+check "the refused waiver records nothing" "null" "$(jq -r '.episodes.audit.findings["waiver-nl"] // "null"' "$fcl")"
+( cd "$dcl" && "$LEDGER" episode-finding --gate audit --lane security-auditor --severity Critical \
+    --fingerprint waiver-prose --status carried --waiver "accepted risk, tracked in #300" ); rc=$?
+check "a multi-word waiver reason is still accepted (spaces are not the attack)" "0" "$rc"
+# the discriminating assertion is on the rendered SHAPE, not on the refusal: one waiver
+# recorded must render as exactly one waiver line, and a detail line must carry exactly
+# its four fields. A control character reaching either render breaks these counts, which
+# is the failure mode the guards above exist to prevent.
+histinj=$(cd "$dcl" && "$LEDGER" episode-get --gate audit --history)
+findinj=$(cd "$dcl" && "$LEDGER" episode-get --gate audit --findings)
+check "--history renders exactly one waiver line for the one waiver recorded" "1" \
+  "$(printf '%s\n' "$histinj" | grep -c '^waiver' || true)"
+check "no refused waiver forged a history line" "0" \
+  "$(printf '%s\n' "$histinj" | grep -c 'forged' || true)"
+check "--findings detail lines carry exactly four tab-separated fields" "4" \
+  "$(printf '%s\n' "$findinj" | sed -n 2p | awk -F'\t' '{print NF}')"
+check "--findings emits exactly the summary plus one detail line" "2" \
+  "$(printf '%s\n' "$findinj" | wc -l | tr -d ' ')"
 
 # Rule 2 guards waived exactly as it guards carried — no sibling-status bypass
 ( cd "$dcl" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
@@ -1816,6 +1887,50 @@ err=$(cd "$drt" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "
 contains "a terminally closed episode still refuses re-entry" "closed" "$err"
 contains "the terminal refusal stays the fresh-entry signal" "rc=2" "$err"
 
+# --- rule 2 at the verdict: an episode does not close over an open Critical ---
+dvg=$(sandbox)
+fvg="$dvg/.studious/gates/feat-foo.json"
+( cd "$dvg" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dvg" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Critical --fingerprint security-auditor/rce --status open ) >/dev/null
+err=$(cd "$dvg" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" 2>&1 1>/dev/null; echo "rc=$?")
+contains "a closing verdict over an open Critical is refused" "1 Critical finding(s) are still 'open'" "$err"
+contains "the refusal names both exits (close it, or waive it)" "--waiver <reason>" "$err"
+contains "the verdict refusal exits non-zero" "rc=1" "$err"
+check "no verdict lands on the refused episode" "null" "$(jq -r '.episodes.audit.verdict // "null"' "$fvg")"
+check "no legacy record is dual-written by a refused verdict" "null" \
+  "$(jq -r '.gates.audit.verdict // "null"' "$fvg")"
+
+# the stop/rethink token is refused too — closing IS the accountable act, whatever it is called
+err=$(cd "$dvg" && "$LEDGER" episode-verdict --gate audit --verdict "NEEDS DISCUSSION" 2>&1 1>/dev/null; echo "rc=$?")
+contains "a stop/rethink verdict over an open Critical is refused the same way" "still 'open'" "$err"
+
+# the retry verdict is exempt: it is the round outcome that MEANS these are open
+( cd "$dvg" && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" ); rc=$?
+check "the retry verdict records over an open Critical" "0" "$rc"
+
+# waive it on the operator's word and the episode closes
+( cd "$dvg" && "$LEDGER" episode-round --gate audit ) >/dev/null
+( cd "$dvg" && "$LEDGER" episode-finding --gate audit --fingerprint security-auditor/rce \
+    --status carried --waiver "exploit needs cluster-admin; tracked in #999" ) >/dev/null
+( cd "$dvg" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" ); rc=$?
+check "a waived Critical lets the episode close" "0" "$rc"
+check "the closing verdict is recorded" "PASS" "$(jq -r '.episodes.audit.verdict' "$fvg")"
+
+# an open Important never blocks a verdict — gate-vocabulary.md is explicit that it may
+# ride out a terminal PASS still open
+dvg2=$(sandbox)
+fvg2="$dvg2/.studious/gates/feat-foo.json"
+( cd "$dvg2" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dvg2" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Important --fingerprint code-auditor/dup --status open ) >/dev/null
+( cd "$dvg2" && "$LEDGER" episode-finding --gate audit --lane doc-auditor \
+    --severity Track --fingerprint doc-auditor/typo --status open ) >/dev/null
+( cd "$dvg2" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" ); rc=$?
+check "an open Important does not block a terminal PASS" "0" "$rc"
+check "that PASS is recorded with the Important still open" "PASS/open" \
+  "$(jq -r '.episodes.audit.verdict + "/" + .episodes.audit.findings["code-auditor/dup"].status' "$fvg2")"
+
 # the cap still binds at the end of round 2's retry outcome
 dcap=$(sandbox)
 ( cd "$dcap" && "$LEDGER" episode-open --gate audit && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" \
@@ -1828,12 +1943,56 @@ contains "the cap refusal exits 1 past a retry outcome" "rc=1" "$err"
 out=$(cd "$dcap" && "$LEDGER" episode-get --gate audit)
 check "episode-get names the bound in its readout" "round 2 of 2 — 0 open, 0 carried" "$out"
 
+# --- convergence (#291), the natural path: episode-open, findings, then two plain
+# episode-round calls. The first banks blockingByRound["1"] on its way past, so the
+# second reads a real predecessor and the check fires at the round-2 boundary with no
+# hand-seeding at all. This arm is reachable under the current cap, which is why the
+# guard is not dead code; the synthetic-seed cases below cover the arms this one can't.
+dnat=$(sandbox)
+fnat="$dnat/.studious/gates/feat-foo.json"
+( cd "$dnat" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dnat" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Critical --fingerprint security-auditor/sqli --status open ) >/dev/null
+( cd "$dnat" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Important --fingerprint code-auditor/dup --status open ) >/dev/null
+( cd "$dnat" && "$LEDGER" episode-round --gate audit ); rc=$?
+check "natural path: the first episode-round advances (no predecessor to compare)" "0" "$rc"
+# nothing was fixed between the rounds, so the blocking set is unchanged at 2 against 2
+err=$(cd "$dnat" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "natural path: the second episode-round is refused as non-convergence" "not converging" "$err"
+contains "natural path: that refusal is exit 3, reached without any hand-seeded state" "rc=3" "$err"
+check "natural path: the refused round does not advance past 2" "2" \
+  "$(jq -r '.episodes.audit.round' "$fnat")"
+check "natural path: the episode is marked escalated at round 2" "2" \
+  "$(jq -r '.episodes.audit.escalated.round' "$fnat")"
+check "natural path: the escalation records both counts" "2/2" \
+  "$(jq -r '.episodes.audit.escalated | (.blocking|tostring) + "/" + (.priorBlocking|tostring)' "$fnat")"
+
+# the same natural sequence converges when round 2 actually closed something: one
+# finding closed drops the set to 1 against 2, so the convergence check passes it
+# through and the cap is what stops it — exit 1, no escalation
+dnatc=$(sandbox)
+fnatc="$dnatc/.studious/gates/feat-foo.json"
+( cd "$dnatc" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dnatc" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Critical --fingerprint security-auditor/sqli --status open ) >/dev/null
+( cd "$dnatc" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Important --fingerprint code-auditor/dup --status open ) >/dev/null
+( cd "$dnatc" && "$LEDGER" episode-round --gate audit ) >/dev/null
+( cd "$dnatc" && "$LEDGER" episode-finding --gate audit --fingerprint code-auditor/dup \
+    --status closed ) >/dev/null
+err=$(cd "$dnatc" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "natural path: a converging round reaches the cap instead" "2-round cap" "$err"
+contains "natural path: the cap's refusal is exit 1" "rc=1" "$err"
+check "natural path: a converging round records no escalation" "null" \
+  "$(jq -r '.episodes.audit.escalated // "null"' "$fnatc")"
+
 # --- convergence (#291): a round that does not strictly reduce the blocking set is
 # refused and the episode is marked escalated, ahead of the cap ---
 #
-# The cap permits exactly one advance per episode, so no episode reaches a round that
-# HAS a recorded predecessor on its own — the comparison arm is exercised by seeding
-# `blockingByRound` directly, the same way the guard will read it when the cap moves.
+# The synthetic seeds below drive the comparison at rounds the cap does not permit an
+# episode to reach on its own (round 3), covering the arms the natural sequence above
+# cannot — the guard's behavior once the cap moves.
 dcv=$(sandbox)
 fcv="$dcv/.studious/gates/feat-foo.json"
 ( cd "$dcv" && "$LEDGER" episode-open --gate audit ) >/dev/null
@@ -2156,6 +2315,12 @@ check "a whitespace-carrying fingerprint is refused" "2" \
 check "--waiver on a non-set-aside status is refused" "2" \
   "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane l --severity Track \
       --fingerprint fp-x --status open --waiver "why" >/dev/null 2>&1; echo $?)"
+check "a whitespace-carrying lane is refused (it is a field of an epic-findings line)" "2" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane "$(printf 'l\tforged')" \
+      --severity Track --fingerprint fp-x --status open >/dev/null 2>&1; echo $?)"
+check "a control-character-carrying waiver is refused" "2" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane l --severity Track \
+      --fingerprint fp-x --status carried --waiver "$(printf 'ok\nforged')" >/dev/null 2>&1; echo $?)"
 check "epic-finding requires every identity flag" "2" \
   "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --fingerprint fp-x --status open >/dev/null 2>&1; echo $?)"
 check "epic-attest requires --lane" "2" \

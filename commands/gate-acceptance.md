@@ -103,6 +103,16 @@ have. Run (substituting the verdict token you just assigned — `SHIP`,
 gate-ledger episode-verdict --gate acceptance --verdict "SHIP"
 ```
 
+**Every Critical must be resolved before a closing verdict is recordable.** The ledger
+refuses `SHIP` and `HOLD` while any Critical is still `open` on this episode — each one
+has to be re-recorded `--status closed` or set aside with `--waiver <reason>` on the
+user's own word (`gate-ledger episode-finding`). Only `FIX AND RE-REVIEW` records over
+open Criticals; it is the round outcome that means "these are open, go fix them." An
+open Important does not block a verdict. This gate records no findings of its own until
+it adopts the findings ledger (#292), so today the refusal can only fire on a Critical
+another writer left open — resolve it and re-run the call rather than reaching for
+`record --gate acceptance` to get around it.
+
 The ledger is local and gitignored — it never enters the repo. If `gate-ledger` is not
 found (the plugin's `bin/` isn't on `PATH` in this environment), tell the user the
 verdict could not be recorded to the gate ledger — do not skip silently.

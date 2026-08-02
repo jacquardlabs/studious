@@ -565,6 +565,27 @@ episode_blocking_count() { # gate → how many findings the episode currently ca
   printf '%s' "$count"
 }
 
+episode_open_critical_count() { # gate → how many Criticals the episode still carries `open`
+  # Deliberately NOT episode_blocking_count with a filter bolted on: that one is the
+  # convergence metric (Critical + Important, the set a round must shrink), this one is
+  # the verdict guard's metric. Only a Critical blocks a verdict — an Important may ride
+  # out a terminal PASS still `open` (reference/gate-vocabulary.md), and conflating the
+  # two would refuse verdicts that vocabulary explicitly permits. Always prints a number.
+  local file count; file="$(ledger_dir)/$(branch_slug).json"
+  count=""
+  if [ -f "$file" ]; then
+    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+    count=$(jq -r --arg g "$1" \
+      '[(.episodes[$g].findings // {})[]
+        | select(.status == "open" and .severity == "Critical")]
+       | length' "$file" 2>/dev/null)
+  fi
+  case "$count" in
+    ''|*[!0-9]*) count=0 ;;
+  esac
+  printf '%s' "$count"
+}
+
 cmd_episode_open() {
   local gate=""
   while [ $# -gt 0 ]; do
@@ -649,10 +670,12 @@ cmd_episode_round() {
   # A prior count of 0 is not a convergence signal — nothing strictly decreases
   # from none — so the comparison runs only against a non-zero predecessor.
   #
-  # Latent under the current cap, deliberately: EPISODE_ROUND_CAP=2 permits
-  # exactly one advance per episode, so no round reaches this check with a
-  # predecessor recorded. This is the guard that becomes live the moment the cap
-  # moves — not dead code by accident.
+  # This fires on the natural round-2 boundary — it is NOT latent under the
+  # current cap. The check runs BEFORE the cap check below, and the first
+  # `episode-round` call banks `blockingByRound["1"]` on its way past, so the
+  # second call reads a real predecessor and refuses at exit 3 whenever the
+  # blocking set failed to shrink. Only a converging round (or one with a zero
+  # predecessor) ever reaches the cap's exit 1. Do not delete this as dead code.
   if [ -n "$prior" ] && [ "$prior" -gt 0 ] && [ "$blocking" -ge "$prior" ]; then
     # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
     json_update "$file" \
@@ -721,6 +744,30 @@ cmd_episode_verdict() {
       echo "gate-ledger: episode for gate '$gate' is already closed by verdict '$prior' —" \
            "an episode is closed by exactly one verdict; run episode-open to re-judge in a fresh one" >&2
     fi
+    return 1
+  fi
+  # Rule 2, at the verdict: an unfixed Critical needs the operator's explicit word
+  # before an episode closes on it. `episode-finding` already refuses to set a
+  # Critical aside without --waiver, but nothing stopped a caller from simply
+  # leaving it `open` and recording the verdict over the top — the same outcome
+  # (a Critical riding through unfixed) with none of the accountability. So the
+  # findings ledger is consulted here too, in code, never left to the compiling
+  # prompt's own reading of it.
+  #
+  # The retry verdict is exempt by construction: `FIX AND RE-REVIEW` is the round
+  # outcome that MEANS "these Criticals are open, go fix them" — refusing it would
+  # refuse the documented main path. Every other token closes the episode, and a
+  # close is what needs the word. This stays gate-agnostic rather than keying on a
+  # per-gate proceed token, so it fails closed for the doors that adopt the
+  # episode verbs later, not open.
+  local open_criticals; open_criticals=$(episode_open_critical_count "$gate")
+  if [ "$open_criticals" -gt 0 ] && [ "$verdict" != "$EPISODE_RETRY_VERDICT" ]; then
+    echo "gate-ledger: episode-verdict refused for gate '$gate' — $open_criticals Critical" \
+         "finding(s) are still 'open', and a verdict closing this episode cannot be recorded" \
+         "over them. Resolve each one first (episode-finding --status closed), or set it aside" \
+         "on the operator's own word (episode-finding --status carried --waiver <reason>)." \
+         "'$EPISODE_RETRY_VERDICT' is recordable as-is — it is the round outcome that says" \
+         "these are open" >&2
     return 1
   fi
   local file rc; file="$(ledger_dir)/$(branch_slug).json"
@@ -799,6 +846,34 @@ finding_status_is_set_aside() { # status → true when it rides through the verd
   esac
 }
 
+# Both findings verbs render their fields into line- and tab-structured reads
+# (`episode-get --findings`, `episode-get --history`, `epic-findings`), and
+# `/gate-audit` injects those lines verbatim into the next round's lane dispatch
+# prompts. A value that can carry a newline or a tab can therefore forge an extra
+# line in a downstream prompt — so identity fields are guarded on the way IN, at
+# the boundary, exactly as `--fingerprint` already is.
+finding_field_is_token() { # value → true when empty or a single whitespace-free token
+  # For the identity fields (`--lane`): same guard as --fingerprint. These are
+  # `security-auditor`-shaped names, never prose. Empty passes — the callers that
+  # allow an omitted lane check for that themselves.
+  case "$1" in
+    *[[:space:][:cntrl:]]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+finding_reason_is_single_line() { # value → true when empty or free of control characters
+  # For the prose field (`--waiver`): deliberately WEAKER than the token guard
+  # above — a waiver is the operator's own sentence ("the exact word they typed",
+  # #300), so spaces must survive. `[[:cntrl:]]` is the whole attack surface for a
+  # line- and tab-structured read; it covers both newline and tab. Do not
+  # "unify" this with finding_field_is_token: rejecting spaces here would reduce
+  # every documented waiver reason to a single token.
+  case "$1" in
+    *[[:cntrl:]]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
 cmd_episode_finding() {
   local gate="" lane="" severity="" fingerprint="" status="" regression_of="" waiver=""
   while [ $# -gt 0 ]; do
@@ -824,6 +899,16 @@ cmd_episode_finding() {
       return 2
       ;;
   esac
+  if ! finding_field_is_token "$lane"; then
+    echo "gate-ledger: --lane must be a single token with no whitespace or control" \
+         "characters — it is a field of episode-get --findings' tab-separated detail line" >&2
+    return 2
+  fi
+  if ! finding_reason_is_single_line "$waiver"; then
+    echo "gate-ledger: --waiver must not contain control characters — it is the last field" \
+         "of one episode-get --history line, and a newline or tab in it forges another" >&2
+    return 2
+  fi
   case "$status" in
     open|closed|carried|waived|rejected-as-noise) ;;
     *)
@@ -872,7 +957,7 @@ cmd_episode_finding() {
   esac
 
   local file; file="$(ledger_dir)/$(branch_slug).json"
-  local existing stored_severity stored_lane
+  local existing stored_severity stored_lane first_round classified
   existing=$(jq -c --arg g "$gate" --arg fp "$fingerprint" \
     '.episodes[$g].findings[$fp] // empty' "$file" 2>/dev/null)
 
@@ -881,6 +966,14 @@ cmd_episode_finding() {
     # only the status moves, and regression classification is not relitigated.
     stored_severity=$(printf '%s' "$existing" | jq -r '.severity // ""')
     stored_lane=$(printf '%s' "$existing" | jq -r '.lane // ""')
+    first_round=$(printf '%s' "$existing" | jq -r '.round // ""')
+    classified=$(printf '%s' "$existing" | jq -r '.regressionOf // ""')
+    # A stored record with no readable round is treated as if it were first
+    # recorded THIS round — fail closed, so a corrupted record cannot buy its way
+    # past rule 1 below by having no round to test.
+    case "$first_round" in
+      ''|*[!0-9]*) first_round="$round" ;;
+    esac
     if [ -n "$severity" ] && [ "$severity" != "$stored_severity" ]; then
       echo "gate-ledger: episode-finding: severity is fixed at first record" \
            "('$stored_severity' for '$fingerprint') — a reclassification is a new finding" >&2
@@ -914,13 +1007,31 @@ cmd_episode_finding() {
         return 1
       fi
     fi
-    # Rule 1: round 2 may not widen the blocking set below Critical.
-    if [ "$round" -ge 2 ] && [ "$status" = "open" ] && [ "$severity" = "Important" ] && [ -z "$regression_of" ]; then
-      echo "gate-ledger: episode-finding refused — round $round fixes round 1, it does not widen the" \
-           "blocking set: a new blocking finding below Critical must name --regression-of <round-1" \
-           "fingerprint> (a new Critical, or a non-blocking Track, stays recordable)" >&2
-      return 1
-    fi
+    first_round="$round"
+    classified="$regression_of"
+  fi
+
+  # Rule 1: round 2 may not widen the blocking set below Critical.
+  #
+  # Keyed on the round the finding was FIRST recorded in, never on the round
+  # doing the recording, and checked on BOTH paths — because a finding reaches
+  # `open` in two calls as easily as in one. Recording a round-2 finding
+  # `carried` and then re-recording the same fingerprint `open` used to land it
+  # unrefused: the first call dodged the rule on its status, the second dodged it
+  # by being an update. That is a widened blocking set on round 2 with no
+  # --regression-of behind it, and it defeats the convergence guard downstream,
+  # which counts exactly these open findings.
+  #
+  # `classified` carries the regression classification made at first record, so a
+  # finding legitimately admitted on round 2 as a regression stays updatable; a
+  # round-1 finding restated as still-standing has first_round 1 and is never in
+  # scope here, which is the case this rule must not touch.
+  if [ "$first_round" -ge 2 ] && [ "$status" = "open" ] && [ "$severity" = "Important" ] \
+     && [ -z "$classified" ]; then
+    echo "gate-ledger: episode-finding refused — round $round fixes round 1, it does not widen the" \
+         "blocking set: a new blocking finding below Critical must name --regression-of <round-1" \
+         "fingerprint> (a new Critical, or a non-blocking Track, stays recordable)" >&2
+    return 1
   fi
 
   # Rule 2: a Critical is set aside — `carried`, `waived`, or
@@ -1752,6 +1863,16 @@ cmd_epic_finding() {
       return 2
       ;;
   esac
+  if ! finding_field_is_token "$lane"; then
+    echo "gate-ledger: --lane must be a single token with no whitespace or control" \
+         "characters — it is a field of one epic-findings line" >&2
+    return 2
+  fi
+  if ! finding_reason_is_single_line "$waiver"; then
+    echo "gate-ledger: --waiver must not contain control characters — it is the last field" \
+         "of one epic-findings line, and a newline or tab in it forges another" >&2
+    return 2
+  fi
   case "$severity" in
     Critical|Important|Track) ;;
     *)
