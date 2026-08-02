@@ -52,9 +52,10 @@ supervised, evidence-first flow instead.
 
 1. Read PRODUCT.md, DESIGN.md, and CLAUDE.md.
 2. Propose a decomposition satisfying `reference/epic-plan-contract.md`: stories with
-   slugs, source issues, acceptance criteria, dependency edges, a gate profile each, an
-   epic goal statement, a concurrency cap, and an epic pre-mortem. Present the whole
-   plan — the user can only approve what they can see.
+   slugs, source issues, acceptance criteria, dependency edges, a gate profile each
+   (computed in step 4 — never defaulted, never trimmed on a hunch), an epic goal
+   statement, a concurrency cap, and an epic pre-mortem. Present the whole plan — the
+   user can only approve what they can see.
 
 3. **Classify every story — `epic-default` (driven unattended) or `story-supervised`
    (handed back as a `/work-on` piece, still in the epic).** State each story's expected
@@ -72,10 +73,34 @@ supervised, evidence-first flow instead.
    it, and an epic whose first story is supervised does nothing on its first driver
    invocation. A user must not discover that after approving.
 
-4. Stop and iterate. The user trims, reorders, re-scopes, drops, and may reclassify any
-   story. Nothing is recorded and nothing runs until they explicitly approve.
+4. **Compute each story's gate profile — never default it, never trim it on a hunch.**
+   Apply `reference/epic-plan-contract.md`'s "Gate profile" section: start from the full
+   five and propose trimming the `design` + `design-review` pair only when source
+   specificity, dependency fan-in, and pre-mortem mapping all permit it. That section is
+   the rule — read it and use it rather than working from memory of those three names.
 
-5. **Settle the open forks in one interview — the epic's only scheduled human turn.**
+   Every input is already in front of you: the issue bodies you read to write the
+   decomposition, the dependency edges you just drew, the stated file surface from step
+   3, and the pre-mortem you proposed in step 2. No dispatch, no new agent. Source
+   specificity is the same read of the same issue body that classed the story in step 3
+   — a story classed `epic-default` for carrying criteria with citations cannot then be
+   blocked here for lacking them.
+
+   Print all four next to each story's proposed profile — the three permit/block reads
+   with the clause that decided each, and the audit lanes the story's stated file surface
+   routes per `reference/audit-routing-signals.md`. The lane line says what the profile is
+   priced for; it never trims anything and is never recorded, because
+   `workflows/epic-driver.js` re-derives routing from the real changeset at audit time
+   and must stay the only thing that decides it.
+
+   The computation proposes; the user decides at approval, and a story whose trim they
+   overturn is recorded with the full five.
+
+5. Stop and iterate. The user trims, reorders, re-scopes, drops, and may reclassify any
+   story or restore any trimmed gate. Nothing is recorded and nothing runs until they
+   explicitly approve.
+
+6. **Settle the open forks in one interview — the epic's only scheduled human turn.**
 
    Every dispatched phase runs in a subagent with no human in its loop. A worker that
    meets an unanswered product fork can only guess or park, and a guess is worse. So
@@ -115,7 +140,7 @@ supervised, evidence-first flow instead.
    ask the same questions in the conversation — the point is that a human answers them
    before dispatch, not that viva mediates it.
 
-6. On approval, record exactly what was approved. Derive `<slug>` from the epic title:
+7. On approval, record exactly what was approved. Derive `<slug>` from the epic title:
 
    ```bash
    gate-ledger epic-set --slug "<slug>" --title "<title>" --source "<milestone M | issue #N | label L>" \
@@ -164,7 +189,7 @@ supervised, evidence-first flow instead.
      anywhere below. Bare `--slug` answers for the epic's `__epic` integration
      checkout; `--story <story>` answers for a story's.
 
-7. Close with the report block below. Driving starts on the next invocation — approval
+8. Close with the report block below. Driving starts on the next invocation — approval
    and execution never share one.
 
 **No human approves a design doc on the `epic-default` path. State that plainly to the
@@ -175,8 +200,9 @@ story-scale feature.
 
 The driver's default profile is `design → design-review → build → audit → acceptance`:
 a dispatched worker drafts the design doc and `/gate-design-review` reviews it against
-`reference/design-doc-contract.md` on every story it drives. Two constraints force
-this, and neither is a preference:
+`reference/design-doc-contract.md` on every story that carries the pair — every story,
+unless step 4 proposed the trim and the user approved it. Two constraints force this,
+and neither is a preference:
 
 - **A subagent cannot open a browser.** viva's sign-off is a human at a keyboard, and
   there isn't one inside a dispatched phase running three-at-a-time in parallel
@@ -207,6 +233,17 @@ story the sign-off is genuinely gone, not covered. What the story class buys is 
 the stories where that trade doesn't hold never take it. A story the user wants signed
 off by hand is a story reclassified `story-supervised` at approval, never an improvised
 third behaviour here.
+
+**A trimmed design pair is the one case that rule does not cover, and the user approves
+it as such.** `epic-default` requires a source issue already carrying acceptance criteria
+with citations — the same read that permits step 4's trim — so the stories most likely to
+be trimmed are exactly the ones this decision calls safe *because* the agent review runs.
+With the pair trimmed there is no doc, and neither a human nor an agent reviews one. That
+is why the trim is only ever proposed when the source already carries the content the
+review would have judged, why it is shown with its inputs rather than defaulted, and why
+the user approving it is approving that specific trade — plan approval being the batched
+should-we-build for everything in the plan (`reference/epic-plan-contract.md`, Approval).
+Restoring the pair on any story is one word at approval.
 
 ## Driver — every later invocation
 
