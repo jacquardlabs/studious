@@ -1,4 +1,4 @@
-# Events log format — the epic status-transition and verdict-recording trail
+# Events log format — the epic transition trail and the per-epic findings ledger
 
 `bin/gate-ledger`'s `record`, `epic-set`, `epic-story-set`, `work-set`, and `work-log`
 verbs each append one JSON object per line to `.studious/epics/<epic-slug>.events.jsonl`
@@ -9,15 +9,33 @@ silent surprise. Every one of the five functions' existing arguments, return val
 and exit codes is unchanged; the event append is a side effect only, run after the
 function's own primary snapshot write already succeeded.
 
-## Scope: a pure writer, no reader yet
+Two later kinds share the same file under a different contract: `epic-finding` and
+`epic-attest` (#281) write the per-epic findings ledger, and `epic-findings` reads it
+back. See "The findings ledger" below.
 
-This store has no read verb (no `events-list`/`events-get`) and no consumer in this
-plugin today — `board-server`, a dependent story, is the first reader. `/work-through`'s
-own reconcile step is not changed to read it; reconciliation continues to trust the
-existing four snapshot stores (`.studious/gates/`, `.studious/work/`, `.studious/
-epics/<slug>.json`, plus `.studious/evidence/`) exactly as before. This file exists so
-a future reader has one pinned shape to build against, and so the five write sites
-below don't drift from each other silently.
+## Scope: one reader, and two classes of line
+
+The store's first reader is `epic-findings` (#281), and it reads exactly the two
+findings kinds. There is still no general `events-list`/`events-get`, and
+`/work-through`'s own reconcile step is unchanged: reconciliation continues to trust
+the existing snapshot stores (`.studious/gates/`, `.studious/work/`,
+`.studious/epics/<slug>.json`, plus `.studious/evidence/`) exactly as before.
+`board-server` remains the intended reader of the transition kinds.
+
+The two classes differ in exactly one way that matters, and it is a failure contract,
+not a schema:
+
+| Class | Kinds | Written by | On failure |
+|---|---|---|---|
+| Transition trail | `gate-verdict`, `epic-status`, `story`, `phase`, `step` | `append_event()`, as a side effect of a verb whose primary snapshot write already succeeded | best-effort — signals on stderr, always returns 0 |
+| Findings ledger | `finding`, `attestation` | `append_epic_record()`, as the verb's own primary write | fails loudly, non-zero, and refuses to no-op when jq/git are missing |
+
+A lost transition line never changes a verdict; the snapshot it mirrors is still
+authoritative. A lost *finding* line does: the epic finale's closure check would see
+nothing to verify and report clean, which is the rigor property the finale's narrowing
+(#130) must preserve. Same file, same envelope, deliberately different failure
+behavior — a caller that treats an `epic-finding` non-zero exit as ignorable has
+defeated the ledger.
 
 ## Envelope
 
@@ -32,7 +50,7 @@ Every line shares one envelope, regardless of which function wrote it:
 | `at` | `now_iso()` inside `append_event()`, not a caller-supplied flag | UTC, `%Y-%m-%dT%H:%M:%SZ`. Physical line order across concurrent writers is not guaranteed to match wall-clock order exactly (see Concurrency below) — `at` lets a reader sort correctly regardless. |
 | `epic` | The epic slug, already slugified before this function runs | Never re-slugified inside `append_event()` itself. |
 | `story` | The story slug, already slugified, or `""` for an epic-level event (an `epic-set` call, or a `record`/`work-log` call made from the epic's own integration branch/slug with no story component) | |
-| `kind` | One of `gate-verdict`, `epic-status`, `story`, `phase`, `step` — see table below | Determines which additional fields follow. |
+| `kind` | One of `gate-verdict`, `epic-status`, `story`, `phase`, `step`, `finding`, `attestation` — see the tables below | Determines which additional fields follow. |
 
 No `schemaVersion` per line — matching `reference/evidence-format.md`'s existing
 convention for this repo's append-only logs: each line is a flat, self-describing
@@ -74,6 +92,53 @@ history; `cmd_work_log`'s events are a strict superset for a story's own timelin
 also cover the `design`/`build` worker phases, which `cmd_record` never sees). No
 de-duplication is done here — a future consumer that wants one merged timeline row per
 real occurrence can join on `(story, gate, sha)`.
+
+## The findings ledger — `finding` and `attestation` (#281)
+
+The epic finale used to answer "what did we find, and did it close?" by re-fanning
+every auditor across the whole integration diff. These two kinds make it a read.
+
+| Verb | `kind` | Fires when | Additional fields |
+|---|---|---|---|
+| `cmd_epic_finding` | `finding` | always (recording one finding's state at a sha is its whole purpose) | `finding` (the fingerprint), `lane`, `severity`, `status`, `sha`, plus `waiver` when one was given |
+| `cmd_epic_attest` | `attestation` | always | `lane`, `sha` |
+
+`severity` is the canonical three-tier ladder (`reference/severity-rubric.md`), and
+`status` is the same five-word vocabulary the branch-scoped `episode-finding` uses —
+`open | closed | carried | waived | rejected-as-noise` — deliberately one findings
+vocabulary in this tool rather than two that drift. A Critical reaching any set-aside
+status needs `--waiver <reason>`, enforced from the line's own fields, so the writer
+never has to read prior state.
+
+**Why this store and not `<slug>.json`.** Every `<slug>.json` write goes through
+`json_update()`, which is read-modify-write; findings are recorded by story agents
+running concurrently under one epic, so two findings recorded in the same moment would
+silently become one. An `O_APPEND` write of one small line cannot interleave (see
+Concurrency below), which is what makes the append-only trail the correct home.
+
+**The fold, which is the reader's whole contract.** `epic-findings --epic E` groups
+every `finding` line by its fingerprint — the caller-chosen identity, epic-wide, never
+normalized — sorts each group by `at`, and takes:
+
+- **identity** (`lane`, `story`, `severity`, raised sha) from the group's **first** line,
+  so a later line cannot launder a Critical down to a lower tier by restating it;
+- **state** (`status`, `waiver`) from its **last** line;
+- **resolved sha** from the last line whose status is `closed`, `-` when none is.
+
+`--unresolved` keeps only `open` and `carried` — the two states a verdict has to answer
+for, exactly as `episode-get` counts them. `--attestations` prints the clean-lane trail
+instead, one line per `(lane, story)`. A malformed line is skipped, never fatal: one
+corrupt append must not blind the finale to every other finding.
+
+What a *set* of attestations licenses is the reader's judgment, not this format's:
+`workflows/epic-driver.js` carries a lane forward at the finale only when every landed
+story attested it, and fails closed (runs the lane) on any gap.
+
+```json
+{"at":"2026-08-02T10:00:00Z","epic":"m13-flow-priced","story":"findings-ledger","kind":"finding","finding":"sec-token-in-log","lane":"security-auditor","severity":"Critical","status":"open","sha":"a1b2c3d"}
+{"at":"2026-08-02T10:41:12Z","epic":"m13-flow-priced","story":"findings-ledger","kind":"finding","finding":"sec-token-in-log","lane":"security-auditor","severity":"Critical","status":"closed","sha":"d4e5f6a"}
+{"at":"2026-08-02T10:41:20Z","epic":"m13-flow-priced","story":"findings-ledger","kind":"attestation","lane":"doc-auditor","sha":"d4e5f6a"}
+```
 
 ## Attributing a write to an epic/story without a new flag
 
@@ -132,6 +197,11 @@ equivalent per-*epic* rule, and this store adds none — an epic's events file, 
 ## Consumers that must stay in sync
 
 - `tests/test_gate_ledger.sh`'s events-append tests assert each write site's trigger
-  condition and exact field shape above — update both together.
-- Any future `board-server`/board-reading story that adds a read verb or reads this
-  file directly should update this doc's Scope section, not silently extend it.
+  condition and exact field shape above — update both together. Its findings-ledger
+  tests pin the fold rules, the refusals, and the loud-failure contract.
+- `workflows/epic-driver.js` — the findings ledger's writer (its story-level audit and
+  acceptance compile prompts record findings and attestations) and its reader (the
+  finale's closure lane and its attestation-based carry-forward).
+- Any future `board-server`/board-reading story that adds a read verb or reads the
+  transition kinds directly should update this doc's Scope section, not silently
+  extend it.

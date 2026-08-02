@@ -44,8 +44,12 @@
 #     reference/events-format.md). Epic/story attribution is derived from the
 #     branch name or the epic-qualified `--slug` convention those verbs already
 #     use, never a new flag. Best-effort: a failure appending a line signals on
-#     stderr but never fails the calling verb's own exit code — no reader exists
-#     yet (a later, dependent story is the first).
+#     stderr but never fails the calling verb's own exit code.
+#     The same file also carries the per-epic findings ledger (#281): `finding`
+#     and `attestation` lines, written by `epic-finding`/`epic-attest` and read
+#     back by `epic-findings` — the first reader this store has had. Those two
+#     kinds are primary writes and fail loudly (see append_epic_record), unlike
+#     the best-effort transition kinds above.
 #   .studious/evidence/<branch-slug>.jsonl — append-only, harness-captured record
 #     of verification commands run while a story is armed (one JSON object per
 #     line; written via `evidence-append` by hooks/evidence-capture.sh; read via
@@ -1336,10 +1340,11 @@ EPIC_RUN_HISTORY_CAP=20
 
 cmd_epic_set() {
   local slug="" title="" src="" goal="" branch="" premortem="" concurrency="" status=""
-  local appetite_tokens="" appetite_episodes="" canary=""
+  local appetite_tokens="" appetite_episodes="" canary="" acceptance_altitude=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --slug)        slug="$2"; shift 2 ;;
+      --acceptance-altitude) acceptance_altitude="$2"; shift 2 ;;
       --title)       title="$2"; shift 2 ;;
       --source)      src="$2"; shift 2 ;;
       --goal)        goal="$2"; shift 2 ;;
@@ -1373,6 +1378,18 @@ cmd_epic_set() {
     ''|on|off) ;;
     *) echo "gate-ledger: --canary must be 'on' or 'off'" >&2; return 2 ;;
   esac
+  # #269, DEFAULT OFF AND NOT YET SAFE TO ENABLE. `delivery-boundary` moves
+  # product judgment to the epic finale and reduces per-story acceptance to
+  # criteria conformance. #269's own text refuses to ship that before the
+  # counter-evidence check it names — #281's findings ledger (the verbs above)
+  # and #133's outcome labels — and that evidence does not exist yet, because
+  # both were built in the same change as this flag. The token is validated
+  # here so a typo can never be mistaken for an opt-in; absence means
+  # `per-story`, today's behavior, unchanged.
+  case "$acceptance_altitude" in
+    ''|per-story|delivery-boundary) ;;
+    *) echo "gate-ledger: --acceptance-altitude must be 'per-story' or 'delivery-boundary'" >&2; return 2 ;;
+  esac
   if ! have jq || ! have git; then
     echo "gate-ledger: epic-set skipped (jq and git required)" >&2
     return 0
@@ -1401,11 +1418,12 @@ cmd_epic_set() {
      | (if $status != "" then .status      = $status else . end)
      | (if $apTok  != "" then .appetite = ((.appetite // {}) | .tokens = ($apTok | tonumber)) else . end)
      | (if $apEp   != "" then .appetite = ((.appetite // {}) | .openEpisodes = ($apEp | tonumber)) else . end)
-     | (if $canary != "" then .canary = ($canary == "on") else . end)' \
+     | (if $canary != "" then .canary = ($canary == "on") else . end)
+     | (if $accAlt != "" then .acceptanceAltitude = $accAlt else . end)' \
     --arg title "$title" --arg src "$src" --arg goal "$goal" --arg branch "$branch" \
     --arg pm "$premortem" --arg conc "$concurrency" --arg status "$status" \
     --arg apTok "$appetite_tokens" --arg apEp "$appetite_episodes" --arg canary "$canary" \
-    --arg t "$(now_iso)"
+    --arg accAlt "$acceptance_altitude" --arg t "$(now_iso)"
   rc=$?
 
   if [ "$rc" -eq 0 ] && [ -n "$status" ]; then
@@ -1559,6 +1577,250 @@ cmd_epic_story_set() {
       --arg bumpRetries "$bump_retries" --arg resetRetries "$reset_retries"
   fi
   return "$rc"
+}
+
+# ---------------------------------------------------------------------------
+# Per-epic findings ledger (#281) — record a finding once, verify closure later
+# ---------------------------------------------------------------------------
+#
+# The branch-scoped episode ledger above answers "is this gate's loop
+# converging?" for one branch. This one answers a different question the epic
+# finale used to re-derive from scratch by re-fanning every auditor across the
+# whole integration diff: *what did this epic find, and did it close?*
+#
+# Three verbs, all keyed by `--epic` (the same flag `epic-story-set` already
+# uses for the epic, so a story-attributed epic write reads the same way
+# everywhere):
+#
+#   epic-finding   one finding's identity + its current state, at a sha
+#   epic-attest    one lane's clean read of one story, at a sha (#130's
+#                  carry-forward attestation: a lane that returned zero
+#                  findings at sha X)
+#   epic-findings  the READER — folds the append-only trail into current state
+#
+# **Where it lives, and why.** These land in `.studious/epics/<slug>.events.jsonl`
+# — the same append-only trail `reference/events-format.md` pins — rather than in
+# `<slug>.json`. That is a concurrency requirement, not a filing preference: every
+# `<slug>.json` write goes through `json_update()`, which is read-modify-write, and
+# findings are recorded by story agents running concurrently under one epic. An
+# `O_APPEND` write of one small line never interleaves; a read-modify-write of a
+# shared snapshot silently loses one of two concurrent findings.
+#
+# **These two kinds are PRIMARY writes, unlike every other line in that file.**
+# `append_event()` is best-effort by contract — it swallows its own failure and
+# returns 0, because a lost transition line never changes a verdict. A lost
+# *finding* line does: the finale's closure check would see nothing to verify and
+# report clean, which is exactly the rigor property #130 says narrowing must
+# preserve. So these two verbs write through `append_epic_record()` instead,
+# which fails loudly and non-zero, and they refuse to no-op when jq/git are
+# missing rather than degrading like their transition-trail siblings.
+#
+# **Identity is the fingerprint, epic-wide**, chosen by the caller and never
+# normalized here — same contract as `episode-finding`'s. The fold below takes a
+# finding's identity fields (lane, story, severity, raised sha) from its FIRST
+# recorded line and its state from its LAST, so a later line cannot launder a
+# Critical down to a lower tier by restating it.
+append_epic_record() { # epic, story, kind, jq-object filter for the kind's own fields, then --arg/--argjson pairs
+  local epic="$1" story="$2" kind="$3" fields="$4"
+  shift 4
+  local dir; dir=$(epic_dir)
+  mkdir -p "$dir" 2>/dev/null
+  local file="$dir/$epic.events.jsonl"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  if ! jq -nc "$@" \
+      --arg at "$(now_iso)" --arg epic "$epic" --arg story "$story" --arg kind "$kind" \
+      '{at: $at, epic: $epic, story: $story, kind: $kind} + ('"$fields"')' >> "$file" 2>/dev/null
+  then
+    echo "gate-ledger: $kind append failed for epic '$epic' — NOTHING was recorded;" \
+         "re-run this call before treating the finding as on the record" >&2
+    return 1
+  fi
+  return 0
+}
+
+cmd_epic_finding() {
+  local epic="" story="" lane="" severity="" fingerprint="" status="" waiver="" sha=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --epic)        epic="$2"; shift 2 ;;
+      --story)       story="$2"; shift 2 ;;
+      --lane)        lane="$2"; shift 2 ;;
+      --severity)    severity="$2"; shift 2 ;;
+      --fingerprint) fingerprint="$2"; shift 2 ;;
+      --status)      status="$2"; shift 2 ;;
+      --waiver)      waiver="$2"; shift 2 ;;
+      --sha)         sha="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$epic" ] || [ -z "$story" ] || [ -z "$lane" ] || [ -z "$severity" ] \
+     || [ -z "$fingerprint" ] || [ -z "$status" ]; then
+    echo "gate-ledger: --epic, --story, --lane, --severity, --fingerprint, and --status required" >&2
+    return 2
+  fi
+  case "$fingerprint" in
+    *[[:space:][:cntrl:]]*)
+      echo "gate-ledger: --fingerprint must be a single token with no whitespace or" \
+           "control characters — it is the finding's identity across the whole epic" >&2
+      return 2
+      ;;
+  esac
+  case "$severity" in
+    Critical|Important|Track) ;;
+    *)
+      echo "gate-ledger: --severity '$severity' is not a recognized tier;" \
+           "use Critical, Important, or Track (reference/severity-rubric.md)" >&2
+      return 2
+      ;;
+  esac
+  # Same five-word status vocabulary as `episode-finding`, deliberately: one
+  # findings vocabulary in this tool, not two that drift. `closed` is the
+  # resolved state — the line carrying it also carries the resolved sha.
+  case "$status" in
+    open|closed|carried|waived|rejected-as-noise) ;;
+    *)
+      echo "gate-ledger: --status '$status' is not a recognized finding status;" \
+           "use open, closed, carried, waived, or rejected-as-noise" >&2
+      return 2
+      ;;
+  esac
+  if [ -n "$waiver" ] && ! finding_status_is_set_aside "$status"; then
+    echo "gate-ledger: --waiver requires --status carried, waived, or rejected-as-noise" >&2
+    return 2
+  fi
+  # The episode ledger's rule 2, at epic scope: setting an unfixed Critical aside
+  # is an accountable act, never a silent one. Enforceable from this line alone —
+  # severity is on every line, so the guard needs no read of prior state, which is
+  # what keeps this verb a pure append.
+  if [ "$severity" = "Critical" ] && finding_status_is_set_aside "$status" && [ -z "$waiver" ]; then
+    echo "gate-ledger: epic-finding refused — a Critical reaches '$status' only with" \
+         "--waiver <reason>; fix it, or record why it is being set aside" >&2
+    return 1
+  fi
+  if ! have jq || ! have git; then
+    echo "gate-ledger: epic-finding requires jq and git — a findings write is a primary write," \
+         "so it fails rather than degrading to a silent no-op" >&2
+    return 1
+  fi
+
+  epic=$(slugify "$epic")
+  story=$(slugify "$story")
+  if [ -z "$epic" ] || [ -z "$story" ]; then
+    echo "gate-ledger: --epic or --story reduced to nothing after slugify" >&2
+    return 2
+  fi
+  [ -n "$sha" ] || sha=$(head_sha)
+
+  ensure_gitignore
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  append_epic_record "$epic" "$story" "finding" \
+    '{finding: $fp, lane: $lane, severity: $sev, status: $st, sha: $sha}
+     + (if $waiver != "" then {waiver: $waiver} else {} end)' \
+    --arg fp "$fingerprint" --arg lane "$lane" --arg sev "$severity" \
+    --arg st "$status" --arg sha "$sha" --arg waiver "$waiver"
+}
+
+cmd_epic_attest() {
+  # #130 mechanism 2's write half. One line per (lane, story) clean read: this
+  # lane ran against this story's changeset at this sha and returned zero
+  # findings. What a reader may CONCLUDE from a set of these is the reader's
+  # problem (workflows/epic-driver.js's finale carries a lane forward only when
+  # every landed story attested it) — this verb records the fact, nothing more.
+  local epic="" story="" lane="" sha=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --epic)  epic="$2"; shift 2 ;;
+      --story) story="$2"; shift 2 ;;
+      --lane)  lane="$2"; shift 2 ;;
+      --sha)   sha="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$epic" ] || [ -z "$story" ] || [ -z "$lane" ]; then
+    echo "gate-ledger: --epic, --story, and --lane required" >&2
+    return 2
+  fi
+  if ! have jq || ! have git; then
+    echo "gate-ledger: epic-attest requires jq and git — an attestation is a primary write," \
+         "so it fails rather than degrading to a silent no-op" >&2
+    return 1
+  fi
+
+  epic=$(slugify "$epic")
+  story=$(slugify "$story")
+  if [ -z "$epic" ] || [ -z "$story" ]; then
+    echo "gate-ledger: --epic or --story reduced to nothing after slugify" >&2
+    return 2
+  fi
+  [ -n "$sha" ] || sha=$(head_sha)
+
+  ensure_gitignore
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  append_epic_record "$epic" "$story" "attestation" \
+    '{lane: $lane, sha: $sha}' --arg lane "$lane" --arg sha "$sha"
+}
+
+cmd_epic_findings() { # --epic E [--unresolved | --attestations] -> one summary line, then one line per record
+  # The reader `reference/events-format.md` has been waiting for. Folds the
+  # append-only trail — every other kind on those lines is ignored — into current
+  # state, in the same quotable, tab-separated style `episode-get` uses:
+  #
+  #   epic <slug> — N finding(s), U unresolved, A attestation(s)
+  #   <status>\t<severity>\t<story>\t<lane>\t<fingerprint>\t<raisedSha>\t<resolvedSha>
+  #
+  # `--unresolved` keeps only `open` and `carried` — the two states a verdict has
+  # to answer for, exactly as `episode-get` counts them (`closed` is resolved;
+  # `waived`/`rejected-as-noise` are explicitly set aside, with their reason on
+  # the record). `--attestations` prints the clean-lane trail instead:
+  #
+  #   attestation\t<lane>\t<story>\t<sha>
+  #
+  # A malformed line is skipped (`fromjson? // empty`) rather than failing the
+  # whole read: one corrupt append must not blind the finale to every other
+  # finding. Ordering within one fingerprint is by `at`, which has one-second
+  # resolution — two lines in the same second keep their physical order, which is
+  # their write order.
+  local epic="" unresolved=0 attestations=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --epic)         epic="$2"; shift 2 ;;
+      --unresolved)   unresolved=1; shift ;;
+      --attestations) attestations=1; shift ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$epic" ]; then
+    echo "gate-ledger: --epic required" >&2
+    return 2
+  fi
+  if [ "$unresolved" -eq 1 ] && [ "$attestations" -eq 1 ]; then
+    echo "gate-ledger: --unresolved and --attestations are separate reads; pass one" >&2
+    return 2
+  fi
+  if ! have jq; then return 0; fi
+  epic=$(slugify "$epic")
+  local file; file="$(epic_dir)/$epic.events.jsonl"
+  [ -f "$file" ] || return 0
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  jq -Rrn --arg epic "$epic" --arg unresolved "$unresolved" --arg attestations "$attestations" '
+    [inputs | fromjson? // empty] as $all
+    | ($all | map(select(.kind == "attestation"))) as $att
+    | ($all | map(select(.kind == "finding")) | group_by(.finding) | map(sort_by(.at))
+       | map(. as $es
+             | ($es | last) as $l
+             | {finding: $es[0].finding, lane: $es[0].lane, story: $es[0].story,
+                severity: $es[0].severity, raisedSha: ($es[0].sha // "-"),
+                status: $l.status, waiver: ($l.waiver // ""),
+                resolvedSha: (([$es[] | select(.status == "closed") | .sha] | last) // "-")})
+       | sort_by(.finding)) as $f
+    | ($f | map(select(.status == "open" or .status == "carried"))) as $open
+    | "epic \($epic) — \($f | length) finding(s), \($open | length) unresolved, \($att | length) attestation(s)",
+      (if $attestations == "1" then
+         ($att | sort_by(.lane, .story, .at)[] | "attestation\t\(.lane)\t\(.story)\t\(.sha // "-")")
+       else
+         ((if $unresolved == "1" then $open else $f end)[]
+          | "\(.status)\t\(.severity)\t\(.story)\t\(.lane)\t\(.finding)\t\(.raisedSha)\t\(.resolvedSha)")
+       end)' "$file" 2>/dev/null
 }
 
 cmd_worktree_path() { # --slug E [--story S | --json] -> one path, or the epic's whole layout as JSON
@@ -2187,6 +2449,9 @@ case "${1:-}" in
   epic-get)        shift; cmd_epic_get "$@" ;;
   epic-story-set)  shift; cmd_epic_story_set "$@" ;;
   epic-run-log)    shift; cmd_epic_run_log "$@" ;;
+  epic-finding)    shift; cmd_epic_finding "$@" ;;
+  epic-attest)     shift; cmd_epic_attest "$@" ;;
+  epic-findings)   shift; cmd_epic_findings "$@" ;;
   epic-reconcile)  shift; cmd_epic_reconcile "$@" ;;
   epic-list)       shift; cmd_epic_list "$@" ;;
   worktree-path)   shift; cmd_worktree_path "$@" ;;
@@ -2194,5 +2459,5 @@ case "${1:-}" in
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   telemetry-dispatch) shift; cmd_telemetry_dispatch "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] [--appetite-tokens N] [--appetite-episodes N] [--canary on|off] | epic-run-log --slug E --landed N | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | telemetry-dispatch --run-id R --step-id S --role RL --routing-reason static|override|classifier:vN|ab:ARM [--parent-step-id P] [--task-id T] [--skill K] [--model M] [--effort E] [--capturer hook|driver] [--feature k=v ...] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] [--appetite-tokens N] [--appetite-episodes N] [--canary on|off] [--acceptance-altitude per-story|delivery-boundary] | epic-run-log --slug E --landed N | epic-finding --epic E --story S --lane L --severity Critical|Important|Track --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--waiver R] [--sha X] | epic-attest --epic E --story S --lane L [--sha X] | epic-findings --epic E [--unresolved | --attestations] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | telemetry-dispatch --run-id R --step-id S --role RL --routing-reason static|override|classifier:vN|ab:ARM [--parent-step-id P] [--task-id T] [--skill K] [--model M] [--effort E] [--capturer hook|driver] [--feature k=v ...] | gc [--force]}" >&2; exit 2 ;;
 esac

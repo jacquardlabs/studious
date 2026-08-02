@@ -2087,5 +2087,125 @@ check "an epic with no appetite reconciles" "false" \
 check "absent appetite reads as null, not a default" "null" \
   "$(cd "$dc" && "$LEDGER" epic-reconcile --slug legacy | jq -r '.epic.appetite')"
 
+# --- per-epic findings ledger: epic-finding / epic-attest / epic-findings (#281) ---
+df=$(sandbox)
+efile="$df/.studious/epics/ledgered.events.jsonl"
+( cd "$df" && "$LEDGER" epic-set --slug ledgered --title L ) >/dev/null
+sha0=$(git -C "$df" rev-parse --short HEAD)
+( cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane security-auditor \
+    --severity Critical --fingerprint sec-token-leak --status open ) >/dev/null
+( cd "$df" && "$LEDGER" epic-finding --epic ledgered --story beta --lane code-auditor \
+    --severity Important --fingerprint code-dup --status open ) >/dev/null
+check "epic-finding writes one line into the epic's events log" "2" \
+  "$(grep -c '"kind":"finding"' "$efile")"
+check "epic-finding stamps HEAD as the raised sha" "$sha0" \
+  "$(jq -r 'select(.finding == "sec-token-leak") | .sha' "$efile" | head -1)"
+out=$(cd "$df" && "$LEDGER" epic-findings --epic ledgered)
+contains "epic-findings summarizes the epic's findings" "epic ledgered — 2 finding(s), 2 unresolved" "$out"
+contains "epic-findings prints identity fields per finding" \
+  "open	Critical	alpha	security-auditor	sec-token-leak" "$out"
+
+# Closure: the last line's status wins, and its sha becomes the resolved sha.
+git -C "$df" commit -q --allow-empty -m fix
+sha1=$(git -C "$df" rev-parse --short HEAD)
+( cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane security-auditor \
+    --severity Critical --fingerprint sec-token-leak --status closed ) >/dev/null
+out=$(cd "$df" && "$LEDGER" epic-findings --epic ledgered)
+contains "a closed finding carries both the raised and the resolved sha" \
+  "closed	Critical	alpha	security-auditor	sec-token-leak	$sha0	$sha1" "$out"
+contains "closing one finding drops the unresolved count" "1 unresolved" "$out"
+out=$(cd "$df" && "$LEDGER" epic-findings --epic ledgered --unresolved)
+contains "--unresolved keeps the open finding" "code-dup" "$out"
+check "--unresolved drops the closed one" "" "$(printf '%s' "$out" | grep 'sec-token-leak' || true)"
+
+# Identity is fixed by the FIRST line: a later line cannot launder a Critical down.
+( cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane docs \
+    --severity Track --fingerprint sec-token-leak --status closed ) >/dev/null
+contains "severity folds from the first recorded line, never a later restatement" \
+  "closed	Critical	alpha	security-auditor	sec-token-leak" \
+  "$(cd "$df" && "$LEDGER" epic-findings --epic ledgered)"
+
+# Attestations (#130 carry-forward): one line per (lane, story) clean read.
+( cd "$df" && "$LEDGER" epic-attest --epic ledgered --story alpha --lane doc-auditor ) >/dev/null
+( cd "$df" && "$LEDGER" epic-attest --epic ledgered --story beta --lane doc-auditor --sha cafe123 ) >/dev/null
+out=$(cd "$df" && "$LEDGER" epic-findings --epic ledgered --attestations)
+contains "epic-attest records a clean lane at a sha" "attestation	doc-auditor	beta	cafe123" "$out"
+contains "epic-attest defaults its sha to HEAD" "attestation	doc-auditor	alpha	$sha1" "$out"
+check "--attestations prints no finding lines" "" \
+  "$(printf '%s' "$out" | grep 'code-dup' || true)"
+
+# A malformed line never blinds the reader to the rest of the trail.
+printf 'not json at all\n' >> "$efile"
+contains "a corrupt line is skipped, not fatal" "code-dup" \
+  "$(cd "$df" && "$LEDGER" epic-findings --epic ledgered)"
+
+# Refusals, all before anything is appended.
+before=$(wc -l < "$efile")
+check "a Critical set aside without --waiver is refused" "1" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane l --severity Critical \
+      --fingerprint fp-x --status waived >/dev/null 2>&1; echo $?)"
+check "an unrecognized severity is refused" "2" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane l --severity Blocker \
+      --fingerprint fp-x --status open >/dev/null 2>&1; echo $?)"
+check "an unrecognized status is refused" "2" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane l --severity Track \
+      --fingerprint fp-x --status maybe >/dev/null 2>&1; echo $?)"
+check "a whitespace-carrying fingerprint is refused" "2" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane l --severity Track \
+      --fingerprint "fp x" --status open >/dev/null 2>&1; echo $?)"
+check "--waiver on a non-set-aside status is refused" "2" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane l --severity Track \
+      --fingerprint fp-x --status open --waiver "why" >/dev/null 2>&1; echo $?)"
+check "epic-finding requires every identity flag" "2" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --fingerprint fp-x --status open >/dev/null 2>&1; echo $?)"
+check "epic-attest requires --lane" "2" \
+  "$(cd "$df" && "$LEDGER" epic-attest --epic ledgered --story alpha >/dev/null 2>&1; echo $?)"
+check "no refused call appended anything" "$before" "$(wc -l < "$efile")"
+check "a Critical set aside WITH --waiver is recorded" "0" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane l --severity Critical \
+      --fingerprint fp-x --status waived --waiver "accepted for this epic" >/dev/null 2>&1; echo $?)"
+contains "the waiver reason lands on the record" "accepted for this epic" \
+  "$(grep '"finding":"fp-x"' "$efile")"
+
+# --unresolved and --attestations are separate reads; an unknown epic is silent.
+check "--unresolved and --attestations are mutually exclusive" "2" \
+  "$(cd "$df" && "$LEDGER" epic-findings --epic ledgered --unresolved --attestations >/dev/null 2>&1; echo $?)"
+check "epic-findings requires --epic" "2" \
+  "$(cd "$df" && "$LEDGER" epic-findings >/dev/null 2>&1; echo $?)"
+check "epic-findings prints nothing for an epic with no trail" "" \
+  "$(cd "$df" && "$LEDGER" epic-findings --epic never-ran)"
+
+# A findings write is a PRIMARY write: it fails loudly rather than degrading to a
+# no-op the way the best-effort transition kinds do.
+dg=$(sandbox)
+nojqbin=$(mktemp -d)
+for tool in bash git date mktemp grep mv mkdir rm cat; do
+  src=$(command -v "$tool" 2>/dev/null) || continue
+  ln -sf "$src" "$nojqbin/$tool"
+done
+check "epic-finding fails (never silently skips) when jq is unavailable" "1" \
+  "$(cd "$dg" && PATH="$nojqbin" "$LEDGER" epic-finding --epic e --story s --lane l \
+      --severity Track --fingerprint fp --status open >/dev/null 2>&1; echo $?)"
+contains "and says why, naming it a primary write" "primary write" \
+  "$(cd "$dg" && PATH="$nojqbin" "$LEDGER" epic-finding --epic e --story s --lane l \
+      --severity Track --fingerprint fp --status open 2>&1 1>/dev/null)"
+check "epic-attest fails the same way" "1" \
+  "$(cd "$dg" && PATH="$nojqbin" "$LEDGER" epic-attest --epic e --story s --lane l >/dev/null 2>&1; echo $?)"
+
+# --- epic-set --acceptance-altitude (#269, default off) ---
+dh=$(sandbox)
+( cd "$dh" && "$LEDGER" epic-set --slug altitude --title A ) >/dev/null
+check "an epic with no acceptance altitude records none (default is per-story)" "null" \
+  "$(jq -r '.acceptanceAltitude // "null"' "$dh/.studious/epics/altitude.json")"
+( cd "$dh" && "$LEDGER" epic-set --slug altitude --acceptance-altitude delivery-boundary ) >/dev/null
+check "--acceptance-altitude records the opt-in token" "delivery-boundary" \
+  "$(jq -r '.acceptanceAltitude' "$dh/.studious/epics/altitude.json")"
+check "an unrecognized altitude token is refused before any write" "2" \
+  "$(cd "$dh" && "$LEDGER" epic-set --slug altitude --acceptance-altitude boundary >/dev/null 2>&1; echo $?)"
+check "the refused token left the recorded one untouched" "delivery-boundary" \
+  "$(jq -r '.acceptanceAltitude' "$dh/.studious/epics/altitude.json")"
+check "the altitude rides through epic-reconcile to the driver" "delivery-boundary" \
+  "$(cd "$dh" && "$LEDGER" epic-reconcile --slug altitude | jq -r '.epic.acceptanceAltitude')"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

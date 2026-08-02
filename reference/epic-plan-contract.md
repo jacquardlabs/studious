@@ -23,6 +23,7 @@ or unjudgeable story later.
 | Estimated cost | What the plan will cost to run, in tokens, computed per `reference/epic-pricing.md` and shown with its per-story parts and its fix-cycle range. Not recorded — it is the reasoning behind the appetite below, which is. |
 | Appetite | Two numbers the user approves alongside the scope: **tokens**, the ceiling `workflows/epic-driver.js` holds at runtime, and **open episodes**, the maximum stories that may be awaiting judgment or human action at once. Proposed from the estimate; recorded via `epic-set --appetite-tokens` / `--appetite-episodes`. |
 | Canary | Whether the first invocation dispatches exactly one story and waits for it to land before releasing the rest. On by default. Recorded via `epic-set --canary on\|off`. |
+| Acceptance altitude | Where product judgment runs: `per-story` (the default, and today's behavior) or `delivery-boundary`. **Not yet safe to set** — see below. Recorded via `epic-set --acceptance-altitude`. |
 
 ## Story class — what the driver runs unattended, and what it hands back
 
@@ -135,6 +136,32 @@ Both consequences must be visible before approval, not discovered after: an epic
 canary parks lands nothing on its first run, and an epic whose open-episode number is
 already consumed by `story-supervised` stories dispatches nothing until the user clears
 them.
+
+## Acceptance altitude — built, default off, and not yet safe to turn on
+
+**Do not set `--acceptance-altitude delivery-boundary` on a real epic yet.** The
+mechanism ships (#269), it is tested, and it changes nothing until an epic plan
+explicitly opts in. That default is not caution for its own sake — it is #269's own
+precondition, quoted: *"Do not ship this before the counter-evidence check... #281's
+findings ledger makes that answerable, and #133's outcome labels make it measurable."*
+Both of those were built in the same change as this flag, so the evidence they exist to
+produce does not exist yet. Turning the flag on is a later, deliberate act taken after
+reading that evidence, and the plan that does it says why.
+
+- **`per-story`** (default; absent reads as this) — every story's `acceptance` gate runs
+  the full product review: the opus product-reviewer, the persona walkthrough, and the
+  experience verdict, against the story's acceptance criteria. Unchanged.
+- **`delivery-boundary`** — a story's `acceptance` gate becomes **criteria conformance**:
+  one cheap pinned check that every plan-approved criterion maps to captured evidence
+  under `reference/evidence-format.md`. Product judgment runs **once**, at the epic
+  finale, against the epic goal statement — which the finale already does, so this
+  deletes the redundant per-story copy rather than adding a second one. Verdict
+  vocabulary is unchanged (`SHIP | FIX AND RE-REVIEW | HOLD`), and the verdict is still
+  recorded through `gate-ledger record --gate acceptance`, so the PR-time hook and every
+  ledger reader see a gated story exactly as before.
+
+The altitude is epic-wide, never per-story: a mixed epic would judge two stories'
+delivery by two different bars and make the finale's own verdict unreadable.
 
 ## Approval
 

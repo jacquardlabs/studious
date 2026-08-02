@@ -178,11 +178,16 @@ def test_auditors_constant_never_gains_a_premortem_entry() -> None:
     assert "auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut, injectionAttempt" in source, (
         "auditRound's auditFanIn call site is missing or has an unexpected shape"
     )
-    assert "auditFanIn(null, joined, input.defaultBranch, epicWorktree, '', routed, routedOut, injectionAttempt" in source, (
+    # The finale call site passes `joinedAll` rather than `joined` since #281/#130's
+    # re-aim: joinReports' output plus the three finale-only blocks appended after it
+    # (findings-closure, seams, and any lane carried forward on story-level
+    # attestations). Still prefix-matched, still asserting the same thing — no
+    # pre-mortem argument.
+    assert "auditFanIn(null, joinedAll, input.defaultBranch, epicWorktree, '', routed, routedOut, injectionAttempt" in source, (
         "finaleAuditRound's auditFanIn call site is missing or has an unexpected shape"
     )
     assert "premortem" not in source[source.index("auditFanIn(story, joined,"):source.index("auditFanIn(story, joined,") + 200].lower()
-    assert "premortem" not in source[source.index("auditFanIn(null, joined,"):source.index("auditFanIn(null, joined,") + 200].lower()
+    assert "premortem" not in source[source.index("auditFanIn(null, joinedAll,"):source.index("auditFanIn(null, joinedAll,") + 200].lower()
 
 
 def test_dedicated_finale_premortem_step_is_unchanged() -> None:

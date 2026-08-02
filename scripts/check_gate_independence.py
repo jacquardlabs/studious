@@ -100,6 +100,10 @@ GATE_COMPILERS = (
     "ledgerScopeCheckPrompt",
     "routingScopeCheckPrompt",
     "acceptanceScopeCheckPrompt",
+    "criteriaConformancePrompt",
+    "epicLedgerInstruction",
+    "finaleClosurePrompt",
+    "finaleSeamPrompt",
     "gatePrompt",
 )
 COMPILER_DEF = re.compile(rf"\b(?:function\s+)?({'|'.join(GATE_COMPILERS)})\s*\(")

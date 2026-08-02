@@ -560,10 +560,13 @@ def test_run_gate_threads_attempts_into_every_round_and_fixer_dispatch() -> None
     fn = _extract_function(source, "runGate")
     assert "const hasAuditGate = profileOf(story).includes('audit')" in fn
     assert "auditRound(story, initialNote, nextPhase, priorAuditResult, preMatchFlags, attempts)" in fn
-    assert "acceptanceRound(story, initialNote, nextPhase, attempts, hasAuditGate)" in fn
+    # #269 routes both acceptance call sites through acceptanceGateRound, which picks
+    # acceptanceRound (the default, `per-story`) or the criteria-conformance round from
+    # the epic's acceptance altitude. The threaded arguments are unchanged.
+    assert "acceptanceGateRound(story, initialNote, nextPhase, attempts, hasAuditGate)" in fn
     assert "fixerPrompt(story, gate, result.summary, scopeDeltaPhase(gate, attempts))" in fn
     assert "auditRound(story, 'Re-audit with fresh eyes — a fix landed since the last audit.', nextPhase, result, undefined, attempts)" in fn
-    assert "acceptanceRound(story, 'Re-check with fresh eyes — a fix landed since the last check.', nextPhase, attempts, hasAuditGate)" in fn
+    assert "acceptanceGateRound(story, 'Re-check with fresh eyes — a fix landed since the last check.', nextPhase, attempts, hasAuditGate)" in fn
 
 
 # ---------- end-to-end: run the real driver under the documented harness shape ----------
@@ -579,6 +582,9 @@ def _full_roster_pass_rules(story: str) -> list[dict]:
 _FINALE_CLEAN_RULES = [
     {"match": rf"^finale:{name}$", "result": {"findings": "clean"}} for name in AUDITOR_SHORT_NAMES
 ] + [
+    {"match": r"^finale:attestations$", "result": {"findings": '{"attestations": []}'}},
+    {"match": r"^finale:findings-closure$", "result": {"findings": "every recorded finding reached a resolved sha"}},
+    {"match": r"^finale:seams$", "result": {"findings": "no cross-story seam findings"}},
     {"match": r"^finale:audit-compile$", "result": {"verdict": "PASS", "sha": "f1", "summary": "clean"}},
     {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "f2", "summary": "ship it"}},
     {"match": r"^finale:ready$", "result": {"verdict": "READY", "sha": "f3", "summary": "marked ready"}},

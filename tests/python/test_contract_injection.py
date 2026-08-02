@@ -97,7 +97,11 @@ CONTRACT_ARG_SUBSTRING = "contract: CONTRACT"
 # via `injectionDefensePreamble`, not the full CONTRACT text — see the comment
 # above that function and `test_audit_first_round_routing.py`'s own contract-
 # injection tests for that dispatch's coverage instead.
-EXPECTED_CONTRACT_ARG_COUNT = 8
+#
+# Grew to 10 under #281/#130's finale re-aim: finaleAuditRound now also dispatches a
+# findings-closure lane and a seam lane, both fresh agents reading the integrated code,
+# so both must carry the same injection-defense posture every other lane does.
+EXPECTED_CONTRACT_ARG_COUNT = 10
 
 # The driver's pure, explicitly-parameterized prompt-assembly functions (see
 # workflows/epic-driver.js). Extracted verbatim below and executed by a plain Node
