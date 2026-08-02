@@ -605,6 +605,23 @@ cmd_episode_open() {
 
   ensure_gitignore
   local file; file=$(gates_file_init)
+  # An unparseable gates file stops HERE, named, rather than reaching the jq
+  # below and surfacing a bare `jq: parse error: Invalid numeric literal ...`
+  # under an exit code no door branch documents. This verb is where a corrupt
+  # ledger lands: `episode-round`/`-verdict`/`-finding` all read the round
+  # through `episode_round_get`, whose `2>/dev/null` turns a parse failure into
+  # "no open episode" — exit 2, which commands/gate-audit.md's branch table
+  # reads as "a ledger written before episodes existed: treat it as a fresh
+  # entry" and routes straight to episode-open. Exit 1 is the state-refusal
+  # code `epic-reconcile` already uses for a corrupted stored file, and both
+  # doors read a non-zero episode-open as "stop and tell the user". Nothing is
+  # repaired or removed here — what the file was supposed to hold is a human's
+  # call, and overwriting it would destroy the only copy of the answer.
+  if [ -f "$file" ] && ! jq empty "$file" 2>/dev/null; then
+    echo "gate-ledger: episode-open: the gates file at $file is not valid JSON —" \
+         "repair or remove it before continuing" >&2
+    return 1
+  fi
   # Reopening starts a fresh episode at round 1, but never silently discards
   # the prior one: an existing episode (its findings, waivers, and verdict) is
   # archived under `.episodeHistory[<gate>]` first, so a carried Critical's
@@ -652,7 +669,7 @@ cmd_episode_round() {
     *[!0-9]*) echo "gate-ledger: episode-round: corrupted round '$round' for gate '$gate'" >&2; return 1 ;;
   esac
   local file; file="$(ledger_dir)/$(branch_slug).json"
-  local blocking prior
+  local blocking prior rc
   blocking=$(episode_blocking_count "$gate")
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   prior=$(jq -r --arg g "$gate" --arg r "$((round - 1))" \
@@ -682,6 +699,24 @@ cmd_episode_round() {
       '.episodes[$g].escalated = {round: ($r | tonumber), blocking: ($b | tonumber),
                                   priorBlocking: ($p | tonumber), at: $t}' \
       --arg g "$gate" --arg r "$round" --arg b "$blocking" --arg p "$prior" --arg t "$(now_iso)"
+    rc=$?
+    # The escalation record IS this branch's product — the durable thing the
+    # human comes back to. If the write failed (read-only store, full disk,
+    # mktemp failure), say so instead of announcing a record that does not
+    # exist: returning 3 here would tell the door "the episode is marked
+    # escalated" over an untouched file. Exit 1 instead — both doors read 1 as
+    # "stop before dispatching anyone, put the choice to the user", which is
+    # right either way, and the message names which fact it is. Same rc-capture
+    # discipline cmd_episode_verdict already applies to its own writes; the
+    # round is still refused, it is only the bookkeeping that is missing.
+    if [ "$rc" -ne 0 ]; then
+      echo "gate-ledger: episode-round: the escalation record for gate '$gate' could NOT be written" \
+           "to $file (write failed, exit $rc) — round $round carries $blocking blocking finding(s)" \
+           "against the prior round's $prior, so this round is still refused, but nothing was" \
+           "recorded and no episode is marked escalated. Fix the write (permissions, disk space)" \
+           "and re-run, or take the non-convergence to a human directly" >&2
+      return 1
+    fi
     echo "gate-ledger: episode-round refused for gate '$gate' — round $round carries $blocking blocking" \
          "finding(s) against the prior round's $prior: the episode is not converging, and it is now marked" \
          "escalated. Put the choice to a human — waive what will not be fixed, or episode-open a fresh" \
@@ -2562,6 +2597,19 @@ cmd_telemetry_dispatch() { # append-only: one `dispatch` line per review agent s
   case "$routing_reason" in
     static|override|classifier:v[0-9]*|ab:?*) ;;
     *) echo "gate-ledger: --routing-reason must be static, override, classifier:v<N>, or ab:<arm>" >&2; return 2 ;;
+  esac
+  # --role is the one field that becomes a filesystem path below
+  # ("$CLAUDE_PLUGIN_ROOT/agents/<role>.md", read for its model:/effort: pins),
+  # so it is validated at the boundary exactly like every sibling field above.
+  # A role is an agent's own `name` — `security-auditor`-shaped — never a path:
+  # `--role ../CLAUDE` otherwise resolves to and reads a file outside agents/.
+  # hooks/dispatch-telemetry.sh's roster check happens to exclude these today,
+  # but the verb accepts a role from any caller, so the guard belongs here.
+  case "$role" in
+    */*|*..*|-*)
+      echo "gate-ledger: --role must be an agent name, not a path" \
+           "(no '/', no '..', no leading '-')" >&2
+      return 2 ;;
   esac
   if ! have jq || ! have git; then
     echo "gate-ledger: telemetry-dispatch skipped (jq and git required)" >&2

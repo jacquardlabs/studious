@@ -1560,6 +1560,27 @@ err=$(cd "$dep3" && "$LEDGER" episode-verdict --gate audit 2>&1 1>/dev/null; ech
 contains "episode-verdict requires --gate and --verdict" "--gate and --verdict required" "$err"
 contains "episode-verdict without --verdict exits 2" "rc=2" "$err"
 
+# --- a corrupt gates file is named by episode-open, not leaked as a raw jq error ---
+#
+# This is the path a corrupt ledger actually takes: the read verbs swallow the parse
+# failure and report "no open episode" (exit 2), which the door reads as a pre-episode
+# ledger and routes to episode-open. So episode-open is where the diagnostic has to land.
+dcor=$(sandbox)
+mkdir -p "$dcor/.studious/gates"
+echo "not json" > "$dcor/.studious/gates/feat-foo.json"
+err=$(cd "$dcor" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "a corrupt gates file still reads as 'no open episode' to episode-round" "run episode-open first" "$err"
+contains "which is the exit 2 the door routes onward to episode-open" "rc=2" "$err"
+err=$(cd "$dcor" && "$LEDGER" episode-open --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "episode-open names the unparseable gates file by path" \
+  ".studious/gates/feat-foo.json is not valid JSON" "$err"
+contains "episode-open tells the operator to repair or remove it" "repair or remove it before continuing" "$err"
+contains "episode-open refuses a corrupt gates file with exit 1, not jq's exit 5" "rc=1" "$err"
+check "no raw jq parse error reaches the operator" "no" \
+  "$(case "$err" in *"jq: parse error"*) echo yes ;; *) echo no ;; esac)"
+check "the corrupt file is left exactly as found (never repaired or deleted)" "not json" \
+  "$(cat "$dcor/.studious/gates/feat-foo.json")"
+
 # --- a fresh episode-open replaces the finished episode: the round cap bounds
 # one episode, never the branch's lifetime ---
 ( cd "$dep1" && "$LEDGER" episode-open --gate audit )
@@ -2037,6 +2058,34 @@ err=$(cd "$dcv0" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo 
 contains "a zero prior count leaves the cap as the bound, not escalation" "2-round cap" "$err"
 contains "that refusal is still the cap's exit 1" "rc=1" "$err"
 
+# --- a failed escalation write is reported as a failed write, never as an escalation ---
+#
+# The store is made read-only (dir r-x: the file still reads, json_update's mktemp cannot
+# write) so the convergence branch is reached with real counts and only its write fails.
+# Skipped when the test runs as a user that ignores the mode bits (root).
+dwf=$(sandbox)
+fwf="$dwf/.studious/gates/feat-foo.json"
+( cd "$dwf" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dwf" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Critical --fingerprint security-auditor/sqli --status open ) >/dev/null
+( cd "$dwf" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Important --fingerprint code-auditor/dup --status open ) >/dev/null
+jq '.episodes.audit.blockingByRound = {"1": 2, "2": 2} | .episodes.audit.round = 3' "$fwf" > "$fwf.t" && mv "$fwf.t" "$fwf"
+chmod 555 "$dwf/.studious/gates"
+if : > "$dwf/.studious/gates/.probe" 2>/dev/null; then
+  rm -f "$dwf/.studious/gates/.probe"; chmod 755 "$dwf/.studious/gates"
+  echo "ok   - (skipped: this user writes through a read-only directory)"
+else
+  err=$(cd "$dwf" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+  chmod 755 "$dwf/.studious/gates"
+  contains "a failed escalation write says the record could NOT be written" "could NOT be written" "$err"
+  contains "and states plainly that no episode is marked escalated" "no episode is marked escalated" "$err"
+  check "it never claims the episode is now marked escalated" "no" \
+    "$(case "$err" in *"is now marked"*) echo yes ;; *) echo no ;; esac)"
+  contains "a failed escalation write exits 1, not the escalation's 3" "rc=1" "$err"
+  check "and nothing was in fact written" "null" "$(jq -r '.episodes.audit.escalated // "null"' "$fwf")"
+fi
+
 # --- disposition memory (#292): rejected-as-noise is a recordable disposition ---
 drn=$(sandbox)
 frn="$drn/.studious/gates/feat-foo.json"
@@ -2153,6 +2202,27 @@ check "free-text routing reason exits 2" "2" "$(cd "$dt" && "$LEDGER" telemetry-
 check "classifier routing reason is accepted" "0" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s4 --role x --routing-reason classifier:v3 >/dev/null 2>&1; echo $?)"
 check "ab-arm routing reason is accepted" "0" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s5 --role x --routing-reason ab:control >/dev/null 2>&1; echo $?)"
 check "unknown capturer exits 2" "2" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s --role x --routing-reason static --capturer agent >/dev/null 2>&1; echo $?)"
+
+# --- --role is validated like its siblings: it becomes a path, so it may not BE one ---
+#
+# CLAUDE_PLUGIN_ROOT must be set for this to test anything — the model/effort lookup
+# short-circuits on an unset root, so an unset-root traversal test passes vacuously.
+drl=$(sandbox)
+rf="$drl/.studious/telemetry/feat-foo.jsonl"
+err=$(cd "$drl" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id r --step-id s1 \
+    --role "../CLAUDE" --routing-reason static 2>&1 1>/dev/null; echo "rc=$?")
+contains "a traversing --role is refused before it builds a path" "must be an agent name, not a path" "$err"
+contains "a traversing --role exits 2, like every sibling field's validation" "rc=2" "$err"
+check "a refused --role writes no telemetry line" "no" "$([ -f "$rf" ] && echo yes || echo no)"
+check "an absolute --role is refused too" "2" \
+  "$(cd "$drl" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id r --step-id s2 \
+      --role "/etc/passwd" --routing-reason static >/dev/null 2>&1; echo $?)"
+check "a dash-leading --role is refused too" "2" \
+  "$(cd "$drl" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id r --step-id s3 \
+      --role "-n" --routing-reason static >/dev/null 2>&1; echo $?)"
+( cd "$drl" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id r --step-id s4 \
+    --role security-auditor --routing-reason static ) >/dev/null 2>&1
+check "a real agent name still dispatches and still resolves its model pin" "opus" "$(jq -rs '.[0].model' "$rf")"
 
 # --- record's outcome label (#133), joinable to the dispatch lines above ---
 do_=$(sandbox)
