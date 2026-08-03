@@ -169,7 +169,7 @@ worktree_path() { # <repo-root> <epic-slug> [<story-slug>] -> that worktree's ab
   #
   # Pure string composition: no git, no epic file, no filesystem check. Callers
   # resolving a path for a worktree that may not exist yet — `git worktree add`
-  # in work-through.md's step 5 runs before any of this exists on disk — depend
+  # in reference/epic-orchestration.md's step 5 runs before any of this exists on disk — depend
   # on that.
   #
   # `__epic` cannot collide with a story: slugify()'s `tr -cs 'a-z0-9' '-'`
@@ -1417,7 +1417,7 @@ cmd_work_log() {
   # Per-step outcome vocabulary. Only a step whose *reader* branches on the token is
   # constrained here; gate steps carry verdicts owned by reference/gate-vocabulary.md
   # and stay free-form, as do markers like run-boundary. `build` is constrained because
-  # work-on.md's "Executor-reported build status" check branches on exactly these, and
+  # commands/next.md's "Executor-reported build status" check branches on exactly these, and
   # three writers had drifted into two dialects with nothing to catch it (#213). This
   # vocabulary governs `--outcome` alone — scope-delta measurement (#244) rides its own
   # dedicated fields (`--scope-delta-*`/`--amend-*`) precisely so it never has to widen
@@ -2188,7 +2188,7 @@ cmd_worktree_path() { # --slug E [--story S | --json] -> one path, or the epic's
   # of re-deriving the layout a fourth time (#166).
   #
   # The two plain forms compose a path without consulting the epic file, so
-  # they answer for a worktree that doesn't exist yet — work-through.md's step 5
+  # they answer for a worktree that doesn't exist yet — reference/epic-orchestration.md's step 5
   # runs `git worktree add` at a path this verb resolved before there was an
   # epic file to read.
   local slug="" story="" as_json=""

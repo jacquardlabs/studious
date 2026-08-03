@@ -109,11 +109,11 @@ def test_work_on_branches_on_every_token_it_can_be_handed() -> None:
     and — because records written before the ledger check exist — for anything else."""
     text = WORK_ON.read_text(encoding="utf-8")
     section = re.search(r"\*\*Executor-reported build status\*\*(.*?)\n\n", text, re.DOTALL)
-    assert section, "work-on.md has no 'Executor-reported build status' bullet"
+    assert section, "commands/next.md has no 'Executor-reported build status' bullet"
 
     bullet = section.group(1)
     for token in executor_statuses() + list(FLOW_MARKERS):
-        assert f"`{token}`" in bullet, f"{token} has no case in work-on.md's build read"
+        assert f"`{token}`" in bullet, f"{token} has no case in commands/next.md's build read"
     assert "never silently" in bullet, "an unrecognized token must be named, not swallowed"
 
 

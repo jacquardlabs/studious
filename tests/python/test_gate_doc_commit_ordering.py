@@ -34,7 +34,7 @@ def _record_section(text: str) -> str:
 
 
 def test_gate_design_review_states_commit_before_record() -> None:
-    """gate-design-review.md's Record section states the ordering rule up front,
+    """commands/review.md's Record section states the ordering rule up front,
     ahead of the `gate-ledger record` invocation, and points at the Part 3 register."""
     text = GATE_DESIGN_REVIEW.read_text()
     section = _record_section(text)
@@ -69,7 +69,7 @@ def test_gate_design_review_no_longer_defers_the_register_commit() -> None:
 
 
 def test_gate_acceptance_states_commit_before_record() -> None:
-    """gate-acceptance.md's Record section states the ordering rule up front, ahead
+    """commands/review.md's Record section states the ordering rule up front, ahead
     of the recording invocation — generic, since there is no prescribed write on
     this gate (issue #99's observed emergent-doc case). The gate records via
     `episode-verdict` since the delivery-episode rewrite (#289, Task 5); the
@@ -109,7 +109,7 @@ def test_verdict_vocab_unchanged() -> None:
 def test_driver_finale_acceptance_states_commit_before_record() -> None:
     """The finale acceptance dispatch in epic-driver.js carries its own literal
     commit-before-record instruction — the driver's own text is the last thing the
-    dispatched agent reads before acting, so referencing gate-acceptance.md's copy of
+    dispatched agent reads before acting, so referencing commands/review.md's copy of
     the rule isn't enough (per the design doc's rationale for this third location)."""
     source = DRIVER.read_text()
 

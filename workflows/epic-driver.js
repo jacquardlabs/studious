@@ -27,7 +27,7 @@ export const meta = {
 //               args boundary instead of being derived here,
 //   defaultBranch: e.g. 'main',
 //   contract:   reference/prompt-contract.md's five blocks, verbatim, read once by
-//               work-through.md from the plugin root and handed over as data — never
+//               reference/epic-orchestration.md from the plugin root and handed over as data — never
 //               a pointer for this script to go resolve itself
 // }
 
@@ -135,9 +135,12 @@ const epicWorktree = requireWorktree(worktrees.epic, 'the __epic integration wor
 
 const FULL_PROFILE = ['design', 'design-review', 'build', 'audit', 'acceptance']
 const GATES = {
-  'design-review': { proceed: 'PROCEED TO PLAN', retry: 'REVISE', command: 'gate-design-review' },
-  audit: { proceed: 'PASS', retry: 'FIX AND RE-REVIEW', command: 'gate-audit' },
-  acceptance: { proceed: 'SHIP', retry: 'FIX AND RE-REVIEW', command: 'gate-acceptance' },
+  // `command` is the door's file; `invocation` is how that door is entered for THIS
+  // episode. One file serves all three since the persona restructure, so a prompt that
+  // named only the file would leave the door to guess which episode it was convened for.
+  'design-review': { proceed: 'PROCEED TO PLAN', retry: 'REVISE', command: 'review', invocation: '/review', episode: 'design' },
+  audit: { proceed: 'PASS', retry: 'FIX AND RE-REVIEW', command: 'review', invocation: '/review', episode: 'work' },
+  acceptance: { proceed: 'SHIP', retry: 'FIX AND RE-REVIEW', command: 'review', invocation: '/review --delivery', episode: 'delivery' },
 }
 const WORKER_PHASES = ['design', 'build']
 const MAX_FIX_CYCLES = 2
@@ -176,7 +179,8 @@ const ACCEPTANCE_ALTITUDE = epic.acceptanceAltitude === 'delivery-boundary' ? 'd
 // roster — a coverage decision, not an oversight (#271). The interactive gate's
 // auditor 8 is a two-path lane: invoke the separately-shipped, optional
 // `web-design-guidelines` skill inline when it's installed, else dispatch
-// @agent-accessibility-auditor as a Task (gate-audit.md:84-88). This driver has no
+// @agent-accessibility-auditor as a Task (commands/review.md, work-episode lane 8).
+// This driver has no
 // way to detect, from inside a Workflow script, whether the session consuming its
 // output has that skill installed — adding accessibility-auditor here would ship
 // only the Task fallback unconditionally, which is different behavior from the
@@ -195,16 +199,16 @@ const ACCEPTANCE_ALTITUDE = epic.acceptanceAltitude === 'delivery-boundary' ? 'd
 // see the accepted narrowing, per this file's own no-silently-missing-lane rule
 // (see the comment above joinReports).
 //
-// This array, gate-audit.md's own numbered auditor list (1-13, which additionally
-// covers accessibility as auditor 8 and pre-mortem as auditor 13), and gate-audit.md's
+// This array, commands/review.md's own numbered auditor list (1-13, which additionally
+// covers accessibility as auditor 8 and pre-mortem as auditor 13), and commands/review.md's
 // narrowing condition 3 name list (`.gates.audit.blockingLanes` validation, "auditors
 // 1-7, 9-12") are three independently hand-maintained copies of nearly the same
 // roster. #271 flagged this as a drift risk this file's own commenting can't fix by
 // itself — tracked in #274, not resolved in this story. Assessed here, not fixed,
 // per this story's own acceptance criterion: not trivial, because the three copies
 // aren't the same artifact in three places — a JS array this file executes
-// against, gate-audit.md's human-facing numbered prose (which also documents
-// per-auditor rubric detail this array has no room for), and gate-audit.md's
+// against, commands/review.md's human-facing numbered prose (which also documents
+// per-auditor rubric detail this array has no room for), and commands/review.md's
 // `.gates.audit.blockingLanes` validation name list (a different consumer, a CLI
 // flag's accepted values, not a dispatch roster) — so unifying them means picking
 // one as the generated source and teaching the other two formats (Markdown prose,
@@ -231,7 +235,7 @@ const AUDITORS = [
 // Shared prompt contract every DIRECTLY-dispatched auditor/reviewer must run under.
 // The gate COMMANDS read reference/prompt-contract.md via ${CLAUDE_PLUGIN_ROOT} and
 // stamp its five blocks into each Task prompt; this driver fans out to the auditors
-// itself (bypassing gate-audit.md to keep the parallel lanes + died-lane detection),
+// itself (bypassing commands/review.md to keep the parallel lanes + died-lane detection),
 // and has no hands to read a file itself — so reference/epic-orchestration.md reads the
 // contract once, the same way the four gate commands do, and hands its five blocks
 // over verbatim as args.contract before invoking this script. CONTRACT below IS that
@@ -345,7 +349,7 @@ function requireFields(fields, names, fnName) {
 // the whole diff JSON-escaped inline (expensive AND a transcription-fidelity risk
 // for a large diff). Falsy `diffPath` (large changeset, over the 400-line threshold
 // shared with the interactive command, or a died/unparseable fetch) adds no block at
-// all — byte-identical to today's self-discovery prompt, matching gate-audit.md's
+// all — byte-identical to today's self-discovery prompt, matching commands/review.md's
 // own large-changeset fallback and this file's existing fail-open-to-self-discovery
 // posture for every other mechanical dispatch. A lane that can't read the path for
 // any reason (permissions, a cleaned-up temp dir) still has its own git/Read tools
@@ -571,7 +575,7 @@ function premortemDispatchPrompt(fields) {
 }
 
 // Perf item 10 (2026-07-20): fans out the acceptance gate the way auditRound above
-// already fans out audit — the interactive gate-acceptance.md dispatches
+// already fans out audit — the interactive commands/review.md dispatches
 // @agent-product-reviewer for Part 1 and self-performs the Part 3 walkthrough
 // serially inside one agent (case study: issue #142, a single acceptance dispatch
 // that took 117 minutes); this driver dispatches both concurrently instead, using
@@ -971,7 +975,7 @@ function acceptanceGateRound(story, note, nextPhase, attempts, hasAuditGate) {
 // async, dispatching resolver, and the same reason: `dir`, the story's branch,
 // and the dispatch's own label/phase are all the caller's to name.
 //
-// Bug 1 fix (acceptance-dispatch-fix, 2026-07-23): mirrors gate-acceptance.md
+// Bug 1 fix (acceptance-dispatch-fix, 2026-07-23): mirrors commands/review.md
 // Part 2's changeset-scan discovery — "look for docs/studious/premortems/*.md
 // in the Part 0 changeset". Presence-only: the decision to dispatch never
 // inspects the register's own content (which lane's items it holds, how
@@ -1701,14 +1705,14 @@ function workerPrompt(story, phaseName, nextPhase, redispatchWhy) {
   // unforeseen files need N separate work-log invocations, each appending one
   // amendment — `.amendments` is append-only, so repeating the call is exactly
   // as valid as making it once.
-  const build = `Implement the story's recorded design doc (gate-ledger work-get --slug "${workSlug(story)}" → .designDoc, path relative to the worktree) in the story worktree, following CLAUDE.md conventions, with tests per the project's norms. The route that ships with this plugin is /build then /build, picking up from that design doc; Superpowers' plan/execute workflow is an alternative if installed; hand-implementing is a third. The worker contract is normative whichever you use. Commit to the story branch, then report your terminal status from reference/worker-contract.md's Status reporting enum — BUILT when the story is implemented and committed: gate-ledger work-log --slug "${workSlug(story)}" --step build --outcome BUILT --phase ${nextPhase}. If you touched a file the recorded declaration (that same work-get call's .declaredFiles) did not foresee, you may amend it — one line of why, never required, and it never subtracts the file from any count: gate-ledger work-log --slug "${workSlug(story)}" --scope-delta-phase "build" --amend-file "<path>" --amend-reason "<one-line why>" — touched more than one unforeseen file? Repeat this same amend command once per file; --amend-file/--amend-reason each take exactly one file, never a list.`
+  const build = `Implement the story's recorded design doc (gate-ledger work-get --slug "${workSlug(story)}" → .designDoc, path relative to the worktree) in the story worktree, following CLAUDE.md conventions, with tests per the project's norms. The route that ships with this plugin is /build, which plans and then builds, picking up from that design doc; Superpowers' plan/execute workflow is an alternative if installed; hand-implementing is a third. The worker contract is normative whichever you use. Commit to the story branch, then report your terminal status from reference/worker-contract.md's Status reporting enum — BUILT when the story is implemented and committed: gate-ledger work-log --slug "${workSlug(story)}" --step build --outcome BUILT --phase ${nextPhase}. If you touched a file the recorded declaration (that same work-get call's .declaredFiles) did not foresee, you may amend it — one line of why, never required, and it never subtracts the file from any count: gate-ledger work-log --slug "${workSlug(story)}" --scope-delta-phase "build" --amend-file "<path>" --amend-reason "<one-line why>" — touched more than one unforeseen file? Repeat this same amend command once per file; --amend-file/--amend-reason each take exactly one file, never a list.`
   return `${ctx(story)}${assignment}\n\nYour phase: ${phaseName}.\n${phaseName === 'design' ? design : build}\n\n${contract}\n\nReturn (this is data for an orchestrator, not a human): status, sha (story branch short HEAD), summary, evidence. The driver verifies the contracted artifacts itself, from the repository and the ledger, after you return — a summary that claims more than the branch shows is caught, not believed.`
 }
 // gate-independence: end worker-dispatch
 
 function gatePrompt(story, gate, nextPhase) {
   const g = GATES[gate]
-  return `${ctx(story)}\n\nRun Studious's ${g.command} gate against this story, exactly as the plugin defines it: read commands/${g.command}.md from the plugin root and execute its workflow with the story worktree as the project and the story branch as the changeset (diff base: epic/${slug}). Where that command dispatches subagents you cannot spawn, perform those roles' checks yourself by reading their agent files from the plugin root — apply their rubrics verbatim, do not invent criteria. The verdict vocabulary is canonical in reference/gate-vocabulary.md; emit exactly one token.\n\nRecord the verdict yourself, from inside the story worktree so it lands on the story branch: cd "${storyWorktree(story)}" && gate-ledger record --gate ${gate} --verdict "<TOKEN>" && gate-ledger work-log --slug "${workSlug(story)}" --step ${gate} --outcome "<TOKEN>" --phase "${nextPhase}"\n\nReturn: verdict (the bare token), sha, summary (for non-proceed verdicts, the findings a fixer needs).`
+  return `${ctx(story)}\n\nRun Studious's ${g.invocation} door against this story for its ${g.episode} episode, exactly as the plugin defines it: read commands/${g.command}.md from the plugin root and execute that episode's workflow with the story worktree as the project and the story branch as the changeset (diff base: epic/${slug}). Where that command dispatches subagents you cannot spawn, perform those roles' checks yourself by reading their agent files from the plugin root — apply their rubrics verbatim, do not invent criteria. The verdict vocabulary is canonical in reference/gate-vocabulary.md; emit exactly one token.\n\nRecord the verdict yourself, from inside the story worktree so it lands on the story branch: cd "${storyWorktree(story)}" && gate-ledger record --gate ${gate} --verdict "<TOKEN>" && gate-ledger work-log --slug "${workSlug(story)}" --step ${gate} --outcome "<TOKEN>" --phase "${nextPhase}"\n\nReturn: verdict (the bare token), sha, summary (for non-proceed verdicts, the findings a fixer needs).`
 }
 
 // Per-epic findings ledger (#281), write half. The compiling agent is the one place
@@ -1789,7 +1793,7 @@ function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut, inj
   const notCoveredSummaryInstruction = frontendMatch !== false
     ? `Also include this exact line in your Summary: "accessibility-auditor: not covered on the epic path (tracked in jacquardlabs/studious#274)". This must be visible to a human reading the report, the same way the routed-out lines are.\n\n`
     : ''
-  return `You are compiling Studious's audit gate verdict. Read reference/audit-compilation.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply its compilation rules to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-REVIEW.\n\nA lane marked "carried forward" (delta-scoped re-audit, #130) is NOT the same as UNAUDITED: it was not re-dispatched this round because the prior round's own compiled verdict already proved it had no Confirmed Critical. Treat its one-line carried-forward status as a clean, confirmed-clean fact for that lane — never as a gap that blocks the verdict, and never invent or replay any Important/Track findings for it beyond that line. A lane marked "routed out" (first-round changeset routing, #138) is a THIRD, distinct state from both: it was never dispatched because it does not apply to this changeset at all — treat it as neutral, neither a gap nor a clean claim, and never conflate it with carried forward or AGENT DIED. A block labeled "fix-delta-cross-lane-pass" is a single, cheap, cross-lane spot-check over the small diff since the prior round, not a twelfth specialist auditor — map its findings into the report's severity tiers exactly like any other lane's, tagged by whichever lane's vocabulary they resemble, and put them through the same Critical-challenge step as every other finding.${notCoveredNote}\n\nOut of scope for this verdict: gate-audit.md's own text describes a pre-mortem-verification lane (auditor 13) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover this round's routed lane set (${laneNames}); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those routed lanes otherwise support.${routedOutNote}${injectionNote}\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\n${routedOutSummaryInstruction}${injectionSummaryInstruction}${notCoveredSummaryInstruction}If, and only if, your verdict is FIX AND RE-REVIEW: also determine blockingLanes — the short name(s) (e.g. "security-auditor", not "studious:security-auditor") of every lane among {${laneNames}} whose report contained a Critical finding that survived your challenge as Confirmed and helped drive this verdict. Omit blockingLanes entirely (do not return an empty array) if your verdict is PASS or NEEDS DISCUSSION, or if ANY lane above is marked AGENT DIED this round — a died lane's true status is unknown, so the next round must default to a full re-audit rather than narrow off an unreliable list.${epicLedgerInstruction(story, dir, laneNames)}\n\n${githubReadOnlyInvariant()}\n\nRecord the verdict from inside ${dir} (substitute <TOKEN> with your verdict; only when you computed blockingLanes above, also append --blocking-lanes "<comma-separated lane names>" to this same command — omit that flag entirely otherwise, per the omission rule above; any --scope-delta-* flags already appended to the work-log command below are pre-computed by the driver, not yours to compute — type them exactly as rendered, never recompute, paraphrase, or drop them, and never let their contents influence your verdict; round one measures only): cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"${scopeDeltaFlags || ''}` : ''}\n\nReturn: verdict (PASS | FIX AND RE-REVIEW | NEEDS DISCUSSION), sha, summary, blockingLanes (only when you computed one, per the rule above — omit the field entirely otherwise)${story ? ', openCriticals (the fingerprints you left at Critical severity in a state other than `closed` — an empty array when none; the driver parks this story\'s dependents on a non-empty list)' : ''}.`
+  return `You are compiling Studious's audit gate verdict. Read reference/audit-compilation.md from the plugin root (gate-ledger is on PATH; plugin root is dirname of it, up one) and apply its compilation rules to the auditor reports below — you judge compilation only, you do not re-audit. A lane marked UNAUDITED (its agent died) means you cannot certify a PASS: the verdict is at best FIX AND RE-REVIEW.\n\nA lane marked "carried forward" (delta-scoped re-audit, #130) is NOT the same as UNAUDITED: it was not re-dispatched this round because the prior round's own compiled verdict already proved it had no Confirmed Critical. Treat its one-line carried-forward status as a clean, confirmed-clean fact for that lane — never as a gap that blocks the verdict, and never invent or replay any Important/Track findings for it beyond that line. A lane marked "routed out" (first-round changeset routing, #138) is a THIRD, distinct state from both: it was never dispatched because it does not apply to this changeset at all — treat it as neutral, neither a gap nor a clean claim, and never conflate it with carried forward or AGENT DIED. A block labeled "fix-delta-cross-lane-pass" is a single, cheap, cross-lane spot-check over the small diff since the prior round, not a twelfth specialist auditor — map its findings into the report's severity tiers exactly like any other lane's, tagged by whichever lane's vocabulary they resemble, and put them through the same Critical-challenge step as every other finding.${notCoveredNote}\n\nOut of scope for this verdict: commands/review.md's own text describes a pre-mortem-verification lane (auditor 13) that fires when a pre-mortem register exists — disregard that lane here, at both story and finale altitude. At story altitude, the epic's cross-story pre-mortem register is verified once, at the epic finale, never per-story. At finale altitude, it is verified by a separate, dedicated premortem-auditor step outside this compilation. The auditor reports below cover this round's routed lane set (${laneNames}); an absent pre-mortem report is therefore not evidence of an unaudited lane in this context — do not raise it as a finding, and do not let it depress the verdict below what those routed lanes otherwise support.${routedOutNote}${injectionNote}\n\nChangeset: ${dir}, diff base ${base}.\n\nAuditor reports:\n${reports}\n\n${routedOutSummaryInstruction}${injectionSummaryInstruction}${notCoveredSummaryInstruction}If, and only if, your verdict is FIX AND RE-REVIEW: also determine blockingLanes — the short name(s) (e.g. "security-auditor", not "studious:security-auditor") of every lane among {${laneNames}} whose report contained a Critical finding that survived your challenge as Confirmed and helped drive this verdict. Omit blockingLanes entirely (do not return an empty array) if your verdict is PASS or NEEDS DISCUSSION, or if ANY lane above is marked AGENT DIED this round — a died lane's true status is unknown, so the next round must default to a full re-audit rather than narrow off an unreliable list.${epicLedgerInstruction(story, dir, laneNames)}\n\n${githubReadOnlyInvariant()}\n\nRecord the verdict from inside ${dir} (substitute <TOKEN> with your verdict; only when you computed blockingLanes above, also append --blocking-lanes "<comma-separated lane names>" to this same command — omit that flag entirely otherwise, per the omission rule above; any --scope-delta-* flags already appended to the work-log command below are pre-computed by the driver, not yours to compute — type them exactly as rendered, never recompute, paraphrase, or drop them, and never let their contents influence your verdict; round one measures only): cd "${dir}" && gate-ledger record --gate audit --verdict "<TOKEN>"${story ? ` && gate-ledger work-log --slug "${workSlug(story)}" --step audit --outcome "<TOKEN>" --phase "${nextPhase}"${scopeDeltaFlags || ''}` : ''}\n\nReturn: verdict (PASS | FIX AND RE-REVIEW | NEEDS DISCUSSION), sha, summary, blockingLanes (only when you computed one, per the rule above — omit the field entirely otherwise)${story ? ', openCriticals (the fingerprints you left at Critical severity in a state other than `closed` — an empty array when none; the driver parks this story\'s dependents on a non-empty list)' : ''}.`
 }
 
 // `scopeDeltaPhaseName` (scope-delta measurement, #244): the moment THIS fixer's

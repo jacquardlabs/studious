@@ -124,8 +124,8 @@ def test_routing_outside_the_gate_surface_is_allowed(tmp_path: Path, monkeypatch
     """/next naming /build is the product working, not a violation."""
     commands = tmp_path / "commands"
     commands.mkdir()
-    (commands / "work-on.md").write_text("Hand off to /build.\n", encoding="utf-8")
-    (tmp_path / "README.md").write_text("Then /build and /build.\n", encoding="utf-8")
+    (commands / "next.md").write_text("Hand off to /build.\n", encoding="utf-8")
+    (tmp_path / "README.md").write_text("Then /shape and /build.\n", encoding="utf-8")
     monkeypatch.setattr(gi, "REPO", tmp_path)
     assert gi.violations() == []
 

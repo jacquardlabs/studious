@@ -58,9 +58,9 @@ beyond this list when it reads a `.js`/`.ts` file's actual content and surroundi
 applies this list literally and therefore does not treat a bare `.js`/`.ts` change as a
 frontend signal by itself.
 
-This is the *per-changeset* half of `gate-audit.md`'s auditors 6–8 rule only — the
+This is the *per-changeset* half of `commands/review.md`'s auditors 6–8 rule only — the
 *project-level* "DESIGN.md has no `## Surfaces` web entry, and the repo confirms it" half is
-a separate check `gate-audit.md`'s own prose still owns directly (see
+a separate check `commands/review.md`'s own prose still owns directly (see
 `/setup` Step 1's canonical web-signal list); it is not part of this file
 and not applied by `workflows/epic-driver.js`'s routing dispatch (see the design doc for
 issue #138, Out of scope).

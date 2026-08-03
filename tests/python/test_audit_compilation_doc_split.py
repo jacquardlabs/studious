@@ -79,7 +79,7 @@ def test_reference_file_contains_the_extracted_rules() -> None:
 
 
 def test_gate_audit_md_points_to_the_new_file_and_does_not_restate_it() -> None:
-    """Acceptance criterion 2: gate-audit.md's own section is a pointer, not a copy."""
+    """Acceptance criterion 2: commands/review.md's own section is a pointer, not a copy."""
     text = GATE_AUDIT_MD.read_text()
     start = text.index("## Compile")
     end = text.index("\n## Delivery episode")
@@ -94,7 +94,7 @@ def test_gate_audit_md_points_to_the_new_file_and_does_not_restate_it() -> None:
         "citation-integrity check only",
     ):
         assert restated not in section, (
-            f"gate-audit.md's pointer restates {restated!r} instead of only citing "
+            f"commands/review.md's pointer restates {restated!r} instead of only citing "
             "reference/audit-compilation.md"
         )
 
@@ -153,7 +153,7 @@ def test_the_duplicate_copy_detector_actually_detects_a_duplicate(tmp_path: Path
 def test_routed_out_is_named_as_a_third_lane_state_alongside_the_other_two() -> None:
     """The acceptance criteria name carry-forward/routed-out/AGENT-DIED together as
     one set — confirm all three are named as distinct states in the new file, not
-    just two of the three (the pre-story gate-audit.md text named only two)."""
+    just two of the three (the pre-story commands/review.md text named only two)."""
     text = AUDIT_COMPILATION.read_text()
     carried_idx = text.index("Carried forward")
     died_idx = text.index("AGENT DIED")

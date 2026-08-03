@@ -252,7 +252,7 @@ def test_gate_audit_md_and_epic_driver_agree_on_the_ten_lane_roster() -> None:
 
     gate_audit_text = GATE_AUDIT_MD.read_text()
     # Since the episode-door story (#289, Task 4) the narrowing roster lives in
-    # gate-audit.md's episode step (which also tracks a twelfth lane,
+    # commands/review.md's episode step (which also tracks a twelfth lane,
     # product-reviewer, that the driver doesn't dispatch — the driver fails
     # closed to a full round on any entry outside its own eleven).
     start = gate_audit_text.index("## Open or re-enter the episode")

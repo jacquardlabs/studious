@@ -286,7 +286,7 @@ def test_wire_plugin_config_does_not_symlink_reference(tmp_path: Path) -> None:
 
 
 def test_driver_contract_const_sources_from_the_handoff_not_a_hardcoded_pointer() -> None:
-    """CONTRACT is the text `work-through.md` hands over, never a runtime pointer.
+    """CONTRACT is the text `reference/epic-orchestration.md` hands over, never a runtime pointer.
 
     Locks the #110 inversion structurally: the driver must not carry the old
     hardcoded sentence telling an auditor to go read the contract file itself at
@@ -295,10 +295,10 @@ def test_driver_contract_const_sources_from_the_handoff_not_a_hardcoded_pointer(
     source = DRIVER.read_text()
     assert OLD_POINTER_MARKER not in source, (
         "driver still carries the old runtime-pointer sentence instead of the "
-        "actual contract text work-through.md now hands over"
+        "actual contract text reference/epic-orchestration.md now hands over"
     )
     assert "const CONTRACT = input.contract" in source, (
-        "CONTRACT no longer sources from the args.contract handoff work-through.md "
+        "CONTRACT no longer sources from the args.contract handoff reference/epic-orchestration.md "
         "assembles before invoking this script"
     )
 
@@ -326,19 +326,19 @@ def test_driver_dispatch_sites_pass_the_contract_to_their_builder() -> None:
 def test_work_through_script_mode_reads_and_forwards_the_contract() -> None:
     """The script-mode section reads the contract and hands it to the driver as data.
 
-    `work-through.md` is the assembly point for the automated path exactly as the
+    `reference/epic-orchestration.md` is the assembly point for the automated path exactly as the
     four gate commands are for the supervised one: it must read
     `reference/prompt-contract.md` once and forward it as `args.contract`, never
     leave the driver to resolve a pointer itself.
     """
     source = WORK_THROUGH.read_text()
-    assert CONTRACT in source, "work-through.md no longer mentions reference/prompt-contract.md"
+    assert CONTRACT in source, "reference/epic-orchestration.md no longer mentions reference/prompt-contract.md"
     assert "args.contract" in source, (
-        "work-through.md does not describe handing the contract to the driver as "
+        "reference/epic-orchestration.md does not describe handing the contract to the driver as "
         "args.contract"
     )
     assert '"contract":' in source, (
-        "work-through.md's Workflow-tool args example no longer includes a "
+        "reference/epic-orchestration.md's Workflow-tool args example no longer includes a "
         "contract field"
     )
 
@@ -346,7 +346,7 @@ def test_work_through_script_mode_reads_and_forwards_the_contract() -> None:
 def test_work_through_fallback_mode_injects_the_contract_itself() -> None:
     """The fallback (no-Workflow-tool) driver injects the contract on its own dispatches.
 
-    In fallback mode `work-through.md`'s own orchestrating turn dispatches gate and
+    In fallback mode `reference/epic-orchestration.md`'s own orchestrating turn dispatches gate and
     audit Tasks directly — it is the assembly point on this path exactly as its own
     contract-read is on the script path, so it must read the anchored contract and
     stamp it into its own dispatches rather than leaving the dispatched agent to

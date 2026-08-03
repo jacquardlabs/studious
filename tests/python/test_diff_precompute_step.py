@@ -30,7 +30,7 @@ def _precompute_section() -> str:
         text,
         re.DOTALL,
     )
-    assert match, "gate-audit.md has no 'Precompute the changeset diff' section between the shared-contract and evidence-log steps"
+    assert match, "commands/review.md has no 'Precompute the changeset diff' section between the shared-contract and evidence-log steps"
     return match.group(1)
 
 

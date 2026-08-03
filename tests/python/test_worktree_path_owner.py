@@ -194,7 +194,7 @@ def test_work_through_resolves_every_worktree_through_the_verb() -> None:
 def test_work_through_hands_the_layout_to_the_driver() -> None:
     text = WORK_THROUGH.read_text()
     assert 'gate-ledger worktree-path --slug "<slug>" --json' in text, (
-        "work-through.md must resolve the whole layout once with the --json form — "
+        "reference/epic-orchestration.md must resolve the whole layout once with the --json form — "
         "the driver has no exec access and cannot ask for paths itself"
     )
     assert '"worktrees"' in text, (

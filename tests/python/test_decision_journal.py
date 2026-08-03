@@ -72,9 +72,9 @@ def test_gate_append_snippet_matches_format_reference_byte_for_byte() -> None:
     """Risk #6: the command's inline append snippet and the format file's canonical
     append must be identical — field order and date mechanics can't drift apart."""
     ref_snippet = _append_snippet(FORMAT_REF.read_text(), "decision-journal-format.md")
-    gate_snippet = _append_snippet(GATE.read_text(), "gate-should-we-build.md")
+    gate_snippet = _append_snippet(GATE.read_text(), "commands/bet.md")
     assert gate_snippet == ref_snippet, (
-        "gate-should-we-build.md's append snippet differs from the canonical append "
+        "commands/bet.md's append snippet differs from the canonical append "
         "pinned in reference/decision-journal-format.md"
     )
 

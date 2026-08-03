@@ -115,7 +115,7 @@ def count_findings(section: str | None) -> int:
 def extract_verdict(text: str) -> str | None:
     """Find the assigned verdict token, preferring the bolded one.
 
-    gate-audit.md's own rubric text lists all three tokens, and surrounding
+    commands/review.md's own rubric text lists all three tokens, and surrounding
     prose can mention a token in passing (e.g. "not safe to PASS"), so a
     naive substring search is unreliable. The agent's actual verdict is
     bolded (`**FIX AND RE-REVIEW**`); fall back to the first plain occurrence

@@ -602,7 +602,7 @@ check "epic-reconcile from a linked worktree still sees the story's own branch h
 
 # --- worktree-path: the single owner of .studious/worktrees/<epic>/{__epic,<story>}
 # (#166). Everything that used to compose this layout by hand — epic-driver.js
-# (via work-through.md and the args boundary), work-through.md's own worktree
+# (via reference/epic-orchestration.md and the args boundary), reference/epic-orchestration.md's own worktree
 # add/remove steps, and epic-reconcile's designDocExists lookup — asks here. ---
 d48=$(sandbox)
 check "worktree-path with no --story resolves the __epic integration worktree" \
@@ -628,7 +628,7 @@ err=$(cd "$d48" && "$LEDGER" worktree-path --slug wp-epic --story s1 --json 2>&1
 contains "worktree-path refuses --story together with --json" "mutually exclusive" "$err"
 contains "worktree-path exits 2 on --story with --json" "rc=2" "$err"
 
-# --json: the whole layout for one epic, the form work-through.md hands the
+# --json: the whole layout for one epic, the form reference/epic-orchestration.md hands the
 # driver (which has no exec access of its own and so cannot ask for paths).
 ( cd "$d48" && "$LEDGER" epic-set --slug wp-epic --title "WP Epic" --status running )
 ( cd "$d48" && "$LEDGER" epic-story-set --epic wp-epic --slug s1 --title "S1" )
@@ -1179,7 +1179,7 @@ check "every concurrently-written line has a stamped at timestamp" "12" \
 
 # --- work-log validates the build step's outcome vocabulary (#213) ---
 # Three writers had drifted into two dialects: the epic driver wrote DONE, /build and
-# the worker contract wrote BUILT|PAUSED|ESCALATED, and work-on.md branched on exactly
+# the worker contract wrote BUILT|PAUSED|ESCALATED, and commands/next.md branched on exactly
 # the latter three — so an epic story branch read back a token with no case. The slot
 # was a free string with nothing to catch it. It is now checked at the write.
 d37=$(sandbox)

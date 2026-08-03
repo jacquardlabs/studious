@@ -935,7 +935,7 @@ def test_fixer_prompt_names_the_correct_fix_cycle_phase() -> None:
     assert '--scope-delta-phase "audit-fix-1"' in fix_prompts[0]
 
 
-# ---------- work-through.md's own Scope-delta line jq report (#244) ----------
+# ---------- reference/epic-orchestration.md's own Scope-delta line jq report (#244) ----------
 #
 # `reference/epic-orchestration.md`'s closing report embeds a SECOND jq filter (never
 # reimplemented here, following test_acceptance_retry_visibility.py's own
@@ -1437,7 +1437,7 @@ def test_closing_shape_never_refers_to_a_rendering_by_ordinal() -> None:
     "rendering" phrase the stale sentence actually used. A bullet list that has
     drifted twice will drift a third time, so the fix is to ban any ordinal
     reference to a specific rendering outright — content-based description only
-    (89d8546's precedent for the same class of drift in studious-doctor.md)."""
+    (89d8546's precedent for the same class of drift in commands/doctor.md)."""
     section = _closing_shape_section()
     assert not re.search(r"\b(first|second|third|fourth|fifth|sixth)\s+rendering\b", section, re.IGNORECASE)
 

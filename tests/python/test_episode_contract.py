@@ -442,6 +442,19 @@ class EpisodeVocabularyTest(unittest.TestCase):
             )
 
 
+def _episode_half(door: str) -> str:
+    """The review door minus its design-episode section.
+
+    The three episodes share one file since the persona restructure. The work and delivery
+    episodes record through `episode-verdict`; the design episode still uses
+    `gate-ledger record --gate design-review`, because `bin/gate-ledger`'s retry token is
+    one shared constant (`FIX AND RE-REVIEW`) and a design `REVISE` handed to
+    `episode-verdict` reads as a closing verdict — it would shut the episode rather than
+    bound it. So the no-bare-record rule scopes to the two halves it actually governs.
+    """
+    return door[: door.index("\n## Design episode")] + door[door.index("\n## Work episode") :]
+
+
 GATE_AUDIT_MD = REPO_ROOT / "commands" / "review.md"
 AUDIT_COMPILATION_MD = REPO_ROOT / "reference" / "audit-compilation.md"
 
@@ -468,7 +481,7 @@ class GateAuditDoorTest(unittest.TestCase):
 
     def test_door_never_runs_bare_record(self) -> None:
         self.assertIsNone(
-            re.search(r"gate-ledger record\b", self.door),
+            re.search(r"gate-ledger record\b", _episode_half(self.door)),
             "commands/review.md still records via bare `gate-ledger record` "
             "instead of episode-verdict",
         )
@@ -617,7 +630,7 @@ class NavigatorEpisodeTest(unittest.TestCase):
         write verb in this file would be the navigator re-deciding re-entry
         the door already owns."""
         for verb in ("episode-open", "episode-round", "episode-verdict"):
-            self.assertNotIn(verb, self.text, f"work-on.md must never run {verb}")
+            self.assertNotIn(verb, self.text, f"commands/next.md must never run {verb}")
 
     # --- Done means 2: episode-scoped staleness — no instruction re-arms
     # audit from an acceptance verdict ---
@@ -666,7 +679,7 @@ class DeliveryDoorTest(unittest.TestCase):
 
     def test_door_never_runs_bare_record(self) -> None:
         self.assertIsNone(
-            re.search(r"gate-ledger record\b", self.door),
+            re.search(r"gate-ledger record\b", _episode_half(self.door)),
             "commands/review.md still records via bare `gate-ledger "
             "record` instead of episode-verdict",
         )

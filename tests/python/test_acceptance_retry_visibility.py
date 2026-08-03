@@ -497,11 +497,11 @@ def test_rationale_citation_resolves() -> None:
     """This guard originally asserted a `docs/superpowers/specs/` design doc existed.
     Under the ratified rule a design doc is branch-local and dies at closeout (#219),
     so a permanent command file must not cite one — that is the dangling-pointer
-    class this guard exists to catch, not an exception to it. `work-through.md` now
+    class this guard exists to catch, not an exception to it. `reference/epic-orchestration.md` now
     cites the issue that owns the decision, which does not expire.
 
     Generalized rather than deleted: every path this file names in a doc tree *this*
-    repo owns must resolve. Scoped to those three trees deliberately — `work-through.md`
+    repo owns must resolve. Scoped to those three trees deliberately — `reference/epic-orchestration.md`
     also names `docs/headless-contract.md`, which lives in viva's repo behind the
     published contract that keeps it a separate repo (CLAUDE.md boundary criterion (e)),
     and a checkout-local existence check is the wrong question to ask of it."""

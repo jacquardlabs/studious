@@ -174,7 +174,6 @@ exit code — the round cap is enforced there, in code, never re-counted here:
 round 1 of a new episode, full and unnarrowed. Concretely, one per episode:
 
 ```bash
-gate-ledger episode-open --gate design-review   # design episode
 gate-ledger episode-open --gate audit           # work episode
 gate-ledger episode-open --gate acceptance      # delivery episode
 ```
@@ -322,6 +321,24 @@ recommendation. Map the product-reviewer's severities to this episode's verdict:
   (missing state, confusing step). List the specific changes needed in priority order.
 - **RETHINK** — a BLOCKER rooted in problem validity, principle conflict, or scope ("what
   we're NOT building"). Go back to brainstorm and explain why.
+
+### Recording this episode's verdict — the one exception
+
+The work and delivery episodes close through `gate-ledger episode-verdict`. **The design
+episode does not, and stays an exception for now.** It records with:
+
+```bash
+gate-ledger record --gate design-review --verdict "PROCEED TO PLAN"
+```
+
+`bin/gate-ledger`'s retry token is a single constant, `FIX AND RE-REVIEW`
+(`EPISODE_RETRY_VERDICT`), shared by every episode gate — so a design `REVISE` handed to
+`episode-verdict` reads as a *closing* verdict and shuts the episode. The next round would
+then open a fresh one instead of re-entering, which removes the bound rather than adding
+it. Giving the ledger a per-gate retry vocabulary is its own change with its own tests;
+until then this episode records the way it always has, and
+`reference/gate-vocabulary.md` says the same. The commit-before-record rule in the shared
+section below still applies here.
 
 ### Persist the register (PROCEED TO PLAN only)
 
@@ -677,8 +694,8 @@ words.
 
 ### Record the verdict
 
-Before running `gate-ledger episode-verdict`, commit every file this run
-wrote or modified — the pre-mortem register the design episode just wrote, or anything
+Before running `gate-ledger episode-verdict` — or, in the design episode, the verb named
+in its own section above — commit every file this run wrote or modified — the pre-mortem register the design episode just wrote, or anything
 else the review produced. The ledger stamps the
 verdict's sha from HEAD at the moment it runs; a file committed afterward leaves the ledger
 pointing at a commit that doesn't yet contain what this run produced, so the PR-time hook and
@@ -716,14 +733,6 @@ entirely rather than naming a partial list — a died lane's true status is unkn
 round must not narrow off it; it must default to a full re-review. Likewise omit it when no
 tracked lane contributed a surviving Critical — an empty list is not a lane profile. This is
 the same fail-closed posture as the shared episode step, applied on the writing side.
-
-The design episode uses the same verbs against its own gate key, so its REVISE loop
-carries the same 2-round bound as the other two — the runaway this restructure exists to
-bound was a design review that revised four times without ever terminating:
-
-```bash
-gate-ledger episode-verdict --gate design-review --verdict "PROCEED TO PLAN"
-```
 
 The ledger is local and gitignored — it never enters the repo. If `gate-ledger` is not found
 (the plugin's `bin/` isn't on `PATH` in this environment), tell the user the verdict could not

@@ -70,8 +70,8 @@ actually has:
 - **Test runner.** Read the target project's own `CLAUDE.md` for its stated
   baseline/test command -- the exact same read `/build`'s own Step 1
   already performs ("Read it the way a human would; never guess a test
-  runner and never hardcode one"). `/build` and `/build` must never disagree
-  about what "the tests" means for the same project.
+  runner and never hardcode one"). The planning half and the building half
+  must never disagree about what "the tests" means for the same project.
 - **Type checker / linter**, if a proposed task would rely on one as a
   `script`-tier method -- same "read `CLAUDE.md`, don't guess" rule.
 - **Scripted-probe tooling** (issue #13's own subject). Before any task's

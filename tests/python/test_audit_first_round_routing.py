@@ -46,7 +46,7 @@ def test_routing_signals_reference_file_exists_with_all_signal_sections() -> Non
     assert "## Infrastructure signal" in text
     assert "## Frontend signal" in text
     assert "## Dependency signal" in text
-    # Spot-check a few tokens moved from gate-audit.md's old inline prose.
+    # Spot-check a few tokens moved from commands/review.md's old inline prose.
     for token in ("*.tf", "Dockerfile*", ".github/workflows"):
         assert token in text, f"expected infra pattern {token!r} in the reference file"
     for token in ("*.jsx", "*.tsx", "*.css"):
@@ -86,7 +86,7 @@ def test_gate_audit_md_points_at_the_reference_file_instead_of_embedding_lists()
 
 def test_check_references_would_resolve_the_new_pointer() -> None:
     """Mirrors what scripts/check_references.py's REFERENCE_RE already scans for
-    (reference/[A-Za-z0-9_./<>-]+\\.md) — confirms the literal path gate-audit.md
+    (reference/[A-Za-z0-9_./<>-]+\\.md) — confirms the literal path commands/review.md
     now cites resolves to a real file, without invoking the full CI script here."""
     import re
 
@@ -95,7 +95,7 @@ def test_check_references_would_resolve_the_new_pointer() -> None:
     refs = set(ref_re.findall(text))
     assert "reference/audit-routing-signals.md" in refs
     for ref in refs:
-        assert (REPO_ROOT / ref).is_file(), f"{ref} referenced in gate-audit.md but missing"
+        assert (REPO_ROOT / ref).is_file(), f"{ref} referenced in commands/review.md but missing"
 
 
 AUDITORS_JS = json.dumps([f"studious:{n}" for n in AUDITOR_SHORT_NAMES])
@@ -156,7 +156,7 @@ def test_routing_probe_mirrors_gate_audit_auditor_10s_content_judged_rule() -> N
     plus a second hand-typed phrase list, so it could detect drift between the driver
     and itself, never against the doc it named). Anchoring on paragraph text rather
     than a line number also means this test doesn't rot when something is inserted
-    above gate-audit.md's auditor 10 paragraph."""
+    above commands/review.md's auditor 10 paragraph."""
     text = GATE_AUDIT_MD.read_text()
     para_marker = "Auditor 10 (operability) is changeset-routed"
     para_start = text.index(para_marker)
@@ -165,13 +165,13 @@ def test_routing_probe_mirrors_gate_audit_auditor_10s_content_judged_rule() -> N
 
     prompt = _routing_scope_check_prompt()
     assert "content-judged" in prompt
-    # Both texts carry this span word-for-word (gate-audit.md's skip-rule phrasing
+    # Both texts carry this span word-for-word (commands/review.md's skip-rule phrasing
     # and the routing probe's match-rule phrasing diverge just before and after it).
     span_start = paragraph.index("code that serves requests")
     span_end = paragraph.index("not file paths alone") + len("not file paths alone")
     verbatim_span = paragraph[span_start:span_end]
     assert verbatim_span in prompt, (
-        "routing probe prompt has drifted from gate-audit.md's auditor 10 paragraph — "
+        "routing probe prompt has drifted from commands/review.md's auditor 10 paragraph — "
         f"expected this verbatim span:\n{verbatim_span!r}"
     )
 
