@@ -203,6 +203,62 @@ def test_a_plan_parked_story_counts_against_the_cap_before_the_canary_dispatches
     assert "open-episode cap" in held["epx--b"], held["epx--b"]
 
 
+def test_canary_selector_skips_a_story_whose_dep_is_not_in_the_plan() -> None:
+    """`depsLandedAtStart` used to treat a dep absent from the story set as satisfied,
+    while runStory's dep wait (no donePromises entry to await) settles such a story
+    `blocked` — so the canary could select a story that instantly blocks with zero
+    dispatches, holding the whole fleet under a reason implying the story ran. The
+    selector now agrees with runStory, and the unknown-dep story parks up front as a
+    plan defect instead of vanishing into a bare `blocked` count."""
+    epic = _epic()
+    epic["stories"]["a"]["deps"] = ["zz"]
+    out = _run_driver(epic, [*B_LANDS, *B_VERIFY])
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    result = out["result"]
+
+    assert result["canary"] == {"story": "epx--b", "outcome": "landed"}, (
+        f"the canary must skip the unsatisfiable story and pick one that can run: {result['canary']}"
+    )
+    assert {e["story"] for e in result["landedThisRun"]} == {"epx--b"}
+    assert not any(c["label"].endswith(":a") for c in out["calls"]), (
+        f"the unsatisfiable story was dispatched: {[c['label'] for c in out['calls']]}"
+    )
+    # The plan defect is itemised where the human looks, with the dep named — not
+    # reclassified as a hold (nothing about it clears on re-run) and not left as a
+    # nameless entry in the blocked count.
+    needs_you = {e["story"]: e for e in result["needsYou"]}
+    assert "epx--a" in needs_you, f"the unknown-dep story left the queue: {result['needsYou']}"
+    assert needs_you["epx--a"]["verdict"] == "UNKNOWN DEP"
+    assert "zz" in needs_you["epx--a"]["reason"]
+    assert "amend the plan" in needs_you["epx--a"]["reason"]
+    assert not any(h["story"] == "epx--a" for h in result["held"]), (
+        f"a plan defect must park, not hold: {result['held']}"
+    )
+
+
+def test_a_plan_whose_every_story_has_an_unsatisfiable_dep_fails_legibly() -> None:
+    """No canary candidate exists, and before this fix the run degraded to an opaque
+    shape — a selected canary that instantly blocked, or stories that all settled
+    `blocked` leaving only a bare count. Every story must instead land in needsYou
+    naming its missing dep, with zero dispatches spent."""
+    epic = _epic()
+    epic["stories"]["a"]["deps"] = ["zz"]
+    epic["stories"]["b"]["deps"] = ["yy"]
+    out = _run_driver(epic, [])
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    result = out["result"]
+
+    assert result["canary"] is None, f"no story can run, so nothing can canary: {result['canary']}"
+    assert out["calls"] == [], f"an unsatisfiable plan must not dispatch: {out['calls']}"
+    needs_you = {e["story"]: e for e in result["needsYou"]}
+    assert set(needs_you) == {"epx--a", "epx--b"}, f"every story must be itemised: {result['needsYou']}"
+    assert "zz" in needs_you["epx--a"]["reason"]
+    assert "yy" in needs_you["epx--b"]["reason"]
+    assert result["held"] == [], f"a plan defect is a park, never a hold: {result['held']}"
+    assert result["landed"] == 0
+    assert result["finale"] is None
+
+
 def test_canary_is_skipped_once_a_story_has_already_landed() -> None:
     """A resumed epic with a landed story has a plan proven at least once —
     re-canarying every invocation would serialize the remainder for no
@@ -444,6 +500,69 @@ def test_budget_accessor_degrades_on_a_throwing_or_nonsense_primitive() -> None:
         assert out["ok"], f"driver crashed on {preamble}: {out.get('error')}"
         assert out["result"]["budget"]["enforced"] is False, preamble
         assert out["result"]["landed"] == 2, preamble
+
+
+# ---------- resume-at-merge: both ceilings apply before the first dispatch ----------
+#
+# A story whose reconciled phase is 'merge' skips runStory's phase loop entirely
+# (idx = profile.length), so the hold checks at the top of that loop never see it —
+# its first dispatch of the run used to be the merge agent itself, compared against
+# neither ceiling. reference/epic-plan-contract.md says a story that would start with
+# the budget spent is held, not dispatched, and reference/epic-pricing.md's "before a
+# story's first dispatch (held)" comparison point has no merge carve-out.
+
+
+def test_resume_at_merge_is_held_by_an_exhausted_budget_before_the_merge_dispatch() -> None:
+    epic = _epic(canary=False, appetite={"tokens": 1000, "openEpisodes": 5})
+    del epic["stories"]["b"]
+    out = _run_driver(epic, [], phases={"a": "merge"}, preamble=EXHAUSTED_BUDGET)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    result = out["result"]
+
+    held = {h["story"]: h["reason"] for h in result["held"]}
+    assert "epx--a" in held, f"the merge-resume story dispatched past the spent budget: {result}"
+    assert "budget exhausted" in held["epx--a"]
+    assert out["calls"] == [], f"the merge agent was dispatched with the budget spent: {out['calls']}"
+    assert result["landed"] == 0
+    # Held exactly like the in-loop path: nothing was spent this run, so nothing is
+    # awaiting a judgment call.
+    assert not any(e["story"] == "epx--a" for e in result["needsYou"]), (
+        f"a held merge-resume story leaked into needsYou: {result['needsYou']}"
+    )
+
+
+def test_resume_at_merge_is_held_by_the_open_episode_cap() -> None:
+    epic = _epic(canary=False, filler=True, appetite={"tokens": 4000000, "openEpisodes": 1})
+    del epic["stories"]["b"]  # story c (plan-parked) fills the 1-deep queue
+    out = _run_driver(epic, [], phases={"a": "merge"})
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    result = out["result"]
+
+    held = {h["story"]: h["reason"] for h in result["held"]}
+    assert "epx--a" in held, f"the merge-resume story dispatched past the open-episode cap: {result}"
+    assert "open-episode cap" in held["epx--a"]
+    # Itemised, same as every other cap refusal: the reason names what fills the queue.
+    assert "epx--c" in held["epx--a"], held["epx--a"]
+    assert out["calls"] == [], f"the merge agent was dispatched at the cap: {out['calls']}"
+
+
+def test_resume_at_merge_with_headroom_still_lands() -> None:
+    """The control: the new check must hold only at a ceiling, never tax the happy
+    path — a merge-resume story with headroom lands exactly as before."""
+    epic = _epic(canary=False, filler=True, appetite={"tokens": 4000000, "openEpisodes": 5})
+    del epic["stories"]["b"]
+    rules = [
+        {"match": r"^merge:a$", "result": {"merged": True, "sha": "a2", "notes": "clean"}},
+        {"match": r"^merge:verify:a$", "result": {"findings": json.dumps({
+            "ledgerLanded": True, "isAncestor": True, "ledgerCheckOk": True, "ancestorCheckOk": True,
+        })}},
+    ]
+    out = _run_driver(epic, rules, phases={"a": "merge"}, preamble=AMPLE_BUDGET)
+    assert out["ok"], f"driver crashed: {out.get('error')}"
+    result = out["result"]
+
+    assert result["landedThisRun"] == [{"story": "epx--a", "trail": "resumed at merge"}]
+    assert result["held"] == [], f"a merge-resume story with headroom was held: {result['held']}"
 
 
 # ---------- structural ----------

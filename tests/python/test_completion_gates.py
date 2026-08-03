@@ -397,7 +397,12 @@ def test_the_zero_landed_write_is_armed_by_invocation_not_by_a_clean_return() ->
     assert '**The trigger is "a driver was invoked", not "a driver returned".**' in text
     assert "errored, crashed, timed out" in text
     assert "`0` when there is no returned field to read" in text
-    assert "--landed <the driver's `landed` field, or 0>" in text
+    assert "--landed <the driver's `landedThisRun` field, or 0>" in text
+    assert "**The count is `landedThisRun`, never `landed`.**" in text, (
+        "the stop-loss must be fed the per-invocation count — the cumulative `landed` "
+        "field can never read zero again once any story has landed, so feeding it would "
+        "keep a stalled epic's streak at zero forever"
+    )
     assert "driver was **invoked at all** in this invocation, skip this write" in text, (
         "the plan-piece exemption stays: a run that dispatched nothing must not arm "
         "the stop-loss against the first real invocation"

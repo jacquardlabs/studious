@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Regression tests for eslint.config.mjs (workflows/**/*.js). Proves the
-# config catches the four historically-real defect classes that motivated it —
+# config catches the five historically-real defect classes that motivated it —
 # index-misalignment on dead agents, unshift-ordering, fail-open null handling,
-# unpinned agent() dispatch — on reconstructed bad patterns, stays quiet on
-# their fixed equivalents, and lints the real workflows/epic-driver.js clean
-# (documented suppressions and all). Requires network (npx fetches the pinned
-# eslint release; see .github/workflows/ci.yml for the same pin).
+# unpinned agent() dispatch, and the Workflow runtime's forbidden
+# nondeterminism APIs (Date.now / Math.random / argless new Date) — on
+# reconstructed bad patterns, stays quiet on their fixed equivalents, and lints
+# the real workflows/epic-driver.js clean (documented suppressions and all).
+# Requires network (npx fetches the pinned eslint release; see
+# .github/workflows/ci.yml for the same pin).
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -294,6 +296,38 @@ export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
 /* eslint local/no-fail-open-boolean: "off" */
 const r = await agent('do it', { label: 'x', model: 'haiku' })
 return { r }
+EOF
+
+# --- defect class 5: Workflow-runtime forbidden nondeterminism APIs ---
+# The runtime THROWS on Date.now(), Math.random(), and an argless new Date():
+# each would hand a resumed re-execution a different value than the original
+# run observed, breaking the resume contract. CI and the Python driver tests
+# execute workflows/epic-driver.js under plain node — where all three work
+# fine — which is exactly how a module-scope Date.now() once shipped green:
+# nothing in this config banned the class until these rules did.
+expect_fail "flags Date.now()" "no-restricted-properties" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const startedAt = Date.now()
+return { startedAt }
+EOF
+
+expect_fail "flags Math.random()" "no-restricted-properties" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const jitter = Math.random()
+return { jitter }
+EOF
+
+expect_fail "flags an argless new Date()" "no-restricted-syntax" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const when = new Date()
+return { when: String(when) }
+EOF
+
+expect_pass "an arg-carrying new Date() and deterministic Math members are clean" <<'EOF'
+export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
+const when = new Date(1722470400000)
+const wider = Math.max(1, 2)
+return { when: String(when), wider }
 EOF
 
 # --- suppression directives are still checked for staleness ---

@@ -41,9 +41,12 @@ const harnessShape = {
   supportsAutofix: false,
 }
 
-// Two of the four defect-class rules are plain AST-shape matches, expressed
-// with core ESLint's `no-restricted-syntax` selector escape hatch (see
-// `rules` below). The other two — fail-open null handling and unpinned
+// Two of the four historically-real defect-class rules are plain AST-shape
+// matches, expressed with core ESLint's `no-restricted-syntax` selector escape
+// hatch (see `rules` below); a fifth class — the Workflow runtime's forbidden
+// nondeterminism APIs (Date.now / Math.random / argless new Date) — is likewise
+// core-rule-expressed, via `no-restricted-properties` plus one more
+// `no-restricted-syntax` selector. The other two — fail-open null handling and unpinned
 // agent() dispatch — each need to check something a selector can't express
 // (whether a flag is ever referenced in negated form anywhere in its scope;
 // whether a suppression comment on the preceding line carries a non-empty
@@ -379,7 +382,16 @@ export default [
         // file" design — extend this list if a future workflows/ file uses
         // another built-in.
         Boolean: 'readonly',
+        // Date and Math are declared for their DETERMINISTIC members only. The
+        // Workflow runtime THROWS on Date.now(), Math.random(), and an argless
+        // `new Date()` — each would hand a resumed re-execution a different value
+        // than the original run observed, breaking resume — and those three calls
+        // are banned by no-restricted-properties / no-restricted-syntax below.
+        // Everything else on these two globals (new Date(ts), Math.max, ...) is
+        // deterministic and legal.
+        Date: 'readonly',
         JSON: 'readonly',
+        Math: 'readonly',
         Number: 'readonly',
         Object: 'readonly',
         Promise: 'readonly',
@@ -433,6 +445,41 @@ export default [
             "CallExpression[callee.type='MemberExpression'][callee.property.name='unshift'][arguments.0.type!='SpreadElement']",
           message:
             "Don't call .unshift() with plain arguments — sequential unshift() calls silently reverse the intended order. Build the ordered list first, then unshift it once via spread: arr.unshift(...ordered).",
+        },
+        {
+          // Workflow-runtime resume contract, part of the same forbidden-API set
+          // as the two no-restricted-properties entries below: an ARGLESS
+          // new Date() reads the wall clock exactly like Date.now() does, so a
+          // resumed re-execution would observe a different time than the original
+          // run. `new Date(value)` is deterministic and stays legal, which is why
+          // this is a syntax selector (zero arguments) and not a global ban.
+          selector: "NewExpression[callee.name='Date'][arguments.length=0]",
+          message:
+            'The Workflow runtime throws on an argless new Date() — a resumed run would re-execute it and observe a different time, breaking the resume contract. Pass an explicit value (e.g. new Date(input.timestamp)) or derive time from the orchestrator-supplied input.',
+        },
+      ],
+      // Workflow-runtime resume contract. The harness that executes workflows/
+      // files throws on Date.now(), Math.random(), and an argless new Date()
+      // (banned via no-restricted-syntax above): each is a nondeterminism source
+      // that would hand a resumed re-execution a different value than the
+      // original run observed. CI and the Python driver tests execute this file
+      // under plain node — where all three work fine — so a module-scope
+      // Date.now() once shipped green and would have killed the driver at load
+      // on the real substrate. This config is the only surface that can catch
+      // the class before it ships.
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'Date',
+          property: 'now',
+          message:
+            "The Workflow runtime throws on Date.now() — a resumed run would re-execute this call and observe a different value, breaking the resume contract. Derive time from the orchestrator-supplied input (e.g. input.timestamp), the way RUN_ID does.",
+        },
+        {
+          object: 'Math',
+          property: 'random',
+          message:
+            'The Workflow runtime throws on Math.random() — a resumed run would re-execute this call and observe a different value, breaking the resume contract. Derive any needed uniqueness from the orchestrator-supplied input instead.',
         },
       ],
       'local/no-fail-open-boolean': 'error',
