@@ -68,7 +68,7 @@ The directory layout encodes a role split (full version in `CONTRIBUTING.md`):
 - `hooks/` — shipped hook scripts + `hooks.json`. Three live hooks: a non-blocking PreToolUse reminder before `gh pr create` (`gate-reminder.sh`); a silent PostToolUse/PostToolUseFailure evidence-capture hook on `Bash` that appends verification-command records while a story is armed (`evidence-capture.sh`; format pinned in `reference/evidence-format.md`); and a silent PreToolUse hook on `Task` that appends one routing-telemetry record per dispatched Studious reviewer (`dispatch-telemetry.sh`; format pinned in `reference/telemetry-format.md`).
 - `bin/gate-ledger` — reads/writes the per-branch gate ledger and the per-feature `/work-on` work files.
 - `templates/` — PRODUCT.md / DESIGN.md scaffolds created by `/studious-init` in the consuming project.
-- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence) plus the build skills' own executables (`plan-lint`, `design-lint`, `verify`, `status-flip`, `build-report`, `evidence-capture`, `worktree-setup`). The latter are run by `/plan` and `/build`, not by CI.
+- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence), the build skills' own executables (`plan-lint`, `design-lint`, `verify`, `status-flip`, `build-report`, `evidence-capture`, `worktree-setup`), and the saves-ledger renderer (`saves-ledger.py`, run by `/review-outcomes`). The build executables are run by `/plan` and `/build`, not by CI.
 
 Key invariants when adding or changing prompts:
 

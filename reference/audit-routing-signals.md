@@ -13,10 +13,12 @@ Neither restates a list either. The pricing read is display-only and never recor
 driver still derives every actual routing decision from the real changeset. The
 story-class read *is* recorded, as the story's class at plan approval. Auditor 10
 (operability) is deliberately not covered here: its skip condition is content-judged ("Judge
-from the diff's content… not file paths alone" — see `commands/gate-audit.md:56`), not a
+from the diff's content… not file paths alone" — the "Auditor 10 (operability) is
+changeset-routed" paragraph under `commands/gate-audit.md`'s "Launch all auditors in
+parallel" heading), not a
 file-pattern rule, and there is no reliable file-name proxy for "does this code serve
 requests, consume queues, or perform network I/O" the way there is for IaC, frontend,
-dependency, or prompt file types. `commands/gate-audit.md:56` stays the canonical statement
+dependency, or prompt file types. That paragraph stays the canonical statement
 of the rule; `workflows/epic-driver.js`'s routing dispatch mirrors it as a content judgment
 made inline in its own prompt (`routingScopeCheckPrompt`'s `operabilityMatch`, issue #271),
 not as a pattern list added here.

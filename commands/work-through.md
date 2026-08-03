@@ -358,9 +358,10 @@ cost nothing to refuse.
   many consecutive zero-landed runs there were and what the run reports said, and ask
   the user to either fix the cause or re-invoke with an explicit override
   (`/work-through <epic> --override-stop-loss`), which is the only thing that clears it.
-  Never decide on the epic's behalf that this run will be different; two runs already
-  were not. The threshold is computed in `bin/gate-ledger` and read here — never compare
-  a count against a number of your own in this prose.
+  Never decide on the epic's behalf that this run will be different; every run in the
+  streak already was not. The threshold is `EPIC_ZERO_LANDED_LIMIT`, computed in
+  `bin/gate-ledger` and read here — never compare a count against a number of your own
+  in this prose.
 
   **The override's exemption is `.stopLoss.overridden`, not your own memory of the
   flag.** `epic-reconcile` computes it: `true` means the streak had genuinely reached
@@ -952,13 +953,19 @@ driver was **invoked at all** in this invocation, skip this write entirely and r
 plan-approval summary. Otherwise, one call:
 
 ```bash
-gate-ledger epic-run-log --slug "<slug>" --landed <the driver's `landed` field, or 0>
+gate-ledger epic-run-log --slug "<slug>" --landed <the driver's `landedThisRun` field, or 0>
 ```
+
+**The count is `landedThisRun`, never `landed`.** The stop-loss counts consecutive
+invocations that landed nothing (Reconcile above reads trailing zeros), and `landed` is
+cumulative: an epic that landed three stories on run 1 reports `landed: 3` on every
+later run, so feeding it would keep a stalled epic's streak at zero forever — the exact
+M11 shape #268 was filed on. `landedThisRun` is what this invocation moved.
 
 **The trigger is "a driver was invoked", not "a driver returned".** Write the run record
 whether the script (or the fallback) finished cleanly, errored, crashed, timed out, or
-came back with nothing you could read — the count is the driver's returned `landed`
-field, and `0` when there is no returned field to read. A Workflow script has no exec
+came back with nothing you could read — the count is the driver's returned
+`landedThisRun` field, and `0` when there is no returned field to read. A Workflow script has no exec
 access, so `epic-driver.js` cannot make this write itself from a `finally` and a run that
 throws returns no `landed` at all; this prose is the only thing standing between a
 crashed run and an uncounted one. A run that crashed landed nothing, and a run that lands

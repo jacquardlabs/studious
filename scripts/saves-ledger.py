@@ -299,7 +299,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Render the saves ledger — findings that demonstrably changed the work."
     )
-    parser.add_argument("--repo", default=".", help="repository to read (default: cwd's git top level)")
+    parser.add_argument(
+        "--repo", default=".", help="repository to read (default: the main working tree containing cwd)"
+    )
     parser.add_argument("--studious", default=None, help="override the .studious/ store path")
     parser.add_argument("--json", action="store_true", help="emit the save records as JSON")
     args = parser.parse_args(argv)

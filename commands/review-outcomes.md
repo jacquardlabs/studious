@@ -38,6 +38,16 @@ Spawn @agent-review-outcomes with the Task tool. It already knows its full workf
 
 Output format, the attribution rules, and the confidence tiers are the agent's — see `agents/review-outcomes.md`'s `## Report` section. When it returns, surface the summary and the report path.
 
+## Render the saves ledger
+
+The review above grades what shipped and came back; the saves ledger is the other half of the outcome story — the catches the gates demonstrably made before merge (#146). After the agent returns, render it yourself:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/saves-ledger.py" --repo <project path>
+```
+
+The script is read-only and stdout-only. It folds the per-epic findings ledger (`.studious/epics/<epic>.events.jsonl`) into saves — findings raised at one sha and closed at a later one — and, where `.studious/telemetry/` outcome lines join, marks a save `gate-confirmed` with its verdict pair. Both stores are local and gitignored, so the ledger covers epics run in this clone, and an empty ledger on a fresh clone is a true answer, not a failure. Surface the rendered output beside the agent's summary, and keep the two halves side by side, never folded into one score: the review's corrective links are post-ship signal, the saves are gate-time signal — the same separation `reference/telemetry-format.md` requires. `--json` emits the same records for a downstream corpus; `--studious <path>` overrides the store location.
+
 ## Recommend-only
 
 This command reports. It never closes an issue, comments on a PR, reverts anything, or edits code or a context doc; the one file written is the report under `docs/studious/outcome-reviews/`. It also does not retune any auditor — the correlations it finds are the ground truth a later tuning decision would argue from, not the decision itself.
