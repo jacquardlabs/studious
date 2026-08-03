@@ -31,7 +31,10 @@ session with `/coach` must be told the same thing about where they are; the
 two giving different answers was the defect this closes (#214).
 
 Invocation is `/coach` — the same "single verb, slash-prefixed" convention
-as `/design`, `/plan`, `/build`, and `/finish`. The trigger is an explicit ask only: the user says
+as `/design`, `/plan`, `/build`, and `/finish` (dispatched, when it's this
+skill doing the dispatching, as `/studious:design` etc. — see Step 2
+below; a bare `/design` collides with a Claude Code built-in of the same
+name). The trigger is an explicit ask only: the user says
 `/coach`, asks where they are in the pipeline or what to do next, or asks
 for help recovering a stuck loop. Never self-trigger on the mere presence
 of a verdict token earlier in the conversation — auto-triggering is the

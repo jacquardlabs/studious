@@ -311,7 +311,7 @@ For each task block, in order:
      retry past: call
      `scripts/status-flip --plan <path> --task <label> --status REPLAN --reason "<verify's own parse error>"`
      and report **PAUSED** directly — the human revises the block by hand,
-     then re-invokes `/build`.
+     then re-invokes `/studious:build`.
 6. **Inspect — conditional on load-bearing status (issue #15).** Consult
    the fixed load-bearing set step 1.5 already computed.
 
@@ -519,7 +519,7 @@ an unrelated `verify` `FAIL`, or from a later task's own first `DEFECT`.
        independent Inspectors both couldn't clear it). Call
        `scripts/status-flip --plan <path> --task <label> --status REPLAN --reason "<why>"`.
        Report **PAUSED**: the human revises the block by hand (no `/plan`
-       exists yet to do it for them), then re-invokes `/build`.
+       exists yet to do it for them), then re-invokes `/studious:build`.
        `status-flip` overwrites a prior `REPLAN` suffix on this same task
        rather than refusing — this is the one status that isn't terminal.
      - **ESCALATE** — something deeper than this task: a contract mismatch
@@ -527,7 +527,7 @@ an unrelated `verify` `FAIL`, or from a later task's own first `DEFECT`.
        that doesn't hold in the real codebase. Call
        `scripts/status-flip --plan <path> --task <label> --status ESCALATE --reason "<why>"`.
        Report **ESCALATED** — terminal for this session; hand off to
-       `/design` in revision mode.
+       `/studious:design` in revision mode.
 
    Either diagnosis is your own judgment call from `verify`'s and (for a
    load-bearing task) the Inspector's accumulated detail across both
@@ -554,13 +554,13 @@ an unrelated `verify` `FAIL`, or from a later task's own first `DEFECT`.
 |---|---|
 | `BUILT` | Every task in the plan reaches `PASS`. Report the branch/worktree, then tell the developer to run `/gate-audit` next — unconditionally, since that gate ships in this same plugin. |
 | `PAUSED` | A dirty or missing baseline stopped Setup, or a task's Failure routine resolved to `REPLAN`, or a risk-tagged task is waiting for a pre-dispatch acknowledgment, or a `verify`/`status-flip` usage error persisted after one retry. Resumable once the human acts. |
-| `ESCALATED` | A task's Failure routine resolved to `ESCALATE`. Terminal for this session — hand off to `/design` in revision mode. |
+| `ESCALATED` | A task's Failure routine resolved to `ESCALATE`. Terminal for this session — hand off to `/studious:design` in revision mode. |
 
 **Never report `PAUSED` bare.** It collapses four distinct causes (missing
 or dirty baseline, `REPLAN`, a risk-tagged pre-dispatch pause, a persisted
 script usage error) into one token. Every `PAUSED` report names, in the
 same message: which of those four fired, and the specific action that
-resumes `/build` — fix the baseline and re-invoke; revise the checkpoint
+resumes `/studious:build` — fix the baseline and re-invoke; revise the checkpoint
 block by hand and re-invoke; acknowledge the risk tag to proceed; fix the
 transcription bug and re-invoke.
 
