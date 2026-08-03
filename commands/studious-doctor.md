@@ -5,7 +5,7 @@ allowed-tools: Read, Glob, Grep, Bash
 
 # Studious doctor
 
-A read-only health check for this Studious install, run in the consuming project. Gates and reviews assume tools, a registered agent/skill roster, and populated context docs are all present — when one is missing, nothing errors, it just quietly has less to work with. This command surfaces those gaps in one pass. It fixes nothing: recommend-only, same as every other Studious command. It is not a gate — no verdict token, nothing recorded to `.studious/`.
+A read-only health check for this Studious install, run in the consuming project. Gates and reviews assume tools, a registered agent/skill roster, and populated context docs are all present — when one is missing, nothing errors, it just quietly has less to work with. This command surfaces those gaps in one pass. It fixes nothing: recommend-only, same as every gate and review. It is not a gate — no verdict token, nothing recorded to `.studious/`.
 
 ## 1. Tooling
 

@@ -43,7 +43,7 @@ tests/        — Python and shell tests for commands and CI scripts
 - Skills are trigger shims: a tightly-scoped `description` lets a gate fire from natural language, and the body delegates to the matching command instead of duplicating it.
 - Every agent and command reads PRODUCT.md, DESIGN.md, or CLAUDE.md for project context.
 - Review reports save to `docs/studious/` subdirectories in the user's project, not to the plugin itself.
-- **Recommend-only** is CLAUDE.md's invariant, not restated here — see CLAUDE.md's "Key invariants," recommend-only bullets, for the exact boundary (any self-declared recommend-only command, the shared bookkeeping boundary, and the executor/one-off carve-out) and the predicate the `.studious/`/`docs/studious/` bookkeeping boundary applies — not an enumerated writer list.
+- **Recommend-only** is CLAUDE.md's invariant, not restated here — see CLAUDE.md's "Key invariants" bullets "Recommend-only means propose, never modify," "One bookkeeping boundary, not a name list," and "Everything else is either an executor or a human-typed one-off" for the exact boundary (any self-declared recommend-only command, the shared bookkeeping boundary, and the executor/one-off carve-out) and the predicate the `.studious/`/`docs/studious/` bookkeeping boundary applies — not an enumerated writer list.
 - **Workers never gate; gates never build.** `/work-through` dispatches worker agents (design docs, implementation, fixes) and gate agents (the existing gate commands) as separate agents with no shared context. A worker must never record a verdict; a gate agent must never write code.
 
 ## Naming conventions

@@ -94,5 +94,6 @@ Both readers follow these; a reader that deviates is a defect against this file.
   its journal-read step must state the read rules above.
 - `agents/backlog-priorities.md` — read-only consumer; annotates ranked issues
   with matching prior verdicts under the read rules above.
-- `CLAUDE.md`'s recommend-only invariant names this journal as a sanctioned gate
-  write — update both together if the write surface ever changes.
+- `CLAUDE.md`'s recommend-only invariant names this journal's committed append
+  as the one exception inside its bookkeeping boundary — update both together
+  if the write surface ever changes.
