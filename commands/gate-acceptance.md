@@ -51,6 +51,8 @@ If `gate-ledger` is not found, `gate-get` errors, or it returns empty output (no
 
 If `gate-ledger` is not found at all, tell the user the episode could not be opened — run the review anyway and report, but say up front that the verdict will not be recorded; do not skip silently.
 
+Dispatch telemetry for every agent you spawn — run, step, role, and the model and effort that agent's file pins — is appended by `hooks/dispatch-telemetry.sh` on the `Task` tool, with no step for you to run and nothing to pass. Schema: `reference/telemetry-format.md`. Nothing here reads it.
+
 ## Part 1 — Product review
 
 Invoke @agent-product-reviewer to review the implementation against the design doc, handing it the Part 0 scope explicitly: the named changeset file list, the resolved design-doc path, and PRODUCT.md, alongside the shared contract. This is a post-implementation product acceptance review. The reviewer has no Bash — with scope named in its prompt it reviews the listed files against the resolved doc; it never bounces back for scope or improvises it from Glob/Grep.

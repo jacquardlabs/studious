@@ -127,8 +127,12 @@ normalized — sorts each group by `at`, and takes:
 
 `--unresolved` keeps only `open` and `carried` — the two states a verdict has to answer
 for, exactly as `episode-get` counts them. `--attestations` prints the clean-lane trail
-instead, one line per `(lane, story)`. A malformed line is skipped, never fatal: one
-corrupt append must not blind the finale to every other finding.
+instead: one line per `attestation` record, sorted by `(lane, story, at)` and **not**
+grouped or deduplicated, so a lane that attests the same story twice prints twice. Its
+one reader (`workflows/epic-driver.js`'s `attestedCarryForward`) asks only whether a
+matching record exists, so a repeat is harmless — but a reader that counts lines is
+counting records, not `(lane, story)` pairs. A malformed line is skipped, never fatal:
+one corrupt append must not blind the finale to every other finding.
 
 What a *set* of attestations licenses is the reader's judgment, not this format's:
 `workflows/epic-driver.js` carries a lane forward at the finale only when every landed

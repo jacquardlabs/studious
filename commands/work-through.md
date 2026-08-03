@@ -40,9 +40,6 @@ supervised, evidence-first flow instead.
 
 `gate-ledger epic-list` shows epics in flight (slug, status, landed/total, branch, title).
 
-- **`$ARGUMENTS` is empty** — if exactly one epic has status `approved`, `running`, or
-  `ready`, drive it. If several, list them and ask which — don't guess. If none, invite
-  `/work-through [milestone, epic issue, or label]`.
 **Strip a trailing `--override-stop-loss` from `$ARGUMENTS` before matching anything
 below**, and carry it as a flag into Reconcile. It is the operator's explicit consent to
 dispatch past the zero-landed refusal and means nothing else: it is never implied by
@@ -51,6 +48,9 @@ Matching it as one would send `/work-through <epic> --override-stop-loss` down t
 "anything else starts a new epic" path and try to resolve the whole string as a
 milestone.
 
+- **`$ARGUMENTS` is empty** — if exactly one epic has status `approved`, `running`, or
+  `ready`, drive it. If several, list them and ask which — don't guess. If none, invite
+  `/work-through [milestone, epic issue, or label]`.
 - **`$ARGUMENTS` matches an epic in flight** (slug or title) — drive that one.
 - **Anything else starts a new epic.** Resolve it read-only with `gh`:
   - a milestone name or number → `gh issue list --milestone "<M>" --state open --json number,title,body,labels`
@@ -139,9 +139,20 @@ milestone.
    story end to end and releases the rest only if it lands. Name which story that will
    be. It is on unless the user turns it off.
 
+   State the **acceptance altitude** last, as a one-line default the user can overturn:
+   `per-story` — every story's `acceptance` gate runs the full product review, which is
+   today's behaviour and what this plan proposes. `delivery-boundary` moves product
+   judgment to the epic finale and reduces each story's gate to criteria conformance;
+   propose it only when the user asks for it by name, and say why not otherwise:
+   `reference/epic-plan-contract.md`'s "Acceptance altitude" section holds the flag off
+   until #281's findings ledger and #133's outcome labels have accumulated enough
+   evidence to answer whether the per-story review was catching anything, and that
+   evidence does not exist yet. Read that section rather than working from this summary.
+
 6. Stop and iterate. The user trims, reorders, re-scopes, drops, and may reclassify any
-   story, restore any trimmed gate, or move either appetite number. Nothing is recorded
-   and nothing runs until they explicitly approve.
+   story, restore any trimmed gate, move either appetite number, turn the canary off, or
+   set the acceptance altitude. Nothing is recorded and nothing runs until they
+   explicitly approve.
 
 7. **Settle the open forks in one interview — the epic's only scheduled human turn.**
 
@@ -189,7 +200,7 @@ milestone.
    gate-ledger epic-set --slug "<slug>" --title "<title>" --source "<milestone M | issue #N | label L>" \
      --goal "<goal statement>" --branch "epic/<slug>" --concurrency <cap> --status approved \
      --appetite-tokens <approved tokens> --appetite-episodes <approved open episodes> \
-     --canary <on|off>
+     --canary <on|off> --acceptance-altitude <per-story|delivery-boundary>
    gate-ledger epic-story-set --epic "<slug>" --slug "<story>" --title "<story title>" \
      --source "issue #N" --criteria "<criteria>" --decisions "<answered forks>" \
      --deps "<dep-a,dep-b>" --gates "<profile>"
@@ -198,6 +209,13 @@ milestone.
    `--appetite-tokens` is a token count, never a dollar figure — the ledger rejects
    anything but a positive integer, and the driver compares it against a token budget.
    Record the numbers the user actually approved, not the ones step 5 proposed.
+
+   `--acceptance-altitude` records the altitude the user approved in step 5 — pass
+   `per-story` unless they explicitly chose `delivery-boundary`. This flag is the only
+   path from an approval to that setting, so pass it every time rather than relying on
+   the absent-reads-as-`per-story` default: a plan that records the altitude states what
+   was approved, and one that omits it leaves a later reader unable to tell an approved
+   default from an unasked question.
 
    `--decisions` carries that story's answers as one line — `fork: answer; fork: answer`
    — distilled from `.viva/answers.json` (`choice`, plus `note` when the human added
