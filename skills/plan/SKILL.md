@@ -252,7 +252,7 @@ structurally broken draft is not worth spending it on.
 **If viva is not installed** (`$VIVA_DIR` in the viva SKILL.md's own launch
 block resolves to nothing), stop here and report that plainly: "viva is
 required for `/plan`'s review step and is not installed -- install it
-(`/plugin install viva@jacquardlabs-marketplace`) and re-invoke `/plan`."
+(`/plugin install viva@jacquardlabs-marketplace`) and re-invoke `/studious:plan`."
 No stack trace, no silent hang, no attempt to skip review -- `/plan` has a
 hard dependency on viva for this step, matching how `/build` has a hard
 dependency on `scripts/verify`. "Standalone-capable... none is silent"
@@ -301,7 +301,7 @@ second one.
 
 | Verdict | Fires when |
 |---|---|
-| `PLAN READY` | Every task reaches viva `approved`, `scripts/plan-lint` exits 0 against the final file. Hand the human (or the epic driver) the `PLAN.md` path and name `/build` as the next step. |
+| `PLAN READY` | Every task reaches viva `approved`, `scripts/plan-lint` exits 0 against the final file. Hand the human (or the epic driver) the `PLAN.md` path and name `/studious:build` as the next step. |
 | `DESIGN GAP` | Step 1a falsifies a design assumption against the real codebase, **or** Step 1b finds required infra (test runner, or -- issue #13's own case -- a scripted-probe tool a task's `Done means` needs) missing and uncreatable by an earlier task, **or** Step 5's lint loop can't converge without such a gap (no progress, or the 3-cycle bound). **Never reported bare** -- name which of the three causes fired (falsified assumption / missing test-or-lint infra / missing probe infra), plus the concrete resume action: revise the design doc, or install the missing tool as its own prerequisite. |
 | `TOO BIG` | Step 3's task count doesn't calibrate to 3-8 after merge/split attempts -- names the actual task count and which direction it missed by. |
 

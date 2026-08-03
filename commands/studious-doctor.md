@@ -5,7 +5,7 @@ allowed-tools: Read, Glob, Grep, Bash
 
 # Studious doctor
 
-A read-only health check for this Studious install, run in the consuming project. Gates and reviews assume tools, a registered agent/skill roster, and populated context docs are all present — when one is missing, nothing errors, it just quietly has less to work with. This command surfaces those gaps in one pass. It fixes nothing: recommend-only, same as every other Studious command. It is not a gate — no verdict token, nothing recorded to `.studious/`.
+A read-only health check for this Studious install, run in the consuming project. Gates and reviews assume tools, a registered agent/skill roster, and populated context docs are all present — when one is missing, nothing errors, it just quietly has less to work with. This command surfaces those gaps in one pass. It fixes nothing: recommend-only, same as every gate and review. It is not a gate — no verdict token, nothing recorded to `.studious/`.
 
 ## 1. Tooling
 
@@ -57,7 +57,7 @@ Classify:
 - **1–10 active** — **OK**, with the active count (and the retained count, if nonzero).
 - **A work file whose branch no longer exists** — name it: `gc` will collect it outright on its next run, no retention window and no `--force` needed even if it carries a measured scope-delta cohort — that guard applies to a *finished* story's work file only, never to a still-in-flight one whose branch is gone (a parked story never reached acceptance, so there is no completed cohort to protect) — and until collected it is noise in every `work-list` read.
 
-Report the counts, never the full list — this is a health check, not an inventory. And recommend `gc`; never run it. Same recommend-only posture as everything else here.
+Report the counts, never the full list — this is a health check, not an inventory. And recommend `gc`; never run it. Same recommend-only posture as every other check in this command.
 
 ## Output
 

@@ -90,7 +90,8 @@ purely mechanical things:
 **A folder that fails either check is not promoted silently.** Stop before
 assembling the PR body. Report the exact task and reason (stale/orphaned)
 by name. The human's resume action is re-running the task's evidence
-capture (via `/build` or by hand) and re-invoking `/finish`. Do not call
+capture (via `/studious:build` or by hand) and re-invoking
+`/studious:finish`. Do not call
 `evidence-capture` yourself to backfill a gap — `/finish` does not invent
 or re-capture evidence (see Out of scope in the design doc this skill
 implements).

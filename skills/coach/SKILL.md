@@ -3,8 +3,9 @@ name: coach
 description: >-
   The build loop's coach — assesses pipeline state from the repo and conversation,
   recommends exactly one next action with why, rough cost, and the path
-  ahead, and dispatches /design, /plan, /build, or /finish one at a time on
-  explicit human confirmation, passing context explicitly. Use when the
+  ahead, and dispatches /studious:design, /studious:plan, /studious:build,
+  or /studious:finish one at a time on explicit human confirmation, passing
+  context explicitly. Use when the
   user says /coach, asks where they are in the pipeline or what to do
   next, or wants help recovering after a PAUSED or ESCALATED /build
   session. Does no work itself — writes no code, flips no statuses,
@@ -31,7 +32,10 @@ session with `/coach` must be told the same thing about where they are; the
 two giving different answers was the defect this closes (#214).
 
 Invocation is `/coach` — the same "single verb, slash-prefixed" convention
-as `/design`, `/plan`, `/build`, and `/finish`. The trigger is an explicit ask only: the user says
+as `/design`, `/plan`, `/build`, and `/finish` (dispatched, when it's this
+skill doing the dispatching, as `/studious:design` etc. — see Step 2
+below; a bare `/design` collides with a Claude Code built-in of the same
+name). The trigger is an explicit ask only: the user says
 `/coach`, asks where they are in the pipeline or what to do next, or asks
 for help recovering a stuck loop. Never self-trigger on the mere presence
 of a verdict token earlier in the conversation — auto-triggering is the
@@ -111,9 +115,11 @@ the human, before any confirmation is requested.
 The output is a coach's call, not a menu: **one action**, why (the
 evidence lines that determined it), rough cost, the path ahead, then the
 confirmation question. The action comes from a closed set: dispatch one of
-`/design` `/plan` `/build` `/finish`; recommend the human run a named
-studious gate; name a manual step; or state "nothing to dispatch." Never
-two options, never a ranked list.
+`/studious:design` `/studious:plan` `/studious:build` `/studious:finish`
+(qualified — a bare `/design` collides with a Claude Code built-in of the
+same name; the others are qualified too for consistency); recommend the
+human run a named studious gate; name a manual step; or state "nothing to
+dispatch." Never two options, never a ranked list.
 
 Routing, observed state → the one action:
 
@@ -121,12 +127,12 @@ Routing, observed state → the one action:
 |---|---|---|
 | No design doc, no `PLAN.md`; no should-we-build verdict recorded (or the ledger is unreadable) | Recommend the human run `/gate-should-we-build` | The feature idea from conversation |
 | Design doc present and signed off (`## Revision History`, or this conversation's own `DESIGNED`); no design-review verdict recorded (or the ledger is unreadable) | Recommend the human run `/gate-design-review` | The doc path |
-| Design doc signed off, design-review verdict recorded (or the ledger is unreadable — gap named); no `PLAN.md` | Dispatch `/plan` | The design doc path |
-| `PLAN.md` present, no terminal suffixes | Dispatch `/build` | The plan path |
-| ` [REPLAN]` suffix on Task N | Name the manual step: revise Task N's checkpoint block by hand, quoting the status-flip commit's reason; after the human says done, reassess and recommend `/build` | The quoted REPLAN reason |
-| ` [ESCALATE]` suffix on Task N | Dispatch `/design` in revision mode | The ESCALATE finding (status-flip commit body, quoted) plus the design doc path |
+| Design doc signed off, design-review verdict recorded (or the ledger is unreadable — gap named); no `PLAN.md` | Dispatch `/studious:plan` | The design doc path |
+| `PLAN.md` present, no terminal suffixes | Dispatch `/studious:build` | The plan path |
+| ` [REPLAN]` suffix on Task N | Name the manual step: revise Task N's checkpoint block by hand, quoting the status-flip commit's reason; after the human says done, reassess and recommend `/studious:build` | The quoted REPLAN reason |
+| ` [ESCALATE]` suffix on Task N | Dispatch `/studious:design` in revision mode | The ESCALATE finding (status-flip commit body, quoted) plus the design doc path |
 | Every task ` [PASS]`; audit/acceptance not yet recorded (or the ledger is unreadable) | Recommend the human run `/gate-audit` (then `/gate-acceptance`) | The branch name |
-| Every task ` [PASS]`; both gates recorded as passed | Dispatch `/finish` | Nothing beyond the invocation — `/finish` reads `PLAN.md` and the evidence folders itself |
+| Every task ` [PASS]`; both gates recorded as passed | Dispatch `/studious:finish` | Nothing beyond the invocation — `/finish` reads `PLAN.md` and the evidence folders itself |
 | Dated build report exists for this story / branch closed out | Nothing to dispatch — state it and stop | — |
 
 **What the work file adds to this table.** It never overrides a row — the
@@ -202,9 +208,9 @@ whose sole job is dispatching them one at a time on human confirmation.
 A stated shortcut is honored and its skipped steps named, never blocked
 (`PRODUCT.md` journey 2, Quick path). The persona who says "small fix,
 skip the ceremony" gets: "Quick path: hand-author a single-task `PLAN.md`
-in the checkpoint-block format, then I dispatch `/build` — skipping
-`/design`, `/gate-design-review`, and `/plan`; `/gate-audit` still applies
-after `BUILT`."
+in the checkpoint-block format, then I dispatch `/studious:build` —
+skipping `/studious:design`, `/gate-design-review`, and `/studious:plan`;
+`/gate-audit` still applies after `BUILT`."
 
 ## Does no work itself
 

@@ -1,0 +1,34 @@
+{
+  "task": "task-1",
+  "date": "2026-08-03",
+  "branch": "fix/recommend-only-invariant-scope",
+  "commit_sha": "9115e69dbe8ba4b09dc64bac3804043c464b66af",
+  "commit_timestamp": "2026-08-03T13:05:47+00:00",
+  "captured_at": "2026-08-03T13:15:33.184892+00:00",
+  "artifacts": [
+    {
+      "producer": "verify",
+      "label": "results",
+      "source": "/private/tmp/claude-501/-Users-bryan-Projects-studious/08ccc4cd-337f-4b7e-b684-d407e9978af5/scratchpad/build/results-task1.json",
+      "path": "results.json"
+    },
+    {
+      "producer": "inspector",
+      "label": "report",
+      "source": "/private/tmp/claude-501/-Users-bryan-Projects-studious/08ccc4cd-337f-4b7e-b684-d407e9978af5/scratchpad/build/inspector-report-task1.md",
+      "path": "report.md"
+    },
+    {
+      "producer": "probe",
+      "label": "claude-md",
+      "source": "/private/tmp/claude-501/-Users-bryan-Projects-studious/08ccc4cd-337f-4b7e-b684-d407e9978af5/scratchpad/build/task1-claude-md-copy.md",
+      "path": "claude-md.md"
+    },
+    {
+      "producer": "build",
+      "label": "replay-bundle",
+      "source": "/private/tmp/claude-501/-Users-bryan-Projects-studious/08ccc4cd-337f-4b7e-b684-d407e9978af5/scratchpad/build/replay-bundle-task1.json",
+      "path": "replay-bundle.json"
+    }
+  ]
+}
