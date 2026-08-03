@@ -29,13 +29,13 @@ Open an issue for bugs, unclear documentation, or suggestions. Include:
 
 ```
 agents/       — Agent definitions (name, description, tools, model in frontmatter)
-bin/          — Executables used by commands (e.g. gate-ledger for gate verdicts, /work-on's per-feature state, and /work-through's per-epic state)
+bin/          — Executables used by commands (e.g. gate-ledger for gate verdicts, /next's per-feature state, and /next's per-epic state)
 commands/     — Slash commands (description, allowed-tools in frontmatter)
 scripts/      — CI helper scripts (link checking, manifest validation)
 skills/       — Natural-language trigger shims (skills/<name>/SKILL.md)
 hooks/        — Shipped hook scripts + hooks.json (e.g. the PR-time gate reminder)
 reference/    — Curated rubrics agents read at audit time (e.g. reference/idioms/<lang>.md)
-templates/    — Scaffold files created by /studious-init
+templates/    — Scaffold files created by /setup
 tests/        — Python and shell tests for commands and CI scripts
 ```
 
@@ -44,15 +44,15 @@ tests/        — Python and shell tests for commands and CI scripts
 - Every agent and command reads PRODUCT.md, DESIGN.md, or CLAUDE.md for project context.
 - Review reports save to `docs/studious/` subdirectories in the user's project, not to the plugin itself.
 - **Recommend-only** is CLAUDE.md's invariant, not restated here — see CLAUDE.md's "Key invariants" bullets "Recommend-only means propose, never modify," "One bookkeeping boundary, not a name list," and "Everything else is either an executor or a human-typed one-off" for the exact boundary (any self-declared recommend-only command, the shared bookkeeping boundary, and the executor/one-off carve-out) and the predicate the `.studious/`/`docs/studious/` bookkeeping boundary applies — not an enumerated writer list.
-- **Workers never gate; gates never build.** `/work-through` dispatches worker agents (design docs, implementation, fixes) and gate agents (the existing gate commands) as separate agents with no shared context. A worker must never record a verdict; a gate agent must never write code.
+- **Workers never gate; gates never build.** `/next` dispatches worker agents (design docs, implementation, fixes) and gate agents (the existing gate commands) as separate agents with no shared context. A worker must never record a verdict; a gate agent must never write code.
 
 ## Naming conventions
 
 Names encode two things — whether something is an action or a role, and what scope it works at. Follow the existing shape; the prefix/suffix split is deliberate, not drift.
 
 - **Commands are actions** — an action prefix plus its target: `gate-` (per-change checkpoints), `review-`/`deep-review` (periodic health), `extract-` (one-time scaffolding), `backlog-` (issue triage), `work-` (flow navigation: `work-on` one piece at a time, `work-through` a whole epic). The verb goes in front.
-- **Agents are either a 1:1 reviewer or a role.** Periodic, project-scoped reviewers share their command's `review-*` name (currently spawned by `/deep-review`). Changeset specialists spawned by a fan-out command (`/gate-audit`, the gates) are named by role: `<domain>-auditor` for technical/rule checks (security, code, doc, architecture), `<domain>-reviewer` for human-judgment checks (product, ux, frontend).
-- **One fan-out command, many subagents.** Parallel checks belong to subagents under a single entry point (`/gate-audit`, `/deep-review`), not to their own top-level commands. Don't add a command per check.
+- **Agents are either a 1:1 reviewer or a role.** Periodic, project-scoped reviewers share their command's `review-*` name (currently spawned by `/retro`). Changeset specialists spawned by a fan-out command (`/review`, the gates) are named by role: `<domain>-auditor` for technical/rule checks (security, code, doc, architecture), `<domain>-reviewer` for human-judgment checks (product, ux, frontend).
+- **One fan-out command, many subagents.** Parallel checks belong to subagents under a single entry point (`/review`, `/retro`), not to their own top-level commands. Don't add a command per check.
 - **Skills are named for the intent they detect** — `evaluate-feature-idea`, `review-design-before-build`, `acceptance-check-before-merge` — not for the command they call. The `description` carries the trigger; keep it conservative (fire on explicit intent, list what it should NOT match) so a gate never interrupts when it isn't wanted.
 
 ## Model and effort assignments

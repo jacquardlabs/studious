@@ -163,7 +163,7 @@ def test_a_failed_canary_never_reclassifies_a_plan_parked_story_as_held() -> Non
     reason it was carrying, turning a story awaiting a human into one that looks like it
     is merely waiting on a ceiling."""
     epic = _epic(filler=True)  # story c is parked in the plan
-    epic["stories"]["c"]["reason"] = "story-supervised: take it through /work-on"
+    epic["stories"]["c"]["reason"] = "story-supervised: take it through /next"
     out = _run_driver(epic, [*A_PARKS, *B_LANDS])
     assert out["ok"], f"driver crashed: {out.get('error')}"
     result = out["result"]
@@ -284,7 +284,7 @@ def test_open_episode_cap_holds_dispatch_regardless_of_token_headroom() -> None:
     epic = _epic(canary=False, appetite={"tokens": 4000000, "openEpisodes": 1})
     epic["stories"]["a"].update({
         "status": "parked",
-        "reason": "story-supervised: prompt-prose surface — take it through /work-on",
+        "reason": "story-supervised: prompt-prose surface — take it through /next",
     })
     out = _run_driver(epic, [*B_LANDS, *B_VERIFY])
     assert out["ok"], f"driver crashed: {out.get('error')}"
@@ -569,7 +569,7 @@ def test_resume_at_merge_with_headroom_still_lands() -> None:
 
 
 def test_the_driver_enforces_the_approved_number_and_never_prices_one() -> None:
-    """Pricing is a plan-approval judgment (commands/work-through.md, priced from
+    """Pricing is a plan-approval judgment (reference/epic-orchestration.md, priced from
     reference/epic-pricing.md); the driver only enforces the number it was handed.
     A rate table here would be a second source of truth for cost, on the wrong
     side of the code-owns-bookkeeping split."""

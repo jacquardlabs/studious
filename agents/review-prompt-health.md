@@ -64,7 +64,7 @@ Structure the report:
 
 **Summary** — one paragraph: overall prompt health, biggest concern, biggest strength.
 **Critical**, **Important**, **Track** — findings grouped by tier.
-**Metrics snapshot** — the numbers below. These key names are a **contract with `/deep-review`'s dashboard** (`commands/deep-review.md`) — do not rename them:
+**Metrics snapshot** — the numbers below. These key names are a **contract with `/retro`'s dashboard** (`commands/retro.md`) — do not rename them:
 
 - Prompt files
 - Prompt duplication clusters

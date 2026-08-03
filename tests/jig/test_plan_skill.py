@@ -1,4 +1,4 @@
-"""Regression tests for skills/plan/SKILL.md (story plan-skill, issues
+"""Regression tests for reference/planning-contract.md (story plan-skill, issues
 #11, #23, #13).
 
 Standard library only, matching test_build_skill.py's and
@@ -7,12 +7,12 @@ test_finish_skill.py's own convention. Run with:
     uv run --no-project python3 -m unittest discover -s tests -v
 
 Checks this story's acceptance criteria and the epic/story pre-mortems'
-named risks mechanically, by inspecting the prose `/plan`'s session
+named risks mechanically, by inspecting the prose `/build`'s session
 actually reads:
 
-1. `skills/plan/SKILL.md` has valid `name`/`description` frontmatter,
+1. `reference/planning-contract.md` has valid `name`/`description` frontmatter,
    `name` matching the directory, and no longer reads as the M1 stub.
-2. The body carries jig's own `/plan`-level vocabulary (`PLAN READY`/
+2. The body carries jig's own `/build`-level vocabulary (`PLAN READY`/
    `DESIGN GAP`/`TOO BIG`, `cap`/`hold`, `script`/`test-backed`/`probe`,
    `LOW`/`REPLAN-RISK`/`ESCALATE-RISK`), derived from DESIGN.md at test
    time, not hand-copied.
@@ -40,7 +40,7 @@ actually reads:
    no explicit constraints/assumptions section (story pre-mortem risk #4).
 10. No `SKILL.md` is nested deeper than the directory's top level.
 11. The two already-shipped stale-reference sites this story updates
-    (`skills/build/SKILL.md`, `skills/finish/SKILL.md`) still name the
+    (`skills/build/SKILL.md`, `skills/ship/SKILL.md`) still name the
     `##` heading level and now cite this story's own verified round-trip.
 """
 from __future__ import annotations
@@ -138,7 +138,7 @@ class TestPlanSkillBody(unittest.TestCase):
 
     def test_body_uses_plan_level_vocabulary(self) -> None:
         missing = [term for term in PLAN_VOCABULARY if term not in self.body]
-        self.assertEqual(missing, [], f"{SKILL_MD} body is missing /plan vocabulary terms: {missing}")
+        self.assertEqual(missing, [], f"{SKILL_MD} body is missing /build vocabulary terms: {missing}")
 
     def test_names_all_six_steps(self) -> None:
         for step in (
@@ -157,7 +157,7 @@ class TestPlanSkillBody(unittest.TestCase):
             with self.subTest(field=field):
                 self.assertIn(field, self.body)
 
-    # -- Input: no hard dependency on /design ------------------------------
+    # -- Input: no hard dependency on /shape ------------------------------
 
     def test_input_reads_design_docs_semantically_not_by_fixed_grammar(self) -> None:
         self.assertPhraseIn("Read it **semantically**, not by parsing a fixed heading grammar")
@@ -276,7 +276,7 @@ class TestPlanSkillBody(unittest.TestCase):
     def test_viva_not_installed_reports_clearly_not_silently(self) -> None:
         # Story pre-mortem risk #7.
         self.assertPhraseIn("If viva is not installed")
-        self.assertPhraseIn("is required for `/plan`'s review step and is not installed")
+        self.assertPhraseIn("is required for `/build`'s review step and is not installed")
         self.assertIn("No stack trace, no silent hang", self.body)
 
     def test_viva_always_passes_explicit_split_on(self) -> None:

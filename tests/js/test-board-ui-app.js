@@ -201,7 +201,7 @@ test('workerPhaseDone: a build step event for another story does not mark this o
   assert.equal(app.workerPhaseDone('x', 'build', events), false);
 });
 
-test('workerPhaseDone: a /work-on takeover HANDED-OFF step does not mark build done (false-positive twin)', () => {
+test('workerPhaseDone: a /next takeover HANDED-OFF step does not mark build done (false-positive twin)', () => {
   const events = [{ kind: 'step', story: 'x', step: 'build', outcome: 'HANDED-OFF', phase: 'build' }];
   assert.equal(app.workerPhaseDone('x', 'build', events), false);
 });

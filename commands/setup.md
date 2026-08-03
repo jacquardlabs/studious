@@ -28,7 +28,7 @@ cp "${CLAUDE_PLUGIN_ROOT}/templates/PRODUCT.md" PRODUCT.md
 
 (`${CLAUDE_PLUGIN_ROOT}` is substituted to the plugin's install path before you read this. If the copy fails because it didn't resolve, locate `templates/PRODUCT.md` inside the plugin install with Glob and copy its contents — do not re-inline a template here.)
 
-Then populate it as part of init — run the `/extract-product-context` workflow inline now. Don't stop and hand this back as a separate step; extract the product context from the codebase and continue. (Users can re-run `/extract-product-context` on its own later to refresh.)
+Then populate it as part of init — run the `/setup` workflow inline now. Don't stop and hand this back as a separate step; extract the product context from the codebase and continue. (Users can re-run `/setup` on its own later to refresh.)
 
 ## Step 3 — Create DESIGN.md (if needed)
 
@@ -40,11 +40,11 @@ cp "${CLAUDE_PLUGIN_ROOT}/templates/DESIGN.md" DESIGN.md
 
 (Same fallback as Step 2: if `${CLAUDE_PLUGIN_ROOT}` didn't resolve and the copy fails, locate `templates/DESIGN.md` inside the plugin install with Glob and copy its contents — do not re-inline a template here.)
 
-Then populate it as part of init — run the `/extract-design-system` workflow inline now. It detects which surfaces the product actually has and extracts the conventions for each; a non-visual product (CLI, API, plugin) gets a real interface doc, and a pure library gets an honest minimal one. Don't stop and hand this back as a separate step; extract and continue. (Users can re-run `/extract-design-system` on its own later to refresh.)
+Then populate it as part of init — run the `/setup` workflow inline now. It detects which surfaces the product actually has and extracts the conventions for each; a non-visual product (CLI, API, plugin) gets a real interface doc, and a pure library gets an honest minimal one. Don't stop and hand this back as a separate step; extract and continue. (Users can re-run `/setup` on its own later to refresh.)
 
 ## Step 4 — Create README.md (if needed)
 
-If README.md already exists, skip this step — leave it alone and tell the user to run `/deep-review readme` to check it for drift. Never overwrite an existing README.
+If README.md already exists, skip this step — leave it alone and tell the user to run `/retro readme` to check it for drift. Never overwrite an existing README.
 
 If README.md doesn't exist, generate one now. PRODUCT.md exists at this point, so draw from it directly:
 
@@ -85,7 +85,7 @@ Add this section:
 
 ### Code conventions
 
-Language conventions `code-auditor` enforces at `/gate-audit`. Document the rules and any deliberate deviations here — they override Studious's built-in idiom rubric.
+Language conventions `code-auditor` enforces at `/review`. Document the rules and any deliberate deviations here — they override Studious's built-in idiom rubric.
 
 - **<language>** — <conventions, e.g. "Python 3.11+. Prefer comprehensions, generator expressions, and stdlib (functools, itertools, collections) over explicit loops. Type hints required.">
 - **Linter** — <the idiom linter and its rule selection, e.g. "Ruff with C4,SIM,PERF,B,RUF,PIE; run `ruff check` before pushing.">
@@ -95,23 +95,23 @@ Language conventions `code-auditor` enforces at `/gate-audit`. Document the rule
 
 | Gate | When | Command |
 |------|------|---------|
-| Should we build? | Before any engineering | `/gate-should-we-build [idea]` |
-| Design review | After design doc, before implementation | `/gate-design-review` |
-| Audit | After implementation, before acceptance | `/gate-audit` |
-| Acceptance | After audit passes, before merge | `/gate-acceptance` |
+| Should we build? | Before any engineering | `/bet [idea]` |
+| Design review | After design doc, before implementation | `/review` |
+| Audit | After implementation, before acceptance | `/review` |
+| Acceptance | After audit passes, before merge | `/review --delivery` |
 
 ### Periodic reviews
 
 | Review | Cadence | Command |
 |--------|---------|---------|
-| Codebase health | Weekly or pre-milestone | `/deep-review codebase` |
-| Interface health | Monthly or post-UI-sprint | `/deep-review interface` |
-| Architecture | Quarterly or pre-major-feature | `/deep-review architecture` |
-| Product health | Monthly | `/deep-review product` |
-| Security health | Monthly | `/deep-review security` |
-| README drift | After a release or feature batch | `/deep-review readme` |
-| All reviews + summary | As needed | `/deep-review` |
-| Outcome review (post-ship) | Quarterly or after a milestone closes | `/review-outcomes` |
+| Codebase health | Weekly or pre-milestone | `/retro codebase` |
+| Interface health | Monthly or post-UI-sprint | `/retro interface` |
+| Architecture | Quarterly or pre-major-feature | `/retro architecture` |
+| Product health | Monthly | `/retro product` |
+| Security health | Monthly | `/retro security` |
+| README drift | After a release or feature batch | `/retro readme` |
+| All reviews + summary | As needed | `/retro` |
+| Outcome review (post-ship) | Quarterly or after a milestone closes | `/retro` |
 
 ### After each review
 
@@ -119,10 +119,10 @@ Language conventions `code-auditor` enforces at `/gate-audit`. Document the rule
 2. File **Important** findings as tasks to address this cycle
 3. Log **Track** findings (lowest tier — revisit next cycle); they compound if ignored
 4. Update context docs if the review surfaced changes:
-   - `/deep-review product` updates PRODUCT.md
-   - `/deep-review interface` updates DESIGN.md
-   - `/deep-review architecture` updates CLAUDE.md
-   - `/deep-review readme` proposes a README.md diff
+   - `/retro product` updates PRODUCT.md
+   - `/retro interface` updates DESIGN.md
+   - `/retro architecture` updates CLAUDE.md
+   - `/retro readme` proposes a README.md diff
 ```
 
 When writing the **Code conventions** block, detect the project's primary language(s) from the codebase and pre-fill sensible defaults plus the matching idiom linter — Ruff for Python, ESLint/Biome for JS/TS, golangci-lint for Go, Clippy for Rust, RuboCop for Ruby — then flag it for the user to refine.
@@ -136,6 +136,6 @@ Report what was created, what was populated, and what the user should review:
 - CLAUDE.md — sections added
 - Review directories created
 
-Note that the plugin's PR-time gate reminder is already active (it ships with Studious as a `PreToolUse` hook — no per-project wiring needed) and fires a non-blocking confirmation when you run `gh pr create`. When `/gate-audit` and `/gate-acceptance` have recorded verdicts to the branch's ledger, the reminder names the specific gates that never ran, ran on a stale commit, or didn't pass.
+Note that the plugin's PR-time gate reminder is already active (it ships with Studious as a `PreToolUse` hook — no per-project wiring needed) and fires a non-blocking confirmation when you run `gh pr create`. When `/review` and `/review --delivery` have recorded verdicts to the branch's ledger, the reminder names the specific gates that never ran, ran on a stale commit, or didn't pass.
 
 Suggest the user review PRODUCT.md first (product principles and "not building" sections need human judgment), then DESIGN.md (anti-patterns section needs human input), then README.md if one was generated.

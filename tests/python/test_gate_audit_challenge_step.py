@@ -1,4 +1,4 @@
-"""Regression tests for /gate-audit's pre-verdict challenge step (issue #91).
+"""Regression tests for /review's pre-verdict challenge step (issue #91).
 
 Nothing previously challenged a finding before it drove the compiled verdict: one
 hallucinated or misread Critical from any auditor flipped the report straight to
@@ -7,7 +7,7 @@ confirm every finding mapped to Critical against the changeset diff before the v
 is assigned, symmetric with the existing anti-suppression machinery.
 
 Since issue #159 (story `audit-doc-split`), these compile rules live in
-`reference/audit-compilation.md`, cited by both `commands/gate-audit.md`'s own session
+`reference/audit-compilation.md`, cited by both `commands/review.md`'s own session
 and `workflows/epic-driver.js`'s `auditFanIn()` rather than restated in either — this
 file is the one place the challenge step's text actually lives, so it's the target
 these checks read.

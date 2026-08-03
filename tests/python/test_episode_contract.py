@@ -264,7 +264,7 @@ class EpisodeContractTest(unittest.TestCase):
     # --- Task 4 (#289): episode-verdict carries the lane profile ---
 
     def test_verdict_forwards_blocking_lanes_to_the_legacy_record(self) -> None:
-        """`/gate-audit` records via episode-verdict only, so the blockingLanes
+        """`/review` records via episode-verdict only, so the blockingLanes
         narrowing data must ride through it to the dual-written legacy record —
         the shape the next round's re-entry check (`gate-get`) already reads.
         The episode record itself stays exactly CLOSED_EPISODE_KEYS: the lane
@@ -447,7 +447,7 @@ AUDIT_COMPILATION_MD = REPO_ROOT / "reference" / "audit-compilation.md"
 
 
 class GateAuditDoorTest(unittest.TestCase):
-    """Task 4 (#289): `commands/gate-audit.md` is the work episode's door.
+    """Task 4 (#289): `commands/review.md` is the work episode's door.
 
     It opens and re-enters the episode via the ledger's episode verbs, injects
     the findings ledger on re-entry instead of running a fix-delta cross-lane
@@ -469,14 +469,14 @@ class GateAuditDoorTest(unittest.TestCase):
     def test_door_never_runs_bare_record(self) -> None:
         self.assertIsNone(
             re.search(r"gate-ledger record\b", self.door),
-            "commands/gate-audit.md still records via bare `gate-ledger record` "
+            "commands/review.md still records via bare `gate-ledger record` "
             "instead of episode-verdict",
         )
 
     # --- Done means 2: fix-delta gone, ledger-finding injection named ---
 
     def test_fix_delta_pass_is_absent_from_both_surfaces(self) -> None:
-        for name, text in (("commands/gate-audit.md", self.door),
+        for name, text in (("commands/review.md", self.door),
                            ("reference/audit-compilation.md", self.compilation)):
             self.assertNotIn(
                 "fix-delta", text.lower(),
@@ -553,7 +553,7 @@ class GateAuditDoorTest(unittest.TestCase):
     # --- vocabulary conformance (#289, Task 3): one retry token ---
 
     def test_door_speaks_fix_and_re_review_never_the_replaced_token(self) -> None:
-        for name, text in (("commands/gate-audit.md", self.door),
+        for name, text in (("commands/review.md", self.door),
                            ("reference/audit-compilation.md", self.compilation)):
             self.assertIn(RETRY_TOKEN, text, f"{name} never names the retry token")
             self.assertNotIn(
@@ -568,7 +568,7 @@ GATE_ACCEPTANCE_MD = REPO_ROOT / "commands" / "gate-acceptance.md"
 
 
 class NavigatorEpisodeTest(unittest.TestCase):
-    """Task 5 (#289): `commands/work-on.md` navigates the two review episodes.
+    """Task 5 (#289): `commands/next.md` navigates the two review episodes.
 
     The audit piece is the work episode — a fix-and-retry re-enters the same
     episode, and the closing block prints the ledger's own round and finding
@@ -648,7 +648,7 @@ class NavigatorEpisodeTest(unittest.TestCase):
 
 
 class DeliveryDoorTest(unittest.TestCase):
-    """Task 5 (#289): `commands/gate-acceptance.md` is the delivery episode's
+    """Task 5 (#289): `commands/review.md` is the delivery episode's
     door — it runs once at the delivery boundary (pre-PR), speaks
     SHIP · FIX AND RE-REVIEW · HOLD, and routes story-scale fixes into the
     work episode instead of looping acceptance per story."""
@@ -667,7 +667,7 @@ class DeliveryDoorTest(unittest.TestCase):
     def test_door_never_runs_bare_record(self) -> None:
         self.assertIsNone(
             re.search(r"gate-ledger record\b", self.door),
-            "commands/gate-acceptance.md still records via bare `gate-ledger "
+            "commands/review.md still records via bare `gate-ledger "
             "record` instead of episode-verdict",
         )
 
@@ -735,7 +735,7 @@ class RetryTokenSweepTest(unittest.TestCase):
     replaced spelling — a compiler following the literal return-list records a
     token the driver's own retry match never sees, parking every fix cycle.
     The same drift in the fixture harness's VERDICT_TOKENS scores every
-    new-token verdict as no verdict at all, and /work-through's fallback path
+    new-token verdict as no verdict at all, and /next's fallback path
     reacts to tokens no gate emits anymore."""
 
     def test_no_replaced_retry_token_survives_in_the_episode_consumers(self) -> None:

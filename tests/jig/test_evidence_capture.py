@@ -34,7 +34,7 @@ mechanically:
    manifests, never from the folder name — branch-bearing match first, a
    unique legacy match second, and a refusal (never a guess) otherwise. Each
    refusal opens with a stable bracketed token (`[no-match]`, `[ambiguous]`)
-   that `/finish` labels its row from; an `[ambiguous]` refusal enumerates the
+   that `/ship` labels its row from; an `[ambiguous]` refusal enumerates the
    folders it could not pick between and never advises an unqualified rename,
    because on a *new* branch in this repo it is reached by a task that has no
    evidence here at all. `list` prints that same token as a marker row rather
@@ -43,7 +43,7 @@ mechanically:
    and stdout unchanged, the caveat on stderr and in the `list` row — because
    one branch-less folder and two of them are the same epistemic state, and
    only the pair was being said out loud.
-9. A real capture's `resolve` output is repo-relative, and `/finish` must
+9. A real capture's `resolve` output is repo-relative, and `/ship` must
    join the repo onto it before `evidence-freshness` (which resolves
    `--evidence` against its own cwd) can read it. Every test above points
    `--evidence-root` outside the repo and so takes `display_path`'s absolute
@@ -990,7 +990,7 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
         the manifest's branch and task and no reader parses a folder name, so a
         rename leaves both candidates branch-less and still colliding. The two
         that do work are re-capturing here, and editing the candidate's own
-        manifest — and saying so keeps this message, which `/finish` quotes
+        manifest — and saying so keeps this message, which `/ship` quotes
         verbatim into a PR row, agreeing with that skill's "not by renaming it,
         not by linking it" rather than contradicting it."""
         with tempfile.TemporaryDirectory() as tmp:
@@ -1255,7 +1255,7 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
 
 
 class TestResolvedPathComposesWithFreshness(unittest.TestCase):
-    """`/finish` Step 1 runs `resolve`, then feeds the printed path to
+    """`/ship` Step 1 runs `resolve`, then feeds the printed path to
     `evidence-freshness`. Every other test here points `--evidence-root`
     outside the repo, which takes `display_path`'s absolute fallback — so the
     repo-relative branch, the only one a real capture ever reaches, went
@@ -1308,9 +1308,9 @@ class TestResolvedPathComposesWithFreshness(unittest.TestCase):
             self.assertEqual(printed, f"docs/jig/evidence/2026-07-12-task-1-{branch}")
 
     def test_the_printed_path_needs_the_repo_joined_before_freshness_reads_it(self) -> None:
-        """The regression `/finish`'s "passed through unchanged" prose caused:
+        """The regression `/ship`'s "passed through unchanged" prose caused:
         run from anywhere but the worktree, the unjoined path exits 2 and
-        `/finish` stops before assembling a PR body."""
+        `/ship` stops before assembling a PR body."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, branch = self._capture_into_the_repo(Path(tmp))
             elsewhere = Path(tmp) / "elsewhere"
@@ -1332,7 +1332,7 @@ class TestResolvedPathComposesWithFreshness(unittest.TestCase):
 class TestEvidenceCaptureDocstringCarriesTheRollbackCaveat(unittest.TestCase):
     """The rollback procedure has to outlive the design doc that stated it.
 
-    `docs/design/<slug>.md` is disposable and branch-local — `/finish` deletes
+    `docs/design/<slug>.md` is disposable and branch-local — `/ship` deletes
     it at closeout — so a caveat that lives only there is gone precisely when
     someone needs it. The script the caveat is about is the durable home.
     """
@@ -1381,7 +1381,7 @@ class TestEvidenceCaptureVerbDispatch(unittest.TestCase):
         self.assertIn("--artifact", result.stdout)
 
     def test_help_documents_all_three_modes_not_only_capture(self) -> None:
-        """A persona who hits a `resolve` failure reported by `/finish` runs
+        """A persona who hits a `resolve` failure reported by `/ship` runs
         `--help` next. Documenting only the capture surface sends them looking
         for a verb the script's own help says does not exist. The epilog is
         derived from the module docstring rather than restated, so the two

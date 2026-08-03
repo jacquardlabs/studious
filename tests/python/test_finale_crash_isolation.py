@@ -5,7 +5,7 @@ Every story-level dispatch path in `workflows/epic-driver.js` is wrapped
 rounds, the audit compile, `acceptanceRunOnce`, and the `finale:ready` recorder —
 ran bare. A throw there discarded the whole return object: the still-racing
 acceptance promise's rejection went unhandled (fatal in modern Node), and
-`commands/work-through.md` then recorded `--landed 0` for an invocation that DID
+`reference/epic-orchestration.md` then recorded `--landed 0` for an invocation that DID
 land stories — a false zero armed toward the zero-landed stop-loss (#268). An
 earlier pass deliberately left the finale unguarded; that decision predates the
 stop-loss consequence and is overturned by it.

@@ -1,12 +1,12 @@
 """Regression tests for the audit-doc-split story (issue #159).
 
 Before this story, `workflows/epic-driver.js`'s `auditFanIn()` pointed its dispatched
-compiling agent at the entire 189-line `commands/gate-audit.md` to reach the ~48 lines
+compiling agent at the entire 189-line `commands/review.md` to reach the ~48 lines
 of post-audit compile rules it actually needed — paying for dispatch mechanics
 (shared-contract assembly, diff precompute, evidence-log resolution, re-audit-scope
 narrowing, the 13 numbered auditor role descriptions) it never uses. This story
 relocates those compile rules verbatim into `reference/audit-compilation.md`, points
-both `commands/gate-audit.md`'s own session and `auditFanIn()` at that one file, and
+both `commands/review.md`'s own session and `auditFanIn()` at that one file, and
 folds "routed out" in as a third named lane state alongside carry-forward and AGENT
 DIED — a vocabulary unification, not a judgment change.
 
@@ -106,8 +106,8 @@ def test_epic_driver_points_to_the_new_file_not_gate_audit_md() -> None:
     i = text.index(anchor)
     opening = text[i : i + 400]
     assert "reference/audit-compilation.md" in opening
-    assert "Read commands/gate-audit.md" not in opening, (
-        "auditFanIn still points its compiling agent at commands/gate-audit.md "
+    assert "Read commands/review.md" not in opening, (
+        "auditFanIn still points its compiling agent at commands/review.md "
         "instead of reference/audit-compilation.md"
     )
 

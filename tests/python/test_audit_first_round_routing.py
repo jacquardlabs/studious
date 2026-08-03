@@ -1,7 +1,7 @@
 """Regression tests for first-round changeset routing on the epic-driven audit
 path (issue #138): `workflows/epic-driver.js`'s `auditRound()`/`finaleAuditRound()`
 unconditionally dispatched all 9 auditors on every un-narrowed round, unlike
-`commands/gate-audit.md`'s prose-routed standalone gate. This adds a mechanical,
+`commands/review.md`'s prose-routed standalone gate. This adds a mechanical,
 judgment-free `agent()` dispatch (the Workflow script itself has no filesystem/exec
 access) that reads one canonical pattern-list file, `reference/audit-routing-signals.md`,
 plus a pure `resolveAuditRoster` function that maps its match flags to a
@@ -69,7 +69,7 @@ def test_routing_signals_file_documents_the_bare_js_ts_exclusion() -> None:
 def test_gate_audit_md_points_at_the_reference_file_instead_of_embedding_lists() -> None:
     text = GATE_AUDIT_MD.read_text()
     assert "reference/audit-routing-signals.md" in text, (
-        "commands/gate-audit.md no longer points auditor 9 / 6-8 at the canonical "
+        "commands/review.md no longer points auditor 9 / 6-8 at the canonical "
         "reference file"
     )
     # The old inline IaC list must be gone from auditor 9's paragraph, not duplicated
@@ -149,7 +149,7 @@ def test_routing_probe_asks_for_operability_match_and_returns_it_in_the_json_sch
 
 def test_routing_probe_mirrors_gate_audit_auditor_10s_content_judged_rule() -> None:
     """operabilityMatch is judgment, not a pattern match — the prompt must carry
-    the SAME criteria commands/gate-audit.md's auditor 10 paragraph states, verified
+    the SAME criteria commands/review.md's auditor 10 paragraph states, verified
     against that paragraph's own live text (not a hand-typed phrase tuple that could
     drift from it silently and undetected — the gate-audit Important finding this
     regression-tests: the prior version of this test read only workflows/epic-driver.js
@@ -636,7 +636,7 @@ def test_audit_fan_in_instructs_a_visible_summary_line_per_routed_out_lane() -> 
     fn = _extract_function(source, "auditFanIn")
     assert "routed out — not applicable to this changeset" in fn, (
         "auditFanIn must instruct the compiling agent to write a visible Summary "
-        "line per routed-out lane, matching /gate-audit's own skip-note convention"
+        "line per routed-out lane, matching /review's own skip-note convention"
     )
 
 

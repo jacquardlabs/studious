@@ -26,7 +26,7 @@ _CELL_SPLIT = re.compile(r"(?<!\\)\|")
 
 # Vocabulary-table concepts that belong to a /build executor's checkpoint
 # block -- task-execution-discipline's own domain -- as opposed to
-# /design's, /plan's, /finish's, or the inspector's verdict vocabularies,
+# /shape's, /build's, /ship's, or the inspector's verdict vocabularies,
 # none of which this skill discusses. A structural selection of *which
 # rows* are in scope, not a copy of the *tokens* those rows currently hold.
 RELEVANT_VOCABULARY_CONCEPTS = frozenset(
@@ -36,46 +36,46 @@ RELEVANT_VOCABULARY_CONCEPTS = frozenset(
 # Vocabulary-table concepts that belong to the /build Foreman's own domain
 # (skills/build/SKILL.md) -- the task-status enum it flips via status-flip,
 # its own session verdict, and the risk tag its cadence logic reacts to --
-# as opposed to /design's, /plan's, or /finish's verdict vocabularies, none
+# as opposed to /shape's, /build's, or /ship's verdict vocabularies, none
 # of which this skill discusses.
 BUILD_VOCABULARY_CONCEPTS = frozenset(
     {"/build task status", "/build session verdict", "risk tag"}
 )
 
-# Vocabulary-table concepts that belong to /finish's own domain
-# (skills/finish/SKILL.md) -- just its own closed verdict enum, as opposed
-# to /design's, /plan's, or /build's verdict vocabularies, none of which
+# Vocabulary-table concepts that belong to /ship's own domain
+# (skills/ship/SKILL.md) -- just its own closed verdict enum, as opposed
+# to /shape's, /build's, or /build's verdict vocabularies, none of which
 # this skill discusses.
-FINISH_VOCABULARY_CONCEPTS = frozenset({"/finish verdict"})
+FINISH_VOCABULARY_CONCEPTS = frozenset({"/ship verdict"})
 
-# Vocabulary-table concepts that belong to /plan's own domain
-# (skills/plan/SKILL.md): its own closed verdict enum, plus the checkpoint
+# Vocabulary-table concepts that belong to /build's own domain
+# (reference/planning-contract.md): its own closed verdict enum, plus the checkpoint
 # grammar it drafts into every task block (item type, verification tier)
 # and the risk tag it assigns before /build ever sees the plan -- as
-# opposed to /design's, /build's, or /finish's own verdict vocabularies,
+# opposed to /shape's, /build's, or /ship's own verdict vocabularies,
 # none of which this skill discusses.
 PLAN_VOCABULARY_CONCEPTS = frozenset(
-    {"/plan verdict", "checkpoint item type", "verification tier", "risk tag"}
+    {"/build verdict", "checkpoint item type", "verification tier", "risk tag"}
 )
 
-# Vocabulary-table concepts that belong to /design's own domain
-# (skills/design/SKILL.md) -- just its own closed verdict enum, as opposed
-# to /plan's, /build's, or /finish's verdict vocabularies, none of which
+# Vocabulary-table concepts that belong to /shape's own domain
+# (skills/shape/SKILL.md) -- just its own closed verdict enum, as opposed
+# to /build's, /build's, or /ship's verdict vocabularies, none of which
 # this skill discusses.
-DESIGN_VOCABULARY_CONCEPTS = frozenset({"/design verdict"})
+DESIGN_VOCABULARY_CONCEPTS = frozenset({"/shape verdict"})
 
-# Vocabulary-table concepts the coach (skills/coach/SKILL.md) *reads* while
+# Vocabulary-table concepts the coach (commands/next.md) *reads* while
 # assessing pipeline state -- the three session-verdict enums it can meet
-# in conversation (/design's, /plan's, /build's -- the session-verdict
+# in conversation (/shape's, /build's, /build's -- the session-verdict
 # row's own consumer cell names the coach) plus the script-written task
 # status suffixes it reads from PLAN.md headings. Deliberately not
-# /finish's verdict enum (the coach dispatches /finish but never consumes
+# /ship's verdict enum (the coach dispatches /ship but never consumes
 # its MERGE/PR/KEEP/DISCARD outcome), the inspector's, or the risk tags
 # (a /plan-to-/build contract the coach never inspects). The coach has no
-# verdict enum of its own by design (`skills/coach/SKILL.md` states it: "no
+# verdict enum of its own by design (`commands/next.md` states it: "no
 # verdict enum of its own") -- there is no coach-owned row to derive.
 COACH_VOCABULARY_CONCEPTS = frozenset(
-    {"/design verdict", "/plan verdict", "/build task status", "/build session verdict"}
+    {"/shape verdict", "/build verdict", "/build task status", "/build session verdict"}
 )
 
 
@@ -189,43 +189,43 @@ def derive_build_vocabulary(design_md: str) -> tuple[str, ...]:
 
 
 def derive_finish_vocabulary(design_md: str) -> tuple[str, ...]:
-    """/finish's own verdict vocabulary (DESIGN.md: Vocabulary table's
-    `/finish verdict` row -- `MERGE` | `PR` | `KEEP` | `DISCARD`), derived
+    """/ship's own verdict vocabulary (DESIGN.md: Vocabulary table's
+    `/ship verdict` row -- `MERGE` | `PR` | `KEEP` | `DISCARD`), derived
     from `design_md`'s text rather than an independent, hand-maintained
     tuple -- same rationale as `derive_jig_vocabulary`, scoped to what
-    `skills/finish/SKILL.md` discusses.
+    `skills/ship/SKILL.md` discusses.
     """
     return _derive_vocabulary(design_md, FINISH_VOCABULARY_CONCEPTS)
 
 
 def derive_plan_vocabulary(design_md: str) -> tuple[str, ...]:
-    """/plan's own vocabulary (DESIGN.md: Vocabulary table's `/plan verdict`,
+    """/build's own vocabulary (DESIGN.md: Vocabulary table's `/build verdict`,
     `checkpoint item type`, `verification tier`, and `risk tag` rows --
     `PLAN READY`/`DESIGN GAP`/`TOO BIG`, `cap`/`hold`,
     `script`/`test-backed`/`probe`, `LOW`/`REPLAN-RISK`/`ESCALATE-RISK`),
     derived from `design_md`'s text rather than an independent,
     hand-maintained tuple -- same rationale as `derive_jig_vocabulary`,
-    scoped to what `skills/plan/SKILL.md` discusses.
+    scoped to what `reference/planning-contract.md` discusses.
     """
     return _derive_vocabulary(design_md, PLAN_VOCABULARY_CONCEPTS)
 
 
 def derive_design_vocabulary(design_md: str) -> tuple[str, ...]:
-    """/design's own verdict vocabulary (DESIGN.md: Vocabulary table's
-    `/design verdict` row -- `DESIGNED` | `NEEDS RESEARCH` | `REVISED`),
+    """/shape's own verdict vocabulary (DESIGN.md: Vocabulary table's
+    `/shape verdict` row -- `DESIGNED` | `NEEDS RESEARCH` | `REVISED`),
     derived from `design_md`'s text rather than an independent,
     hand-maintained tuple -- same rationale as `derive_jig_vocabulary`,
-    scoped to what `skills/design/SKILL.md` discusses.
+    scoped to what `skills/shape/SKILL.md` discusses.
     """
     return _derive_vocabulary(design_md, DESIGN_VOCABULARY_CONCEPTS)
 
 
 def derive_coach_vocabulary(design_md: str) -> tuple[str, ...]:
     """The vocabulary the coach reads while assessing pipeline state
-    (DESIGN.md: Vocabulary table's `/design verdict`, `/plan verdict`,
+    (DESIGN.md: Vocabulary table's `/shape verdict`, `/build verdict`,
     `/build task status`, and `/build session verdict` rows), derived from
     `design_md`'s text rather than an independent, hand-maintained tuple --
     same rationale as `derive_jig_vocabulary`, scoped to what
-    `skills/coach/SKILL.md` discusses.
+    `commands/next.md` discusses.
     """
     return _derive_vocabulary(design_md, COACH_VOCABULARY_CONCEPTS)

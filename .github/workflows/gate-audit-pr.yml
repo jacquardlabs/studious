@@ -1,6 +1,6 @@
 name: Gate audit (CI)
 
-# Runs /gate-audit non-interactively against a PR's diff and posts the report as a
+# Runs /review non-interactively against a PR's diff and posts the report as a
 # PR comment. Deliberately workflow_dispatch only for now — not wired to fire
 # automatically on every PR yet. See README.md "CI mode (optional)" for what
 # adding the `pull_request` trigger back gets you, the ANTHROPIC_API_KEY secret
@@ -82,7 +82,7 @@ jobs:
         run: |
           gh pr comment "${{ inputs.pr_number }}" \
             --repo "${{ github.repository }}" \
-            --body "**Gate audit (CI) skipped.** This PR changes ${{ steps.scope.outputs.changed_files }} files, over the ${{ env.CHANGED_FILES_LIMIT }}-file sampling limit set to keep the up-to-9-agent audit fan-out affordable on large diffs. Run \`/gate-audit\` locally instead."
+            --body "**Gate audit (CI) skipped.** This PR changes ${{ steps.scope.outputs.changed_files }} files, over the ${{ env.CHANGED_FILES_LIMIT }}-file sampling limit set to keep the up-to-9-agent audit fan-out affordable on large diffs. Run \`/review\` locally instead."
 
       - name: Set up Node
         if: fromJSON(steps.scope.outputs.changed_files) <= fromJSON(env.CHANGED_FILES_LIMIT)
@@ -99,7 +99,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          claude -p "/gate-audit" \
+          claude -p "/review" \
             --plugin-dir "$GITHUB_WORKSPACE" \
             --allowedTools "Read Glob Grep Bash Task Write" \
             --output-format text \

@@ -1,7 +1,7 @@
 """Tests for front-loading the epic interview (studious #150 follow-on).
 
-A dispatched phase runs in a subagent with no human in its loop, so `/design`
-cannot hold its viva-qa interview there. `/work-through`'s Plan piece
+A dispatched phase runs in a subagent with no human in its loop, so `/shape`
+cannot hold its viva-qa interview there. `/next`'s Plan piece
 runs one interview for the whole epic instead, records each story's answers via
 `gate-ledger epic-story-set --decisions`, and the driver threads them into every
 dispatch prompt through its shared `ctx()` block.
@@ -13,7 +13,7 @@ The ledger half is covered by `tests/test_gate_ledger.sh`. Here:
   `test_contract_injection.py`'s precedent — and asserts the decisions line
   appears when the field is set and is absent when it is not;
 - structural checks that the two prompts documenting the split (studious's
-  Plan piece, `/design` Step 2) actually say what the driver relies on.
+  Plan piece, `/shape` Step 2) actually say what the driver relies on.
 """
 from __future__ import annotations
 
@@ -122,7 +122,7 @@ def test_design_skips_its_own_interview_when_forks_arrive_answered() -> None:
     step2 = text.split("## Step 2")[1].split("## Step 3")[0]
     assert "Skip this step" in step2
     assert "Decisions already made by the human" in step2, (
-        "/design must key off the exact phrase the driver's ctx() emits"
+        "/shape must key off the exact phrase the driver's ctx() emits"
     )
 
 

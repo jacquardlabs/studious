@@ -1,9 +1,9 @@
 """Regression tests for the ux-reviewer IMPROVEMENT -> tier fix (issue #91).
 
-`reference/severity-rubric.md` is the canonical table `/gate-audit` consults when
+`reference/severity-rubric.md` is the canonical table `/review` consults when
 compiling a report; `agents/ux-reviewer.md` restates the same mapping in its own
 Output section so it can emit correctly-tiered rows when run standalone (outside
-`/gate-audit`, with no orchestrator-injected context). Both sites state the same
+`/review`, with no orchestrator-injected context). Both sites state the same
 mapping and must move together — the rubric's own tier definitions call `Important`
 "fix this cycle" and `Track` "not urgent; log it and revisit later", and ux-reviewer's
 own description of `IMPROVEMENT` ("would make the UI noticeably better, fix if time

@@ -1,24 +1,24 @@
-"""Regression tests for skills/coach/SKILL.md (issue #21, story coach-skill).
+"""Regression tests for commands/next.md (issue #21, story coach-skill).
 
 Standard library only, matching test_build_skill.py's convention. Run with:
 
     uv run --no-project python3 -m unittest discover -s tests -v
 
 Checks this story's acceptance criteria and its design commitments
-mechanically, by inspecting the prose a `/coach` session
+mechanically, by inspecting the prose a `/next` session
 actually reads (the same approach the other four skills' test modules
 already take):
 
-1. `skills/coach/SKILL.md` has valid `name`/`description` frontmatter,
+1. `commands/next.md` has valid `name`/`description` frontmatter,
    `name` matching the directory, and no longer reads as the M1 stub — the
    STUB marker and "do not invoke" description are gone, and the trigger
-   is an explicit `/coach` ask, never auto-triggering on a verdict token
+   is an explicit `/next` ask, never auto-triggering on a verdict token
    (DESIGN.md's former risk #4, closed by this story). This module
    supersedes test_stub_description_template.py, deleted in the same
    change: coach was the last remaining stub, so that suite's stub-only
    template set became empty.
-2. The body carries the vocabulary the coach reads — the `/design`,
-   `/plan`, and `/build` session-verdict enums plus the `/build` task
+2. The body carries the vocabulary the coach reads — the `/shape`,
+   `/build`, and `/build` session-verdict enums plus the `/build` task
    statuses — derived from DESIGN.md at test time (see `_vocabulary.py`),
    not hand-copied. The coach owns no verdict enum of its own.
 3. Step 1's state assessment is evidence-based: each signal is named
@@ -29,8 +29,8 @@ already take):
    vs. gate-`PASS` named apart, ambiguity asked not guessed.
 4. Step 2 recommends exactly one action with why, rough cost from a fixed
    vocabulary, and the path ahead — a coach, not a menu — and the routing
-   table passes context explicitly (`/plan` gets the design doc path,
-   `/build` gets the plan path, `/design` revision mode gets the quoted
+   table passes context explicitly (`/build` gets the design doc path,
+   `/build` gets the plan path, `/shape` revision mode gets the quoted
    ESCALATE finding).
 5. Step 3 honors the Pocock rule: dispatch only on explicit same-turn
    human confirmation, one at a time, never chained, reassessing from
@@ -105,12 +105,12 @@ class TestCoachSkillFile(unittest.TestCase):
         self.assertNotIn("Do not invoke for actual coaching work yet", self.body)
 
     def test_description_triggers_on_an_explicit_ask_only(self) -> None:
-        # Invocation convention decided and shipped: /coach, the same
+        # Invocation convention decided and shipped: /next, the same
         # single-verb slash convention as the other four skills — and the
         # trigger wording that keeps a user-invoked skill from becoming
         # the rejected auto-triggering option B through the back door.
-        self.assertIn("/coach", self.description)
-        self.assertIn("the user says /coach", self.description)
+        self.assertIn("/next", self.description)
+        self.assertIn("the user says /next", self.description)
         for phrase in (
             "recommends exactly one next action",
             "one at a time on explicit human confirmation",
@@ -214,7 +214,7 @@ class TestCoachSkillBody(unittest.TestCase):
 
     def test_the_weak_sign_off_signal_is_contained_by_routing(self) -> None:
         # The guard is that a heading-present/verdict-absent doc routes to a
-        # human-run gate, never a blind /plan dispatch — so the worst case of
+        # human-run gate, never a blind /build dispatch — so the worst case of
         # misreading it is a gate that was going to be recommended anyway.
         self.assertPhraseIn("never add a row that treats the heading as sufficient to skip the gate")
 
@@ -248,7 +248,7 @@ class TestCoachSkillBody(unittest.TestCase):
         # writes, not the bare folder: reports accumulate across stories, so a
         # folder-level hit says nothing about *this* story (see below). The
         # `YYYY-MM-DD` placeholder is the spelling `scripts/build-report`'s own
-        # docstring and `skills/finish/SKILL.md:224` already use -- one grammar,
+        # docstring and `skills/ship/SKILL.md:224` already use -- one grammar,
         # spelled one way, or this row becomes the drift #260 was.
         self.assertIn("docs/jig/reports/YYYY-MM-DD-<story-slug>-build-report.md", self.body)
 
@@ -316,7 +316,7 @@ class TestCoachSkillBody(unittest.TestCase):
         # `parse_query_args` (both `resolve` and `list`), so the short form
         # `resolve --task <N>` argparse-errors with exit 2 -- a dead escape
         # hatch offered at the moment attribution is already in doubt. Pin the
-        # full form `skills/finish/SKILL.md` runs, and pin the shortened one
+        # full form `skills/ship/SKILL.md` runs, and pin the shortened one
         # out, since this sentence is otherwise the row's only unguarded claim.
         self.assertPhraseIn(
             "`scripts/evidence-capture resolve --repo <worktree> --branch "
@@ -326,7 +326,7 @@ class TestCoachSkillBody(unittest.TestCase):
         # Two links this row's usefulness rests on, both prose-only until now.
         # The declined-folder line above names a condition; without the first
         # pin, a reword can leave the reader at that condition with no way out
-        # -- the defect /gate-acceptance filed against 30e932b. Without the
+        # -- the defect /review --delivery filed against 30e932b. Without the
         # second, the command reaches the human as a shape to fill in.
         self.assertPhraseIn("print the `resolve` command below with it")
         self.assertPhraseIn("with `<worktree>` and `<N>` already substituted")
@@ -334,7 +334,7 @@ class TestCoachSkillBody(unittest.TestCase):
         # read a worktree path. It could not: Step 1 produced no such value and
         # the permitted-tool list named only `--abbrev-ref HEAD`, so the pin
         # above asserted a substitution nothing could perform -- inert exactly
-        # where it mattered (/gate-acceptance against 0e189fa).
+        # where it mattered (/review --delivery against 0e189fa).
         #
         # Two occurrences, pinned separately on purpose. A bare
         # assertIn("`git rev-parse --show-toplevel`") passes on either one, so
@@ -373,17 +373,17 @@ class TestCoachSkillBody(unittest.TestCase):
 
     def test_the_story_slug_the_report_is_matched_against_has_a_source(self) -> None:
         # A match rule with no readable left-hand side degrades the terminal
-        # routing row to "ask the human" in exactly the case /finish just ran.
-        # /finish's --slug is model-chosen, so name the two slugs the coach
+        # routing row to "ask the human" in exactly the case /ship just ran.
+        # /ship's --slug is model-chosen, so name the two slugs the coach
         # can actually read, and forbid rebuilding the date half.
         self.assertPhraseIn(
             "the segment after `--` in `epic/<epic>--<story>`) or from the work file's "
             "slug with the epic prefix stripped"
         )
-        self.assertPhraseIn("`/finish`'s `--slug` is model-chosen")
+        self.assertPhraseIn("`/ship`'s `--slug` is model-chosen")
         # Pins the two load-bearing tokens, not the sentence: the date half is
         # spelled `YYYY-MM-DD` here to match `scripts/build-report` and
-        # `skills/finish/SKILL.md:224`, and rewording the rest must not fail.
+        # `skills/ship/SKILL.md:224`, and rewording the rest must not fail.
         self.assertPhraseIn("never reconstruct the `YYYY-MM-DD` half")
 
     def test_gate_verdicts_are_read_from_gate_ledger_when_readable(self) -> None:
@@ -429,15 +429,15 @@ class TestCoachSkillBody(unittest.TestCase):
         self.assertPhraseIn('state "nothing to dispatch."')
 
     def test_routing_passes_context_explicitly(self) -> None:
-        # The acceptance criterion's three named handoffs, plus /finish's
+        # The acceptance criterion's three named handoffs, plus /ship's
         # deliberate nothing-beyond-the-invocation row.
-        self.assertPhraseIn("| Dispatch `/plan` | The design doc path |")
+        self.assertPhraseIn("| Dispatch `/build` | The design doc path |")
         self.assertPhraseIn("| Dispatch `/build` | The plan path |")
-        self.assertPhraseIn("Dispatch `/design` in revision mode")
+        self.assertPhraseIn("Dispatch `/shape` in revision mode")
         self.assertPhraseIn(
             "The ESCALATE finding (status-flip commit body, quoted) plus the design doc path"
         )
-        self.assertPhraseIn("`/finish` reads `PLAN.md` and the evidence folders itself")
+        self.assertPhraseIn("`/ship` reads `PLAN.md` and the evidence folders itself")
 
     def test_replan_row_names_the_manual_step(self) -> None:
         self.assertPhraseIn(
@@ -445,9 +445,9 @@ class TestCoachSkillBody(unittest.TestCase):
         )
 
     def test_gates_are_recommended_to_the_human_by_name(self) -> None:
-        self.assertPhraseIn("Recommend the human run `/gate-should-we-build`")
-        self.assertPhraseIn("Recommend the human run `/gate-design-review`")
-        self.assertPhraseIn("Recommend the human run `/gate-audit` (then `/gate-acceptance`)")
+        self.assertPhraseIn("Recommend the human run `/bet`")
+        self.assertPhraseIn("Recommend the human run `/review`")
+        self.assertPhraseIn("Recommend the human run `/review` (then `/review --delivery`)")
 
     def test_closed_out_story_ends_with_nothing_to_dispatch(self) -> None:
         self.assertPhraseIn("Nothing to dispatch — state it and stop")
@@ -464,7 +464,7 @@ class TestCoachSkillBody(unittest.TestCase):
 
     def test_path_ahead_is_journey_1_from_the_recommendation_onward(self) -> None:
         self.assertPhraseIn("is one line: the remaining steps of `PRODUCT.md`'s journey 1")
-        self.assertPhraseIn("`/build` → `/gate-audit` → `/gate-acceptance` → `/finish`")
+        self.assertPhraseIn("`/build` → `/review` → `/review --delivery` → `/ship`")
 
     # -- Step 3: dispatch on confirmation (the Pocock rule) ----------------
 
@@ -508,8 +508,8 @@ class TestCoachSkillBody(unittest.TestCase):
             "Quick path: hand-author a single-task `PLAN.md` in the checkpoint-block format"
         )
         self.assertPhraseIn(
-            "skipping `/design`, `/gate-design-review`, and `/plan`; "
-            "`/gate-audit` still applies after `BUILT`."
+            "skipping `/shape`, `/review`, and `/build`; "
+            "`/review` still applies after `BUILT`."
         )
 
     def test_coach_does_no_work_itself(self) -> None:
@@ -539,7 +539,7 @@ class TestCoachSkillBody(unittest.TestCase):
         self.assertPhraseIn("The gates always exist")
         self.assertPhraseIn("Resolve that ambiguity toward recommending the gate, never past it")
         self.assertPhraseIn("Never an error, never a silent omission, and never a skipped gate.")
-        self.assertPhraseIn("recommending `/gate-audit` rather than assuming it passed")
+        self.assertPhraseIn("recommending `/review` rather than assuming it passed")
         # That the dead phrasings ("studious absent", "studious not installed")
         # stay gone is enforced centrally, for every build skill at once, by
         # tests/jig/test_gate_handoffs.py.

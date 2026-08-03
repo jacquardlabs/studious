@@ -87,7 +87,7 @@ one measures whether the review passed, the other whether the shipped thing held
 ### How a verdict finds its run without a prompt carrying an id
 
 `telemetry-dispatch` writes the run it was given to `.studious/telemetry/<branch-slug>.run`,
-a one-line file. `record` reads it. So an interactive `/gate-audit` session — which
+a one-line file. `record` reads it. So an interactive `/review` session — which
 cannot see its own `session_id` from inside a prompt — still produces outcome lines
 joinable to the dispatch lines the hook wrote minutes earlier, with no instruction added
 to any command and nothing for a model to forget. Code owns this bookkeeping entirely.
@@ -112,8 +112,8 @@ branch. Coarser, and it is the honest limit of what a `PreToolUse` hook can know
 
 ## What each surface emits
 
-**The interactive commands emit nothing themselves.** `/gate-audit`, `/gate-acceptance`,
-and `/deep-review` are prose read by a human-invoked session; adding a per-lane ledger
+**The interactive commands emit nothing themselves.** `/review`, `/review --delivery`,
+and `/retro` are prose read by a human-invoked session; adding a per-lane ledger
 call to their fan-out would spend 11–13 extra Bash round-trips per round to record what
 the hook already sees for free. `hooks/dispatch-telemetry.sh` fires on the `Task` tool
 and writes one dispatch line per lane. The commands carry a pointer to this file and
@@ -147,20 +147,20 @@ input carries no model field of any kind, verified or otherwise, which is why `m
 resolves from `agents/<role>.md` inside `telemetry-dispatch` instead.
 
 The hook deliberately does **not** require the branch to be armed the way
-`hooks/evidence-capture.sh` does. `/deep-review` runs on `main`, against no story, with
+`hooks/evidence-capture.sh` does. `/retro` runs on `main`, against no story, with
 no work file — an armed check would silence exactly half of what this store exists to
 record. The dispatch of a named Studious reviewer is itself the signal; the roster table
 in the hook is the whole filter.
 
 ### `skill` on the hook path
 
-The hook derives `skill` from the role by pattern — `review-*` is `/deep-review`'s,
-`*-auditor`/`*-reviewer` is `/gate-audit`'s — plus the carve-outs the patterns cannot
-carry: `product-reviewer` and `premortem-auditor` belong to `/gate-acceptance`;
-`review-outcomes` matches `review-*` but is dispatched by its own `/review-outcomes`
-command, which runs outside the `/deep-review` sweep, so it maps to `review-outcomes`
+The hook derives `skill` from the role by pattern — `review-*` is `/retro`'s,
+`*-auditor`/`*-reviewer` is `/review`'s — plus the carve-outs the patterns cannot
+carry: `product-reviewer` and `premortem-auditor` belong to `/review --delivery`;
+`review-outcomes` matches `review-*` but is dispatched by its own `/retro`
+command, which runs outside the `/retro` sweep, so it maps to `review-outcomes`
 before the pattern is consulted; and `code-auditor` is genuinely ambiguous (it serves
-both `/gate-audit`'s lane 2 and `/deep-review`'s idiom-feedback step), so its lines
+both `/review`'s lane 2 and `/retro`'s idiom-feedback step), so its lines
 carry `skill: ""` rather than a confident guess and a joiner resolves them from the
 run's other lines. Every carve-out is tested before the patterns, since all four names
 match one.

@@ -1,9 +1,9 @@
 ---
 name: plan
-description: Turns a hand-authored or /design-produced design doc into a real PLAN.md -- code + infra inventory, a dependency spine, 3-8 calibrated tasks, checkpoint blocks tagged LOW/REPLAN-RISK/ESCALATE-RISK, a real scripts/plan-lint invocation (not a no-op), and a viva review loop, one card per task. Use when the user says /plan, hands over a design doc and asks for a plan, or needs a PLAN.md that /build's existing step-1.4 split logic can consume unmodified. Reports one verdict -- PLAN READY, DESIGN GAP, or TOO BIG -- and never fabricates a checkpoint item's tier or method.
+description: Turns a hand-authored or /design-produced design doc into a real PLAN.md -- code + infra inventory, a dependency spine, 3-8 calibrated tasks, checkpoint blocks tagged LOW/REPLAN-RISK/ESCALATE-RISK, a real scripts/plan-lint invocation (not a no-op), and a viva review loop, one card per task. Use when the user says /build, hands over a design doc and asks for a plan, or needs a PLAN.md that /build's existing step-1.4 split logic can consume unmodified. Reports one verdict -- PLAN READY, DESIGN GAP, or TOO BIG -- and never fabricates a checkpoint item's tier or method.
 ---
 
-# /plan
+# /build
 
 You turn a design doc into a `PLAN.md` `/build` can run unmodified. Every
 step that requires reading a doc for meaning, weighing a dependency order,
@@ -17,7 +17,7 @@ scripts" is the whole shape.
 
 One optional argument: a path to a design-doc-shaped markdown file. Read it
 **semantically**, not by parsing a fixed heading grammar. A hand-authored
-doc, a dispatched worker's `docs/design/<slug>.md`, and a `/design`-produced
+doc, a dispatched worker's `docs/design/<slug>.md`, and a `/shape`-produced
 doc are three inputs to one reading step, not three parsers. Extract by
 *content* -- problem, proposed approach, user-facing journey, explicit
 exclusions, risks -- under whatever labels the doc actually uses. Section
@@ -39,7 +39,7 @@ If no path is given and exactly one `.md` file exists under `docs/design/`,
 use it (mirroring viva's own "no path given -> scan for a single `.md`
 file" convention). Zero or more than one candidate is not a guess this step
 makes silently -- **ask the human once, by name**, the same escalation
-shape `skills/finish/SKILL.md` Step 6 already uses for its own
+shape `skills/ship/SKILL.md` Step 6 already uses for its own
 target-branch ambiguity: never default silently.
 
 ## Step 1 — Inventory
@@ -72,7 +72,7 @@ actually has:
 - **Test runner.** Read the target project's own `CLAUDE.md` for its stated
   baseline/test command -- the exact same read `/build`'s own Step 1
   already performs ("Read it the way a human would; never guess a test
-  runner and never hardcode one"). `/plan` and `/build` must never disagree
+  runner and never hardcode one"). `/build` and `/build` must never disagree
   about what "the tests" means for the same project.
 - **Type checker / linter**, if a proposed task would rely on one as a
   `script`-tier method -- same "read `CLAUDE.md`, don't guess" rule.
@@ -111,7 +111,7 @@ actually has:
   has none). **You stop and report `DESIGN GAP`**, naming the specific
   task, the behavior that needs live observation, and the missing tool by
   name -- the human's resume action is either adding the scripted-probe
-  tool as its own prerequisite (real, separate infra work, never a `/plan`
+  tool as its own prerequisite (real, separate infra work, never a `/build`
   output) or revising the design to not require live-UI verification.
 
   This inventory finding seeds a later checkpoint item's tier annotation;
@@ -186,7 +186,7 @@ literally `### Task N — <title>` -- Step 6's own `--split-on` pattern
 anchors on `^Task \d+`, and a task heading worded any other way (a
 numberless heading, a `Step N` variant, a translated label) silently
 desyncs the two and reopens issue #23's own absorption bug against
-`/plan`'s *own* output. Don't improvise the heading shape; this is the one
+`/build`'s *own* output. Don't improvise the heading shape; this is the one
 piece of grammar Step 6 depends on verbatim.
 
 **Write each block for one review card.** Step 6 puts one task per card in
@@ -223,7 +223,7 @@ unconditional pass.
 
 - **Exit 0** -> proceed to Step 6.
 - **Exit 1** -> revise your own draft and re-lint. This loop is internal to
-  `/plan`, invisible to the human, the same "the model has full context, so
+  `/build`, invisible to the human, the same "the model has full context, so
   it self-corrects before ever presenting" posture the rest of this
   workflow assumes. **Bounded, never open-ended:** attempt at most 3
   revise-and-relint cycles for the same violation set. On each cycle,
@@ -251,9 +251,9 @@ structurally broken draft is not worth spending it on.
 
 **If viva is not installed** (`$VIVA_DIR` in the viva SKILL.md's own launch
 block resolves to nothing), stop here and report that plainly: "viva is
-required for `/plan`'s review step and is not installed -- install it
-(`/plugin install viva@jacquardlabs-marketplace`) and re-invoke `/studious:plan`."
-No stack trace, no silent hang, no attempt to skip review -- `/plan` has a
+required for `/build`'s review step and is not installed -- install it
+(`/plugin install viva@jacquardlabs-marketplace`) and re-invoke `/build`."
+No stack trace, no silent hang, no attempt to skip review -- `/build` has a
 hard dependency on viva for this step, matching how `/build` has a hard
 dependency on `scripts/verify`. "Standalone-capable... none is silent"
 applies to naming this dependency clearly, not to working around it.
@@ -279,7 +279,7 @@ which flips auto-detect's "coarsest level that repeats" heuristic to level
 removes that dependency entirely.
 
 **Heading level stays `##` for `Not-here follow-ups` -- unchanged from what
-`skills/build/SKILL.md` and `skills/finish/SKILL.md` already say.** A finer
+`skills/build/SKILL.md` and `skills/ship/SKILL.md` already say.** A finer
 level would sit inside the level 1-3 boundary those two frozen consumers'
 parsing rules require, nesting the section into the preceding task's own
 content -- the exact absorption bug this section exists to close. The
@@ -301,7 +301,7 @@ second one.
 
 | Verdict | Fires when |
 |---|---|
-| `PLAN READY` | Every task reaches viva `approved`, `scripts/plan-lint` exits 0 against the final file. Hand the human (or the epic driver) the `PLAN.md` path and name `/studious:build` as the next step. |
+| `PLAN READY` | Every task reaches viva `approved`, `scripts/plan-lint` exits 0 against the final file. Hand the human (or the epic driver) the `PLAN.md` path and name `/build` as the next step. |
 | `DESIGN GAP` | Step 1a falsifies a design assumption against the real codebase, **or** Step 1b finds required infra (test runner, or -- issue #13's own case -- a scripted-probe tool a task's `Done means` needs) missing and uncreatable by an earlier task, **or** Step 5's lint loop can't converge without such a gap (no progress, or the 3-cycle bound). **Never reported bare** -- name which of the three causes fired (falsified assumption / missing test-or-lint infra / missing probe infra), plus the concrete resume action: revise the design doc, or install the missing tool as its own prerequisite. |
 | `TOO BIG` | Step 3's task count doesn't calibrate to 3-8 after merge/split attempts -- names the actual task count and which direction it missed by. |
 
@@ -320,7 +320,7 @@ a human review round with a mechanically-known defect already sitting in
 it. "Recommend one action; the human decides" is why `DESIGN GAP` and
 `TOO BIG` both name one concrete resume action rather than three hedged
 options, and why the input-doc-ambiguity case above asks once rather than
-guessing. "Standalone-capable" doesn't have a gap to degrade here -- `/plan`
+guessing. "Standalone-capable" doesn't have a gap to degrade here -- `/build`
 has a hard dependency on viva for Step 6 (no "skip review if viva isn't
 installed" path exists) and reports that dependency by name, never a
 silent hang, rather than inventing a degraded path that doesn't exist.

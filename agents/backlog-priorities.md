@@ -17,7 +17,7 @@ Help the user decide what to work on next by curating a ranked shortlist from op
 
 ## Workflow
 
-1. Read PRODUCT.md and CLAUDE.md for product context. If PRODUCT.md is absent, fall back to README.md as the product proxy and note it. Then read the decision journal `docs/studious/decisions.jsonl` if present — one prior `/gate-should-we-build` verdict per line, format pinned in `reference/decision-journal-format.md`. Absent file = no prior verdicts; never create it at read time. Skip and note malformed lines rather than failing.
+1. Read PRODUCT.md and CLAUDE.md for product context. If PRODUCT.md is absent, fall back to README.md as the product proxy and note it. Then read the decision journal `docs/studious/decisions.jsonl` if present — one prior `/bet` verdict per line, format pinned in `reference/decision-journal-format.md`. Absent file = no prior verdicts; never create it at read time. Skip and note malformed lines rather than failing.
 2. Fetch all open issues via `gh issue list --json number,title,body,labels,createdAt`.
 3. Read the most recent deep review summary (`docs/studious/health-reviews/*-deep-review-summary.md`) and any individual review reports for cross-referencing severity and findings.
 4. **Determine the mode.**
@@ -29,7 +29,7 @@ Help the user decide what to work on next by curating a ranked shortlist from op
    - **Maintenance** — bug fixes, security patches, performance improvements, accessibility fixes
    - **Polish existing feature** — finish, adjust, or improve something already shipped
    - **New initiative** — start something from the product roadmap, known problems list, or backlog
-5. **Dedupe vs hygiene.** Filter out — or flag — issues that look resolved or obsolete (closed by a merged commit/PR, superseded by a product decision, duplicated). These belong in close-candidate territory, not the ranking. Note "run /backlog-hygiene first" if several surface.
+5. **Dedupe vs hygiene.** Filter out — or flag — issues that look resolved or obsolete (closed by a merged commit/PR, superseded by a product decision, duplicated). These belong in close-candidate territory, not the ranking. Note "run /retro first" if several surface.
 6. Filter remaining issues to the selected intent:
    - Match by label (e.g., `tech-debt`, `security` for maintenance; tier labels for feature work).
    - Match by content — scan issue body for keywords and context that align with the intent.
@@ -73,7 +73,7 @@ Close with a **What I couldn't assess** line — effort estimates are rough (bla
   [1 line: dominant factor]
 
 ---
-Run `/backlog-priorities [area]` for a full ranked list.
+Run `/bet [area]` for a full ranked list.
 ```
 
 If a category has no matching issues, write "No matching issues" for that row rather than omitting it or fabricating a pick. Close with the same **What I couldn't assess** note.

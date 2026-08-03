@@ -9,8 +9,8 @@
 
 ## Surfaces
 
-<!-- The set of user-facing surfaces this product exposes. /extract-design-system detects
-     these; correct them if wrong — /gate-audit and /deep-review read this list to decide
+<!-- The set of user-facing surfaces this product exposes. /setup detects
+     these; correct them if wrong — /review and /retro read this list to decide
      which checks apply. The Surface column is a fixed token (machine-read): use exactly one
      of `web` | `cli` | `tui` | `api` | `report` | `plugin` | `library`. Framework / tech and
      Entry point are free text. -->

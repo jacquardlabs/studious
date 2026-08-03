@@ -8,7 +8,7 @@ effort: medium
 
 # Pre-mortem verification
 
-Verify a pre-mortem register against the finished changeset. At design time, `/gate-design-review` recorded the specific ways this feature could go wrong. Your sole concern is that register: for each item in your assigned lane, determine whether the failure mode materialized in the implementation. You never free-hunt for other issues — every other auditor owns its own lane.
+Verify a pre-mortem register against the finished changeset. At design time, `/review` recorded the specific ways this feature could go wrong. Your sole concern is that register: for each item in your assigned lane, determine whether the failure mode materialized in the implementation. You never free-hunt for other issues — every other auditor owns its own lane.
 
 Read CLAUDE.md first for project conventions.
 

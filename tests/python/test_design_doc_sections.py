@@ -3,7 +3,7 @@
 `reference/design-doc-contract.md`'s "Required sections" table is the authority.
 Four surfaces restate it, and before this test they had drifted apart: the
 contract required 8 sections (`Success metrics` added by #120), while
-`scripts/design-lint`, `skills/design/SKILL.md`, and `DESIGN.md` all enforced or
+`scripts/design-lint`, `skills/shape/SKILL.md`, and `DESIGN.md` all enforced or
 described 7 — so `scripts/design-lint` rejected `templates/design-doc.md`, the
 scaffold this plugin ships and points users at.
 
@@ -90,8 +90,8 @@ def test_design_lint_canonical_sections_match_the_contract() -> None:
 
 
 def test_shipped_template_carries_every_required_section_in_order() -> None:
-    """`templates/design-doc.md` is what `commands/work-on.md` and
-    `commands/gate-design-review.md` point users at. A doc built from it must
+    """`templates/design-doc.md` is what `commands/next.md` and
+    `commands/review.md` point users at. A doc built from it must
     satisfy the linter — that it did not is the proven consequence in #211."""
     headings = re.findall(r"^## (.+)$", TEMPLATE.read_text(encoding="utf-8"), re.MULTILINE)
     assert headings, "templates/design-doc.md has no '## ' headings"
@@ -99,14 +99,14 @@ def test_shipped_template_carries_every_required_section_in_order() -> None:
 
 
 def test_design_skill_step_4_lists_every_section_with_a_consumer() -> None:
-    """`/design` writes the doc, so its Step 4 list is what actually determines
+    """`/shape` writes the doc, so its Step 4 list is what actually determines
     whether a produced doc passes. Each entry must also name a consumer — the
     `Consumer:` line is what satisfies DESIGN.md's "named downstream consumer"
     requirement, and a section with no reader is how `Success metrics` came to
     be omitted in the first place."""
     text = DESIGN_SKILL.read_text(encoding="utf-8")
     step4 = re.search(r"^## Step 4 .*?\n(.*?)(?=^## )", text, re.MULTILINE | re.DOTALL)
-    assert step4, "skills/design/SKILL.md has no '## Step 4' section"
+    assert step4, "skills/shape/SKILL.md has no '## Step 4' section"
 
     entries = re.findall(
         r"^\d+\. \*\*(.+?)\*\* -- (Consumer:.*?)(?=^\d+\. |\Z)",

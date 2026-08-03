@@ -1,6 +1,6 @@
 """Structural regression tests for the handback-skill story (issue #97).
 
-`commands/handback.md` and `skills/handback/SKILL.md` are prose, not executable code
+`reference/handback-contract.md` and `reference/handback-contract.md` are prose, not executable code
 — there is no script backing the manifest assembly for a live model to run, so
 `bin/gate-ledger evidence-list` (locked by `tests/test_gate_ledger.sh`) is the only
 mechanical surface. These tests instead lock the prompt's structural commitments
@@ -16,7 +16,7 @@ audit-time detection hints:
   chosen policy (not a preserve/merge rule).
 - item 4: the no-log message must distinguish "never armed" from "armed but empty."
 - item 5: a provenance banner separating worker-authored output from gate verdicts.
-- item 7: no split naming — `/handback` everywhere, never `work-handback`.
+- item 7: no split naming — `/ship --handback` everywhere, never `work-handback`.
 """
 
 from __future__ import annotations
@@ -44,11 +44,11 @@ def _skill_text() -> str:
 
 
 def test_command_file_exists() -> None:
-    assert HANDBACK_COMMAND.is_file(), "commands/handback.md is missing"
+    assert HANDBACK_COMMAND.is_file(), "reference/handback-contract.md is missing"
 
 
 def test_skill_dir_exists() -> None:
-    assert HANDBACK_SKILL.is_file(), "skills/handback/SKILL.md is missing"
+    assert HANDBACK_SKILL.is_file(), "reference/handback-contract.md is missing"
 
 
 def test_command_frontmatter_has_required_fields() -> None:
@@ -88,7 +88,7 @@ def test_no_work_handback_spelling_in_skill() -> None:
 
 
 def test_skill_delegates_to_the_bare_command_name() -> None:
-    assert "/handback" in _skill_text()
+    assert "/ship --handback" in _skill_text()
 
 
 # --- reuse over re-derivation: evidence-list, not a hand-rolled reader (item 1, 6) ---
@@ -118,7 +118,7 @@ def test_command_derives_slug_the_same_way_gate_ledger_does() -> None:
     assert match is not None, "branch_slug() definition not found in bin/gate-ledger"
     assert "//" in match.group(0) and "/-" in match.group(0), (
         "branch_slug() no longer looks like a global '/' -> '-' substitution — "
-        "commands/handback.md's tr-based restatement needs to be re-checked against it"
+        "reference/handback-contract.md's tr-based restatement needs to be re-checked against it"
     )
 
 
@@ -154,7 +154,7 @@ def test_manifest_jq_pipeline_is_present_and_escapes_pipes() -> None:
 
 # --- single-read manifest assembly: one evidence-list call, four derivations reuse it ---
 # (perf-audit-followups epic, issue #161: four re-reads of an append-only, ever-growing
-# evidence log collapsed to one captured value; see commands/handback.md step 4)
+# evidence log collapsed to one captured value; see reference/handback-contract.md step 4)
 
 
 def _step_four_text() -> str:
@@ -240,7 +240,7 @@ def test_command_states_it_is_not_a_gate() -> None:
 def test_evidence_format_documents_evidence_list() -> None:
     text = EVIDENCE_FORMAT.read_text()
     assert "evidence-list" in text
-    assert "commands/handback.md" in text
+    assert "reference/handback-contract.md" in text
 
 
 # --- gate-ledger: the verb this command depends on actually exists ---

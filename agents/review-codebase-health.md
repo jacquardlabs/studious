@@ -27,7 +27,7 @@ This lane owns codebase-wide **aggregates and trend over time**; the gate `code-
 Spot coarse structural drift only — do not redraw the dependency graph; `review-architecture` owns that.
 - Circular dependencies or coupling between modules that should be independent.
 - A module that has clearly outgrown its lane (responsibility sprawl), or a pattern that started consistent and has visibly drifted across the codebase.
-- If you see real drift, flag that a `/deep-review architecture` pass is due.
+- If you see real drift, flag that a `/retro architecture` pass is due.
 - Metric: coupling / circular-dependency count.
 
 ### 2. Technical debt inventory (aggregate + trend)
@@ -80,7 +80,7 @@ Structure the report:
 
 **Summary** — one paragraph: overall health, biggest concern, biggest strength.
 **Critical**, **Important**, **Track** — findings grouped by tier.
-**Metrics snapshot** — the numbers below. These key names are a **contract with `/deep-review`'s dashboard** (`commands/deep-review.md`) — do not rename them:
+**Metrics snapshot** — the numbers below. These key names are a **contract with `/retro`'s dashboard** (`commands/retro.md`) — do not rename them:
 
 - Test coverage
 - TODO/FIXME count

@@ -53,8 +53,8 @@ records filed against the shared main-tree store. Never read
 `.studious/evidence/*.jsonl` directly or re-derive the branch-slug/repo-root logic here —
 one place that store's location lives.
 
-Deliberately **do not** pass `--dedupe` here, unlike `/gate-audit`'s and
-`/gate-acceptance`'s evidence dispatches: a handback manifest's job is a complete
+Deliberately **do not** pass `--dedupe` here, unlike `/review`'s and
+`/review --delivery`'s evidence dispatches: a handback manifest's job is a complete
 historical record of every verification attempt across every fix cycle, not
 current-state-only — the opposite of what `--dedupe` is for.
 
@@ -70,8 +70,8 @@ message:
   none would have been captured. Report:
 
   > No work file is armed for `<branch>` — evidence capture was never on for this branch,
-  > so nothing was captured regardless of what ran. Register the branch first (`/work-on`,
-  > `/work-through`'s driver, or `gate-ledger work-set --slug <slug> --branch <branch>`) if
+  > so nothing was captured regardless of what ran. Register the branch first (`/next`,
+  > `/next`'s driver, or `gate-ledger work-set --slug <slug> --branch <branch>`) if
   > you expected a log here.
 
 - **Armed, but the log is missing or empty** — a work file does claim this branch, but no
@@ -87,7 +87,7 @@ file "for completeness" — an absent log is a fact to report, not a gap to pape
 
 Write (or overwrite) `docs/studious/handback/<slug>.md`. Before writing, check whether the
 file already exists (`Read`/`Glob`) — if it does, this is a regeneration; note that in both
-the file and your final report (see step 7). Re-running `/handback` on the same branch
+the file and your final report (see step 7). Re-running `/ship --handback` on the same branch
 always overwrites and recommits this one file rather than accumulating dated copies: the
 evidence log only grows (append-only), so a later manifest is always a superset of an
 earlier one, and git history already preserves every prior snapshot.
@@ -97,7 +97,7 @@ Structure, top to bottom:
 ```markdown
 # Handback — <branch>
 
-> Worker-authored evidence record, assembled by `/handback` — not a Studious gate verdict
+> Worker-authored evidence record, assembled by `/ship --handback` — not a Studious gate verdict
 > and not reviewed by one. See `docs/studious/premortems/` for review-agent output.
 
 - Branch: `<branch>`

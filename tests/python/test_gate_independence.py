@@ -103,11 +103,11 @@ def test_path_segments_are_not_invocations(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_routing_outside_the_gate_surface_is_allowed(tmp_path: Path, monkeypatch) -> None:
-    """/work-on naming /build is the product working, not a violation."""
+    """/next naming /build is the product working, not a violation."""
     commands = tmp_path / "commands"
     commands.mkdir()
     (commands / "work-on.md").write_text("Hand off to /build.\n", encoding="utf-8")
-    (tmp_path / "README.md").write_text("Then /plan and /build.\n", encoding="utf-8")
+    (tmp_path / "README.md").write_text("Then /build and /build.\n", encoding="utf-8")
     monkeypatch.setattr(gi, "REPO", tmp_path)
     assert gi.violations() == []
 
@@ -115,7 +115,7 @@ def test_routing_outside_the_gate_surface_is_allowed(tmp_path: Path, monkeypatch
 # --- the worker-dispatch region (#212) ---------------------------------------
 #
 # `workflows/epic-driver.js` dispatches work *and* compiles gate verdicts. The
-# region lets its dispatch half route to /plan + /build without lifting the rule
+# region lets its dispatch half route to /build + /build without lifting the rule
 # off `auditFanIn` and `acceptanceFanIn`. Everything below exists to make sure the
 # hole stays exactly that size.
 
@@ -130,7 +130,7 @@ def test_region_exempts_a_worker_dispatch_invocation(tmp_path: Path, monkeypatch
     _workflow(
         tmp_path,
         f"// {gi.REGION_OPEN}\n"
-        "const build = `The route that ships with this plugin is /plan then /build.`\n"
+        "const build = `The route that ships with this plugin is /build then /build.`\n"
         f"// {gi.REGION_CLOSE}\n",
     )
     monkeypatch.setattr(gi, "REPO", tmp_path)
@@ -157,12 +157,12 @@ def test_the_same_string_outside_the_region_still_fails(tmp_path: Path, monkeypa
     _workflow(
         tmp_path,
         f"// {gi.REGION_OPEN}\n// {gi.REGION_CLOSE}\n"
-        "const build = `The route that ships with this plugin is /plan then /build.`\n",
+        "const build = `The route that ships with this plugin is /build then /build.`\n",
     )
     monkeypatch.setattr(gi, "REPO", tmp_path)
     problems = gi.violations()
     assert len(problems) == 1
-    assert "must not invoke /plan" in problems[0]
+    assert "must not invoke /build" in problems[0]
 
 
 def test_a_gate_compiler_may_not_be_moved_inside_the_region(tmp_path: Path, monkeypatch) -> None:

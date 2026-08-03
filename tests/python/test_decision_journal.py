@@ -1,8 +1,8 @@
 """Structural regression tests for the decision-journal story (issue #94).
 
-`/gate-should-we-build` gains a memory: it appends each verdict (with rationale and
+`/bet` gains a memory: it appends each verdict (with rationale and
 revisit condition) to `docs/studious/decisions.jsonl` in the consuming project, and
-both `/gate-should-we-build` and `@agent-backlog-priorities` read that journal before
+both `/bet` and `@agent-backlog-priorities` read that journal before
 evaluating, surfacing prior verdicts with their dates. The record shape is pinned in
 `reference/decision-journal-format.md`, mirroring how `reference/evidence-format.md`
 pins the evidence log.

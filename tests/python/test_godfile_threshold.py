@@ -2,7 +2,7 @@
 
 `agents/code-auditor.md` (the PR-time gate) and `agents/review-codebase-health.md`
 (the periodic whole-codebase review) both measured the "god file" file-size smell,
-but at two different line counts (500 vs 200) — a file could pass `/gate-audit`
+but at two different line counts (500 vs 200) — a file could pass `/review`
 clean and then get flagged as a new split candidate at the next periodic review with
 no growth at all. Both lanes now share code-auditor's existing, already-enforced
 500-line bar. The separate function-length check in review-codebase-health.md is
@@ -93,7 +93,7 @@ def test_health_review_file_and_function_clauses_are_split() -> None:
 
 def test_largest_file_metric_key_unchanged() -> None:
     """The 'Largest file (lines)' metrics-snapshot key is a contract with deep-review's
-    dashboard (commands/deep-review.md) and must not be renamed or removed by the
+    dashboard (commands/retro.md) and must not be renamed or removed by the
     threshold split.
     """
     text = HEALTH_REVIEW.read_text()

@@ -12,7 +12,7 @@ premortem-auditor out itself, bypassing the gate commands (subagents cannot spaw
 subagents). Earlier, its `CONTRACT` const was a hardcoded *pointer* sentence telling
 an auditor to go read the contract file at runtime — a second, weaker resolution
 mechanism than the commands' verbatim push, and the one thing the M1 finale audit
-(#110) caught the prior contract-injection story missing. Now `commands/work-through.md`
+(#110) caught the prior contract-injection story missing. Now `reference/epic-orchestration.md`
 reads `reference/prompt-contract.md` once, the same way the four gate commands do,
 and hands its four blocks to the script as `args.contract`; `CONTRACT` inside the
 script is that text, not a pointer, and every dispatch site that interpolates it
@@ -27,7 +27,7 @@ These tests lock that inversion without a live model:
 - the fixture harness no longer wires `reference/` into fixture repos, so the
   injection is exercised the way users actually run it;
 - the driver's `CONTRACT` const sources from the `args.contract` handoff, never a
-  hardcoded pointer sentence, and `commands/work-through.md` reads the anchored
+  hardcoded pointer sentence, and `reference/epic-orchestration.md` reads the anchored
   contract and forwards it (script mode) or injects it directly (fallback mode);
 - an **executed** fixture (#111) runs the driver's actual, unmodified three
   dispatch-prompt-assembly functions — extracted verbatim from

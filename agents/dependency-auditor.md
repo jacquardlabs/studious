@@ -1,6 +1,6 @@
 ---
 name: dependency-auditor
-description: Dependency auditor. Reviews a changeset's dependency manifest and lockfile diffs for new/updated dependencies, known vulnerabilities, license compatibility, maintenance signal, and lockfile-manifest drift. Diff-scoped and gate-invoked (/gate-audit); skipped when the changeset touches no dependency manifest or lockfile — not the periodic whole-repo dependency review, which review-codebase-health owns.
+description: Dependency auditor. Reviews a changeset's dependency manifest and lockfile diffs for new/updated dependencies, known vulnerabilities, license compatibility, maintenance signal, and lockfile-manifest drift. Diff-scoped and gate-invoked (/review); skipped when the changeset touches no dependency manifest or lockfile — not the periodic whole-repo dependency review, which review-codebase-health owns.
 tools: Read, Grep, Glob, Bash
 model: opus
 effort: medium

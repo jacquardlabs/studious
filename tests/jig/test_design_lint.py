@@ -665,7 +665,7 @@ class TestDesignLintCheck5ForkRulings(unittest.TestCase):
             self.assertIn("fork q1 has no recorded ruling", result.stdout)
 
     def test_unresolved_options_table_fork_is_named(self) -> None:
-        """Real /design output never carries a `(qN)` tag (docs/design/
+        """Real /shape output never carries a `(qN)` tag (docs/design/
         design-lint-reconcile.md's Open questions) -- its fork convention is
         a lettered-options table plus a `(recommended): <letter>` marker
         (SKILL.md Step 4). A table with 2+ lettered rows and no marker
@@ -695,7 +695,7 @@ class TestDesignLintCheck5ForkRulings(unittest.TestCase):
 
     def test_options_table_fork_with_recommendation_marker_passes(self) -> None:
         """The same table as above, but with the actual `(recommended):
-        <letter>` marker real /design output uses -- must pass clean, not
+        <letter>` marker real /shape output uses -- must pass clean, not
         just avoid a false positive on some other check."""
         open_questions_body = (
             "- Whether the handoff step should also close on `SIGTERM`, or only on the\n"

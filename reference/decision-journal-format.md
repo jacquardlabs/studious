@@ -1,15 +1,15 @@
 # Decision journal format — the committed verdict memory
 
-`/gate-should-we-build` appends one JSON object per line to
+`/bet` appends one JSON object per line to
 `docs/studious/decisions.jsonl` in the consuming project after every verdict, and
-both `/gate-should-we-build` and `@agent-backlog-priorities` read that file before
+both `/bet` and `@agent-backlog-priorities` read that file before
 evaluating. This file pins the exact record shape and the append/read mechanics so
 drift between what the gate writes and what the readers expect is a visible diff
 against this doc, not a silent surprise — the same job
 `reference/evidence-format.md` does for `hooks/evidence-capture.sh`.
 
 **Two writes, two jobs.** The journal does not replace `gate-ledger record`. The
-gate ledger is local, gitignored, per-branch *flow state* — `/work-on` reads it to
+gate ledger is local, gitignored, per-branch *flow state* — `/next` reads it to
 know where a feature stands. The journal is committed, project-lifetime *decision
 memory* — durable across clones, branches, and sessions. Neither substitutes for
 the other. Committing `docs/studious/decisions.jsonl` stays with the user's normal
@@ -43,7 +43,7 @@ One compact JSON object per line, append-only, keys in exactly this order:
   never construct JSON by string interpolation (escaping is `jq`'s job), and never
   read-modify-write the file.
 - Lazy creation: `mkdir -p docs/studious` before the append. The first append
-  creates the file; `/studious-init` is not involved.
+  creates the file; `/setup` is not involved.
 - On failure (no `jq`, unwritable directory), the gate tells the user the verdict
   could not be journaled — never skip silently.
 
@@ -76,7 +76,7 @@ Both readers follow these; a reader that deviates is a defect against this file.
   its date and name the latest as latest; never present a superseded verdict as
   current.
 - **A prior entry never pre-fills, shortcuts, or substitutes for a fresh
-  evaluation.** `/gate-should-we-build` runs all five criteria and reaches its own
+  evaluation.** `/bet` runs all five criteria and reaches its own
   verdict every time — which may contradict the prior entry; the contradiction is
   surfaced with both dates, not smoothed over. `@agent-backlog-priorities` never
   moves an issue's rank because a prior verdict exists — the annotation informs
@@ -89,7 +89,7 @@ Both readers follow these; a reader that deviates is a defect against this file.
 
 ## Consumers that must stay in sync
 
-- `commands/gate-should-we-build.md` — the only appender, and the primary reader.
+- `commands/bet.md` — the only appender, and the primary reader.
   Its inline append snippet must match "Canonical append" above byte-for-byte;
   its journal-read step must state the read rules above.
 - `agents/backlog-priorities.md` — read-only consumer; annotates ranked issues

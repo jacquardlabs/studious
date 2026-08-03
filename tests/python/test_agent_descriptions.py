@@ -6,7 +6,7 @@ agent:
 
 - A *periodic* request ("run my periodic frontend review") must not route to the
   diff-scoped changeset specialists (``frontend-reviewer``, ``ux-reviewer``) —
-  those are invoked only by ``/gate-audit`` against a real diff, so a periodic
+  those are invoked only by ``/review`` against a real diff, so a periodic
   landing diffs a changeset that does not exist.
 - The changeset auditors (``code-auditor``, ``doc-auditor``, ``security-auditor``)
   must state their diff-scoped, gate-invoked nature, matching the house style set
@@ -65,11 +65,11 @@ def test_changeset_agents_declare_diff_scope() -> None:
 
 
 def test_changeset_agents_name_gate_audit_invocation() -> None:
-    """The gate-invoked auditors point at ``/gate-audit`` as their invocation path."""
+    """The gate-invoked auditors point at ``/review`` as their invocation path."""
     missing = [
         agent
         for agent in CHANGESET_AGENTS
-        if "/gate-audit" not in _description(agent)
+        if "/review" not in _description(agent)
     ]
     assert missing == [], f"changeset agents not naming /gate-audit: {missing}"
 
@@ -111,7 +111,7 @@ def test_prompt_agents_disambiguate_gate_from_periodic() -> None:
         "review-prompt-health no longer claims the whole-repo scope that "
         "disambiguates it from the diff-scoped gate lane"
     )
-    assert "/gate-audit" not in health_desc, (
+    assert "/review" not in health_desc, (
         "review-prompt-health must not advertise the gate invocation path"
     )
 

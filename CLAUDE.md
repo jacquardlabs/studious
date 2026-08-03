@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Studious is a **Claude Code plugin**, not a runtime application. Its "source" is mostly Markdown prompt files — agent definitions, slash commands, skills, and hook scripts — that ship to consuming projects via the Jacquard Labs marketplace. The only executable code is one Bash tool (`bin/gate-ledger`), the hook scripts, and the Python CI helpers in `scripts/`. There is nothing to build or run as an app; "correctness" means the prompts are well-formed, the manifest is valid, and the references resolve.
 
-The product itself is two rhythms (see `README.md`): per-feature **gates** (`/gate-*`) around building, and per-project **health reviews** (`/deep-review`). Both read three context docs in the *consuming* project — PRODUCT.md, DESIGN.md, CLAUDE.md.
+The product itself is two rhythms (see `README.md`): per-feature **gates** (`/gate-*`) around building, and per-project **health reviews** (`/retro`). Both read three context docs in the *consuming* project — PRODUCT.md, DESIGN.md, CLAUDE.md.
 
 ## Commands
 
@@ -66,17 +66,17 @@ The directory layout encodes a role split (full version in `CONTRIBUTING.md`):
 - `skills/<name>/SKILL.md` — natural-language **trigger shims**. A tightly-scoped `description` lets a gate fire from plain language; the body delegates to the matching command and must not duplicate its logic.
 - `reference/` — curated rubrics agents read at audit time (`reference/security-checklist.md`, `reference/idioms/<lang>.md`). Agents consult these instead of restating them inline — keep depth in `reference/`, keep agents pointing at it.
 - `hooks/` — shipped hook scripts + `hooks.json`. Three live hooks: a non-blocking PreToolUse reminder before `gh pr create` (`gate-reminder.sh`); a silent PostToolUse/PostToolUseFailure evidence-capture hook on `Bash` that appends verification-command records while a story is armed (`evidence-capture.sh`; format pinned in `reference/evidence-format.md`); and a silent PreToolUse hook on `Task` that appends one routing-telemetry record per dispatched Studious reviewer (`dispatch-telemetry.sh`; format pinned in `reference/telemetry-format.md`).
-- `bin/gate-ledger` — reads/writes the per-branch gate ledger and the per-feature `/work-on` work files.
-- `templates/` — PRODUCT.md / DESIGN.md scaffolds created by `/studious-init` in the consuming project.
-- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence), the build skills' own executables (`plan-lint`, `design-lint`, `verify`, `status-flip`, `build-report`, `evidence-capture`, `worktree-setup`), and the saves-ledger renderer (`saves-ledger.py`, run by `/review-outcomes`). The build executables are run by `/plan` and `/build`, not by CI.
+- `bin/gate-ledger` — reads/writes the per-branch gate ledger and the per-feature `/next` work files.
+- `templates/` — PRODUCT.md / DESIGN.md scaffolds created by `/setup` in the consuming project.
+- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence), the build skills' own executables (`plan-lint`, `design-lint`, `verify`, `status-flip`, `build-report`, `evidence-capture`, `worktree-setup`), and the saves-ledger renderer (`saves-ledger.py`, run by `/retro`). The build executables are run by `/build` and `/build`, not by CI.
 
 Key invariants when adding or changing prompts:
 
 - **Stay in lane.** One agent = one concern. The security auditor owns the security rubric; other auditors escalate but don't hunt security issues. Don't bundle concerns into one agent.
-- **One fan-out command, many subagents.** Parallel checks live as subagents under a single entry point (`/gate-audit`, `/deep-review`) — never add a top-level command per check.
-- **Recommend-only means propose, never modify.** Any command whose own contract declares itself recommend-only, read-only, or otherwise doing no work of its own — however worded — reports; it never modifies external state — issues, PRs, or files outside the bookkeeping boundary in the next bullet, in the consuming project. Recommending an action, or dispatching another command on the human's explicit confirmation, is not itself a modification — the write, if any, is the dispatched command's own act, governed by whichever bullet that command falls under, not this one. Every `gate-*` command, every periodic `review-*`/`deep-review` command, and e.g. `/backlog-hygiene`, `/backlog-priorities`, `/studious-doctor`, `/coach` (`backlog-` is its own named category, `CONTRIBUTING.md:53`; none of the four is a gate or a review, and the wording varies — three say "recommend-only" in their own body text, `/coach` says "does no work itself — writes no code, flips no statuses, records no verdicts" — a non-exhaustive list, not a name list to keep in sync: the predicate is what governs, whichever command declares it and however it phrases the declaration) satisfy it today.
-- **One bookkeeping boundary, not a name list.** `.studious/` (gitignored) and `docs/studious/` (committed) are Studious's own record-keeping, not external state, however either is written, provided the write lands inside one of the two. This covers a gate committing what its own run produced — a register, a note — before recording its verdict, solely to keep the recorded sha honest, never an implementation or a fix. It also covers the `.gitignore` entry that keeps `.studious/` itself untracked (`bin/gate-ledger`'s `ensure_gitignore()`, called by the verbs that first create ledger state, `bin/gate-ledger:220-231`) — the one boundary-maintenance write that isn't inside either directory, licensed because its only job is keeping the boundary gitignored. And it covers git plumbing a run performs on refs and worktrees it created for work it dispatched — creating an epic branch and worktree, merging a story branch it dispatched back into the epic branch, removing a worktree once done — under a plan the human already approved when that run started; it never covers opening the PR itself, which stays the human's (`/work-through` never runs `gh pr create` — `commands/work-through.md:609`). One exception inside the boundary, not outside it: `docs/studious/decisions.jsonl` is never auto-committed by any Studious process even though it lives under `docs/studious/` (`reference/decision-journal-format.md`) — a journal that accumulates across the whole project's lifetime, which no single run is positioned to commit honestly, unlike a register or note scoped to that run's own branch. Named by the boundary and the kind of write it covers, not by an enumerated writer list — a name list is what drifted here before (#255's whole reason to exist).
-- **Everything else is either an executor or a human-typed one-off.** E.g. `/design`, `/plan`, `/build`, `/finish`, and `/handback` (a non-exhaustive list, same reason as bullet 1's and this bullet's own one-off list below) write and commit code, evidence, and reports as their normal operation — `reference/worker-contract.md` governs exactly that (story brief in; commits, summary, evidence, tests out); `/finish` additionally opens PRs and files issues, each per item, confirmed in its own flow — a behavior `worker-contract.md` doesn't name and nothing else currently governs either, stated plainly rather than claiming a governance this invariant can't back. A gate judges what an executor produced, it never becomes one. A one-off entrypoint the human typed themselves — e.g. `/studious-init`, `/extract-product-context`, `/extract-design-system` today, a non-exhaustive list for the same reason bullet 1's is — may write freely within that same invocation, provided it reports what it wrote (or will write) as part of it: never a write dispatched, scheduled, or triggered on the human's behalf without them typing it in that turn.
+- **One fan-out command, many subagents.** Parallel checks live as subagents under a single entry point (`/review`, `/retro`) — never add a top-level command per check.
+- **Recommend-only means propose, never modify.** Any command whose own contract declares itself recommend-only, read-only, or otherwise doing no work of its own — however worded — reports; it never modifies external state — issues, PRs, or files outside the bookkeeping boundary in the next bullet, in the consuming project. Recommending an action, or dispatching another command on the human's explicit confirmation, is not itself a modification — the write, if any, is the dispatched command's own act, governed by whichever bullet that command falls under, not this one. Every `gate-*` command, every periodic `review-*`/`deep-review` command, and e.g. `/retro`, `/bet`, `/doctor`, `/next` (`backlog-` is its own named category, `CONTRIBUTING.md:53`; none of the four is a gate or a review, and the wording varies — three say "recommend-only" in their own body text, `/next` says "does no work itself — writes no code, flips no statuses, records no verdicts" — a non-exhaustive list, not a name list to keep in sync: the predicate is what governs, whichever command declares it and however it phrases the declaration) satisfy it today.
+- **One bookkeeping boundary, not a name list.** `.studious/` (gitignored) and `docs/studious/` (committed) are Studious's own record-keeping, not external state, however either is written, provided the write lands inside one of the two. This covers a gate committing what its own run produced — a register, a note — before recording its verdict, solely to keep the recorded sha honest, never an implementation or a fix. It also covers the `.gitignore` entry that keeps `.studious/` itself untracked (`bin/gate-ledger`'s `ensure_gitignore()`, called by the verbs that first create ledger state, `bin/gate-ledger:220-231`) — the one boundary-maintenance write that isn't inside either directory, licensed because its only job is keeping the boundary gitignored. And it covers git plumbing a run performs on refs and worktrees it created for work it dispatched — creating an epic branch and worktree, merging a story branch it dispatched back into the epic branch, removing a worktree once done — under a plan the human already approved when that run started; it never covers opening the PR itself, which stays the human's (`/next` never runs `gh pr create` — `reference/epic-orchestration.md:609`). One exception inside the boundary, not outside it: `docs/studious/decisions.jsonl` is never auto-committed by any Studious process even though it lives under `docs/studious/` (`reference/decision-journal-format.md`) — a journal that accumulates across the whole project's lifetime, which no single run is positioned to commit honestly, unlike a register or note scoped to that run's own branch. Named by the boundary and the kind of write it covers, not by an enumerated writer list — a name list is what drifted here before (#255's whole reason to exist).
+- **Everything else is either an executor or a human-typed one-off.** E.g. `/shape`, `/build`, `/build`, `/ship`, and `/ship --handback` (a non-exhaustive list, same reason as bullet 1's and this bullet's own one-off list below) write and commit code, evidence, and reports as their normal operation — `reference/worker-contract.md` governs exactly that (story brief in; commits, summary, evidence, tests out); `/ship` additionally opens PRs and files issues, each per item, confirmed in its own flow — a behavior `worker-contract.md` doesn't name and nothing else currently governs either, stated plainly rather than claiming a governance this invariant can't back. A gate judges what an executor produced, it never becomes one. A one-off entrypoint the human typed themselves — e.g. `/setup`, `/setup`, `/setup` today, a non-exhaustive list for the same reason bullet 1's is — may write freely within that same invocation, provided it reports what it wrote (or will write) as part of it: never a write dispatched, scheduled, or triggered on the human's behalf without them typing it in that turn.
 - **Reviews write to the consuming project, not here.** Review reports land in the user's `docs/studious/` subdirectories. This plugin repo never accumulates them.
 - **Every agent/command reads PRODUCT.md, DESIGN.md, or CLAUDE.md** for project context. The 21 review/audit agents share a standardized prompt contract (posture, output format, calibration) — match it when adding an agent.
 - **Code owns bookkeeping; prompts own judgment.** Schedulers, DAG order, retry caps, and ledgers live in code (`bin/gate-ledger`, `workflows/epic-driver.js`); prompts carry decomposition, verdicts, and briefs. Retry counting or cap math inside a command prompt is a defect.
@@ -97,10 +97,10 @@ Decision records: `docs/initiative-altitude.md` (2026-07-07) — the brigade rep
 
 ## The build skills, and the one rule that governs them
 
-jig was absorbed into this plugin (#150), not added beside it. `/design`, `/plan`,
-`/build`, `/finish`, and `/coach` are `skills/` here like any other; their Python lives
+jig was absorbed into this plugin (#150), not added beside it. `/shape`, `/build`,
+`/build`, `/ship`, and `/next` are `skills/` here like any other; their Python lives
 in `scripts/`, their unittest suite in `tests/jig/`. One manifest, one version line, one
-install. The manifest declares `dependencies: ["viva"]` — `/plan` and `/design` stop dead
+install. The manifest declares `dependencies: ["viva"]` — `/build` and `/shape` stop dead
 without it.
 
 Two plugins was considered and rejected: separate installability served an audience of
@@ -112,7 +112,7 @@ source, and a manual seed-tag step wedged between merges.
 `commands/gate-*.md`, `agents/`, `workflows/`, `hooks/`, or `bin/` may invoke a build
 skill or require a build artifact (`PLAN.md`, `docs/jig/evidence/`) — the evidence
 contract a gate may rely on is `reference/evidence-format.md`, which any executor can
-satisfy. Outside that surface, `/work-on` and `/work-through` route to the build skills
+satisfy. Outside that surface, `/next` and `/next` route to the build skills
 freely; that is the product working. `reference/worker-contract.md` stays normative and
 `/build` is one implementation of it, which is what keeps PRODUCT.md's "the gates being
 a methodology" non-goal true now that a methodology ships in the same plugin.
@@ -125,13 +125,13 @@ do not share a runner or a conftest. Don't unify them opportunistically.
 
 Ratified 2026-07-25 (#219, #216, #181). One rule, two classes:
 
-- **Disposable** — a `/design` doc (`docs/design/<slug>.md`), `PLAN.md`, and demonstration
-  scratch. Gitignored, branch-local, removed by `/finish` at closeout. Never committed;
+- **Disposable** — a `/shape` doc (`docs/design/<slug>.md`), `PLAN.md`, and demonstration
+  scratch. Gitignored, branch-local, removed by `/ship` at closeout. Never committed;
   `tests/python/test_no_ignored_paths_tracked.py` fails if one is. Because they are not in
-  the diff, `/gate-design-review` reads the **working tree first** — a diff-first search
+  the diff, `/review` reads the **working tree first** — a diff-first search
   misses every doc the in-box producer writes.
 - **Durable** — the pre-mortem register (`docs/studious/premortems/<slug>.md`, committed by
-  `/gate-design-review`), the review reports under `docs/studious/<area>-reviews/`, and
+  `/review`), the review reports under `docs/studious/<area>-reviews/`, and
   decision records at `docs/` root (`initiative-altitude.md` and siblings). These outlive
   the branch, and a durable file must not cite a disposable one: the register records
   `Branch:` and `SHA:`, which retrieve the doc from history without a path that expires.
@@ -157,7 +157,7 @@ rubric for this repo.
   Prefer comprehensions, generator expressions, and stdlib (`functools`, `itertools`,
   `collections`) over explicit loops.
 - **`scripts/` has a lower floor: 3.9, enforced by vermin in CI.** Those scripts ship to
-  consuming projects and the build skills invoke them bare — `skills/design/SKILL.md`
+  consuming projects and the build skills invoke them bare — `skills/shape/SKILL.md`
   Step 5 runs `scripts/design-lint --doc <path> --repo <worktree>`, naming no interpreter
   — so they execute on whatever `python3` that project has, which on stock macOS is 3.9.6.
   This is the one place the 3.11+ target does not reach; `tests/`, `workflows/`, and

@@ -2,14 +2,14 @@
 
 `__epic` for the integration checkout, one directory per in-flight story. That
 shape used to be written out independently in three places — `bin/gate-ledger`'s
-`epic-reconcile`, `workflows/epic-driver.js`, and `commands/work-through.md`'s
+`epic-reconcile`, `workflows/epic-driver.js`, and `reference/epic-orchestration.md`'s
 prose — so moving it meant three coordinated edits, and two consecutive audits
 flagged it.
 
 `bin/gate-ledger`'s `worktree_path()` is now the only definition, exposed to
 everyone else through the `worktree-path` verb. The driver is the interesting
 case: it runs on the Workflow substrate with no filesystem or exec access, so it
-cannot call the verb. `commands/work-through.md` calls it once with `--json` and
+cannot call the verb. `reference/epic-orchestration.md` calls it once with `--json` and
 hands the result over as `args.worktrees` — the layout crosses the args boundary
 as data, the same way `args.contract` does.
 
@@ -107,7 +107,7 @@ def test_driver_holds_no_worktree_layout_literal() -> None:
     code = _strip_full_line_comments(DRIVER.read_text())
     assert LAYOUT_LITERAL not in code, (
         "workflows/epic-driver.js must not compose a worktree path itself — it "
-        "reads them from args.worktrees, which commands/work-through.md fills "
+        "reads them from args.worktrees, which reference/epic-orchestration.md fills "
         "from `gate-ledger worktree-path --slug <slug> --json`"
     )
 
@@ -173,7 +173,7 @@ def test_require_worktree_throws_loudly_rather_than_deriving_a_fallback() -> Non
         )
 
 
-# --- commands/work-through.md asks the verb instead of typing the path --------
+# --- reference/epic-orchestration.md asks the verb instead of typing the path --------
 
 
 def test_work_through_resolves_every_worktree_through_the_verb() -> None:
@@ -185,7 +185,7 @@ def test_work_through_resolves_every_worktree_through_the_verb() -> None:
         and LAYOUT_LITERAL in line
     ]
     assert not offenders, (
-        "every `git worktree add`/`remove` in commands/work-through.md must take "
+        "every `git worktree add`/`remove` in reference/epic-orchestration.md must take "
         f"its path from `gate-ledger worktree-path`, not spell {LAYOUT_LITERAL!r} "
         f"out: {offenders}"
     )

@@ -17,7 +17,7 @@ back. See "The findings ledger" below.
 
 The store's first reader is `epic-findings` (#281), and it reads exactly the two
 findings kinds. There is still no general `events-list`/`events-get`, and
-`/work-through`'s own reconcile step is unchanged: reconciliation continues to trust
+`/next`'s own reconcile step is unchanged: reconciliation continues to trust
 the existing snapshot stores (`.studious/gates/`, `.studious/work/`,
 `.studious/epics/<slug>.json`, plus `.studious/evidence/`) exactly as before.
 `board-server` remains the intended reader of the transition kinds.
@@ -153,12 +153,12 @@ association is derived from data each already has:
   leading `epic/`, then splits the remainder on the *first* `--`. A match yields
   `(epicSlug, storySlug)`; no `--` yields `(epicSlug, "")` (the epic's own integration
   branch — a finale-level event); no `epic/` prefix yields nothing (silent no-op — a
-  plain, never-epic-qualified `/work-on` branch produces zero events).
+  plain, never-epic-qualified `/next` branch produces zero events).
 - **`cmd_work_set`/`cmd_work_log`** read their raw `--slug` argument through
   `epic_context_from_slug()`, splitting on the first `--` — **before** the function's own
   `slug=$(slugify "$slug")` reassignment, since `slugify()` collapses `--` to a single
   `-` and would make the split a silent, permanent no-op if run after. A match yields
-  `(epicSlug, storySlug)`; no match (a bare `/work-on` feature slug) yields nothing.
+  `(epicSlug, storySlug)`; no match (a bare `/next` feature slug) yields nothing.
 
 Both halves of an epic-qualified slug/branch were independently slugified *before*
 concatenation (`epic-driver.js`'s `storyBranch()`/`workSlug()`), so neither half can
@@ -189,7 +189,7 @@ required)" stderr message covers this path). A failure specific to the events ap
 itself (e.g. `.studious/epics/` unwritable when the primary store was not) signals on
 stderr (`gate-ledger: events-append failed for epic '<epic>' (kind <kind>) — primary
 write unaffected`) but always returns 0 — a secondary, additive log never regresses the
-primary write that `cmd_status`, the PR-time hook, and `/work-through`'s own reconcile
+primary write that `cmd_status`, the PR-time hook, and `/next`'s own reconcile
 step already depend on.
 
 ## No retention or pruning

@@ -18,7 +18,7 @@ Check whether README.md still tells the truth about the product. A README goes s
 
 ## Workflow
 
-1. Read README.md. If none exists, report that and stop — creation belongs in `/studious-init`, not here.
+1. Read README.md. If none exists, report that and stop — creation belongs in `/setup`, not here.
 2. Read PRODUCT.md, DESIGN.md, and CLAUDE.md for ground truth and the project's writing style.
 3. Scan the codebase to verify what the README claims: package manifest (name, scripts, version), install/run commands, config files, `.env.example`, route/command/feature definitions, and the actual directory structure.
 4. Evaluate drift in five categories:
@@ -66,5 +66,5 @@ This agent's addendum: a documented command that doesn't resolve is a finding in
 ## What this agent does NOT do
 
 - Write, overwrite, or create README.md — it proposes a diff; the human applies it.
-- Generate a README from scratch — that's `/studious-init` when no README exists.
+- Generate a README from scratch — that's `/setup` when no README exists.
 - Review code quality, architecture, or product strategy — other reviews own those.

@@ -1,15 +1,15 @@
 name: gate-audit golden fixtures
 
-# Deliberately workflow_dispatch only, not per-PR: this exercises /gate-audit
+# Deliberately workflow_dispatch only, not per-PR: this exercises /review
 # against synthetic fixtures with a live model, so LLM cost and nondeterminism
 # stay out of the merge path. Run by hand after editing any of the 6 audit
-# agents or commands/gate-audit.md to catch a verdict/category regression.
+# agents or commands/review.md to catch a verdict/category regression.
 on:
   workflow_dispatch:
 
 jobs:
   golden-fixtures:
-    name: run /gate-audit against golden fixtures
+    name: run /review against golden fixtures
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -24,7 +24,7 @@ jobs:
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
-      - name: Run /gate-audit against every fixture
+      - name: Run /review against every fixture
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |

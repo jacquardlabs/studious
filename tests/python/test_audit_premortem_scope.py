@@ -2,7 +2,7 @@
 
 `workflows/epic-driver.js`'s `auditFanIn()` compiles the audit gate's verdict at
 two altitudes — per-story (`auditRound`) and epic-finale (`finaleAuditRound`) —
-by handing the compiling agent `commands/gate-audit.md`'s full compilation text.
+by handing the compiling agent `commands/review.md`'s full compilation text.
 That document's own auditor-11 "Pre-mortem verification" section fires whenever a
 pre-mortem register file is present — true in every story worktree, since the
 register lives on the epic branch and is checked out into each story worktree as

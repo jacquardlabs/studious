@@ -1,10 +1,10 @@
 # Audit routing signals — canonical file-pattern lists
 
 Canonical source for the deterministic (non-content-judged) first-round changeset-routing
-rules `commands/gate-audit.md` (auditor 9, auditor 11, auditor 12, and auditors 6–8's
+rules `commands/review.md` (auditor 9, auditor 11, auditor 12, and auditors 6–8's
 per-changeset clause) and `workflows/epic-driver.js`'s mechanical routing dispatch both apply. Neither restates these
 lists inline — both point here, so there is exactly one list to ever drift from.
-`commands/work-through.md`'s plan piece reads the same lists a third time, against a
+`reference/epic-orchestration.md`'s plan piece reads the same lists a third time, against a
 story's *stated* file surface, for the two reads `reference/epic-plan-contract.md`
 specifies: which lanes a proposed gate profile is priced for ("Gate profile"), and
 whether a story's surface is majority prompt-prose and therefore `story-supervised`
@@ -14,7 +14,7 @@ driver still derives every actual routing decision from the real changeset. The
 story-class read *is* recorded, as the story's class at plan approval. Auditor 10
 (operability) is deliberately not covered here: its skip condition is content-judged ("Judge
 from the diff's content… not file paths alone" — the "Auditor 10 (operability) is
-changeset-routed" paragraph under `commands/gate-audit.md`'s "Launch all auditors in
+changeset-routed" paragraph under `commands/review.md`'s "Launch all auditors in
 parallel" heading), not a
 file-pattern rule, and there is no reliable file-name proxy for "does this code serve
 requests, consume queues, or perform network I/O" the way there is for IaC, frontend,
@@ -52,7 +52,7 @@ No match on any of these → no frontend signal.
 Deliberately excludes bare `.js`/`.ts` files: unlike the framework-specific extensions
 above, a plain `.js`/`.ts` file is not a reliable frontend-only signal — it's the same
 extension backend services, CLI tools, and this very repository's own `workflows/*.js`
-scripts use. `/gate-audit`'s own agent-executed check (auditors 6–8) can still use judgment
+scripts use. `/review`'s own agent-executed check (auditors 6–8) can still use judgment
 beyond this list when it reads a `.js`/`.ts` file's actual content and surrounding context;
 `workflows/epic-driver.js`'s mechanical routing dispatch, which has no such judgment,
 applies this list literally and therefore does not treat a bare `.js`/`.ts` change as a
@@ -61,7 +61,7 @@ frontend signal by itself.
 This is the *per-changeset* half of `gate-audit.md`'s auditors 6–8 rule only — the
 *project-level* "DESIGN.md has no `## Surfaces` web entry, and the repo confirms it" half is
 a separate check `gate-audit.md`'s own prose still owns directly (see
-`/extract-design-system` Step 1's canonical web-signal list); it is not part of this file
+`/setup` Step 1's canonical web-signal list); it is not part of this file
 and not applied by `workflows/epic-driver.js`'s routing dispatch (see the design doc for
 issue #138, Out of scope).
 
@@ -109,7 +109,7 @@ No match on any of these → no prompt signal.
 
 Deliberately excludes bare source files, mirroring the Frontend signal's bare-`.js`/`.ts`
 precedent: a plain `.py`/`.ts`/`.go` file is not a reliable prompt signal even when it
-embeds an LLM call — it's the same extension every non-LLM module uses. `/gate-audit`'s
+embeds an LLM call — it's the same extension every non-LLM module uses. `/review`'s
 own agent-executed check may still route the lane in on judgment when the diff's content
 shows prompt strings at an SDK call site; `workflows/epic-driver.js`'s mechanical routing
 dispatch, which has no such judgment, applies this list literally and does not. The

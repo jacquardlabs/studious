@@ -91,8 +91,8 @@ Structure the report:
 
 **Summary** — one paragraph: overall posture, biggest exposure, biggest strength.
 **Critical**, **Important**, **Track** — findings grouped by tier.
-**Metrics snapshot** — these key names are a **contract with `/deep-review`'s
-dashboard** (`commands/deep-review.md`) — do not rename them:
+**Metrics snapshot** — these key names are a **contract with `/retro`'s
+dashboard** (`commands/retro.md`) — do not rename them:
 
 - Security: Critical/High findings
 - Exposed secrets (git history)

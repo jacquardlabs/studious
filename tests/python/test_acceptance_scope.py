@@ -1,6 +1,6 @@
 """Structural regression tests for the acceptance-scope story (issue #89).
 
-`commands/gate-acceptance.md` dispatched @agent-product-reviewer with only
+`commands/review.md` dispatched @agent-product-reviewer with only
 "review the implementation on the current branch against the original design
 doc" — but the reviewer has no Bash, so it could not compute the diff itself nor
 resolve the design-doc path. A compliant reviewer had to bounce back and ask, or
@@ -9,7 +9,7 @@ improvise scope from Glob/Grep.
 The fix adds a Part 0 that resolves both halves of the reviewer's scope up front —
 the named changeset (`git diff --name-only <merge-base>...HEAD`) and the design-doc
 path (the work file's recorded `designDoc`, else discovered the way
-`/gate-design-review` does) — and hands them, plus PRODUCT.md, explicitly into the
+`/review` does) — and hands them, plus PRODUCT.md, explicitly into the
 dispatch. These tests lock that resolution without a live model.
 """
 
@@ -49,8 +49,8 @@ def test_part_0_resolves_the_design_doc_path() -> None:
     text = _text()
     assert "designDoc" in text, "Part 0 does not read the work file's designDoc"
     assert "gate-ledger work-get" in text, "Part 0 does not read the work file via gate-ledger"
-    assert "/gate-design-review" in text, (
-        "Part 0 does not fall back to /gate-design-review's discovery"
+    assert "/review" in text, (
+        "Part 0 does not fall back to /review's discovery"
     )
 
 

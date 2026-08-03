@@ -1341,7 +1341,7 @@ check "an unmeasured entry with no --scope-delta-reason given carries no reason 
 # --- gc collects finished flow state, not only branch-orphaned state (#237) ---
 # The epic path deliberately keeps a story's branch after landing it, so the
 # branch-gone rule alone could never fire: 34 of 35 work files sat pinned at phase
-# `merge` forever, and /work-on counted every one as an active feature.
+# `merge` forever, and /next counted every one as an active feature.
 d38=$(sandbox)
 
 ( cd "$d38" && "$LEDGER" work-set --slug done-feature --title "finished" --branch "$(git -C "$d38" rev-parse --abbrev-ref HEAD)" --phase "done" ) >/dev/null 2>&1
@@ -1434,7 +1434,7 @@ check "gc still collects a finished work file with no scope-delta data at all, f
 # --- gc's guard only arms on a MEASURED scope-delta entry (fix-and-retry finding
 # 2): a scope check that dies or can't resolve a diff on the script path writes
 # --scope-delta-unmeasured (`computeScopeDelta`'s dead-end path, workflows/
-# epic-driver.js) — the fallback driver (commands/work-through.md) writes no
+# epic-driver.js) — the fallback driver (reference/epic-orchestration.md) writes no
 # scope-delta entries at all — so a work file whose cohort is only that must
 # not be pinned by a cohort it never actually measured. ---
 d46u=$(sandbox)
@@ -1823,7 +1823,7 @@ contains "a fingerprint with whitespace is refused" "single token" "$err"
 contains "the fingerprint refusal is a usage error" "rc=2" "$err"
 
 # --lane carries the same guard: it is a field of a tab-separated detail line that
-# /gate-audit injects verbatim into the next round's lane dispatch prompts
+# /review injects verbatim into the next round's lane dispatch prompts
 err=$(cd "$dcl" && "$LEDGER" episode-finding --gate audit --lane "$(printf 'x\tforged\tline')" \
     --severity Track --fingerprint lane-tabs --status open 2>&1 1>/dev/null; echo "rc=$?")
 contains "a lane with tabs is refused" "--lane must be a single token" "$err"
@@ -2420,7 +2420,7 @@ check "--appetite-episodes rejects a negative" "2" \
 check "--canary rejects anything but on/off" "2" \
   "$(cd "$da" && "$LEDGER" epic-set --slug pricey --canary sometimes >/dev/null 2>&1; echo $?)"
 
-# epic-run-log is the write half of the stop-loss: if /work-through skips it the
+# epic-run-log is the write half of the stop-loss: if /next skips it the
 # stop-loss never arms, so the append and the computed refusal are both pinned.
 check "reconcile reports no stop-loss before any run" "false" \
   "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.refuse')"

@@ -1,17 +1,21 @@
----
-description: Drive a whole milestone or epic through the gate flow with dispatched agents — plan once for approval, then run everything runnable, stopping only for judgment calls
-argument-hint: "[milestone, epic issue, or label] (omit to keep driving the epic in flight)"
-allowed-tools: Read, Glob, Grep, Bash, Task, Write, Workflow
----
+# Epic orchestration contract
 
-# Work through an epic
+**This is `/next`'s epic mode, in full.** `/next` is the one door; when the bet's scope is
+a milestone, an epic issue, or a label, `/next` reads this file and follows it. Nothing
+else invokes it, and it is not a command — it carries the depth `commands/next.md` points
+at rather than restates, the same way `/review` consults
+`reference/audit-compilation.md`.
 
-Drive a whole milestone through the same gate flow `/work-on` walks one piece at a
-time. This command owns state assembly and reporting; a deterministic Workflow script
-owns scheduling (which stories run, in what order, retry caps, merge order); dispatched
-agents own every judgment. Code owns bookkeeping; prompts own judgment. Two modes,
-resolved by state rather than flags: no epic in flight → the plan piece; an approved
-epic → the driver.
+Drive a whole milestone through the same episodes `/next` walks one piece at a time at
+story scale. The session owns state assembly and reporting; a deterministic Workflow
+script owns scheduling (which stories run, in what order, retry caps, merge order);
+dispatched agents own every judgment. Code owns bookkeeping; prompts own judgment. Two
+modes, resolved by state rather than flags: no epic in flight → the plan piece; an
+approved epic → the driver.
+
+The flow is scale-invariant: a bet's scope may be one story, a list of stories, or an
+epic, and the doors are the same at every scale. Scope changes how many stories a bet
+contains and how much runs dispatched versus supervised — never which doors exist.
 
 **The posture — non-negotiable:**
 
@@ -33,7 +37,7 @@ epic → the driver.
 - **Nothing runs before the user approves the plan.**
 
 Read PRODUCT.md at the project root first. If `gate-ledger` is not on `PATH`, stop —
-this flow cannot run without recorded state. Say so and point at `/work-on` for the
+this flow cannot run without recorded state. Say so and point at `/next` for the
 supervised, evidence-first flow instead.
 
 ## Resolve the epic
@@ -44,13 +48,13 @@ supervised, evidence-first flow instead.
 below**, and carry it as a flag into Reconcile. It is the operator's explicit consent to
 dispatch past the zero-landed refusal and means nothing else: it is never implied by
 re-invoking, never carried into a later invocation, and never part of an epic's name.
-Matching it as one would send `/work-through <epic> --override-stop-loss` down the
+Matching it as one would send `/next <epic> --override-stop-loss` down the
 "anything else starts a new epic" path and try to resolve the whole string as a
 milestone.
 
 - **`$ARGUMENTS` is empty** — if exactly one epic has status `approved`, `running`, or
   `ready`, drive it. If several, list them and ask which — don't guess. If none, invite
-  `/work-through [milestone, epic issue, or label]`.
+  `/next [milestone, epic issue, or label]`.
 - **`$ARGUMENTS` matches an epic in flight** (slug or title) — drive that one.
 - **Anything else starts a new epic.** Resolve it read-only with `gh`:
   - a milestone name or number → `gh issue list --milestone "<M>" --state open --json number,title,body,labels`
@@ -70,7 +74,7 @@ milestone.
    user can only approve what they can see.
 
 3. **Classify every story — `epic-default` (driven unattended) or `story-supervised`
-   (handed back as a `/work-on` piece, still in the epic).** State each story's expected
+   (handed back as a `/next` piece, still in the epic).** State each story's expected
    file surface as part of the decomposition, then apply
    `reference/epic-plan-contract.md`'s "Story class" section to it — that section is the
    rule; read it and use it rather than working from memory of these two names.
@@ -233,7 +237,7 @@ milestone.
 
    ```bash
    gate-ledger epic-story-set --epic "<slug>" --slug "<story>" \
-     --status parked --reason "story-supervised: <the one clause that classed it> — take it through /work-on"
+     --status parked --reason "story-supervised: <the one clause that classed it> — take it through /next"
    ```
 
    The `story-supervised:` prefix is what the closing report reads to render the entry
@@ -262,11 +266,11 @@ milestone.
 **No human approves a design doc on the `epic-default` path. State that plainly to the
 user at approval time — don't let them discover it at the epic PR.** A
 `story-supervised` story is the other half of that sentence: it never reaches an
-unattended design phase at all, so its doc is signed off in `/work-on` like any
+unattended design phase at all, so its doc is signed off in `/next` like any
 story-scale feature.
 
 The driver's default profile is `design → design-review → build → audit → acceptance`:
-a dispatched worker drafts the design doc and `/gate-design-review` reviews it against
+a dispatched worker drafts the design doc and `/review` reviews it against
 `reference/design-doc-contract.md` on every story that carries the pair — every story,
 unless step 4 proposed the trim and the user approved it. Two constraints force this,
 and neither is a preference:
@@ -276,21 +280,21 @@ and neither is a preference:
   worktrees.
 - **The driver may not name a build skill.** `workflows/epic-driver.js` is on the gate
   surface `scripts/check_gate_independence.py` guards, so it dispatches a worker
-  against `reference/worker-contract.md` rather than routing to `/design`. That rule is
+  against `reference/worker-contract.md` rather than routing to `/shape`. That rule is
   what keeps a gate from caring who built the branch; it also means the epic path can't
-  inherit `/design`'s sign-off loop even if a human were available.
+  inherit `/shape`'s sign-off loop even if a human were available.
 
 So the human turns at epic scale are: the story-plan approval, this interview, and the
-PR. `/gate-design-review` reviews every design doc, but an agent reviewing is not a
+PR. `/review` reviews every design doc, but an agent reviewing is not a
 human approving — do not describe it to the user as an equivalent substitute. What
 front-loading moves is the **interview**, which has no substitute at all; the sign-off
 is genuinely reduced, not relocated.
 
 **The review model on this pipeline, decided (#210):** a story routed `epic-default`
-relies on `/gate-design-review`'s agent review, because that class is defined by a
+relies on `/review`'s agent review, because that class is defined by a
 mechanically verifiable surface — the gate can check the thing a human would have
 checked — while a story whose surface a gate cannot verify mechanically is classed
-`story-supervised` at plan time and routed to `/work-on`, where it keeps its viva
+`story-supervised` at plan time and routed to `/next`, where it keeps its viva
 sign-off.
 
 That is one rule read at two scales, not two pipelines that drifted: a human signs off
@@ -357,7 +361,7 @@ cost nothing to refuse.
   carried no override**. When it is true, **stop and report — do not dispatch.** Say how
   many consecutive zero-landed runs there were and what the run reports said, and ask
   the user to either fix the cause or re-invoke with an explicit override
-  (`/work-through <epic> --override-stop-loss`), which is the only thing that clears it.
+  (`/next <epic> --override-stop-loss`), which is the only thing that clears it.
   Never decide on the epic's behalf that this run will be different; every run in the
   streak already was not. The threshold is `EPIC_ZERO_LANDED_LIMIT`, computed in
   `bin/gate-ledger` and read here — never compare a count against a number of your own
@@ -380,7 +384,7 @@ cost nothing to refuse.
   recorded `landed`, or a recorded `designDoc` with `.designDocExists: false`, means
   state and evidence disagree. Correct the record via `gate-ledger` before dispatch, or
   the run spends a story's worth of tokens rediscovering it.
-- **Story class is already handled.** A story whose surface belongs in `/work-on` was
+- **Story class is already handled.** A story whose surface belongs in `/next` was
   parked at plan time (step 3), so the driver's already-parked path surfaces it rather
   than dispatching it. Do not re-derive that classification here and do not warn about
   it — routing it was the plan's job, and doing it twice invites the two answers to
@@ -413,7 +417,7 @@ fi
 
 `run-boundary` is a reserved `step` name — it collides with nothing in the gate/worker
 phase vocabulary (`design`, `design-review`, `build`, `audit`, `acceptance`, `merge`)
-and `/work-on`'s own `history` reader filters on an exact different step name, so it
+and `/next`'s own `history` reader filters on an exact different step name, so it
 never sees or misreads this entry. This exists solely so the closing report's duration
 render (below) can tell a real same-run predecessor apart from idle/inter-invocation
 time — see [#142](https://github.com/jacquardlabs/studious/issues/142) for the full
@@ -535,7 +539,7 @@ Log every step with
 **Scope-delta measurement does not run on this path in round one** — no equivalent
 of the script's own per-moment naming (`workflows/epic-driver.js`'s `scopeDeltaPhase`:
 `build` for audit's first round, `<gate>-fix-<N>` for each retry), and no
-`--declared-files` flag (which stays a `/design`-time step at `work-set`, untouched
+`--declared-files` flag (which stays a `/shape`-time step at `work-set`, untouched
 by this section). When you (the fallback driver) compose the closing report and a
 story's `.scopeDelta` is empty — never measured, whether by you or an earlier
 script-mode run — render
@@ -543,7 +547,7 @@ script-mode run — render
 for it in place of the "Scope-delta line" jq below.
 Never `scope: unmeasured (no declaration recorded)` for that case: that string
 names a missing declaration, and a fallback-driven story can have a real
-declaration on file (declaration is a `/design`-time write, not something this
+declaration on file (declaration is a `/shape`-time write, not something this
 section controls) and still never get a per-moment breakdown — the gap is the
 mode, not the declaration. A story that switches to this fallback mode mid-epic
 (script path initially, then Workflow unavailable) has real `.scopeDelta` history
@@ -585,7 +589,7 @@ Apply verdicts exactly as the script does:
   work-log write is not optional bookkeeping: this step deliberately keeps the branch,
   so a terminal phase is the only thing that ever closes the work file out and lets
   `gate-ledger gc` collect it. Without it the story stays an "active feature" in
-  `/work-on` forever (#237).
+  `/next` forever (#237).
 - **Fix and retry** → `epic-story-set --epic "<slug>" --slug "<story>" --bump-retry
   <gate>`; park once the recorded counter exceeds 2; otherwise a fixer agent (never
   re-runs the gate), then a fresh gate agent.
@@ -599,7 +603,7 @@ mode, run it in the `__epic` worktree):
 
 1. The audit fan-out across the full epic diff (against the merge-base with the
    default branch) — the cross-story integration pass no per-story audit saw.
-2. `/gate-acceptance` against the epic goal statement, not any single story.
+2. `/review --delivery` against the epic goal statement, not any single story.
 3. `@agent-premortem-auditor` over the epic pre-mortem register.
 
 Verdicts record to the epic branch's ledger — the PR-time hook reads the same file.
@@ -612,8 +616,8 @@ A finale gate (audit or acceptance) whose fix cycles run out while it still hold
 own retry token (`FIX AND RE-REVIEW`) does not end the run reading
 as an unexplained "not ready": it adds one entry to the "Needs you" queue below naming
 the epic, not a story — `<epic-slug>--finale: <gate> returned <verdict> — stalled past
-2 fix cycles`. It is not a `/work-on`-resolvable story like the other entries in that
-queue; investigate the epic worktree directly, or amend and re-run `/work-through`.
+2 fix cycles`. It is not a `/next`-resolvable story like the other entries in that
+queue; investigate the epic worktree directly, or amend and re-run `/next`.
 
 ## Skips, amendments, and un-parking
 
@@ -655,7 +659,7 @@ Amendments go through this command, never hand-edited state:
 - **Drop** — `epic-story-set --status dropped`, remove the story's worktree if one
   exists, then re-evaluate dependents: a dependent of a dropped story needs the user
   to confirm it still makes sense.
-- **Add** — a scoped plan piece for just that story (a `/gate-should-we-build` pass
+- **Add** — a scoped plan piece for just that story (a `/bet` pass
   plus explicit approval of its DAG placement) before it joins the schedule.
 
 ## Close every invocation the same way
@@ -997,11 +1001,11 @@ Needs you:
     <scope line>
     gate-ledger work-get --slug "<slug>--<story>"
   - <story>: story-supervised — <one clause: why it's yours>
-    /work-on "<slug>--<story>" — branch epic/<slug>--<story>, cut from epic/<slug>
+    /next "<slug>--<story>" — branch epic/<slug>--<story>, cut from epic/<slug>
 Landed this run: <story> — <phase>: <outcome> (<Nm>) → <phase>: <outcome> (<Nm>) → ...
   <scope line>
   gate-ledger work-get --slug "<slug>--<story>"
-Run /work-through when you're ready, or resolve the queue first.
+Run /next when you're ready, or resolve the queue first.
 ```
 
 `<scope line>` is always exactly one of the five renderings the jq above produces
@@ -1111,7 +1115,7 @@ dispatched reports a read failure that didn't happen.
 
 When the epic reaches `ready`, the last line becomes the
 `gh pr create` handoff; `stopped` states what ended it. A parked story is always also
-a valid `/work-on` feature — say so when the queue is non-empty; taking a story over
+a valid `/next` feature — say so when the queue is non-empty; taking a story over
 by hand usually happens inside its worktree (the story branch is checked out there),
 or after `git worktree remove` on it — except a `ledger-scope-check` park (above):
 the worktree itself didn't resolve, so neither remedy applies. Run
@@ -1124,15 +1128,15 @@ m6-wave1 --story ledger-scope-fix`).
 
 A `story-supervised` park is the other exception to "inside its worktree": it was
 parked before anything dispatched, so it has neither branch nor worktree yet. The user
-takes it over from their own checkout — `/work-on "<the printed slug>"`, working on
+takes it over from their own checkout — `/next "<the printed slug>"`, working on
 `epic/<slug>--<story>` (the branch name the driver would have used, cut from the epic
 branch) so its gate verdicts record where the epic reads them. The printed slug matters
-as much as the branch: `/work-on` writes the design doc and build evidence into that
+as much as the branch: `/next` writes the design doc and build evidence into that
 same epic-qualified work file, which is what Reconcile reads for the two profiled
 phases that leave no verdict. Once its profiled gates have proceeded at that branch's
-HEAD, un-park it (`--status pending`, per Un-park above) and the next `/work-through`
+HEAD, un-park it (`--status pending`, per Un-park above) and the next `/next`
 run reconciles it to the `merge` sentinel and lands it without re-running a thing.
-Leave its gate profile as approved — `/work-on` covers every phase in the default one,
+Leave its gate profile as approved — `/next` covers every phase in the default one,
 so a trimmed-for-supervision profile buys nothing and risks reconciling to a phase the
 driver would then run unattended.
 
@@ -1156,10 +1160,10 @@ verbs it always did. `work-set`/`work-log`/`work-get` key every epic-dispatched
 story's work file to the epic-qualified slug `<slug>--<story>` — mirroring the
 separator `epic/<slug>--<story>` already uses for branch names — never the bare story
 slug alone, so a work file can never collide with an identically-named story in a
-different epic or with a standalone `/work-on` feature sharing the same name.
+different epic or with a standalone `/next` feature sharing the same name.
 `epic-story-set` needs no such qualifying: its own `--epic` argument already scopes it.
 Use this same qualified string everywhere a story is named back to the user — the
-"Needs you" queue prints it exactly as recorded, so `/work-on "<the printed slug>"`
+"Needs you" queue prints it exactly as recorded, so `/next "<the printed slug>"`
 resolves the right work file directly. State lives in the MAIN working tree's
 `.studious/` no matter which worktree an agent writes from — the ledger anchors there
 itself. Never hand-edit or directly read the JSON files. Worktrees are gitignored, one per

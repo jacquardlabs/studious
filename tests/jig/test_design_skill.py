@@ -1,15 +1,15 @@
-"""Regression tests for skills/design/SKILL.md (issue #8, story design-skill).
+"""Regression tests for skills/shape/SKILL.md (issue #8, story design-skill).
 
 Standard library only, matching test_build_skill.py's convention. Run with:
 
     uv run --no-project python3 -m unittest discover -s tests -v
 
 Checks this story's acceptance criteria mechanically, by inspecting the
-prose `/design`'s session actually reads (the same approach
+prose `/shape`'s session actually reads (the same approach
 test_build_skill.py/test_finish_skill.py already take for their own
 sibling skills):
 
-1. `skills/design/SKILL.md` has valid `name`/`description` frontmatter,
+1. `skills/shape/SKILL.md` has valid `name`/`description` frontmatter,
    `name` matching the directory, and no longer reads as the M1 stub.
 2. Step 0's inventory names all three context docs in order (PRODUCT.md,
    DESIGN.md, CLAUDE.md) plus the touched code, with no skip flag -- the
@@ -34,7 +34,7 @@ sibling skills):
    finding-3 trap this story exists to avoid falling into.
 9. Step 7's studious hand-off degrades explicitly (`command -v gate-ledger`)
    rather than silently, in both directions.
-10. The body carries jig's own `/design`-level verdict vocabulary
+10. The body carries jig's own `/shape`-level verdict vocabulary
     (`DESIGNED`/`NEEDS RESEARCH`/`REVISED`), derived from DESIGN.md at test
     time (see `_vocabulary.py`), not hand-copied.
 11. No `SKILL.md` is nested deeper than the directory's top level.
@@ -152,7 +152,7 @@ class TestDesignSkillBody(unittest.TestCase):
 
     def test_body_uses_design_level_vocabulary(self) -> None:
         missing = [term for term in DESIGN_VOCABULARY if term not in self.body]
-        self.assertEqual(missing, [], f"{SKILL_MD} body is missing /design vocabulary terms: {missing}")
+        self.assertEqual(missing, [], f"{SKILL_MD} body is missing /shape vocabulary terms: {missing}")
 
     # -- Step 0: inventory ------------------------------------------------
 
@@ -300,10 +300,10 @@ class TestDesignSkillBody(unittest.TestCase):
     def test_handoff_is_unconditional(self) -> None:
         # Was a `command -v gate-ledger` probe that skipped the hand-off when
         # the binary was missing, labelled "studious not installed" (studious
-        # #150). Both halves are wrong now: /gate-design-review ships in the
-        # same plugin as /design, and gate-ledger's absence says nothing about
+        # #150). Both halves are wrong now: /review ships in the
+        # same plugin as /shape, and gate-ledger's absence says nothing about
         # whether the gate exists -- only whether it can record.
-        self.assertPhraseIn("tell the developer to run `/gate-design-review`")
+        self.assertPhraseIn("tell the developer to run `/review`")
         self.assertPhraseIn("Unconditionally")
         self.assertNotIn("command -v gate-ledger", self.body)
 

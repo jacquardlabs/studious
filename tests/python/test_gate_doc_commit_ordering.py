@@ -3,17 +3,17 @@
 `cmd_record` (`bin/gate-ledger`) stamps a verdict's sha from `git rev-parse --short
 HEAD` at the moment it runs; `cmd_status` later flags the verdict stale whenever the
 stored sha differs from current HEAD, however trivial the intervening commit. When a
-gate's own run writes a doc (the pre-mortem register `/gate-design-review` persists on
+gate's own run writes a doc (the pre-mortem register `/review` persists on
 PROCEED TO PLAN, or an emergent note/reconciliation doc an acceptance run produces) and
 commits it *after* `gate-ledger record` already ran, every later reader of that
-verdict — the PR-time hook, `/work-through`'s finale ready-check — sees it as stale
+verdict — the PR-time hook, `/next`'s finale ready-check — sees it as stale
 over a commit that changed nothing substantive (issue #99's observed incident: the
 finale acceptance dispatch committing its reconciliation notes after recording SHIP).
 
 The fix states one ordering rule — commit every file this gate's run wrote or
 modified before running `gate-ledger record` — explicitly in the three places that
-record a gate verdict on a doc-write-capable path: `commands/gate-design-review.md`,
-`commands/gate-acceptance.md`, and the finale acceptance dispatch in
+record a gate verdict on a doc-write-capable path: `commands/review.md`,
+`commands/review.md`, and the finale acceptance dispatch in
 `workflows/epic-driver.js`. No change to any gate's verdict vocabulary or decision
 logic — these tests lock the ordering statement, not the verdicts themselves.
 """

@@ -1,6 +1,6 @@
 # Epic pricing — lookup data
 
-`/work-through`'s plan piece stops once, for the user to approve a story plan. This
+`/next`'s plan piece stops once, for the user to approve a story plan. This
 file is what turns that stop into a *priced* one: how to estimate what the approved
 plan will cost before it runs, and how to propose the appetite the driver then
 enforces as a ceiling. It is lookup data read at plan approval — nothing in
@@ -67,7 +67,7 @@ runs, with no fix cycle.
 | merge + bookkeeping | 0.02M | haiku merge, verify read-back, park/ready records |
 
 Plus **0.30M once per epic** for the finale — the cross-story audit fan-out,
-`/gate-acceptance` against the epic goal, and the pre-mortem verification.
+`/review --delivery` against the epic goal, and the pre-mortem verification.
 
 **Fix cycles are the range, not a rounding error.** `workflows/epic-driver.js` allows
 up to `MAX_FIX_CYCLES` (2) retries per gate, and each retry costs a fixer dispatch plus
@@ -121,7 +121,7 @@ without its parts.
 
 ## Consumers that must stay in sync
 
-- `commands/work-through.md` — the only reader. Its plan piece computes the estimate
+- `reference/epic-orchestration.md` — the only reader. Its plan piece computes the estimate
   here and records the approved numbers via `gate-ledger epic-set --appetite-tokens`
   / `--appetite-episodes`.
 - `bin/gate-ledger` — stores them on the epic (`appetite.tokens`,
@@ -137,7 +137,7 @@ without its parts.
     the "Needs you" queue counts, including one the plan parked as `story-supervised`.
   - **Tokens is enforced through the Workflow `budget` primitive, not by comparing
     against `appetite.tokens` directly.** The driver reads `budget.remaining()`; the two
-    are the same number only because `commands/work-through.md` sets the Workflow call's
+    are the same number only because `reference/epic-orchestration.md` sets the Workflow call's
     own budget to the approved appetite when it invokes the script. `appetite.tokens` is
     read and reported (`budget.approvedTokens`) so the run report can show what was
     approved beside what was enforced — and a substrate with no usable primitive reports

@@ -118,7 +118,7 @@ The most important step. Compare everything you found, with cross-surface consis
 
 Populate each section of DESIGN.md with what you found, following the template's structure:
 
-1. **Fill the Surfaces table** — surface, framework/tech, entry point — from Step 1. The Surface column must be one of the fixed tokens `web` | `cli` | `tui` | `api` | `report` | `plugin` | `library` (not free text like "Website" or "React app") — `/gate-audit` and `/deep-review` read this column to branch behavior, so it must be machine-readable. Put the framework name in the Framework / tech column instead.
+1. **Fill the Surfaces table** — surface, framework/tech, entry point — from Step 1. The Surface column must be one of the fixed tokens `web` | `cli` | `tui` | `api` | `report` | `plugin` | `library` (not free text like "Website" or "React app") — `/review` and `/retro` read this column to branch behavior, so it must be machine-readable. Put the framework name in the Framework / tech column instead.
 2. **Semantic palette, Vocabulary, Formatting** — the shared layers from Steps 2–4. In the vocabulary table, always include the source-of-truth location and consumer list.
 3. **Per-surface conventions** — one subsection per detected surface from Step 5. Delete the subsections for surfaces this product doesn't have.
 4. **Document the dominant pattern**, then note deviations as HTML comments so they don't read as instructions.

@@ -67,7 +67,7 @@ pattern="(^|[^A-Za-z0-9])(${alt})(\$|[^A-Za-z0-9])"
 printf '%s' "$command_str" | grep -Eq "$pattern" || exit 0
 
 # --- armed check: current branch must be a branch gate-ledger already knows
-# about (a work file's .branch, written by /work-on or /work-through's driver
+# about (a work file's .branch, written by /next or /next's driver
 # when the story was set up — an existing step, not a new one). work-list's
 # column 3 is the branch, exact string match (not the gates ledger's slug —
 # no collision risk here, this compares full branch names).
@@ -79,7 +79,7 @@ armed=$("$ledger" work-list 2>/dev/null | cut -f3 | grep -qxF "$branch" && echo 
 # --- origin: agent_id is documented as present only when the hook fires
 # inside a subagent call (code.claude.com/docs/en/hooks, "Common input
 # fields"). reference/evidence-format.md records what this does and doesn't
-# prove about /work-through's own dispatch mechanism.
+# prove about /next's own dispatch mechanism.
 agent_id=$(printf '%s' "$input" | jq -r '.agent_id // empty')
 agent_type=$(printf '%s' "$input" | jq -r '.agent_type // empty')
 origin="interactive"

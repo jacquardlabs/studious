@@ -1,6 +1,6 @@
 ---
 name: build
-description: Runs the build loop over a hand-written PLAN.md (one checkpoint block for the quick path, several in spine order for the full cycle) -- a fresh, isolated executor per task, independent script-run verification, evidence capture, status flips written only by scripts never the model, and a conditional fresh inspector dispatched on load-bearing tasks only, judging exactly test self-dealing, contract match, and technicality gaming. Use when the user says /build, asks to build or implement a PLAN.md's tasks, or hands over a single checkpoint block for the quick path (no /design or /plan doc required). Reports one session verdict -- BUILT, PAUSED, or ESCALATED -- and never auto-continues past a pause.
+description: Runs the build loop over a hand-written PLAN.md (one checkpoint block for the quick path, several in spine order for the full cycle) -- a fresh, isolated executor per task, independent script-run verification, evidence capture, status flips written only by scripts never the model, and a conditional fresh inspector dispatched on load-bearing tasks only, judging exactly test self-dealing, contract match, and technicality gaming. Use when the user says /build, asks to build or implement a PLAN.md's tasks, or hands over a single checkpoint block for the quick path (no /shape or /build doc required). Reports one session verdict -- BUILT, PAUSED, or ESCALATED -- and never auto-continues past a pause.
 ---
 
 # /build
@@ -58,7 +58,7 @@ from the target project's own `CLAUDE.md` (Step 1.3), and every
 executed verbatim via the shell (`subprocess.run(..., shell=True)`), with
 no allowlist, sandbox, or confirmation gate. This is by design, the same
 trust model as `make`/`npm test`/a CI runner, not a defect. Commands in a
-plan are executed verbatim via the shell; only run `/studious:build` on
+plan are executed verbatim via the shell; only run `/build` on
 plans you would run by hand. This holds for the whole dogfood scope (a developer's
 own hand-written `PLAN.md`); it becomes local code execution the moment a
 task block is seeded from untrusted provenance — an external issue/PR
@@ -122,7 +122,7 @@ may appear anywhere in the block. No `Risk:` line means `LOW` — see Cadence.
    all**, stop here — before creating any worktree — and report **PAUSED**,
    naming exactly what's missing (no "Tests" or equivalent convention in
    `CLAUDE.md`) and the resume action (add a baseline-command convention to
-   `CLAUDE.md`, then re-invoke `/studious:build`). Do not add a second
+   `CLAUDE.md`, then re-invoke `/build`). Do not add a second
    input or flag to work around this; silent, unverified building is the
    one thing this stop exists to prevent.
 2. **Name a fresh branch/worktree.** Derive it from the plan file's own
@@ -148,8 +148,8 @@ may appear anywhere in the block. No `Risk:` line means `LOW` — see Cadence.
    against the actually-installed viva, that a `####` level would be
    *coarser* than this rule's own level 1–3 boundary and nest inside the
    preceding task instead — this parsing rule, and `scripts/plan-lint`'s
-   matching one, are the two frozen consumers `/plan` targets, not the bug
-   `/plan` fixes.
+   matching one, are the two frozen consumers `/build` targets, not the bug
+   `/build` fixes.
 5. **Compute the load-bearing set, once (issue #15).** Using the same task
    blocks step 1.4 just read into memory: for every task N, task N is
    **load-bearing** iff *any other* task block's own `Rests on:` line names
@@ -158,7 +158,7 @@ may appear anywhere in the block. No `Risk:` line means `LOW` — see Cadence.
    mechanical read of prose already in hand, the same class of
    judgment-free-but-not-code-parseable procedure step 1.4's own
    trailing-heading exclusion already is — not a new script, and this
-   heuristic is explicitly provisional (a stand-in until `/plan`'s (M3)
+   heuristic is explicitly provisional (a stand-in until `/build`'s (M3)
    structured spine map replaces prose-matching entirely). Compute this
    **once, for the whole run, before task 1 is ever dispatched** — it never
    changes mid-loop, and no task's own executor ever gets a vote on whether
@@ -199,7 +199,7 @@ For each task block, in order:
 1. **Honor a pre-dispatch risk tag.** If this task's block carries a
    `Risk: REPLAN-RISK` or `Risk: ESCALATE-RISK` line, pause here and wait
    for explicit human acknowledgment *before* dispatching this task's
-   executor (see Cadence). No tag (the common case, since no `/plan` exists
+   executor (see Cadence). No tag (the common case, since no `/build` exists
    yet to assign one) means proceed immediately.
 2. **Dispatch.** Launch one fresh Task-tool subagent whose entire prompt is
    exactly:
@@ -311,7 +311,7 @@ For each task block, in order:
      retry past: call
      `scripts/status-flip --plan <path> --task <label> --status REPLAN --reason "<verify's own parse error>"`
      and report **PAUSED** directly — the human revises the block by hand,
-     then re-invokes `/studious:build`.
+     then re-invokes `/build`.
 6. **Inspect — conditional on load-bearing status (issue #15).** Consult
    the fixed load-bearing set step 1.5 already computed.
 
@@ -351,7 +351,7 @@ For each task block, in order:
      technicality gaming: hardcoding, special-casing the probe, gaming a
      hold? No security review, no style review, no performance review, no
      re-litigating `verify`'s own PASS/FAIL — those belong to scripts or to
-     studious's `/gate-audit`. The full `PLAN.md`, any other task's
+     studious's `/review`. The full `PLAN.md`, any other task's
      history, and this session's own conversation are out of scope for
      you. Return exactly one verdict — `CLEAR`, `DEFECT`, or `CONCERN` —
      naming the lens (if any) it turns on and your reasoning cited against
@@ -381,14 +381,14 @@ For each task block, in order:
    unrelated `FAIL` on a `verify` item, or from a later task's own first
    `DEFECT`.
 
-   **`CONCERN` — non-blocking, forwarded to `/gate-audit`.** State inline
+   **`CONCERN` — non-blocking, forwarded to `/review`.** State inline
    which lens it concerns and the recommended lane below, then proceed to
    step 2.7 exactly as `CLEAR` — the task still reaches `PASS`. Capture the
    report via the exact same `evidence-capture` artifact call `CLEAR` uses;
    because that evidence directory is already committed as part of step
    2.7 (unchanged), the report is automatically part of the diff a human's
-   later `/gate-audit` run already reviews — no `gate-ledger` coupling, no
-   auto-invoked `/gate-audit`, no dependency on studious being installed at
+   later `/review` run already reviews — no `gate-ledger` coupling, no
+   auto-invoked `/review`, no dependency on studious being installed at
    all (graceful even standalone). The committed, self-describing file
    itself *is* the forward.
 
@@ -518,8 +518,8 @@ an unrelated `verify` `FAIL`, or from a later task's own first `DEFECT`.
        `DEFECT` — the block's own contract was ambiguous enough that two
        independent Inspectors both couldn't clear it). Call
        `scripts/status-flip --plan <path> --task <label> --status REPLAN --reason "<why>"`.
-       Report **PAUSED**: the human revises the block by hand (no `/plan`
-       exists yet to do it for them), then re-invokes `/studious:build`.
+       Report **PAUSED**: the human revises the block by hand (no `/build`
+       exists yet to do it for them), then re-invokes `/build`.
        `status-flip` overwrites a prior `REPLAN` suffix on this same task
        rather than refusing — this is the one status that isn't terminal.
      - **ESCALATE** — something deeper than this task: a contract mismatch
@@ -527,7 +527,7 @@ an unrelated `verify` `FAIL`, or from a later task's own first `DEFECT`.
        that doesn't hold in the real codebase. Call
        `scripts/status-flip --plan <path> --task <label> --status ESCALATE --reason "<why>"`.
        Report **ESCALATED** — terminal for this session; hand off to
-       `/studious:design` in revision mode.
+       `/shape` in revision mode.
 
    Either diagnosis is your own judgment call from `verify`'s and (for a
    load-bearing task) the Inspector's accumulated detail across both
@@ -538,7 +538,7 @@ an unrelated `verify` `FAIL`, or from a later task's own first `DEFECT`.
 
 ## Cadence
 
-- A task with no `Risk:` tag (the common case, since no `/plan` exists yet
+- A task with no `Risk:` tag (the common case, since no `/build` exists yet
   to assign one) defaults to **LOW** and streams: a clean PASS moves
   straight to the next task with no pause.
 - A task tagged `Risk: REPLAN-RISK` or `Risk: ESCALATE-RISK` in its
@@ -552,15 +552,15 @@ an unrelated `verify` `FAIL`, or from a later task's own first `DEFECT`.
 
 | Verdict | When |
 |---|---|
-| `BUILT` | Every task in the plan reaches `PASS`. Report the branch/worktree, then tell the developer to run `/gate-audit` next — unconditionally, since that gate ships in this same plugin. |
+| `BUILT` | Every task in the plan reaches `PASS`. Report the branch/worktree, then tell the developer to run `/review` next — unconditionally, since that gate ships in this same plugin. |
 | `PAUSED` | A dirty or missing baseline stopped Setup, or a task's Failure routine resolved to `REPLAN`, or a risk-tagged task is waiting for a pre-dispatch acknowledgment, or a `verify`/`status-flip` usage error persisted after one retry. Resumable once the human acts. |
-| `ESCALATED` | A task's Failure routine resolved to `ESCALATE`. Terminal for this session — hand off to `/studious:design` in revision mode. |
+| `ESCALATED` | A task's Failure routine resolved to `ESCALATE`. Terminal for this session — hand off to `/shape` in revision mode. |
 
 **Never report `PAUSED` bare.** It collapses four distinct causes (missing
 or dirty baseline, `REPLAN`, a risk-tagged pre-dispatch pause, a persisted
 script usage error) into one token. Every `PAUSED` report names, in the
 same message: which of those four fired, and the specific action that
-resumes `/studious:build` — fix the baseline and re-invoke; revise the checkpoint
+resumes `/build` — fix the baseline and re-invoke; revise the checkpoint
 block by hand and re-invoke; acknowledge the risk tag to proceed; fix the
 transcription bug and re-invoke.
 
@@ -576,11 +576,11 @@ check `command -v gate-ledger`:
 - **Found** -- `gate-ledger work-list` and match a row whose branch column
   equals the current branch. Matched -- `gate-ledger work-log --slug
   "<that-slug>" --step build --outcome "<BUILT|PAUSED|ESCALATED>"`, never
-  `--phase` (`/work-on` owns that judgment). Those three tokens are the
+  `--phase` (`/next` owns that judgment). Those three tokens are the
   closed vocabulary `reference/worker-contract.md`'s "Status reporting"
   section defines and `gate-ledger` enforces at the write -- every executor
   reports in it, not just this one. No matching row -- skip silently; this
-  session isn't part of a `/work-on` flow.
+  session isn't part of a `/next` flow.
 - **Not found** -- skip silently. Best-effort corroboration, never a
   required part of this skill's own contract.
 
@@ -607,7 +607,7 @@ self-dealing, whether a contract matches, whether a hold is gamed).
 `CONCERN` stay the Inspector's own judgment call while everything around
 it — evidence capture, the Failure-routine wiring, `status-flip`'s `PASS`
 derivation — stays exactly as mechanical and untouched as it already was.
-"Standalone-capable" is why a `CONCERN` forwards to `/gate-audit` by
+"Standalone-capable" is why a `CONCERN` forwards to `/review` by
 sitting, already committed and self-describing, in the diff a human's own
 later gate run reviews — never a new dependency on `gate-ledger` or on
 studious being installed at all. And the load-bearing gate itself — never

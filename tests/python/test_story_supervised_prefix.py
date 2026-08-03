@@ -6,7 +6,7 @@ Story class is the one plan element with no ledger field of its own
 therefore travels as a free-text prefix inside a park reason, across three
 surfaces that have to agree on the literal string:
 
-1. the writer — `commands/work-through.md`'s `epic-story-set --status parked
+1. the writer — `reference/epic-orchestration.md`'s `epic-story-set --status parked
    --reason` block in the plan piece;
 2. the reader — the same file's closing-report rule, which says the recorded
    reason *starts* with the prefix and renders the gateless "Needs you" entry

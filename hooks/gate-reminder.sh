@@ -3,7 +3,7 @@
 #
 # Non-blocking by design: it always returns an "ask" decision so a human confirms
 # before the PR opens. When a gate ledger exists for the current branch
-# (.studious/gates/<branch>.json, written by /gate-audit and /gate-acceptance) it
+# (.studious/gates/<branch>.json, written by /review and /review --delivery) it
 # makes the reason SPECIFIC — naming a missing, stale, or non-passing gate — instead
 # of asking blindly. With no ledger (or no jq) it falls back to the generic prompt.
 
@@ -11,7 +11,7 @@ input=$(cat)
 
 printf '%s' "$input" | grep -Eq 'gh[[:space:]]+pr[[:space:]]+create' || exit 0
 
-default_reason="Studious: opening a PR. Did /gate-audit and /gate-acceptance run on this branch? Proceed if the gates passed or don't apply to this change."
+default_reason="Studious: opening a PR. Did /review and /review --delivery run on this branch? Proceed if the gates passed or don't apply to this change."
 
 reason=""
 ledger="${CLAUDE_PLUGIN_ROOT:-}/bin/gate-ledger"
@@ -35,7 +35,7 @@ else
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "ask",
-    "permissionDecisionReason": "Studious: opening a PR. Did /gate-audit and /gate-acceptance run on this branch? Proceed if the gates passed or don't apply to this change."
+    "permissionDecisionReason": "Studious: opening a PR. Did /review and /review --delivery run on this branch? Proceed if the gates passed or don't apply to this change."
   }
 }
 JSON

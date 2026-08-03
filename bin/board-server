@@ -79,7 +79,7 @@ def _git(*args: str, cwd: Path | None = None) -> str | None:
 
 def repo_root(cwd: Path | None = None) -> Path | None:
     """Mirror bin/gate-ledger's repo_root(): anchor to the MAIN working tree, even
-    when invoked from a linked worktree (e.g. a /work-through story worktree), so
+    when invoked from a linked worktree (e.g. a /next story worktree), so
     this server reads the one shared .studious/epics/ store the driver and every
     story agent already write to — never a per-worktree copy that doesn't exist.
     Returns None outside a git repo, matching the bash function's failure mode."""

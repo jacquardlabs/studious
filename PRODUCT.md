@@ -10,8 +10,8 @@ product-judgment workflow for Claude Code. Its thesis, stated directly in the RE
 
 Studious adds that judgment back as a **delivery discipline entered at the scope of
 the work**: quality gates and periodic reviews (the judgment), an epic driver
-(`/work-through`) that dispatches contracted workers under those same gates and is the
-front door, and a story navigator (`/work-on`) for taking one feature over — by hand,
+(`/next`) that dispatches contracted workers under those same gates and is the
+front door, and a story navigator (`/next`) for taking one feature over — by hand,
 or because the driver's plan classed it story-supervised and handed it back. Judgment remains the spine — nothing is auto-approved, and
 every altitude ends at a human — but the *how* is no longer deferred to a companion
 product: it enters through `reference/worker-contract.md` (story brief in;
@@ -26,12 +26,12 @@ The initiative altitude — formerly the separate `brigade` design repo, now arc
 is recorded at `docs/initiative-altitude.md` and becomes an entrypoint here if its
 entry gate fires.
 
-jig — the build-execution workflow (`/design`, `/plan`, `/build`, `/finish`, `/coach`)
+jig — the build-execution workflow (`/shape`, `/build`, `/build`, `/ship`, `/next`)
 — was absorbed into this plugin on 2026-07-25 under #150. Not as a second installable:
 a two-plugin split would have bought separate installability for an audience of zero
 while costing two version lines, two release paths, a `git-subdir` marketplace source,
 and a seed-tag step between merges. One plugin, one version, one install. `viva`, which
-`/plan` and `/design` require for their human sign-off rounds, stays a separate repo and
+`/build` and `/shape` require for their human sign-off rounds, stays a separate repo and
 is now a declared `dependencies` entry — it publishes a versioned contract rather than a
 convention (CLAUDE.md's boundary criterion (e)).
 
@@ -56,7 +56,7 @@ Evidence:
   after you build it"; periodic reviews "run against main, not feature branches"; a
   `PreToolUse` hook fires on `gh pr create` (`hooks/gate-reminder.sh`).
 - The backlog commands operate on GitHub Issues via the `gh` CLI
-  (`/backlog-priorities`, `/backlog-hygiene`), so the user works in a GitHub repo.
+  (`/bet`, `/retro`), so the user works in a GitHub repo.
 - The whole system reads three context docs (PRODUCT.md, DESIGN.md, CLAUDE.md) the
   user maintains — a user who values durable, shared context over per-prompt
   re-explanation.
@@ -88,8 +88,8 @@ this section is your voice, not the extractor's.
   change this: `reference/worker-contract.md` stays normative, `/build` is one
   implementation of it, and a human or Superpowers satisfies the same contract. Gate
   agents never build, worker agents never gate, and they never share context.
-- **One repo, entrypoints per scope** — build session, story (`/work-on`), epic
-  (`/work-through`), and someday initiative (`docs/initiative-altitude.md`) are
+- **One repo, entrypoints per scope** — build session, story (`/next`), epic
+  (`/next`), and someday initiative (`docs/initiative-altitude.md`) are
   entrypoints of one discipline, not separate products. Co-evolving contracts must
   live in one diff domain, where the gates can audit whole changes.
 - **Code owns bookkeeping; prompts own judgment** — schedulers, DAG order, retry
@@ -148,20 +148,20 @@ parked pending evidence anyone wants it.
 
 Traced from the commands and the README's two-rhythm description.
 
-1. **Initialize** — `/studious-init` > extract PRODUCT.md and DESIGN.md from the
+1. **Initialize** — `/setup` > extract PRODUCT.md and DESIGN.md from the
    codebase as it actually is > scaffold `docs/studious/` review directories > wire the
    workflow reference into CLAUDE.md > user reviews PRODUCT.md first (principles and
    "not building" need a human pass).
 
-2. **Per-feature gate flow** — `/backlog-priorities` or `/gate-should-we-build [idea]`
-   > design doc > `/gate-design-review` > build with your own workflow > `/gate-audit`
+2. **Per-feature gate flow** — `/bet` or `/bet [idea]`
+   > design doc > `/review` > build with your own workflow > `/review`
    (parallel auditors; frontend, infrastructure, operability, dependency, and prompt lanes auto-skip when not applicable)
-   > `/gate-acceptance` > merge. Each gate catches a specific failure; the user skips
+   > `/review --delivery` > merge. Each gate catches a specific failure; the user skips
    gates the risk doesn't warrant.
 
-3. **Per-project health loop** — `/deep-review` dispatches the periodic review agents against main
+3. **Per-project health loop** — `/retro` dispatches the periodic review agents against main
    in parallel, compiles a cross-referenced master summary with a prioritized action
-   plan, and proposes (never applies) updates to the context docs. `/backlog-hygiene`
+   plan, and proposes (never applies) updates to the context docs. `/retro`
    then flags resolved/obsolete/duplicated issues against the cycle's fixes.
 
 ## What we're NOT building
@@ -183,7 +183,7 @@ Traced from the commands and the README's two-rhythm description.
   separate product (brigade) and deliberately absorbed as a future entrypoint
   (`docs/initiative-altitude.md`, 2026-07-07). Its build waits on its entry gate: a
   real ≥2-epic initiative demonstrating cross-epic failure that per-epic
-  `/work-through` leaves unmanaged.
+  `/next` leaves unmanaged.
 - **Absorbing every adjacent tool** — jig came in because it coupled to the gates
   through undocumented format conventions that had to be renegotiated across two
   repos. viva stays a separate repo despite having no independent audience either,
@@ -219,7 +219,7 @@ entry here is not a documentation nit — it is the discipline running on bad fu
    #142) — a gate's price scales O(auditors), so a one-line change pays for a full
    fan-out. No per-gate latency or cost budget is stated anywhere, which means nothing
    can be over budget. Cost is the UX for a tool a developer runs per feature.
-2. **The merge unified the repo, not the flow** (M10) — `/work-on` and `/coach` answer
+2. **The merge unified the repo, not the flow** (M10) — `/next` and `/next` answer
    "what's next" from two state stores neither reads (#214). The design-review model
    was the other half of this and is now decided (#210, #280): a human signs off where
    a gate cannot verify mechanically, and story class routes each story to the pipeline

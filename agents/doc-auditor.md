@@ -1,6 +1,6 @@
 ---
 name: doc-auditor
-description: Documentation coverage analyzer. Reviews a changeset for missing docs, outdated comments, and API gaps. Diff-scoped and gate-invoked (/gate-audit) — not a periodic whole-repo docs sweep.
+description: Documentation coverage analyzer. Reviews a changeset for missing docs, outdated comments, and API gaps. Diff-scoped and gate-invoked (/review) — not a periodic whole-repo docs sweep.
 tools: Read, Grep, Glob, Bash
 model: inherit
 effort: low
