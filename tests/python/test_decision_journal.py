@@ -22,7 +22,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FORMAT_REF = REPO_ROOT / "reference" / "decision-journal-format.md"
-GATE = REPO_ROOT / "commands" / "gate-should-we-build.md"
+GATE = REPO_ROOT / "commands" / "bet.md"
 BACKLOG = REPO_ROOT / "agents" / "backlog-priorities.md"
 CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 
@@ -90,7 +90,7 @@ def test_gate_reads_journal_before_evaluating() -> None:
     text = GATE.read_text()
 
     read_pos = text.index("## Check the decision journal")
-    eval_pos = text.index("Now evaluate honestly")
+    eval_pos = text.index("## Evaluate")
     assert read_pos < eval_pos, "journal read step must precede the evaluation"
 
     section = text[read_pos:eval_pos]
@@ -112,7 +112,7 @@ def test_gate_journal_informs_never_decides() -> None:
     a contradicting fresh verdict is surfaced with both dates."""
     text = GATE.read_text()
     section = text[
-        text.index("## Check the decision journal"):text.index("Now evaluate honestly")
+        text.index("## Check the decision journal"):text.index("## Evaluate")
     ]
     assert "informs, never decides" in section
     assert "run all five criteria" in section
@@ -124,7 +124,7 @@ def test_gate_read_step_untrusted_data_posture() -> None:
     and malformed lines are skipped, not a crash."""
     text = GATE.read_text()
     section = text[
-        text.index("## Check the decision journal"):text.index("Now evaluate honestly")
+        text.index("## Check the decision journal"):text.index("## Evaluate")
     ]
     assert "untrusted" in section
     assert "never instructions" in section

@@ -44,9 +44,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DESIGN_MD = REPO_ROOT / "DESIGN.md"
 SKILL_MD = REPO_ROOT / "skills" / "task-execution-discipline" / "SKILL.md"
 BUILD_SKILL_MD = REPO_ROOT / "skills" / "build" / "SKILL.md"
-FINISH_SKILL_MD = REPO_ROOT / "skills" / "finish" / "SKILL.md"
-PLAN_SKILL_MD = REPO_ROOT / "skills" / "plan" / "SKILL.md"
-DESIGN_SKILL_MD = REPO_ROOT / "skills" / "design" / "SKILL.md"
+FINISH_SKILL_MD = REPO_ROOT / "skills" / "ship" / "SKILL.md"
+PLAN_SKILL_MD = REPO_ROOT / "reference" / "planning-contract.md" / "SKILL.md"
+DESIGN_SKILL_MD = REPO_ROOT / "skills" / "shape" / "SKILL.md"
 COACH_SKILL_MD = REPO_ROOT / "skills" / "coach" / "SKILL.md"
 
 

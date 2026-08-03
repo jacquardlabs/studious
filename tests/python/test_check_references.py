@@ -189,8 +189,8 @@ def test_the_design_doc_directory_itself_is_not_a_citation(tmp_path: Path) -> No
     a concrete filename is a pointer that can dangle."""
     from check_references import find_disposable_citations
 
-    _write(tmp_path / "skills" / "design" / "SKILL.md", f"Written to `{_DIR}<slug>.md`")
-    _write(tmp_path / "commands" / "work-on.md", f"discover a candidate under {_DIR}")
+    _write(tmp_path / "skills" / "shape" / "SKILL.md", f"Written to `{_DIR}<slug>.md`")
+    _write(tmp_path / "commands" / "next.md", f"discover a candidate under {_DIR}")
     assert find_disposable_citations(tmp_path) == []
 
 

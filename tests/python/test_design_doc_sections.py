@@ -29,7 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = REPO_ROOT / "reference" / "design-doc-contract.md"
 DESIGN_LINT = REPO_ROOT / "scripts" / "design-lint"
 TEMPLATE = REPO_ROOT / "templates" / "design-doc.md"
-DESIGN_SKILL = REPO_ROOT / "skills" / "design" / "SKILL.md"
+DESIGN_SKILL = REPO_ROOT / "skills" / "shape" / "SKILL.md"
 DESIGN_MD = REPO_ROOT / "DESIGN.md"
 
 

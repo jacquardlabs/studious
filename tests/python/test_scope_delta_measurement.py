@@ -46,7 +46,7 @@ from test_driver_crash_hardening import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
+WORK_THROUGH = REPO_ROOT / "reference" / "epic-orchestration.md"
 
 # ---------- scopeDeltaPhase: pure-function executed fixture ----------
 

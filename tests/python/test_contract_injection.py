@@ -74,7 +74,7 @@ FANOUT_COMMANDS = (
 # The epic driver dispatches auditors/reviewers itself instead of routing through a
 # gate command, so it is a fan-out site too and must carry the contract.
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
-WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
+WORK_THROUGH = REPO_ROOT / "reference" / "epic-orchestration.md"
 
 # The old runtime-pointer sentence this story removed. Its presence would mean the
 # driver reverted to telling an auditor where to go look up the contract at runtime

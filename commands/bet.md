@@ -48,8 +48,8 @@ Stop after reporting; the user picks.
 
 Read `docs/studious/decisions.jsonl` at the project root if it exists — each line is one
 prior verdict; the format is pinned in `reference/decision-journal-format.md`. Absent file =
-no prior verdicts: proceed, and never create the file at read time. Skip and note malformed
-lines rather than failing.
+no prior verdicts: proceed, and never create the file at read time.
+Skip and note malformed lines rather than failing.
 
 Scan for entries whose `idea` semantically matches the bet under evaluation — model
 judgment, lean permissive. On a match, open your findings with the prior verdict before
@@ -132,7 +132,7 @@ Also append the verdict to the decision journal — `docs/studious/decisions.jso
 consuming project — so the next evaluation of this idea, in any session or clone, opens with
 it. The record shape and append mechanics are pinned in
 `reference/decision-journal-format.md`; this is its canonical append. Substitute your one-line
-restatement of the bet as evaluated, the verdict token, and the one-sentence rationale
+restatement of the idea as evaluated, the verdict token, and the one-sentence rationale
 verbatim. The revisit condition — what would change the answer — is required for `DEFER` and
 `DON'T BUILD`; for `BUILD`/`BUILD SMALLER`, drop the `--arg revisit` line and the
 `revisitCondition` key unless one naturally exists:
@@ -140,7 +140,7 @@ verbatim. The revisit condition — what would change the answer — is required
 ```bash
 mkdir -p docs/studious
 jq -nc --arg date "$(date +%F)" \
-  --arg idea "<one-line bet as evaluated>" \
+  --arg idea "<one-line idea as evaluated>" \
   --arg verdict "DEFER" \
   --arg rationale "<one-sentence rationale>" \
   --arg revisit "<what would change the answer>" \

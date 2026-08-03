@@ -25,7 +25,7 @@ import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-HANDBACK_COMMAND = REPO_ROOT / "commands" / "handback.md"
+HANDBACK_COMMAND = REPO_ROOT / "reference" / "handback-contract.md"
 HANDBACK_SKILL = REPO_ROOT / "skills" / "handback" / "SKILL.md"
 GATE_LEDGER = REPO_ROOT / "bin" / "gate-ledger"
 GATE_VOCABULARY = REPO_ROOT / "reference" / "gate-vocabulary.md"

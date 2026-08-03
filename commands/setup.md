@@ -1,11 +1,22 @@
 ---
-description: Initialize Studious in the current project — creates PRODUCT.md, DESIGN.md, scaffolds review directories, and configures CLAUDE.md
+description: Set Studious up in this project — creates PRODUCT.md and DESIGN.md (extracting both from the codebase), scaffolds the report directories, and wires CLAUDE.md. Run once per project; re-run a single extraction later with `extract-product` or `extract-design`.
+argument-hint: "[extract-product | extract-design] (omit for full first-time setup)"
 allowed-tools: Read, Glob, Grep, Bash, Task, Write, Edit, WebFetch
 ---
 
-# Initialize product review workflow
+# Set up Studious here
 
-Set up the full product review workflow in this project. This creates the context documents that all review agents depend on.
+Set up the full flow in this project. This creates the context documents every door and
+specialist depends on — PRODUCT.md, DESIGN.md, and the CLAUDE.md wiring.
+
+**With an argument, run only that extraction and stop:** `extract-product` follows
+`reference/product-context-extraction.md`; `extract-design` follows
+`reference/design-system-extraction.md`. Both are the same procedures Steps 2 and 3 run
+inline during first-time setup, exposed on their own so a project whose code has moved on
+can refresh one doc without re-running everything.
+
+Everything this command writes, it names first. Propose, then write — never a silent
+scaffold.
 
 ## Step 1 — Check current state
 
@@ -28,7 +39,7 @@ cp "${CLAUDE_PLUGIN_ROOT}/templates/PRODUCT.md" PRODUCT.md
 
 (`${CLAUDE_PLUGIN_ROOT}` is substituted to the plugin's install path before you read this. If the copy fails because it didn't resolve, locate `templates/PRODUCT.md` inside the plugin install with Glob and copy its contents — do not re-inline a template here.)
 
-Then populate it as part of init — run the `/setup` workflow inline now. Don't stop and hand this back as a separate step; extract the product context from the codebase and continue. (Users can re-run `/setup` on its own later to refresh.)
+Then populate it as part of setup — follow `reference/product-context-extraction.md` inline now; it carries the extraction procedure in full. Don't stop and hand this back as a separate step; extract the product context from the codebase and continue. (Users can re-run `/setup extract-product` on its own later to refresh.)
 
 ## Step 3 — Create DESIGN.md (if needed)
 
@@ -40,7 +51,7 @@ cp "${CLAUDE_PLUGIN_ROOT}/templates/DESIGN.md" DESIGN.md
 
 (Same fallback as Step 2: if `${CLAUDE_PLUGIN_ROOT}` didn't resolve and the copy fails, locate `templates/DESIGN.md` inside the plugin install with Glob and copy its contents — do not re-inline a template here.)
 
-Then populate it as part of init — run the `/setup` workflow inline now. It detects which surfaces the product actually has and extracts the conventions for each; a non-visual product (CLI, API, plugin) gets a real interface doc, and a pure library gets an honest minimal one. Don't stop and hand this back as a separate step; extract and continue. (Users can re-run `/setup` on its own later to refresh.)
+Then populate it as part of setup — follow `reference/design-system-extraction.md` inline now; it carries the extraction procedure in full. It detects which surfaces the product actually has and extracts the conventions for each; a non-visual product (CLI, API, plugin) gets a real interface doc, and a pure library gets an honest minimal one. Don't stop and hand this back as a separate step; extract and continue. (Users can re-run `/setup extract-design` on its own later to refresh.)
 
 ## Step 4 — Create README.md (if needed)
 

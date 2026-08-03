@@ -442,7 +442,7 @@ class EpisodeVocabularyTest(unittest.TestCase):
             )
 
 
-GATE_AUDIT_MD = REPO_ROOT / "commands" / "gate-audit.md"
+GATE_AUDIT_MD = REPO_ROOT / "commands" / "review.md"
 AUDIT_COMPILATION_MD = REPO_ROOT / "reference" / "audit-compilation.md"
 
 
@@ -538,8 +538,8 @@ class GateAuditDoorTest(unittest.TestCase):
     def test_criteria_lane_is_narrowing_tracked(self) -> None:
         """product-reviewer joins the narrowing-tracked lane roster the episode
         step names, so a criteria-only blocker can narrow round 2 to it."""
-        start = self.door.index("## Open or re-enter the episode")
-        end = self.door.index("## Launch all auditors")
+        start = self.door.index("## Shared — open or re-enter the episode")
+        end = self.door.index("## Launch the lane profile")
         self.assertIn("product-reviewer", self.door[start:end])
 
     def test_criteria_lane_has_a_severity_rubric_row(self) -> None:
@@ -563,8 +563,8 @@ class GateAuditDoorTest(unittest.TestCase):
             )
 
 
-WORK_ON_MD = REPO_ROOT / "commands" / "work-on.md"
-GATE_ACCEPTANCE_MD = REPO_ROOT / "commands" / "gate-acceptance.md"
+WORK_ON_MD = REPO_ROOT / "commands" / "next.md"
+GATE_ACCEPTANCE_MD = REPO_ROOT / "commands" / "review.md"
 
 
 class NavigatorEpisodeTest(unittest.TestCase):
@@ -718,10 +718,10 @@ class DeliveryDoorTest(unittest.TestCase):
 
 
 RUN_GATE_AUDIT_FIXTURES_PY = REPO_ROOT / "scripts" / "run_gate_audit_fixtures.py"
-WORK_THROUGH_MD = REPO_ROOT / "commands" / "work-through.md"
+WORK_THROUGH_MD = REPO_ROOT / "reference" / "epic-orchestration.md"
 BOARD_SCHEMA_MD = REPO_ROOT / "reference" / "board-schema.md"
 EVENTS_FORMAT_MD = REPO_ROOT / "reference" / "events-format.md"
-EXTRACT_DESIGN_SYSTEM_MD = REPO_ROOT / "commands" / "extract-design-system.md"
+EXTRACT_DESIGN_SYSTEM_MD = REPO_ROOT / "reference" / "design-system-extraction.md"
 REPO_CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 
 #: The two spellings reference/gate-vocabulary.md replaced with RETRY_TOKEN (#289).

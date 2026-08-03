@@ -74,10 +74,38 @@ timeout of its own — is killed and reported as a distinct timeout message,
 never silently hanging the session or reading as an ordinary command
 failure (issue #49).
 
+## Step 0 — Plan, if there isn't one
+
+`/build` plans and then builds; the planning step is not a separate door. Resolve which
+case you are in before anything else:
+
+- **A `PLAN.md`-shaped file already exists** at the resolved input path — go straight to
+  Step 1. This is the common case on a re-invocation, and the case a hand-authored
+  quick-path block is in.
+- **No plan exists, and a design doc does** (the argument names one, or exactly one
+  `.md` sits under `docs/design/`) — follow `reference/planning-contract.md` now, in this
+  session, to turn it into a `PLAN.md`. That contract carries the inventory, the
+  dependency spine, the task calibration, the checkpoint-block grammar, the `plan-lint`
+  gate, and the viva sign-off round in full. Consult it; don't restate it here, and don't
+  skip its sign-off — a plan reaches Step 1 only at `PLAN READY`.
+- **Neither exists** — stop and report **PAUSED**, naming what's missing (no plan, no
+  design doc) and the resume action: write a design doc (`/shape`, or any route
+  satisfying `reference/design-doc-contract.md`), or hand over a single checkpoint block
+  for the quick path.
+
+A `DESIGN GAP` or `TOO BIG` verdict from the planning contract stops this session there —
+report it verbatim and do not proceed to Step 1. Those are the human's to resolve.
+
+**During the absorbed-plan window, announce which case fired** — one line, before Step 1:
+"Plan already present, building it" / "No plan — planning first from `<doc>`". `/build` is
+the one door name that survived the restructure with larger scope, so an operator's
+remembered `/build` now does strictly more than it used to; saying which half ran is what
+keeps that from being a surprise.
+
 ## Input
 
-One optional argument: a path to a `PLAN.md`-shaped file, defaulting to
-`PLAN.md` at the target project's repo root. The **quick path** is not a
+One optional argument: a path to a `PLAN.md`-shaped file **or** a design doc, defaulting
+to `PLAN.md` at the target project's repo root. The **quick path** is not a
 different input shape — it is simply a plan file containing exactly one
 `### Task` block, hand-authored in the checkpoint-block format below. One
 input contract serves both the quick path and the full cycle; don't invent

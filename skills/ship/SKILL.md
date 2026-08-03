@@ -21,6 +21,19 @@ a hard requirement. It assumes the human invoked it because the branch is
 ready, the same trust boundary `/build`'s own `BUILT` → "run `/review`
 next" hand-off already relies on.
 
+## Two modes
+
+- **`/ship`** — the full closeout below: evidence table, cost footer, follow-ups,
+  decision patches, dated report, and one of `MERGE` / `PR` / `KEEP` / `DISCARD`.
+- **`/ship --handback`** — the worker's PR-less return. A dispatched executor finishing
+  its story hands the branch back with a manifest and a summary and nothing else: no
+  episode is convened, no PR is opened, no verdict is recorded. Follow
+  `reference/handback-contract.md`, which carries that procedure in full; consult it,
+  don't restate it here, and don't run any of the six steps below on this path.
+
+Convening is not judging: `/ship` may convene the delivery episode as a convenience, but
+the verdict is always `/review`'s. This door never writes one.
+
 Six steps, in order. Steps 1 and 5 are mechanical (scripts decide); Steps
 2–4 always end on an explicit human decision in the same turn; Step 6
 reports one verdict and performs the matching cleanup once the human names

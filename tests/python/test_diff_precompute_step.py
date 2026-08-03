@@ -20,13 +20,13 @@ import re
 
 from run_gate_audit_fixtures import REPO_ROOT
 
-GATE_AUDIT = REPO_ROOT / "commands" / "gate-audit.md"
+GATE_AUDIT = REPO_ROOT / "commands" / "review.md"
 
 
 def _precompute_section() -> str:
     text = GATE_AUDIT.read_text()
     match = re.search(
-        r"## Precompute the changeset diff.*?\n(.*?)\n## Resolve the branch's evidence log",
+        r"## Shared — precompute the changeset diff.*?\n(.*?)\n## Shared — resolve the branch's evidence log",
         text,
         re.DOTALL,
     )

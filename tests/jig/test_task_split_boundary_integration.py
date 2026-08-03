@@ -42,7 +42,7 @@ from _task_split_boundary import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = REPO_ROOT / "tests" / "jig" / "fixtures" / "plan-lint"
 BUILD_SKILL_MD = REPO_ROOT / "skills" / "build" / "SKILL.md"
-PLAN_SKILL_MD = REPO_ROOT / "skills" / "plan" / "SKILL.md"
+PLAN_SKILL_MD = REPO_ROOT / "reference" / "planning-contract.md" / "SKILL.md"
 
 FIXTURE_NAMES = ("clean-plan.md", "broken-plan.md")
 

@@ -23,8 +23,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
-WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
-DESIGN_SKILL = REPO_ROOT / "skills" / "design" / "SKILL.md"
+WORK_THROUGH = REPO_ROOT / "reference" / "epic-orchestration.md"
+DESIGN_SKILL = REPO_ROOT / "skills" / "shape" / "SKILL.md"
 
 
 def _extract_function(source: str, name: str) -> str:

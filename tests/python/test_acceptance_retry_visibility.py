@@ -64,7 +64,7 @@ import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
+WORK_THROUGH = REPO_ROOT / "reference" / "epic-orchestration.md"
 
 # `gate-acceptance` FIX AND RE-CHECK, Finding 1: a bare `(resumed)` tag reads as a
 # benign lifecycle fact to a scanning maintainer, not an invitation to investigate a

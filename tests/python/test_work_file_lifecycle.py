@@ -27,9 +27,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
-WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
-WORK_ON = REPO_ROOT / "commands" / "work-on.md"
-DOCTOR = REPO_ROOT / "commands" / "studious-doctor.md"
+WORK_THROUGH = REPO_ROOT / "reference" / "epic-orchestration.md"
+WORK_ON = REPO_ROOT / "commands" / "next.md"
+DOCTOR = REPO_ROOT / "commands" / "doctor.md"
 LEDGER = REPO_ROOT / "bin" / "gate-ledger"
 
 #: The phases `commands/next.md` treats as "not active". `gc`'s terminal rule and

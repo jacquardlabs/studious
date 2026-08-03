@@ -27,7 +27,7 @@ from __future__ import annotations
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
+WORK_THROUGH = REPO_ROOT / "reference" / "epic-orchestration.md"
 PLAN_CONTRACT = REPO_ROOT / "reference" / "epic-plan-contract.md"
 
 TOKEN = "story-supervised"

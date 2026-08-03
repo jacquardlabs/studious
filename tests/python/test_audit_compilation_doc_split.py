@@ -22,7 +22,7 @@ from pathlib import Path
 
 from run_gate_audit_fixtures import REPO_ROOT
 
-GATE_AUDIT_MD = REPO_ROOT / "commands" / "gate-audit.md"
+GATE_AUDIT_MD = REPO_ROOT / "commands" / "review.md"
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 AUDIT_COMPILATION = REPO_ROOT / "reference" / "audit-compilation.md"
 
@@ -81,8 +81,8 @@ def test_reference_file_contains_the_extracted_rules() -> None:
 def test_gate_audit_md_points_to_the_new_file_and_does_not_restate_it() -> None:
     """Acceptance criterion 2: gate-audit.md's own section is a pointer, not a copy."""
     text = GATE_AUDIT_MD.read_text()
-    start = text.index("## After all auditors return")
-    end = text.index("## Record the verdict")
+    start = text.index("## Compile")
+    end = text.index("\n# Delivery episode")
     section = text[start:end]
     assert "reference/audit-compilation.md" in section
     # The pointer names the file; it must not restate the substantive rule text that

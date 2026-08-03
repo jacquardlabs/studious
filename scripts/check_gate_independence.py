@@ -154,9 +154,16 @@ def surface_paths() -> list[Path]:
     return [p for p in paths if p.is_file()]
 
 
-def scan(rel: str, text: str, invocation: re.Pattern) -> tuple[list[str], int]:
+def scan(rel: str, text: str, invocation: re.Pattern | None = None) -> tuple[list[str], int]:
     """Check one guarded file. Returns its problems and how many invocations the
-    worker-dispatch exemption actually absorbed."""
+    worker-dispatch exemption actually absorbed.
+
+    `invocation` defaults to the charter-derived pattern. It is a parameter at all so
+    `main()` builds it once per run instead of once per file, and so a test can drive the
+    scanner with a pattern of its own.
+    """
+    if invocation is None:
+        invocation = invocation_re()
     problems: list[str] = []
     open_at = 0  # line number of the unclosed region marker, 0 when outside one
     exempted = 0
@@ -214,7 +221,13 @@ def scan(rel: str, text: str, invocation: re.Pattern) -> tuple[list[str], int]:
     return problems, exempted
 
 
-def violations(paths: list[Path], invocation: re.Pattern) -> list[str]:
+def violations(
+    paths: list[Path] | None = None, invocation: re.Pattern | None = None
+) -> list[str]:
+    if paths is None:
+        paths = surface_paths()
+    if invocation is None:
+        invocation = invocation_re()
     problems: list[str] = []
     for path in paths:
         rel = path.relative_to(REPO).as_posix()
@@ -223,9 +236,15 @@ def violations(paths: list[Path], invocation: re.Pattern) -> list[str]:
     return problems
 
 
-def dead_regions(paths: list[Path], invocation: re.Pattern) -> list[str]:
+def dead_regions(
+    paths: list[Path] | None = None, invocation: re.Pattern | None = None
+) -> list[str]:
     """A declared region that exempts nothing is scaffolding for a future mistake.
     Delete it rather than leaving an unused hole in the surface."""
+    if paths is None:
+        paths = surface_paths()
+    if invocation is None:
+        invocation = invocation_re()
     dead: list[str] = []
     for path in paths:
         text = path.read_text(encoding="utf-8")

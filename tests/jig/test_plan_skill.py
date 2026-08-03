@@ -54,11 +54,11 @@ from _text import normalize_ws
 from _vocabulary import derive_plan_vocabulary
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SKILL_DIR = REPO_ROOT / "skills" / "plan"
+SKILL_DIR = REPO_ROOT / "reference" / "planning-contract.md"
 SKILL_MD = SKILL_DIR / "SKILL.md"
 DESIGN_MD = REPO_ROOT / "DESIGN.md"
 BUILD_SKILL_MD = REPO_ROOT / "skills" / "build" / "SKILL.md"
-FINISH_SKILL_MD = REPO_ROOT / "skills" / "finish" / "SKILL.md"
+FINISH_SKILL_MD = REPO_ROOT / "skills" / "ship" / "SKILL.md"
 
 PLAN_VOCABULARY = derive_plan_vocabulary(DESIGN_MD.read_text(encoding="utf-8"))
 

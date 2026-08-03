@@ -26,7 +26,7 @@ from test_frontloaded_decisions import DECISIONS, _run_ctx
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
-WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
+WORK_THROUGH = REPO_ROOT / "reference" / "epic-orchestration.md"
 
 CARRIED = (
     "ACCEPTANCE ROUND-3 FIX TASKS CARRIED FORWARD (all four already diagnosed at "

@@ -18,7 +18,7 @@ from __future__ import annotations
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-GATE_ACCEPTANCE = REPO_ROOT / "commands" / "gate-acceptance.md"
+GATE_ACCEPTANCE = REPO_ROOT / "commands" / "review.md"
 
 
 def _text() -> str:

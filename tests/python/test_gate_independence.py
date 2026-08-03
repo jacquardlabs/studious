@@ -27,10 +27,28 @@ def test_repo_passes_today() -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-def test_gate_surface_is_not_empty() -> None:
+def test_guarded_surface_is_not_empty() -> None:
     """A glob typo would make the whole check vacuously true."""
-    matched = [p for pattern in gi.GATE_SURFACE for p in REPO.glob(pattern)]
-    assert len(matched) > 20, f"gate surface matched only {len(matched)} files"
+    assert len(gi.surface_paths()) > 20, (
+        f"guarded surface matched only {len(gi.surface_paths())} files"
+    )
+
+
+def test_every_judge_door_in_the_charter_lands_on_the_guarded_surface() -> None:
+    """The derivation's whole point (#257 follow-on): a renamed judge door must not be
+    able to fall off the guarded surface silently. Charter first, surface second."""
+    guarded = {p.relative_to(REPO).as_posix() for p in gi.surface_paths()}
+    judge_doors = gi.judge_paths()
+    assert judge_doors, "the charter parsed to zero judge doors"
+    for door in judge_doors:
+        assert door in guarded, f"{door} is a judge door but is not guarded"
+
+
+def test_producer_doors_are_never_guarded() -> None:
+    """A producer on the guarded surface would forbid it from naming itself."""
+    guarded = {p.relative_to(REPO).as_posix() for p in gi.surface_paths()}
+    for door in gi.doors_of_class("producer"):
+        assert door["path"] not in guarded, f"{door['path']} is a producer, not a judge"
 
 
 def test_catches_a_gate_invoking_a_build_skill(tmp_path: Path, monkeypatch) -> None:
@@ -53,13 +71,13 @@ def test_catches_a_gate_requiring_a_build_artifact(tmp_path: Path, monkeypatch) 
     assert "reference/evidence-format.md" in problems[0]
 
 
-def test_every_build_skill_is_actually_guarded(tmp_path: Path, monkeypatch) -> None:
+def test_every_producer_door_is_actually_guarded(tmp_path: Path, monkeypatch) -> None:
     agents = tmp_path / "agents"
     agents.mkdir()
-    for skill in gi.BUILD_SKILLS:
+    for skill in gi.producer_names():
         (agents / f"{skill}-auditor.md").write_text(f"Then run /{skill}.\n", encoding="utf-8")
     monkeypatch.setattr(gi, "REPO", tmp_path)
-    assert len(gi.violations()) == len(gi.BUILD_SKILLS)
+    assert len(gi.violations()) == len(gi.producer_names())
 
 
 def test_catches_a_gate_shelling_out_to_a_build_executable(tmp_path: Path, monkeypatch) -> None:
@@ -179,7 +197,7 @@ def test_a_gate_compiler_may_not_be_moved_inside_the_region(tmp_path: Path, monk
     )
     monkeypatch.setattr(gi, "REPO", tmp_path)
     problems = gi.violations()
-    assert any("auditFanIn compiles a gate verdict" in p for p in problems), problems
+    assert any("auditFanIn compiles a verdict" in p for p in problems), problems
 
 
 def test_every_gate_compiler_is_guarded_by_name(tmp_path: Path, monkeypatch) -> None:
@@ -191,7 +209,7 @@ def test_every_gate_compiler_is_guarded_by_name(tmp_path: Path, monkeypatch) -> 
         )
         monkeypatch.setattr(gi, "REPO", tmp_path)
         problems = gi.violations()
-        assert any(f"{compiler} compiles a gate verdict" in p for p in problems), compiler
+        assert any(f"{compiler} compiles a verdict" in p for p in problems), compiler
 
 
 def test_the_region_never_exempts_a_build_artifact(tmp_path: Path, monkeypatch) -> None:

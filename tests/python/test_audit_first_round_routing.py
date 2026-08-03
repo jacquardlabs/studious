@@ -33,7 +33,7 @@ from test_driver_crash_hardening import (
 )
 from test_epic_driver_decomposition import _extract_async_function
 
-GATE_AUDIT_MD = REPO_ROOT / "commands" / "gate-audit.md"
+GATE_AUDIT_MD = REPO_ROOT / "commands" / "review.md"
 ROUTING_SIGNALS_MD = REPO_ROOT / "reference" / "audit-routing-signals.md"
 
 

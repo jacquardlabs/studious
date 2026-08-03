@@ -1,11 +1,14 @@
 ---
-description: Run the periodic review suite — all seven reviews with a compiled master summary, or a single area. Codebase health, interface health, architecture, product health, security posture, README drift, prompt health.
+description: The periodic look-back — whole-project reviews, backlog hygiene, and post-ship outcome grading. With no argument, runs all seven health reviews and compiles a master summary; with an area, runs just that one. Codebase, interface, architecture, product, security, README, prompts, plus `backlog` and `outcomes` modes. Recommend-only — writes reports, never code, issues, or verdicts.
+argument-hint: "[codebase | interface | architecture | product | security | readme | prompts | backlog | outcomes] (omit for the full sweep)"
 allowed-tools: Read, Glob, Grep, Bash, Task, Write, Edit
 ---
 
-# Deep review — periodic review suite
+# The look-back
 
-Run periodic reviews against the current codebase on main. With no argument, runs all seven and compiles a master summary — the "run everything" maintenance cycle. With an area argument, runs just that one review at its own cadence (e.g. architecture quarterly without the other six).
+Run periodic reviews against the current codebase on main. With no argument, runs all seven health reviews and compiles a master summary — the "run everything" maintenance cycle. With an area argument, runs just that one at its own cadence (e.g. architecture quarterly without the other six).
+
+This door is recommend-only. It writes reports under `docs/studious/`; it never writes code, never modifies or closes an issue, and never records a gate verdict.
 
 Read CLAUDE.md, PRODUCT.md, and DESIGN.md first.
 
@@ -28,6 +31,24 @@ Read `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md` once (the same plugin-
 | `security` | `review-security-health` | Whole-repo vulnerability posture (per-instance Critical/High), secrets in history, security-config posture, trend | `docs/studious/security-reviews/YYYY-MM-DD-security-review.md` |
 | `readme` | `review-readme` | README drift: stale claims, missing features, broken commands/paths/links, voice drift, proposed diff | `docs/studious/readme-reviews/YYYY-MM-DD-readme-review.md` |
 | `prompts` | `review-prompt-health` | Trigger coverage, instruction consistency, orchestrator-subagent contract alignment, duplication, injection posture, token economy | `docs/studious/prompt-reviews/YYYY-MM-DD-prompt-review.md` |
+| `backlog` (or `hygiene`) | `backlog-hygiene` | Open issues that should be closed — resolved by commits, made obsolete, or duplicated | none — reported in-session |
+| `outcomes` | `review-outcomes` | Post-ship grading: shipped merges against the fixes and reverts that followed, and against the verdicts recorded at the time | `docs/studious/outcome-reviews/YYYY-MM-DD-outcome-review.md` |
+
+**The last two are modes, not lanes: they are never part of the full sweep.** The seven
+health reviews above read the codebase and compile together; `backlog` reads the issue
+tracker and `outcomes` reads post-ship git history, on their own cadences and against
+different sources. Running them takes an explicit argument.
+
+- **`backlog`** — requires GitHub Issues via the `gh` CLI. PRODUCT.md may link a different
+  tracker (Linear, Jira); this mode only reads GitHub Issues, and doesn't apply if the
+  project tracks work elsewhere. Spawn `@agent-backlog-hygiene` to fetch the open issues,
+  cross-reference each against git history, PRODUCT.md, and the most recent review reports,
+  and compile the report. Output format and evidence rules are the agent's — see
+  `agents/backlog-hygiene.md`'s `## Output` section. It never closes, comments on, or
+  modifies any issue.
+- **`outcomes`** — follow `reference/outcome-review-contract.md`, which carries the history
+  collection, the attribution windows, and the confidence tiers in full. Consult it; don't
+  restate it here.
 
 If `$ARGUMENTS` is non-empty but matches no keyword, list the valid keywords and stop.
 

@@ -29,7 +29,7 @@ CONTRACT = REPO_ROOT / "reference" / "worker-contract.md"
 LEDGER = REPO_ROOT / "bin" / "gate-ledger"
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 BUILD_SKILL = REPO_ROOT / "skills" / "build" / "SKILL.md"
-WORK_ON = REPO_ROOT / "commands" / "work-on.md"
+WORK_ON = REPO_ROOT / "commands" / "next.md"
 DESIGN_MD = REPO_ROOT / "DESIGN.md"
 
 #: Reserved for `/next`'s own bookkeeping — a worker never writes these, but the

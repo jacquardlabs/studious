@@ -27,7 +27,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 LEDGER = REPO_ROOT / "bin" / "gate-ledger"
-WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
+WORK_THROUGH = REPO_ROOT / "reference" / "epic-orchestration.md"
 
 LAYOUT_LITERAL = ".studious/worktrees"
 

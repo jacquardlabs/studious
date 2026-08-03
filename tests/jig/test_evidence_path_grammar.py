@@ -108,8 +108,8 @@ class TestEvidencePathGrammarOnPromptSurfaces(unittest.TestCase):
         # stops being reached -- the failure the glob can actually have. Any
         # single file may be renamed, split, or retired for reasons that have
         # nothing to do with this scan, so no one file is load-bearing here.
-        self.assertIn(REPO_ROOT / "skills" / "finish" / "SKILL.md", files)
-        self.assertIn(REPO_ROOT / "commands" / "work-on.md", files)
+        self.assertIn(REPO_ROOT / "skills" / "ship" / "SKILL.md", files)
+        self.assertIn(REPO_ROOT / "commands" / "next.md", files)
         self.assertIn(REPO_ROOT / "reference" / "evidence-format.md", files)
         self.assertGreater(
             len(files),

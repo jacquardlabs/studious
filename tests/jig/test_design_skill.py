@@ -50,7 +50,7 @@ from _text import normalize_ws
 from _vocabulary import derive_design_vocabulary
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SKILL_DIR = REPO_ROOT / "skills" / "design"
+SKILL_DIR = REPO_ROOT / "skills" / "shape"
 SKILL_MD = SKILL_DIR / "SKILL.md"
 DESIGN_MD = REPO_ROOT / "DESIGN.md"
 CONTRACT_MD = REPO_ROOT / "reference" / "design-doc-contract.md"
