@@ -3,8 +3,9 @@ name: coach
 description: >-
   The build loop's coach — assesses pipeline state from the repo and conversation,
   recommends exactly one next action with why, rough cost, and the path
-  ahead, and dispatches /design, /plan, /build, or /finish one at a time on
-  explicit human confirmation, passing context explicitly. Use when the
+  ahead, and dispatches /studious:design, /studious:plan, /studious:build,
+  or /studious:finish one at a time on explicit human confirmation, passing
+  context explicitly. Use when the
   user says /coach, asks where they are in the pipeline or what to do
   next, or wants help recovering after a PAUSED or ESCALATED /build
   session. Does no work itself — writes no code, flips no statuses,
@@ -207,9 +208,9 @@ whose sole job is dispatching them one at a time on human confirmation.
 A stated shortcut is honored and its skipped steps named, never blocked
 (`PRODUCT.md` journey 2, Quick path). The persona who says "small fix,
 skip the ceremony" gets: "Quick path: hand-author a single-task `PLAN.md`
-in the checkpoint-block format, then I dispatch `/build` — skipping
-`/design`, `/gate-design-review`, and `/plan`; `/gate-audit` still applies
-after `BUILT`."
+in the checkpoint-block format, then I dispatch `/studious:build` —
+skipping `/studious:design`, `/gate-design-review`, and `/studious:plan`;
+`/gate-audit` still applies after `BUILT`."
 
 ## Does no work itself
 
