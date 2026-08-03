@@ -1604,6 +1604,39 @@ const PHASE_ARTIFACTS = {
   build: ['commit-on-story-branch', 'work-file-build-step'],
 }
 
+// The cross-invocation half of the same mechanism — the case #295's own doc-comment
+// leads with ("a successor to a crashed, stalled, or parked worker rehydrates from that
+// record"), and the one an intra-run nudge counter cannot see. A story parked at `build`
+// and resumed by a LATER /work-through arrives via input.phases with nudges at zero, so
+// without this it would take assignmentInstruction and be re-briefed from scratch —
+// exactly the drift #295 exists to remove, on exactly the run that most needs the
+// record.
+//
+// Same args boundary, same reason as worktrees and contract above: this script has no
+// exec access, so it cannot run `gate-ledger work-get` itself. commands/work-through.md
+// already holds the whole work file per story in `$reconcile_json.stories[<story>].work`
+// (it reads that same payload for the run-boundary marker), so it hands over just the
+// one field that decides this — `.assignment.phase`, the phase the CURRENT recorded
+// assignment was written for. Nothing else from the record crosses: the worker reads the
+// rest itself, from the ledger, which is the point.
+//
+// Snapshotted at run start and never refreshed, deliberately. That is what makes the
+// same-run case correct without a second flag: a story that runs design then build in
+// ONE invocation still shows `design` here at its build dispatch, so build takes the
+// fresh-brief branch, which is right — this run authored that brief.
+//
+// Fail OPEN, not loud — the opposite posture from requireWorktree above, and not an
+// oversight. A missing entry is a legitimate state (a brand-new story, a story that
+// never reached a worker phase, or a caller that predates this field), not a wiring
+// error; the correct answer there is a first dispatch, which is what assignmentInstruction
+// already writes. A missing worktree, by contrast, would dispatch a worker at a silently
+// wrong checkout, which is worth crashing over.
+const recordedAssignments = input.assignments || {}
+function priorAssignmentPhase(story) {
+  const p = recordedAssignments[story]
+  return typeof p === 'string' ? p : ''
+}
+
 // The command itself, built once. Both callers below render it — the first dispatch as
 // its opening instruction, the re-dispatch only as the fallback for a record that was
 // never written — so the payload has one author and one shape, never two copies of the
@@ -1622,6 +1655,11 @@ function assignmentInstruction(story, phaseName) {
 // than re-briefed. Deliberately exclusive with assignmentInstruction above — one prompt
 // never carries both a fresh brief and a rehydration pointer, because two briefs in one
 // prompt is the drift this exists to remove, not a belt-and-braces.
+//
+// Two callers reach this, and both mean "a dispatch of this phase already ran": the
+// intra-run nudge, and a story resumed at this phase by a later invocation whose ledger
+// record already carries an assignment for it (priorAssignmentPhase above). The `why`
+// each passes says which, because the remedies differ and a wrong one misleads.
 //
 // The absent-record case is real, not defensive: the nudge fires precisely when a
 // dispatch returned without its contracted artifacts, and one way to do that is to have
@@ -2930,9 +2968,16 @@ async function runStory(story) {
         let nudges = 0
         let w = null
         let done = null
+        // #295, cross-invocation half: an earlier /work-through already dispatched this
+        // exact phase and its assignment is on the record, so this dispatch rehydrates
+        // from it instead of being re-briefed. Read once, before the loop — the nudge
+        // reason below is strictly more specific and wins from the first nudge on.
+        const resumedFromRecord = priorAssignmentPhase(story) === phaseName
         for (;;) {
           // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#136): this dispatch does the actual design/build work for whatever the story's tech stack requires — the same unmeasured cost/quality tradeoff as the fixer above (#136), not a default to make silently at this call site.
-          w = await agent(workerPrompt(story, phaseName, nextPhase, nudges ? `a prior dispatch of this phase returned without the artifacts it was contracted to produce (${done && done.reason})` : ''),
+          w = await agent(workerPrompt(story, phaseName, nextPhase, nudges
+            ? `a prior dispatch of this phase returned without the artifacts it was contracted to produce (${done && done.reason})`
+            : (resumedFromRecord ? 'an earlier /work-through invocation dispatched this phase and its assignment is on the record — this run is resuming it, not starting it' : '')),
             { label: nudges ? `${phaseName}:nudge${nudges}:${story}` : `${phaseName}:${story}`, phase: `story:${story}`, schema: WORKER_RESULT })
           if (!w || w.status === 'blocked') break
           done = await verifyWorkerPhase(story, phaseName)
@@ -3572,6 +3617,15 @@ return {
   // heldThisRun's own comment. `landed` is also what commands/work-through.md
   // records via `gate-ledger epic-run-log --landed`, which is what arms the
   // zero-landed stop-loss on the next invocation.
+  //
+  // That write is the command's, not this script's, and it is unconditional once this
+  // script has been INVOKED — not once it has returned. A Workflow script has no exec
+  // access (same constraint as args.worktrees and args.contract above), so there is no
+  // finally-equivalent in here that can reach `gate-ledger`, and a run that throws
+  // returns no `landed` field at all. A crashed run is precisely the run worth counting
+  // against the stop-loss, so commands/work-through.md writes the record either way and
+  // uses 0 when this script returned no number. Never make that write conditional on a
+  // clean return; the arming is the whole point of #268.
   held: heldThisRun,
   canary: canaryStory ? { story: workSlug(canaryStory), outcome: outcome[canaryStory] } : null,
   budget: budgetCeilingReport(),

@@ -436,12 +436,34 @@ integration checkout and every story's checkout, and the script throws on the sp
 an entry it needs is absent — never patch around that by writing a
 `.studious/worktrees/...` path into the args yourself.
 
+Hand over each story's **recorded assignment phase** the same way — the third and last
+thing the script is given rather than told where to find, for the same reason
+([#295](https://github.com/jacquardlabs/studious/issues/295)). A story parked or crashed
+at `design` or `build` on an earlier invocation already has that dispatch's assignment on
+the record; the script rehydrates the successor from it instead of authoring a fresh
+brief, but it cannot run `work-get` to see whether one exists. You already hold the whole
+work file per story in `$reconcile_json` — no extra `gate-ledger` call:
+
+```bash
+assignments_json=$(echo "$reconcile_json" | jq -c \
+  '[(.stories // {}) | to_entries[] | select(.value.work.assignment.phase != null)
+    | {key: .key, value: .value.work.assignment.phase}] | from_entries')
+```
+
+That is `.stories["<story>"].work.assignment.phase` — the phase the story's *current*
+recorded assignment was written for, and nothing else from the record; the worker reads
+the rest from the ledger itself. Omit any story with no work file or no assignment: the
+script fails open on a missing entry (a first dispatch writes its own assignment), so an
+absent key is a legitimate state, not the wiring error a missing worktree would be. Pass
+the output verbatim as `args.assignments`.
+
 Call the Workflow tool with `scriptPath` set to that file and `args`:
 
 ```json
 {
   "epic": "<$reconcile_json's .epic field, verbatim — no second epic-get call>",
   "phases": { "<story>": "<next phase>" },
+  "assignments": "<$assignments_json, verbatim>",
   "repoRoot": "<absolute path of the main working tree>",
   "worktrees": "<$worktrees_json, verbatim>",
   "defaultBranch": "<resolved default branch>",
@@ -908,13 +930,24 @@ the plain, undecorated `<N> moment(s) measured` it always rendered.
 This section is also where the plan piece's final step sends you, and a plan-piece run
 dispatched nothing: writing a run record there would log a zero-landed run for an epic
 that was never driven, arming the stop-loss against the first real invocation. If no
-driver (script or fallback) ran in this invocation, skip this write entirely and render
-the plan-approval summary. Otherwise, one call, with the driver's own returned `landed`
-count:
+driver was **invoked at all** in this invocation, skip this write entirely and render the
+plan-approval summary. Otherwise, one call:
 
 ```bash
-gate-ledger epic-run-log --slug "<slug>" --landed <the driver's `landed` field>
+gate-ledger epic-run-log --slug "<slug>" --landed <the driver's `landed` field, or 0>
 ```
+
+**The trigger is "a driver was invoked", not "a driver returned".** Write the run record
+whether the script (or the fallback) finished cleanly, errored, crashed, timed out, or
+came back with nothing you could read — the count is the driver's returned `landed`
+field, and `0` when there is no returned field to read. A Workflow script has no exec
+access, so `epic-driver.js` cannot make this write itself from a `finally` and a run that
+throws returns no `landed` at all; this prose is the only thing standing between a
+crashed run and an uncounted one. A run that crashed landed nothing, and a run that lands
+nothing is exactly what the stop-loss counts — skipping the write there disarms it on the
+runs most worth counting. When you write `0` because the driver never returned a number,
+say so in the run report alongside the crash, so the streak is legible rather than
+mysterious.
 
 This is the write that arms the zero-landed stop-loss the next invocation reads
 (Reconcile above). It is not optional bookkeeping and it is not a judgment: pass the

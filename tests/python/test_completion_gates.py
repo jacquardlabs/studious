@@ -309,3 +309,103 @@ def test_the_report_shape_renders_anomalies_without_folding_them_into_the_queue(
     assert "Anomalies (facts, not verdicts" in text
     assert "`Anomalies:` is never folded into `Needs you:`" in text
     assert '"anomalies"' in DRIVER.read_text() or "  anomalies," in DRIVER.read_text()
+
+
+def test_a_story_resumed_by_a_later_invocation_rehydrates_from_its_record() -> None:
+    """#295's PRIMARY case: the successor to a parked or crashed worker, next run.
+
+    `redispatchWhy` used to be set only inside the intra-run `MAX_COMPLETION_NUDGES`
+    loop, so a story parked at `build` and picked up by a LATER `/work-through` arrived
+    with `nudges` at zero and took `assignmentInstruction` — re-briefed from scratch on
+    exactly the run whose whole reason for reading the record was that the last one
+    died. The recorded assignment's phase crosses the args boundary (this script has no
+    exec access to run `work-get` itself) and decides it.
+    """
+    source = DRIVER.read_text()
+    helper = _extract_function(source, "priorAssignmentPhase")
+    assert "recordedAssignments[story]" in helper
+    assert "const recordedAssignments = input.assignments || {}" in source, (
+        "the map must be optional — a caller that predates it, or a brand-new story, "
+        "is a legitimate state, not the wiring error a missing worktree would be"
+    )
+    assert "priorAssignmentPhase(story) === phaseName" in source, (
+        "the resume check compares the RECORDED assignment's phase against the phase "
+        "about to dispatch — a bare 'has any assignment' test would rehydrate `build` "
+        "from a `design` brief"
+    )
+    # The nudge reason is strictly more specific and must still win once nudges start.
+    # Asserted as two independent branch strings, never as one indentation-bridged
+    # match — a reflow of the call site is not a regression.
+    assert "? `a prior dispatch of this phase returned without the artifacts" in source
+    assert (
+        "resumedFromRecord ? 'an earlier /work-through invocation dispatched this phase"
+    ) in source
+
+
+def test_the_resume_check_is_a_phase_match_not_a_presence_test() -> None:
+    """Executed: the same-run design->build case must NOT rehydrate."""
+    source = DRIVER.read_text()
+    src = _extract_function(source, "priorAssignmentPhase")
+    script = f"""
+      const recordedAssignments = {{ parked: 'build', designed: 'design', empty: null }}
+      {src}
+      const m = s => priorAssignmentPhase(s)
+      process.stdout.write(JSON.stringify({{
+        resumedAtBuild: m('parked') === 'build',
+        sameRunDesignThenBuild: m('designed') === 'build',
+        resumedAtDesign: m('designed') === 'design',
+        neverStarted: m('brandNew') === 'design',
+        malformed: m('empty') === 'design',
+      }}))
+    """
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out["resumedAtBuild"], "a story parked at build, resumed later, rehydrates"
+    assert not out["sameRunDesignThenBuild"], (
+        "the map is snapshotted at run start, so a story that ran design THIS run still "
+        "shows `design` at its build dispatch — build takes the fresh brief, correctly"
+    )
+    assert out["resumedAtDesign"]
+    assert not out["neverStarted"], "a brand-new story fails open to a first dispatch"
+    assert not out["malformed"], "a non-string entry is not a phase"
+
+
+def test_the_command_hands_the_recorded_assignment_phase_over_as_data() -> None:
+    """The script cannot run `work-get`; the command already holds the whole work file."""
+    text = WORK_THROUGH.read_text()
+    assert '"assignments": "<$assignments_json, verbatim>"' in text
+    assert "to_entries[] | select(.value.work.assignment.phase != null)" in text
+    assert "`args.assignments`" in text
+    assert "no extra `gate-ledger` call" in text, (
+        "the derivation must reuse $reconcile_json, which already carries .work per story"
+    )
+
+
+def test_the_zero_landed_write_is_armed_by_invocation_not_by_a_clean_return() -> None:
+    """#268's stop-loss: a driver that throws is the run most worth counting.
+
+    The arming write is prose (the script has no exec access), and it used to be
+    conditioned on a driver having *run* — a driver that threw before its own `return`
+    yielded no `landed` field, so no run record was appended and the zero-landed streak
+    never advanced.
+    """
+    text = WORK_THROUGH.read_text()
+    assert '**The trigger is "a driver was invoked", not "a driver returned".**' in text
+    assert "errored, crashed, timed out" in text
+    assert "`0` when there is no returned field to read" in text
+    assert "--landed <the driver's `landed` field, or 0>" in text
+    assert "driver was **invoked at all** in this invocation, skip this write" in text, (
+        "the plan-piece exemption stays: a run that dispatched nothing must not arm "
+        "the stop-loss against the first real invocation"
+    )
+    assert "If no driver (script or fallback) ran in this invocation, skip" not in text, (
+        "the old return-conditioned wording is what excluded the crashed driver"
+    )
+    # The driver states the same invariant next to the field the command reads.
+    driver = DRIVER.read_text()
+    assert "not once it has returned" in driver
+    assert "uses 0 when this script returned no number" in driver
