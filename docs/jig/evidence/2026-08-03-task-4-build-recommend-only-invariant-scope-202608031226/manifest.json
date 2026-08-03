@@ -1,7 +1,7 @@
 {
   "task": "task-4",
   "date": "2026-08-03",
-  "branch": "build/recommend-only-invariant-scope-202608031226",
+  "branch": "fix/recommend-only-invariant-scope",
   "commit_sha": "23be5a353853b1141117344862bfc236e3e0888b",
   "commit_timestamp": "2026-08-03T13:27:26+00:00",
   "captured_at": "2026-08-03T18:04:36.436211+00:00",
