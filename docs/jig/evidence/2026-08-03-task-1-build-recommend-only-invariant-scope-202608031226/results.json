@@ -1,0 +1,41 @@
+{
+  "task": "task-1",
+  "overall": "PASS",
+  "items": [
+    {
+      "id": 1,
+      "kind": "cap",
+      "tier": "probe",
+      "status": "PASS",
+      "detail": "artifact ok: /Users/bryan/Projects/studious/.studious/worktrees/build-recommend-only-invariant-scope-202608031226/CLAUDE.md"
+    },
+    {
+      "id": 2,
+      "kind": "cap",
+      "tier": "probe",
+      "status": "PASS",
+      "detail": "artifact ok: /Users/bryan/Projects/studious/.studious/worktrees/build-recommend-only-invariant-scope-202608031226/CLAUDE.md"
+    },
+    {
+      "id": 3,
+      "kind": "cap",
+      "tier": "probe",
+      "status": "PASS",
+      "detail": "artifact ok: /Users/bryan/Projects/studious/.studious/worktrees/build-recommend-only-invariant-scope-202608031226/CLAUDE.md"
+    },
+    {
+      "id": 4,
+      "kind": "cap",
+      "tier": "probe",
+      "status": "PASS",
+      "detail": "artifact ok: /Users/bryan/Projects/studious/.studious/worktrees/build-recommend-only-invariant-scope-202608031226/CLAUDE.md"
+    },
+    {
+      "id": 5,
+      "kind": "hold",
+      "tier": "probe",
+      "status": "PASS",
+      "detail": "artifact ok: /Users/bryan/Projects/studious/.studious/worktrees/build-recommend-only-invariant-scope-202608031226/CLAUDE.md"
+    }
+  ]
+}

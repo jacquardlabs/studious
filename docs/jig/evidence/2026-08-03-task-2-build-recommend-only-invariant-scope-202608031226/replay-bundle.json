@@ -1,0 +1,10 @@
+{
+  "task_id": "task-2",
+  "title": "CONTRIBUTING.md: cite CLAUDE.md instead of restating; drop the now-redundant sentence",
+  "verify_result": {"task": "task-2", "overall": "PASS", "items": [
+    {"id": 1, "kind": "cap", "tier": "probe", "status": "PASS"},
+    {"id": 2, "kind": "cap", "tier": "probe", "status": "PASS"},
+    {"id": 3, "kind": "hold", "tier": "probe", "status": "PASS"}
+  ]},
+  "model": "inherited: claude-sonnet-5"
+}
