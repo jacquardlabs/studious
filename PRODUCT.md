@@ -8,11 +8,11 @@ product-judgment workflow for Claude Code. Its thesis, stated directly in the RE
 > "Claude Code made building cheap. That moved the bottleneck. The hard part is no
 > longer *can we build it*. It's *should we build it, and did we build it right*."
 
-Studious adds that judgment back as a **delivery discipline entered at the scope of
-the work**: quality gates and periodic reviews (the judgment), an epic driver
-(`/next`) that dispatches contracted workers under those same gates and is the
-front door, and a story navigator (`/next`) for taking one feature over — by hand,
-or because the driver's plan classed it story-supervised and handed it back. Judgment remains the spine — nothing is auto-approved, and
+Studious adds that judgment back as a **scale-invariant delivery discipline**: seven
+doors named for the stages devs already know, entered through one navigator (`/next`)
+that answers "what's next" at story, list, and milestone scale alike. Scope changes how
+many stories a bet contains and how much runs dispatched versus supervised; it never
+changes which doors exist. Judgment remains the spine — nothing is auto-approved, and
 every altitude ends at a human — but the *how* is no longer deferred to a companion
 product: it enters through `reference/worker-contract.md` (story brief in;
 implementation + evidence out), which any executor can satisfy — a dispatched agent,
@@ -26,7 +26,7 @@ The initiative altitude — formerly the separate `brigade` design repo, now arc
 is recorded at `docs/initiative-altitude.md` and becomes an entrypoint here if its
 entry gate fires.
 
-jig — the build-execution workflow (`/shape`, `/build`, `/build`, `/ship`, `/next`)
+jig — the build-execution workflow (`/shape`, `/build`, `/ship`)
 — was absorbed into this plugin on 2026-07-25 under #150. Not as a second installable:
 a two-plugin split would have bought separate installability for an audience of zero
 while costing two version lines, two release paths, a `git-subdir` marketplace source,
@@ -88,10 +88,11 @@ this section is your voice, not the extractor's.
   change this: `reference/worker-contract.md` stays normative, `/build` is one
   implementation of it, and a human or Superpowers satisfies the same contract. Gate
   agents never build, worker agents never gate, and they never share context.
-- **One repo, entrypoints per scope** — build session, story (`/next`), epic
-  (`/next`), and someday initiative (`docs/initiative-altitude.md`) are
-  entrypoints of one discipline, not separate products. Co-evolving contracts must
-  live in one diff domain, where the gates can audit whole changes.
+- **One repo, one entrypoint, bets per scope** — a bet's scope may be a story, a list,
+  an epic, or someday an initiative (`docs/initiative-altitude.md`); all of them enter
+  at `/bet` and are navigated by `/next`. Scope is a property of the bet, never a
+  separate door. Co-evolving contracts must live in one diff domain, where the review
+  episodes can audit whole changes.
 - **Code owns bookkeeping; prompts own judgment** — schedulers, DAG order, retry
   caps, and ledgers are code (`bin/gate-ledger`, `workflows/epic-driver.js`);
   decomposition, verdicts, and briefs are dispatched prompts. The build side states
@@ -153,16 +154,19 @@ Traced from the commands and the README's two-rhythm description.
    workflow reference into CLAUDE.md > user reviews PRODUCT.md first (principles and
    "not building" need a human pass).
 
-2. **Per-feature gate flow** — `/bet` or `/bet [idea]`
-   > design doc > `/review` > build with your own workflow > `/review`
-   (parallel auditors; frontend, infrastructure, operability, dependency, and prompt lanes auto-skip when not applicable)
-   > `/review --delivery` > merge. Each gate catches a specific failure; the user skips
-   gates the risk doesn't warrant.
+2. **The flow, at any scale** — `/bet [idea | issue | milestone]` (worth building? what's
+   the appetite?) > `/shape` or any executor's design doc > `/review` (design episode,
+   which writes the pre-mortem register) > `/build` > `/review` (work episode; parallel
+   specialist lanes, with frontend, infrastructure, operability, dependency, and prompt
+   lanes auto-skipping when not applicable) > `/review --delivery` > `/ship`. `/next`
+   walks that sequence one piece per invocation and never auto-advances. Each episode
+   catches a specific failure; the user narrows or skips what the risk doesn't warrant.
 
 3. **Per-project health loop** — `/retro` dispatches the periodic review agents against main
    in parallel, compiles a cross-referenced master summary with a prioritized action
-   plan, and proposes (never applies) updates to the context docs. `/retro`
-   then flags resolved/obsolete/duplicated issues against the cycle's fixes.
+   plan, and proposes (never applies) updates to the context docs. `/retro backlog`
+   then flags resolved/obsolete/duplicated issues against the cycle's fixes, and
+   `/retro outcomes` grades what shipped against the fixes that followed.
 
 ## What we're NOT building
 
@@ -219,11 +223,14 @@ entry here is not a documentation nit — it is the discipline running on bad fu
    #142) — a gate's price scales O(auditors), so a one-line change pays for a full
    fan-out. No per-gate latency or cost budget is stated anywhere, which means nothing
    can be over budget. Cost is the UX for a tool a developer runs per feature.
-2. **The merge unified the repo, not the flow** (M10) — `/next` and `/next` answer
-   "what's next" from two state stores neither reads (#214). The design-review model
-   was the other half of this and is now decided (#210, #280): a human signs off where
-   a gate cannot verify mechanically, and story class routes each story to the pipeline
-   that holds.
+2. ~~**The merge unified the repo, not the flow** (M10) — two navigators answered
+   "what's next" from two state stores neither read (#214), and #280 shipped a rule for
+   choosing between them rather than collapsing them.~~ Resolved: the persona
+   restructure collapsed 18 doors to 9, `/next` is the single navigator at every scale,
+   and `tests/python/test_single_navigator.py` fails if a second one reappears. The
+   design-review model that was the other half of this stands as decided (#210, #280):
+   a human signs off where an episode cannot verify mechanically, and story class routes
+   each story to the pipeline that holds.
 3. **Contracts are pinned by prose, not by tests** (M9) — vocabulary and roster facts
    are restated across surfaces and re-derived by regex over that prose (#176, #116,
    #115). #211 and #213 were both this failure class reaching production behavior.

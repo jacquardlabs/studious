@@ -125,8 +125,10 @@ cited by the auditor/reviewer agents rather than restated per-agent.
 ### Plugin / prompt tooling
 
 - **Command naming** — `verb`-prefixed families: `gate-*` (per-feature quality gates),
-  `deep-review` (periodic reviews), `backlog-*` (issue triage), `extract-*` (context-doc
-  population), `studious-init` (setup), `work-on` (feature-flow navigation). All lowercase, hyphenated.
+  `retro` (periodic reviews, backlog hygiene, outcome grading), `setup` (context-doc
+  scaffolding and extraction), `next` (flow navigation at every scale). All lowercase,
+  hyphenated, and declared in `reference/personas.md` — which is the authority, not this
+  list.
 - **Frontmatter** — commands carry `description` + `allowed-tools`; agents carry `name` +
   `description` + `tools` + `model`. Descriptions are one line, imperative.
 - **Skills as trigger shims** — `skills/<name>/SKILL.md` holds a tightly-scoped `description`
@@ -165,6 +167,8 @@ documents the policy for the interface surface, it does not restate the per-agen
    listing now lives in `reference/gate-vocabulary.md`, and `/next` cites it rather than
    restating token definitions. The three skill shims still restate their gate's tokens
    independently in a one-line summary and haven't been repointed at the reference file yet.
-3. **`gate-audit` has no skill shim** while the other three gates do (`evaluate-feature-idea`,
+3. ~~**`gate-audit` has no skill shim**~~ Resolved by the persona restructure: the three
+   review gates became one `/review` door with one `review-the-work` shim covering all
+   three intents. The historical note follows. (`evaluate-feature-idea`,
    `review-design-before-build`, `acceptance-check-before-merge`) — natural-language access
    is inconsistent across the gate family.
