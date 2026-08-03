@@ -29,8 +29,8 @@ def _text() -> str:
     the design episode's headings instead.
     """
     full = GATE_ACCEPTANCE.read_text()
-    start = full.index("\n# Delivery episode")
-    return full[start:full.index("\n# Shared — record findings", start)]
+    start = full.index("\n## Delivery episode")
+    return full[start:full.index("\n## Shared — record findings", start)]
 
 
 def test_part_0_establishes_scope_before_dispatch() -> None:

@@ -64,7 +64,7 @@ class TestFinishSkillFile(unittest.TestCase):
     def test_name_matches_directory(self) -> None:
         name_match = re.search(r"^name:\s*(\S+)", self.frontmatter, re.MULTILINE)
         self.assertIsNotNone(name_match, f"{SKILL_MD} missing name: field")
-        self.assertEqual(name_match.group(1), "finish")
+        self.assertEqual(name_match.group(1), "ship")
 
     def test_description_is_present_and_no_longer_a_stub(self) -> None:
         desc_match = re.search(r"^description:\s*(.*)$", self.frontmatter, re.MULTILINE)
@@ -130,8 +130,8 @@ class TestFinishSkillBody(unittest.TestCase):
 
     def test_precondition_never_reads_gate_ledger_itself(self) -> None:
         self.assertIn("BUILT", self.body)
-        self.assertIn("gate-audit", self.body)
-        self.assertIn("gate-acceptance", self.body)
+        self.assertIn("/review", self.body)
+        self.assertIn("/review --delivery", self.body)
         self.assertPhraseIn("`/ship` never checks for a recorded gate verdict itself")
 
     def test_names_both_new_scripts(self) -> None:

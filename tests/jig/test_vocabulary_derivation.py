@@ -33,7 +33,6 @@ from pathlib import Path
 from _vocabulary import (
     _derive_vocabulary,
     derive_build_vocabulary,
-    derive_coach_vocabulary,
     derive_design_vocabulary,
     derive_finish_vocabulary,
     derive_jig_vocabulary,
@@ -45,9 +44,8 @@ DESIGN_MD = REPO_ROOT / "DESIGN.md"
 SKILL_MD = REPO_ROOT / "skills" / "task-execution-discipline" / "SKILL.md"
 BUILD_SKILL_MD = REPO_ROOT / "skills" / "build" / "SKILL.md"
 FINISH_SKILL_MD = REPO_ROOT / "skills" / "ship" / "SKILL.md"
-PLAN_SKILL_MD = REPO_ROOT / "reference" / "planning-contract.md" / "SKILL.md"
+PLAN_SKILL_MD = REPO_ROOT / "reference" / "planning-contract.md"
 DESIGN_SKILL_MD = REPO_ROOT / "skills" / "shape" / "SKILL.md"
-COACH_SKILL_MD = REPO_ROOT / "skills" / "coach" / "SKILL.md"
 
 
 class TestDeriveJigVocabulary(unittest.TestCase):
@@ -346,76 +344,6 @@ class TestDeriveDesignVocabulary(unittest.TestCase):
         )
 
 
-class TestDeriveCoachVocabulary(unittest.TestCase):
-    def setUp(self) -> None:
-        self.design_text = DESIGN_MD.read_text(encoding="utf-8")
-        self.coach_skill_body = COACH_SKILL_MD.read_text(encoding="utf-8")
-        self.vocabulary = derive_coach_vocabulary(self.design_text)
-
-    def test_pulls_known_terms_from_the_real_design_md(self) -> None:
-        # The three session-verdict enums the coach can meet in
-        # conversation, plus the script-written task statuses it reads
-        # from PLAN.md headings.
-        for term in (
-            "DESIGNED",
-            "NEEDS RESEARCH",
-            "REVISED",
-            "PLAN READY",
-            "DESIGN GAP",
-            "TOO BIG",
-            "PASS",
-            "REPLAN",
-            "ESCALATE",
-            "BUILT",
-            "PAUSED",
-            "ESCALATED",
-        ):
-            with self.subTest(term=term):
-                self.assertIn(term, self.vocabulary)
-
-    def test_excludes_vocabularies_the_coach_never_consumes(self) -> None:
-        # /ship's outcome enum (the coach dispatches /ship but never
-        # consumes its verdict), the inspector's, and the risk tags are
-        # all outside the coach's reading domain.
-        for term in ("MERGE", "DISCARD", "CLEAR", "LOW", "REPLAN-RISK"):
-            with self.subTest(term=term):
-                self.assertNotIn(term, self.vocabulary)
-
-    def test_every_derived_term_is_present_in_coach_skill_md(self) -> None:
-        missing = [t for t in self.vocabulary if t not in self.coach_skill_body]
-        self.assertEqual(missing, [])
-
-    def test_deliberate_design_md_token_change_is_caught(self) -> None:
-        """Same demonstration as the other TestDerive*Vocabulary classes,
-        for the /build session-verdict enum the coach reads: rename PAUSED
-        in an in-memory copy of DESIGN.md, without touching
-        commands/next.md, and confirm the derived vocabulary now
-        flags it missing."""
-        mutated_design_text = self.design_text.replace("`PAUSED`", "`STALLED`", 1)
-        self.assertEqual(
-            self.design_text.count("`PAUSED`"),
-            1,
-            "expected exactly one `PAUSED` token in DESIGN.md's Vocabulary "
-            "table; this test's mutation assumption needs updating to "
-            "match the table's current shape",
-        )
-
-        mutated_vocabulary = derive_coach_vocabulary(mutated_design_text)
-
-        self.assertIn("STALLED", mutated_vocabulary)
-        self.assertNotIn("PAUSED", mutated_vocabulary)
-
-        missing = [t for t in mutated_vocabulary if t not in self.coach_skill_body]
-        self.assertIn(
-            "STALLED",
-            missing,
-            "a deliberate DESIGN.md token rename should have been caught "
-            "as a missing term once SKILL.md wasn't updated to match",
-        )
-
-
-# A synthetic table, not the real DESIGN.md: order and dedup are properties of
-# the parsing path, and pinning them against live prose would make this fail on
 # an unrelated Vocabulary edit. `mid` is deliberately in two rows.
 _ORDERING_FIXTURE = """## Vocabulary
 

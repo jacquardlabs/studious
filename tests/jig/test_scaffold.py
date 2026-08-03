@@ -58,7 +58,7 @@ PLUGIN_NAME = re.compile(r"^[a-z0-9-]+$")
 
 # The five user-invoked skill stubs this story's tests validate frontmatter
 # and stub-content shape for.
-EXPECTED_SKILLS = ("design", "plan", "build", "finish", "coach")
+EXPECTED_SKILLS = ("shape", "build", "ship")
 
 # Known model-invoked skill directories that also legitimately live under
 # top-level skills/ — each has its own dedicated acceptance test module

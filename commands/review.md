@@ -187,10 +187,10 @@ gate-ledger episode-round --gate acceptance
 gate-ledger episode-verdict --gate audit --verdict "PASS"
 gate-ledger episode-verdict --gate acceptance --verdict "SHIP"
 ```
- State plainly in the report which case
-applied and why (a first-ever round, a fresh episode after a closed one, or which
-condition failed) — this is the episode's fail-closed guarantee: ambiguity always resolves
-to *more* review, never less.
+
+State plainly in the report which case applied and why (a first-ever round, a fresh
+episode after a closed one, or which condition failed) — this is the episode's fail-closed
+guarantee: ambiguity always resolves to *more* review, never less.
 
 If `gate-ledger` is not found at all, tell the user the episode could not be opened — run
 the full, unnarrowed round anyway and report, but say up front that neither findings nor
@@ -241,12 +241,12 @@ yet apply to it.
 
 ---
 
-# Design episode
+## Design episode
 
 Opens when a design doc is under review and no implementation has landed. Tokens:
 `PROCEED TO PLAN` · `REVISE` · `RETHINK` (`reference/gate-vocabulary.md`).
 
-## Find the doc
+### Find the doc
 
 **Read the working tree first, not the diff.** A design doc is branch-local scaffolding
 that dies at closeout, and a project following that convention gitignores it — so it never
@@ -268,12 +268,12 @@ Pass the resolved doc path explicitly into the product review below. The doc is 
 satisfy the contract in `reference/design-doc-contract.md` — a section the contract
 requires but the doc omits is itself a finding, not something to infer.
 
-## Part 1 — Product review
+### Part 1 — Design product review
 
 Invoke `@agent-product-reviewer` to review the design doc against PRODUCT.md. This is a
 pre-implementation review focused on whether the design serves users and fits the product.
 
-## Part 2 — Persona walkthrough
+### Part 2 — Persona walkthrough
 
 Walk through the design as the primary persona from PRODUCT.md would experience it,
 narrating their experience step by step (discovery → first interaction → each step's
@@ -285,7 +285,7 @@ re-derive the questions here, just narrate the persona living through them.
 Be honest. If any step feels forced or unnatural, say so. Write concisely: 2–3 sentences
 per journey step, bullets over prose paragraphs, no scene-setting preamble.
 
-## Part 3 — Pre-mortem
+### Part 3 — Pre-mortem
 
 Enumerate the specific ways this design could go wrong once built. Run this on every review
 — the failure modes inform REVISE findings too — but persist it only on PROCEED TO PLAN.
@@ -312,7 +312,7 @@ striking items the revision closed, leaving the rest — so a reader can see wha
 was always worried about. Regenerating from scratch each round is what made the pre-mortem
 unreadable across rounds; it is the specific behavior this episode replaces.
 
-## Part 4 — Verdict
+### Part 4 — Design verdict
 
 Synthesize the product-reviewer findings and the persona walkthrough into a clear
 recommendation. Map the product-reviewer's severities to this episode's verdict:
@@ -354,12 +354,12 @@ RETHINK, do not write the file — the amendment on re-entry is what carries it 
 
 ---
 
-# Work episode
+## Work episode
 
 Opens against a built diff. Tokens: `PASS` · `FIX AND RE-REVIEW` · `NEEDS DISCUSSION`
 (`reference/gate-vocabulary.md`).
 
-## Launch the lane profile in parallel
+### Launch the lane profile in parallel
 
 Spawn this round's whole lane profile simultaneously; do not run the lanes sequentially. On
 a fresh episode (round 1) the profile is lanes 1–7 and 9–12 plus criteria conformance (14)
@@ -504,7 +504,7 @@ pre-mortem register on this branch — pre-mortem verification skipped." and mov
     labels map through `reference/severity-rubric.md`'s product-reviewer row at compile
     time, like every other lane's.
 
-## Compile
+### Compile
 
 Map each lane's labels into the severity tiers, resolve each lane's carried-forward,
 AGENT-DIED, or routed-out state, challenge every Critical before it can decide the verdict,
@@ -513,7 +513,7 @@ and compile the unified report and one of the three verdict tokens — per
 
 ---
 
-# Delivery episode
+## Delivery episode
 
 `/review --delivery`. Judges the built whole against what the bet promised, at the bet's
 exit — after the work episode has closed `PASS`, before the PR opens. It runs once, at the
@@ -523,7 +523,7 @@ delivery boundary, never once per fix cycle. Tokens: `SHIP` · `FIX AND RE-REVIE
 Clean code that ships a bad feature is still a bad feature. This episode is where that gets
 caught.
 
-## Part 0 — Establish scope
+### Part 0 — Establish scope
 
 `@agent-product-reviewer` has no Bash and cannot inspect git history, so it can only review
 what this command names for it. Resolve both halves of its scope here:
@@ -548,7 +548,7 @@ what this command names for it. Resolve both halves of its scope here:
 Pass the named file list, the resolved criteria source, and PRODUCT.md explicitly into the
 dispatch below — everything the reviewer judges must be named in its prompt.
 
-## Part 1 — Product review
+### Part 1 — Product review
 
 Invoke `@agent-product-reviewer` to review the implementation against the resolved criteria
 source, handing it the Part 0 scope explicitly — the named changeset file list, the
@@ -557,7 +557,7 @@ post-implementation product acceptance review. With scope named in its prompt it
 listed files against the resolved doc; it never bounces back for scope or improvises it from
 Glob/Grep.
 
-## Part 2 — Pre-mortem verification (only when a register exists)
+### Part 2 — Pre-mortem verification (only when a register exists)
 
 Locate the register in the Part 0 changeset exactly as the work episode does — same
 changeset, never recomputed. If none exists, note "No pre-mortem
@@ -568,7 +568,7 @@ branch. Lane: `product`. It reports a per-item verdict (NOT REALIZED / REALIZED 
 VERIFY) with evidence; the `technical`-lane items belong to the work episode. Include the
 `Evidence log for this branch` block resolved above, if one was produced.
 
-## Part 3 — Implementation walkthrough
+### Part 3 — Implementation walkthrough
 
 Walk through every user-facing change on this branch yourself, using
 `@agent-product-reviewer`'s "When reviewing an IMPLEMENTATION" checklist
@@ -587,7 +587,7 @@ Close with two questions the checklist doesn't ask:
   still holds for what was actually built. If the doc predates the Operational readiness
   section, note that and assess operability from the changeset directly.
 
-## Part 4 — Verdict
+### Part 4 — Delivery verdict
 
 Map the product-reviewer's severities — and the premortem-auditor's REALIZED findings, which
 use the same BLOCKER / SHOULD FIX vocabulary — to this episode's verdict:
@@ -616,9 +616,9 @@ for a precedent lookup (#142).
 
 ---
 
-# Shared — record findings, then the verdict
+## Shared — record findings, then the verdict
 
-## Record findings to the episode ledger (after compiling, before the verdict)
+### Record findings to the episode ledger (after compiling, before the verdict)
 
 The findings ledger is what this episode's round 2 reads instead of re-deriving the state of
 round 1 — record it from the compiled report's post-challenge findings before recording the
@@ -675,7 +675,7 @@ aside this round — waived, or ruled `rejected-as-noise` — appears in neither
 Summary alongside the quoted line, and point the user at `gate-ledger episode-get --gate audit --history`, which reads back every set-aside with the reason they gave it, in their own
 words.
 
-## Record the verdict
+### Record the verdict
 
 Before running `gate-ledger episode-verdict`, commit every file this run
 wrote or modified — the pre-mortem register the design episode just wrote, or anything

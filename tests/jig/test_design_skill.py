@@ -88,7 +88,7 @@ class TestDesignSkillFile(unittest.TestCase):
     def test_name_matches_directory(self) -> None:
         name_match = re.search(r"^name:\s*(\S+)", self.frontmatter, re.MULTILINE)
         self.assertIsNotNone(name_match, f"{SKILL_MD} missing name: field")
-        self.assertEqual(name_match.group(1), "design")
+        self.assertEqual(name_match.group(1), "shape")
 
     def test_description_is_present_and_no_longer_a_stub(self) -> None:
         desc_match = re.search(r"^description:\s*(.*)$", self.frontmatter, re.MULTILINE)

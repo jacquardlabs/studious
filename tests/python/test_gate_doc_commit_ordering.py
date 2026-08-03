@@ -30,7 +30,7 @@ DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 
 def _record_section(text: str) -> str:
     """Return the '## Record the verdict' section through end of file."""
-    return text[text.index("\n# Delivery episode"):]
+    return text[text.index("\n## Delivery episode"):]
 
 
 def test_gate_design_review_states_commit_before_record() -> None:

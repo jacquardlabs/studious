@@ -45,17 +45,14 @@ actually reads:
 """
 from __future__ import annotations
 
-import re
 import unittest
 from pathlib import Path
 
-from _frontmatter import FRONTMATTER
 from _text import normalize_ws
 from _vocabulary import derive_plan_vocabulary
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SKILL_DIR = REPO_ROOT / "reference" / "planning-contract.md"
-SKILL_MD = SKILL_DIR / "SKILL.md"
+SKILL_MD = REPO_ROOT / "reference" / "planning-contract.md"
 DESIGN_MD = REPO_ROOT / "DESIGN.md"
 BUILD_SKILL_MD = REPO_ROOT / "skills" / "build" / "SKILL.md"
 FINISH_SKILL_MD = REPO_ROOT / "skills" / "ship" / "SKILL.md"
@@ -65,54 +62,28 @@ PLAN_VOCABULARY = derive_plan_vocabulary(DESIGN_MD.read_text(encoding="utf-8"))
 
 
 
-class TestPlanSkillFile(unittest.TestCase):
-    def setUp(self) -> None:
-        self.assertTrue(SKILL_MD.is_file(), f"{SKILL_MD} does not exist")
-        self.text = SKILL_MD.read_text(encoding="utf-8")
-        match = FRONTMATTER.match(self.text)
-        self.assertIsNotNone(match, f"{SKILL_MD} has no --- frontmatter block")
-        self.frontmatter = match.group(1)
-        self.body = self.text[match.end() :]
+class TestPlanningContractFile(unittest.TestCase):
+    """`/plan` folded into `/build` in the persona restructure, so the planning procedure
+    is a contract `/build`'s Step 0 follows rather than a door of its own. What used to be
+    frontmatter assertions here are now the two facts that keep that true."""
 
-    def test_name_matches_directory(self) -> None:
-        name_match = re.search(r"^name:\s*(\S+)", self.frontmatter, re.MULTILINE)
-        self.assertIsNotNone(name_match, f"{SKILL_MD} missing name: field")
-        self.assertEqual(name_match.group(1), "plan")
+    def test_contract_exists(self) -> None:
+        self.assertTrue(SKILL_MD.is_file(), f"{SKILL_MD} is missing")
 
-    def test_description_is_present_and_no_longer_a_stub(self) -> None:
-        desc_match = re.search(r"^description:\s*(.*)$", self.frontmatter, re.MULTILINE)
-        self.assertIsNotNone(desc_match, f"{SKILL_MD} missing description: field")
-        description = desc_match.group(1)
-        self.assertTrue(description.strip())
-        self.assertNotIn(
-            "STUB",
-            description,
-            "plan has real workflow content as of story plan-skill; "
-            "it is no longer one of the STUB placeholder skills",
-        )
-        self.assertNotIn("Do not invoke for actual planning work yet", self.body)
-
-    def test_description_is_a_valid_unquoted_yaml_plain_scalar(self) -> None:
-        desc_match = re.search(r"^description:\s*(.*)$", self.frontmatter, re.MULTILINE)
-        self.assertIsNotNone(desc_match)
-        description = desc_match.group(1)
-        self.assertNotIn(
-            ": ",
-            description,
-            "unquoted description contains ': ' -- a strict YAML frontmatter "
-            "loader will fail to parse this plain scalar",
-        )
-        self.assertNotRegex(
-            description,
-            r"\s#",
-            "unquoted description contains whitespace followed by '#' -- a "
-            "strict YAML loader reads this as a comment and silently "
-            "truncates the rest of the value",
+    def test_contract_carries_no_command_frontmatter(self) -> None:
+        """Frontmatter would put a tenth door back on the surface."""
+        self.assertFalse(
+            SKILL_MD.read_text(encoding="utf-8").lstrip().startswith("---"),
+            f"{SKILL_MD} carries command frontmatter — it is a contract, not a door",
         )
 
-    def test_no_nested_skill_md(self) -> None:
-        nested = list(SKILL_DIR.rglob("SKILL.md"))
-        self.assertEqual(nested, [SKILL_MD], f"{SKILL_DIR} contains nested SKILL.md files: {nested}")
+    def test_build_step_zero_names_the_contract(self) -> None:
+        """A contract nothing reads is dead prose."""
+        self.assertIn(
+            "reference/planning-contract.md",
+            BUILD_SKILL_MD.read_text(encoding="utf-8"),
+            "/build's Step 0 does not name the planning contract it absorbed",
+        )
 
 
 class TestPlanVocabularyDerivation(unittest.TestCase):

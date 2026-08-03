@@ -30,7 +30,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # The skills whose hand-offs cross into studious's gates.
-HANDOFF_SKILLS = ("design", "plan", "build", "finish", "coach")
+HANDOFF_SKILLS = ("shape", "build", "ship")
 
 # Any phrasing that makes studious's presence a question the skill must answer.
 # The bare `studious installed` alternative matters: the first version of this
@@ -45,7 +45,7 @@ CONDITIONAL = re.compile(
 
 # The hand-off each skill owes its caller, and where it must appear.
 REQUIRED_HANDOFF = {
-    "design": "/review",
+    "shape": "/review",
     "build": "/review",
 }
 
