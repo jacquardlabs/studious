@@ -60,7 +60,7 @@ Done means:
 3. [hold] line 92's "CLAUDE.md's recommend-only invariant names this journal as a sanctioned gate write" cross-reference is still present, unchanged   (tier: probe)
 Evidence: (recorded by `scripts/evidence-capture` once `/build` executes this task; none yet -- this plan has not been built)
 
-### Task 4 — Re-verify citations and run repo-wide doc checks against all three files
+### Task 4 — Re-verify citations and run repo-wide doc checks against all three files [PASS]
 Why now:    the three edits are independently correct in isolation, but nothing else in this repo mechanically checks these citations, and CI's own reference/plugin checks run against whatever the three files say once this task lands.
 Read first: `bin/gate-ledger`, `commands/work-through.md`, `commands/gate-should-we-build.md`, `commands/backlog-hygiene.md`, `commands/backlog-priorities.md`
 Rests on:   Task 1, Task 2, Task 3 -- all three files must already carry their new text.
