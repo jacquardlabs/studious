@@ -1,7 +1,5 @@
----
-description: Extract the interface design system from the existing codebase and populate DESIGN.md
-allowed-tools: Read, Glob, Grep, Bash, Task, Write
----
+<!-- Contract, not a door. Moved out of the command surface by the persona
+     restructure; the door that reads it is named in the first paragraph. -->
 
 # Extract interface design system from codebase
 

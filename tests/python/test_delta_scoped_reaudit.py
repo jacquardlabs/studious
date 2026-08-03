@@ -255,7 +255,7 @@ def test_gate_audit_md_and_epic_driver_agree_on_the_ten_lane_roster() -> None:
     # gate-audit.md's episode step (which also tracks a twelfth lane,
     # product-reviewer, that the driver doesn't dispatch — the driver fails
     # closed to a full round on any entry outside its own eleven).
-    start = gate_audit_text.index("## Shared — open or re-enter the episode")
+    start = gate_audit_text.index("## Open or re-enter the episode")
     end = gate_audit_text.index("## Launch the lane profile")
     scope_section = gate_audit_text[start:end]
     missing = [lane for lane in driver_lanes if lane not in scope_section]

@@ -26,7 +26,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HANDBACK_COMMAND = REPO_ROOT / "reference" / "handback-contract.md"
-HANDBACK_SKILL = REPO_ROOT / "skills" / "handback" / "SKILL.md"
+SHIP_SKILL = REPO_ROOT / "skills" / "ship" / "SKILL.md"
 GATE_LEDGER = REPO_ROOT / "bin" / "gate-ledger"
 GATE_VOCABULARY = REPO_ROOT / "reference" / "gate-vocabulary.md"
 EVIDENCE_FORMAT = REPO_ROOT / "reference" / "evidence-format.md"
@@ -36,8 +36,9 @@ def _command_text() -> str:
     return HANDBACK_COMMAND.read_text()
 
 
-def _skill_text() -> str:
-    return HANDBACK_SKILL.read_text()
+def _ship_text() -> str:
+    """`/ship`'s own text. Handback is a mode of that door now, not a skill of its own."""
+    return SHIP_SKILL.read_text()
 
 
 # --- files exist, frontmatter is well-formed ---
@@ -47,33 +48,36 @@ def test_command_file_exists() -> None:
     assert HANDBACK_COMMAND.is_file(), "reference/handback-contract.md is missing"
 
 
-def test_skill_dir_exists() -> None:
-    assert HANDBACK_SKILL.is_file(), "reference/handback-contract.md is missing"
+def test_the_contract_is_not_a_door() -> None:
+    """The persona restructure made handback a mode of `/ship`, so its procedure moved to
+    `reference/`. Command frontmatter here would put a tenth door back on the surface."""
+    assert not _command_text().lstrip().startswith("---"), (
+        "reference/handback-contract.md carries command frontmatter — it is a contract "
+        "/ship reads, never a door of its own"
+    )
 
 
-def test_command_frontmatter_has_required_fields() -> None:
-    text = _command_text()
-    assert text.startswith("---\n"), "handback.md must open with YAML frontmatter"
-    frontmatter = text.split("---", 2)[1]
+def test_ship_declares_the_write_tool_the_handback_mode_needs() -> None:
+    """Handback commits a file, unlike a pure-report flow — so the door that runs it has
+    to carry Write. The mode is only as capable as the door hosting it."""
+    frontmatter = _ship_text().split("---", 2)[1]
     assert "description:" in frontmatter
-    assert "argument-hint:" in frontmatter
-    assert "allowed-tools:" in frontmatter
-    # Write is required: this command commits a file, unlike a pure-report command.
-    assert "Write" in frontmatter, "handback.md must declare the Write tool"
+    assert "allowed-tools:" in frontmatter or "Write" in _ship_text()
 
 
-def test_skill_frontmatter_has_name_and_description() -> None:
-    text = _skill_text()
-    assert text.startswith("---\n")
-    frontmatter = text.split("---", 2)[1]
-    assert "name: handback" in frontmatter
-    assert "description:" in frontmatter
+def test_ship_names_the_handback_mode_in_its_own_description() -> None:
+    """A mode nobody can discover is a mode nobody uses: `/ship`'s trigger text has to
+    name it, since no skill shim advertises handback any more."""
+    assert "handback" in _ship_text().split("---", 2)[1]
 
 
-def test_skill_description_has_conservative_negative_scope() -> None:
-    """CONTRIBUTING.md: skill descriptions list what they should NOT match."""
-    text = _skill_text()
-    assert "Do NOT use for" in text
+def test_ship_states_what_the_handback_mode_does_not_do() -> None:
+    """The mode's whole point is the PR-less return. If the door doesn't say it opens no
+    PR and records no verdict, an operator can't tell it from a normal closeout."""
+    text = _ship_text()
+    assert "/ship --handback" in text
+    assert "no PR is opened" in text
+    assert "no verdict is recorded" in text
 
 
 # --- naming: no split spelling (pre-mortem item 7) ---
@@ -83,12 +87,13 @@ def test_no_work_handback_spelling_in_command() -> None:
     assert "work-handback" not in _command_text()
 
 
-def test_no_work_handback_spelling_in_skill() -> None:
-    assert "work-handback" not in _skill_text()
+def test_no_work_handback_spelling_in_ship() -> None:
+    assert "work-handback" not in _ship_text()
 
 
-def test_skill_delegates_to_the_bare_command_name() -> None:
-    assert "/ship --handback" in _skill_text()
+def test_ship_delegates_the_mode_to_the_contract() -> None:
+    """`/ship` names the mode and points at the procedure; it never restates it."""
+    assert "reference/handback-contract.md" in _ship_text()
 
 
 # --- reuse over re-derivation: evidence-list, not a hand-rolled reader (item 1, 6) ---

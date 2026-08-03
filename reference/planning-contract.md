@@ -1,7 +1,5 @@
----
-name: plan
-description: Turns a hand-authored or /design-produced design doc into a real PLAN.md -- code + infra inventory, a dependency spine, 3-8 calibrated tasks, checkpoint blocks tagged LOW/REPLAN-RISK/ESCALATE-RISK, a real scripts/plan-lint invocation (not a no-op), and a viva review loop, one card per task. Use when the user says /build, hands over a design doc and asks for a plan, or needs a PLAN.md that /build's existing step-1.4 split logic can consume unmodified. Reports one verdict -- PLAN READY, DESIGN GAP, or TOO BIG -- and never fabricates a checkpoint item's tier or method.
----
+<!-- Contract, not a door. Moved out of the command surface by the persona
+     restructure; the door that reads it is named in the first paragraph. -->
 
 # /build
 

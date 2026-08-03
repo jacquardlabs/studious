@@ -243,8 +243,8 @@ loop. Then:
 - **SHIP** → phase `finish`; the delivery episode is closed
 - **FIX AND RE-REVIEW** → phase stays `acceptance`; the next piece is landing the listed fixes,
   then running `/review --delivery` again for the episode's one re-review round. `/review`
-  itself routes a story-scale fix through the work episode; a delivery verdict never re-arms
-  the work episode from here.
+  itself routes a story-scale fix through the work episode; a delivery verdict
+  never re-arms the work episode from here.
 - **HOLD** → phase stays `acceptance`; surface the product concerns — rework beyond targeted
   fixes is the user's call
 

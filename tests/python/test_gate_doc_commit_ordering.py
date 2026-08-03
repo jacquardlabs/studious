@@ -39,11 +39,11 @@ def test_gate_design_review_states_commit_before_record() -> None:
     text = GATE_DESIGN_REVIEW.read_text()
     section = _record_section(text)
 
-    assert "Before running `gate-ledger record`" in section, (
+    assert "Before running `gate-ledger episode-verdict`" in section, (
         "no explicit 'before running gate-ledger record' ordering statement"
     )
 
-    rule_pos = section.index("Before running `gate-ledger record`")
+    rule_pos = section.index("Before running `gate-ledger episode-verdict`")
     bash_pos = section.index("```bash")
     assert rule_pos < bash_pos, (
         "commit-before-record rule must precede the gate-ledger record invocation"

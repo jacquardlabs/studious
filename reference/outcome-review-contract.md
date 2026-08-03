@@ -1,7 +1,5 @@
----
-description: Grade shipped work against what happened next — which merges needed a fix or a revert within days, and what the gates said about them at the time. Periodic, recommend-only, reads git history.
-allowed-tools: Read, Glob, Grep, Bash, Task
----
+<!-- Contract, not a door. Moved out of the command surface by the persona
+     restructure; the door that reads it is named in the first paragraph. -->
 
 # Outcome review — grade the verdicts against the history
 

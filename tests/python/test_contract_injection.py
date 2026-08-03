@@ -65,10 +65,8 @@ BARE_CITATION_RE = re.compile(r"(?<!\$\{CLAUDE_PLUGIN_ROOT\}/)reference/prompt-c
 
 # The commands that fan out to contract agents and therefore own contract assembly.
 FANOUT_COMMANDS = (
-    "gate-audit.md",
-    "deep-review.md",
-    "gate-design-review.md",
-    "gate-acceptance.md",
+    "review.md",
+    "retro.md",
 )
 
 # The epic driver dispatches auditors/reviewers itself instead of routing through a

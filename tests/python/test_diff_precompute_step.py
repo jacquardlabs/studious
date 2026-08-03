@@ -26,7 +26,7 @@ GATE_AUDIT = REPO_ROOT / "commands" / "review.md"
 def _precompute_section() -> str:
     text = GATE_AUDIT.read_text()
     match = re.search(
-        r"## Shared — precompute the changeset diff.*?\n(.*?)\n## Shared — resolve the branch's evidence log",
+        r"## Precompute the changeset diff.*?\n(.*?)\n## Resolve the branch's evidence log",
         text,
         re.DOTALL,
     )

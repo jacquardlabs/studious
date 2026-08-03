@@ -1,8 +1,5 @@
----
-description: Assemble a branch's evidence manifest and a written summary, then commit them — closes out a worker's return per reference/worker-contract.md
-argument-hint: "[branch] (omit to use the current branch)"
-allowed-tools: Read, Glob, Grep, Bash, Write
----
+<!-- Contract, not a door. Moved out of the command surface by the persona
+     restructure; the door that reads it is named in the first paragraph. -->
 
 # Hand back this branch's evidence
 

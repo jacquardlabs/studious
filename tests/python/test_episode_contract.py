@@ -538,7 +538,7 @@ class GateAuditDoorTest(unittest.TestCase):
     def test_criteria_lane_is_narrowing_tracked(self) -> None:
         """product-reviewer joins the narrowing-tracked lane roster the episode
         step names, so a criteria-only blocker can narrow round 2 to it."""
-        start = self.door.index("## Shared — open or re-enter the episode")
+        start = self.door.index("## Open or re-enter the episode")
         end = self.door.index("## Launch the lane profile")
         self.assertIn("product-reviewer", self.door[start:end])
 
