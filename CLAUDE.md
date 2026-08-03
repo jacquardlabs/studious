@@ -29,12 +29,13 @@ uv run --no-project python scripts/check_gate_independence.py
 uv run --no-project --with pytest pytest tests/python -v
 uv run --no-project --with pytest pytest tests/python/test_check_references.py::test_name -v
 
-# Gate-ledger and evidence-capture-hook integration tests (Bash)
+# Gate-ledger and hook integration tests (Bash)
 bash tests/test_gate_ledger.sh
 bash tests/test_evidence_capture.sh
+bash tests/test_dispatch_telemetry.sh
 
 # Shell lint for the executable scripts
-shellcheck bin/gate-ledger hooks/gate-reminder.sh hooks/evidence-capture.sh tests/test_gate_ledger.sh tests/test_evidence_capture.sh tests/test_workflows_lint.sh
+shellcheck bin/gate-ledger hooks/gate-reminder.sh hooks/evidence-capture.sh hooks/dispatch-telemetry.sh tests/test_gate_ledger.sh tests/test_evidence_capture.sh tests/test_dispatch_telemetry.sh tests/test_workflows_lint.sh
 
 # workflows/ JS checks: parseability, then correctness lint (config in eslint.config.mjs)
 node --check workflows/epic-driver.js
@@ -64,10 +65,10 @@ The directory layout encodes a role split (full version in `CONTRIBUTING.md`):
 - `commands/` — slash commands that **orchestrate agents** or run a standalone workflow. `description`, `allowed-tools` frontmatter.
 - `skills/<name>/SKILL.md` — natural-language **trigger shims**. A tightly-scoped `description` lets a gate fire from plain language; the body delegates to the matching command and must not duplicate its logic.
 - `reference/` — curated rubrics agents read at audit time (`reference/security-checklist.md`, `reference/idioms/<lang>.md`). Agents consult these instead of restating them inline — keep depth in `reference/`, keep agents pointing at it.
-- `hooks/` — shipped hook scripts + `hooks.json`. Two live hooks: a non-blocking PreToolUse reminder before `gh pr create` (`gate-reminder.sh`), and a silent PostToolUse/PostToolUseFailure evidence-capture hook on `Bash` that appends verification-command records while a story is armed (`evidence-capture.sh`; format pinned in `reference/evidence-format.md`).
+- `hooks/` — shipped hook scripts + `hooks.json`. Three live hooks: a non-blocking PreToolUse reminder before `gh pr create` (`gate-reminder.sh`); a silent PostToolUse/PostToolUseFailure evidence-capture hook on `Bash` that appends verification-command records while a story is armed (`evidence-capture.sh`; format pinned in `reference/evidence-format.md`); and a silent PreToolUse hook on `Task` that appends one routing-telemetry record per dispatched Studious reviewer (`dispatch-telemetry.sh`; format pinned in `reference/telemetry-format.md`).
 - `bin/gate-ledger` — reads/writes the per-branch gate ledger and the per-feature `/work-on` work files.
 - `templates/` — PRODUCT.md / DESIGN.md scaffolds created by `/studious-init` in the consuming project.
-- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence) plus the build skills' own executables (`plan-lint`, `design-lint`, `verify`, `status-flip`, `build-report`, `evidence-capture`, `worktree-setup`). The latter are run by `/plan` and `/build`, not by CI.
+- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence), the build skills' own executables (`plan-lint`, `design-lint`, `verify`, `status-flip`, `build-report`, `evidence-capture`, `worktree-setup`), and the saves-ledger renderer (`saves-ledger.py`, run by `/review-outcomes`). The build executables are run by `/plan` and `/build`, not by CI.
 
 Key invariants when adding or changing prompts:
 

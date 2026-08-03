@@ -1,5 +1,5 @@
 {
-  "description": "Studious PR-time gate reminder (non-blocking 'ask' before `gh pr create`) and story-scoped evidence capture (silent, no-op unless the branch is armed)",
+  "description": "Studious PR-time gate reminder (non-blocking 'ask' before `gh pr create`), story-scoped evidence capture (silent, no-op unless the branch is armed), and review-dispatch routing telemetry (silent, no-op unless the dispatched agent is on Studious's roster)",
   "hooks": {
     "PreToolUse": [
       {
@@ -8,6 +8,15 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/gate-reminder.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch-telemetry.sh\""
           }
         ]
       }

@@ -220,9 +220,16 @@ def test_phase_loop_and_merge_dispatch_both_call_crash_park_args() -> None:
         "the merge dispatch no longer normalizes a caught exception via "
         "crashParkArgs — a merge agent() throw would no longer park BLOCKED"
     )
-    # One declaration + two call sites.
-    assert source.count("crashParkArgs(") == 3, (
-        "expected exactly one crashParkArgs declaration and two call sites"
+    # The canary barrier (#268) awaits runStory outside Promise.all's hardened
+    # path, so it guards that one bare await the same way — a third call site.
+    assert "crashParkArgs('canary', err)" in source, (
+        "the canary barrier no longer normalizes a caught exception via "
+        "crashParkArgs — a throw escaping the one bare `await runStory(...)` "
+        "would reject the whole workflow with no report at all"
+    )
+    # One declaration + three call sites.
+    assert source.count("crashParkArgs(") == 4, (
+        "expected exactly one crashParkArgs declaration and three call sites"
     )
 
 
@@ -255,7 +262,13 @@ AUDITOR_SHORT_NAMES = [
 ]
 
 
-def _run_driver(epic: dict, agent_rules: list[dict], phases: dict | None = None, contract: str = DEFAULT_TEST_CONTRACT) -> dict:
+def _run_driver(
+    epic: dict,
+    agent_rules: list[dict],
+    phases: dict | None = None,
+    contract: str = DEFAULT_TEST_CONTRACT,
+    preamble: str = "",
+) -> dict:
     """Runs the real, unmodified driver source the way the Workflow harness
     does: strip the one `export` keyword and execute the remainder as the
     body of an async function supplied with args/agent/parallel/log/phase —
@@ -286,6 +299,15 @@ def _run_driver(epic: dict, agent_rules: list[dict], phases: dict | None = None,
     # commands/work-through.md's part, so it supplies the same map
     # `gate-ledger worktree-path --slug <slug> --json` would.
     _wt = f"/repo/.studious/worktrees/{epic.get('slug', '')}"
+    # Every fixture in this file and its importers predates the canary (#268) and
+    # exercises the widened-fleet path — sibling stories dispatched alongside the
+    # one under test. The canary defaults ON in the driver, which would serialize
+    # them and (when the canary is the story a test crashes on purpose) hold the
+    # siblings the test asserts still land. Default it off here so those fixtures
+    # keep testing what they were written to test; a fixture that wants canary
+    # behavior sets `"canary": True` explicitly, and
+    # tests/python/test_epic_appetite_canary.py covers the default-on path.
+    epic = {"canary": False, **epic}
     args = {
         "epic": epic,
         "phases": phases or {},
@@ -297,7 +319,13 @@ def _run_driver(epic: dict, agent_rules: list[dict], phases: dict | None = None,
         "defaultBranch": "main",
         "contract": contract,
     }
+    # `preamble` runs before the driver body and is how a test supplies a
+    # substrate global the harness would inject but this mock does not take as a
+    # parameter — today only `globalThis.budget` (#144). Empty by default, so a
+    # driver read of an unsupplied global still exercises the real
+    # "no ceiling available" degrade path rather than a stubbed one.
     script = f"""
+{preamble}
 async function __driver(args, agent, parallel, log, phase) {{
 {stripped}
 }}
@@ -553,6 +581,9 @@ def test_finale_audit_stall_past_cap_produces_needsyou_entry_naming_the_gate_and
     rules = [
         *LAND_STORY_A_RULES,
         *FINALE_AUDITORS_PASS,
+        {"match": r"^finale:attestations$", "result": {"findings": '{"attestations": []}'}},
+        {"match": r"^finale:findings-closure$", "result": {"findings": "every recorded finding reached a resolved sha"}},
+        {"match": r"^finale:seams$", "result": {"findings": "no cross-story seam findings"}},
         {"match": r"^finale:audit-compile$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "f1", "summary": "still broken"}},
         {"match": r"^finale:fix:audit$", "result": {"status": "done", "sha": "f2", "summary": "attempted a fix", "evidence": "ran tests"}},
         {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "f3", "summary": "ok"}},
@@ -578,6 +609,9 @@ def test_finale_acceptance_stall_past_cap_produces_needsyou_entry_naming_the_gat
     rules = [
         *LAND_STORY_A_RULES,
         *FINALE_AUDITORS_PASS,
+        {"match": r"^finale:attestations$", "result": {"findings": '{"attestations": []}'}},
+        {"match": r"^finale:findings-closure$", "result": {"findings": "every recorded finding reached a resolved sha"}},
+        {"match": r"^finale:seams$", "result": {"findings": "no cross-story seam findings"}},
         {"match": r"^finale:audit-compile$", "result": {"verdict": "PASS", "sha": "f1", "summary": "clean"}},
         {"match": r"^finale:acceptance$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "f3", "summary": "not shippable"}},
         {"match": r"^finale:fix:acceptance$", "result": {"status": "done", "sha": "f4", "summary": "attempted a fix", "evidence": "ran tests"}},
@@ -610,6 +644,9 @@ def test_needs_you_is_empty_on_an_unremarkable_two_story_run() -> None:
         *LAND_STORY_A_RULES,
         *SIBLING_LANDS_RULES,
         *FINALE_AUDITORS_PASS,
+        {"match": r"^finale:attestations$", "result": {"findings": '{"attestations": []}'}},
+        {"match": r"^finale:findings-closure$", "result": {"findings": "every recorded finding reached a resolved sha"}},
+        {"match": r"^finale:seams$", "result": {"findings": "no cross-story seam findings"}},
         {"match": r"^finale:audit-compile$", "result": {"verdict": "PASS", "sha": "f1", "summary": "clean"}},
         {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "f2", "summary": "ship it"}},
         {"match": r"^finale:ready$", "result": {"verdict": "READY", "sha": "f3", "summary": "marked ready"}},

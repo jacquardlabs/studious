@@ -40,6 +40,13 @@ OPEN_EPISODE_KEYS = {"sha", "round", "openedAt"}
 CLOSED_EPISODE_KEYS = {"sha", "round", "openedAt", "verdict", "verdictAt"}
 LEGACY_GATE_KEYS = {"verdict", "sha", "ranAt"}
 
+#: An episode that has advanced a round additionally banks the blocking-finding
+#: count the round it left behind carried (#291) — the only thing the next
+#: round's convergence check has to compare against. `escalated` is the other
+#: optional key: written only on the convergence refusal path, never on an
+#: advance, so it appears in no exact set here.
+ADVANCED_EPISODE_KEYS = OPEN_EPISODE_KEYS | {"blockingByRound"}
+
 #: The in-code round cap episode-round enforces (bin/gate-ledger's
 #: EPISODE_ROUND_CAP): round 1 is the gate's first run, round 2 its one
 #: fix-and-re-check, and a third round is refused.
@@ -77,6 +84,10 @@ class EpisodeContractTest(unittest.TestCase):
         path = self.repo / ".studious" / "gates" / "feat-foo.json"
         return json.loads(path.read_text(encoding="utf-8"))
 
+    def write_gates_file(self, data: dict) -> None:
+        path = self.repo / ".studious" / "gates" / "feat-foo.json"
+        path.write_text(json.dumps(data), encoding="utf-8")
+
     # --- episode-open ---
 
     def test_open_writes_round_one_at_head_sha(self) -> None:
@@ -101,7 +112,13 @@ class EpisodeContractTest(unittest.TestCase):
     def test_round_increments_to_two(self) -> None:
         self.ledger("episode-open", "--gate", "audit")
         self.assertEqual(self.ledger("episode-round", "--gate", "audit").returncode, 0)
-        self.assertEqual(self.gates_file()["episodes"]["audit"]["round"], 2)
+        episode = self.gates_file()["episodes"]["audit"]
+        self.assertEqual(episode["round"], 2)
+        self.assertEqual(set(episode), ADVANCED_EPISODE_KEYS)
+        self.assertEqual(
+            episode["blockingByRound"], {"1": 0},
+            "the round left behind banks its blocking count, keyed by round (#291)",
+        )
 
     def test_third_round_refused_naming_the_cap(self) -> None:
         self.ledger("episode-open", "--gate", "audit")
@@ -113,6 +130,31 @@ class EpisodeContractTest(unittest.TestCase):
             self.gates_file()["episodes"]["audit"]["round"],
             EPISODE_ROUND_CAP,
             "a refused round must not advance the recorded round",
+        )
+
+    def test_non_converging_round_is_refused_on_its_own_exit_code(self) -> None:
+        """#291: a round that fails to strictly reduce the blocking set is
+        refused before the cap and the episode is marked escalated, on exit 3 —
+        distinct from the cap's exit 1 because the two put different choices to
+        the operator. The predecessor count is seeded here: EPISODE_ROUND_CAP
+        permits exactly one advance, so no episode reaches a round that has one
+        on its own until the cap moves."""
+        self.ledger("episode-open", "--gate", "audit")
+        self.ledger(
+            "episode-finding", "--gate", "audit", "--fingerprint", "code-auditor/dead-branch",
+            "--lane", "code-auditor", "--severity", "Important", "--status", "open",
+        )
+        data = self.gates_file()
+        data["episodes"]["audit"].update(round=2, blockingByRound={"1": 1})
+        self.write_gates_file(data)
+        result = self.ledger("episode-round", "--gate", "audit")
+        self.assertEqual(result.returncode, 3, result.stderr)
+        self.assertIn("not converging", result.stderr)
+        episode = self.gates_file()["episodes"]["audit"]
+        self.assertEqual(episode["round"], 2, "a refused round must not advance")
+        self.assertEqual(
+            set(episode["escalated"]), {"round", "blocking", "priorBlocking", "at"},
+            "the escalation record is the human's read of why the loop stopped",
         )
 
     def test_round_without_open_episode_is_a_usage_error(self) -> None:
@@ -174,8 +216,9 @@ class EpisodeContractTest(unittest.TestCase):
         episode = self.gates_file()["episodes"]["audit"]
         self.assertEqual(episode["round"], 2)
         self.assertEqual(
-            set(episode), OPEN_EPISODE_KEYS,
-            "re-entry clears the round outcome — the episode is open again",
+            set(episode), ADVANCED_EPISODE_KEYS,
+            "re-entry clears the round outcome — the episode is open again, "
+            "plus the blocking-count snapshot the round it left banks",
         )
         self.assertEqual(
             self.gates_file()["gates"]["audit"]["verdict"], "FIX AND RE-REVIEW",
@@ -249,9 +292,12 @@ class EpisodeContractTest(unittest.TestCase):
 
     def test_findings_flag_lists_open_and_carried_lines(self) -> None:
         """`episode-get --gate G --findings` prints the summary line, then one
-        tab-separated line (status, severity, lane, fingerprint) per finding in
-        the two statuses a verdict answers for — `closed` and `waived` never
-        appear. Lines are fingerprint-sorted so the output is deterministic."""
+        tab-separated detail line (status, severity, lane, fingerprint) per
+        finding in the two statuses a verdict answers for, then one `digest`
+        line (lane, fingerprint, status, round) per already-disposed finding —
+        `closed`, `waived`, `rejected-as-noise` (#298: a later round inherits a
+        digest, not a transcript). Each block is fingerprint-sorted so the
+        output is deterministic."""
         self.ledger("episode-open", "--gate", "audit")
         self.ledger(
             "episode-finding", "--gate", "audit",
@@ -276,6 +322,7 @@ class EpisodeContractTest(unittest.TestCase):
                 "round 1 of 2 — 1 open, 1 carried",
                 "carried\tImportant\tdoc-auditor\tdoc-auditor/readme-drift",
                 "open\tCritical\tsecurity-auditor\tsecurity-auditor/cmd-injection",
+                "digest\ttest-auditor\ttest-auditor/flaky-retry\tclosed\t1",
             ],
         )
 
@@ -445,6 +492,37 @@ class GateAuditDoorTest(unittest.TestCase):
     def test_report_quotes_round_and_counts_from_episode_get(self) -> None:
         self.assertIn("episode-get --gate audit", self.door)
         self.assertIn("round R of C — N open, M carried", self.door)
+
+    # --- #293: a Critical is anchored to the rubric, never to its own label ---
+
+    def test_rubric_carries_an_anchors_table_with_the_downgrade_rule(self) -> None:
+        """`reference/severity-rubric.md` names, per lane, the objective fact a
+        Critical must cite, and states what happens to one that cites nothing —
+        LLM severity self-rating is the hole this closes, so the requirement has
+        to live somewhere both the door and a reader can point at."""
+        rubric = (REPO_ROOT / "reference" / "severity-rubric.md").read_text(encoding="utf-8")
+        self.assertIn("## Objective anchors", rubric)
+        anchors = rubric[rubric.index("## Objective anchors"):]
+        self.assertIn("is recorded Important", anchors)
+        for lane in (
+            "security-auditor", "code-auditor", "test-auditor",
+            "architecture-auditor", "premortem-auditor", "product-reviewer",
+        ):
+            self.assertRegex(
+                anchors, rf"(?m)^\| {lane}[^|]*\|[^|]+\|",
+                f"{lane} has no anchor row — a lane with no anchor cannot have "
+                "its Criticals checked against one",
+            )
+
+    def test_door_requires_the_anchor_and_downgrades_an_unanchored_critical(self) -> None:
+        self.assertIn("reference/severity-rubric.md", self.door)
+        self.assertIn("recorded `--severity Important` instead", self.door)
+
+    # --- #292: the disposition and its suppression contract reach the dispatch ---
+
+    def test_door_names_the_disposition_and_its_suppression_contract(self) -> None:
+        self.assertIn("--status rejected-as-noise", self.door)
+        self.assertIn("suppressed", self.door)
 
     # --- Done means 3: the criteria-conformance lane sits in the roster ---
 

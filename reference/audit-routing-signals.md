@@ -3,12 +3,22 @@
 Canonical source for the deterministic (non-content-judged) first-round changeset-routing
 rules `commands/gate-audit.md` (auditor 9, auditor 11, auditor 12, and auditors 6–8's
 per-changeset clause) and `workflows/epic-driver.js`'s mechanical routing dispatch both apply. Neither restates these
-lists inline — both point here, so there is exactly one list to ever drift from. Auditor 10
+lists inline — both point here, so there is exactly one list to ever drift from.
+`commands/work-through.md`'s plan piece reads the same lists a third time, against a
+story's *stated* file surface, for the two reads `reference/epic-plan-contract.md`
+specifies: which lanes a proposed gate profile is priced for ("Gate profile"), and
+whether a story's surface is majority prompt-prose and therefore `story-supervised`
+rather than unattended ("Story class", which cites the Prompt signal section below).
+Neither restates a list either. The pricing read is display-only and never recorded: the
+driver still derives every actual routing decision from the real changeset. The
+story-class read *is* recorded, as the story's class at plan approval. Auditor 10
 (operability) is deliberately not covered here: its skip condition is content-judged ("Judge
-from the diff's content… not file paths alone" — see `commands/gate-audit.md:56`), not a
+from the diff's content… not file paths alone" — the "Auditor 10 (operability) is
+changeset-routed" paragraph under `commands/gate-audit.md`'s "Launch all auditors in
+parallel" heading), not a
 file-pattern rule, and there is no reliable file-name proxy for "does this code serve
 requests, consume queues, or perform network I/O" the way there is for IaC, frontend,
-dependency, or prompt file types. `commands/gate-audit.md:56` stays the canonical statement
+dependency, or prompt file types. That paragraph stays the canonical statement
 of the rule; `workflows/epic-driver.js`'s routing dispatch mirrors it as a content judgment
 made inline in its own prompt (`routingScopeCheckPrompt`'s `operabilityMatch`, issue #271),
 not as a pattern list added here.

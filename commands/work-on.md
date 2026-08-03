@@ -78,7 +78,7 @@ gate-ledger work-log --slug "<slug>" --step decide --outcome "<verdict>" --phase
 
 ### 2 · design — handoff
 
-This command doesn't author the design doc — the contract is normative (`reference/design-doc-contract.md`), the route to satisfying it is the user's pick. Set them up, then stop:
+This command doesn't author the design doc — the contract is normative (`reference/design-doc-contract.md`), the route to satisfying it is the user's pick — deliberately, so this stays true even now that `/design` ships in this same plugin: a gate must reach the same verdict regardless of who produced the branch (`reference/worker-contract.md`), and `scripts/check_gate_independence.py` enforces it in CI. Set them up, then stop:
 
 - Hand over the decide verdict, the (possibly scoped-down) title, and the contract's required sections; point at `templates/design-doc.md` as the scaffold.
 - Name `/design` as the route that ships with this plugin — batch interview → drafted doc → viva sign-off — and produces a doc satisfying the contract.
@@ -97,6 +97,12 @@ Run `/gate-design-review` against the recorded doc, then:
 
 Log with `work-log --step design-review --outcome "<verdict>" --phase "<phase>"`.
 
+**The review model on this pipeline (#210):** a design doc here gets a human sign-off —
+viva inside `/design`, or whatever your route's equivalent is — *and* this gate, because
+a human signs off where a gate cannot verify mechanically, which is the same rule that
+sends prompt-prose and idea-shaped stories here from `/work-through`'s plan piece
+(`reference/epic-plan-contract.md`, "Story class") rather than into an unattended epic.
+
 ### 4 · build — handoff
 
 The flow hands off rather than builds. Hand over the working context, then stop:
@@ -104,7 +110,7 @@ The flow hands off rather than builds. Hand over the working context, then stop:
 - The design doc path, the pre-mortem register path (its items are what `/gate-audit` and `/gate-acceptance` verify at the end), the scoped title, and the source issue if any.
 - Once a feature branch exists, record it — the gate ledger is per-branch, so later pieces need it: `work-set --branch "<branch>"`.
 - Name `/plan` + `/build` as the route that ships with this plugin: it picks up from the design doc and reports `BUILT | PAUSED | ESCALATED` back into this work file (see "Find the next piece — evidence first" below), so the next `/work-on` invocation resumes from that without asking.
-- If Superpowers is installed, its plan/execute workflow picks up from the design doc instead. Either way the user builds however they like — no gate cares which.
+- If Superpowers is installed, its plan/execute workflow picks up from the design doc instead. Either way the user builds however they like — no gate cares which. Deliberately, so this stays true even now that `/plan` and `/build` ship in this same plugin: a gate must reach the same verdict regardless of who produced the branch (`reference/worker-contract.md`), and `scripts/check_gate_independence.py` enforces it in CI.
 
 Log `work-log --step build --outcome HANDED-OFF`. Phase stays `build`; the evidence check advances it when implementation commits exist.
 

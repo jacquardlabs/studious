@@ -65,6 +65,9 @@ def _scope_with_files(files: list[str]) -> dict:
 
 FINALE_LAND_RULES = [
     *FINALE_AUDITORS_PASS,
+    {"match": r"^finale:attestations$", "result": {"findings": '{"attestations": []}'}},
+    {"match": r"^finale:findings-closure$", "result": {"findings": "every recorded finding reached a resolved sha"}},
+    {"match": r"^finale:seams$", "result": {"findings": "no cross-story seam findings"}},
     {"match": r"^finale:audit-compile$", "result": {"verdict": "PASS", "sha": "f1", "summary": "clean"}},
     {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "f2", "summary": "ship it"}},
     {"match": r"^finale:ready$", "result": {"verdict": "READY", "sha": "f3", "summary": "marked ready"}},

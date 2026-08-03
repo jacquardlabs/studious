@@ -36,8 +36,11 @@ The terms the episode rows above are written against, one line each (#289):
   rounds (the first review plus one fix-and-retry) when the audit or acceptance door
   drives it — `bin/gate-ledger`'s episode verbs refuse the third round and the second
   closing verdict in code — and closed by exactly one **terminal** verdict. A round's
-  `FIX AND RE-REVIEW` is that round's *outcome*, not a closing verdict: `episode-round`
-  re-enters past it, clearing the outcome and keeping the findings. The design-review
+  `FIX AND RE-REVIEW` is that round's *outcome*, not a closing verdict: below the round
+  cap, `episode-round` re-enters past it, clearing the outcome and keeping the findings;
+  at the cap, `episode-verdict` accepts a terminal verdict over it instead (re-entry is
+  spent), and set-aside dispositions of already-recorded findings land while it rides —
+  "closed by exactly one terminal verdict" holds on every path. The design-review
   and decide doors adopt the episode verbs in a later landing, and the epic driver's
   own retry cap is a separate constant until #274 collapses the two implementations —
   this bound governs the episode verbs, not those loops.

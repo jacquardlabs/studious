@@ -48,7 +48,13 @@ def _extract_function(source: str, name: str) -> str:
 
 def _run_ctx(story_fields: dict) -> str:
     """Execute the driver's real ctx() against one story record."""
-    ctx_src = _extract_function(DRIVER.read_text(), "ctx")
+    source = DRIVER.read_text()
+    # ctx() closes over githubReadOnlyInvariant (#276). Extracted verbatim alongside
+    # it, never stubbed: a stub would let the real invariant drift out of every
+    # dispatch prompt while this fixture went on passing.
+    ctx_src = "\n".join(
+        _extract_function(source, name) for name in ("githubReadOnlyInvariant", "ctx")
+    )
     harness = f"""
       const repoRoot = '/repo'
       const slug = 'demo-epic'

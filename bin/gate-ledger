@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # gate-ledger — read/write Studious's local, gitignored .studious/ state.
 #
-# Five stores in the consuming project:
+# Six stores in the consuming project:
 #   .studious/gates/<branch-slug>.json  — per-branch gate verdicts. Written by the
 #     gate commands (via `record`); read by the PR-time hook (via `status`) and by
 #     /work-on's evidence check (via `gate-get`) — never read as a raw file by callers.
@@ -32,7 +32,19 @@
 #     `scopeDelta` entry already counted as outside the declaration; an amendment
 #     never removes or edits a `scopeDelta` entry and never changes any count — see
 #     the design doc this story's SHA cites for the full mechanism.
-#   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /work-through (written via epic-set / epic-story-set; read via epic-get / epic-list).
+#     Assignment fields (#295), written via `work-assign`: `assignment` — the current
+#     dispatch's own phase, brief, contracted artifacts, branch, and worktree, computed
+#     by the dispatcher and recorded before the work starts, so a successor to a
+#     crashed, stalled, or parked worker rehydrates from data instead of from a fresh
+#     re-briefing. It carries no file set of its own on purpose: `declaredFiles` above
+#     is that fact's one owner, and the same `work-get` read returns both.
+#     `assignments` — the append-only history of every assignment written for this
+#     feature, which is what makes "what was this worker told" auditable after the fact.
+#   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /work-through (written via epic-set / epic-story-set / epic-run-log; read via epic-get / epic-reconcile / epic-list).
+#     Alongside the plan it carries the epic's approved appetite (`appetite.tokens`,
+#     `appetite.openEpisodes`), its canary flag, and `runs` — one record per driver
+#     invocation with the count of stories that landed, which is what arms the
+#     zero-landed stop-loss epic-reconcile computes (#268, #144, #297).
 #   .studious/epics/<epic-slug>.events.jsonl — append-only status-transition and
 #     verdict-recording trail for stories running under that epic (one JSON object
 #     per line, appended by the shared `append_event()` helper from `record`,
@@ -40,13 +52,26 @@
 #     reference/events-format.md). Epic/story attribution is derived from the
 #     branch name or the epic-qualified `--slug` convention those verbs already
 #     use, never a new flag. Best-effort: a failure appending a line signals on
-#     stderr but never fails the calling verb's own exit code — no reader exists
-#     yet (a later, dependent story is the first).
+#     stderr but never fails the calling verb's own exit code.
+#     The same file also carries the per-epic findings ledger (#281): `finding`
+#     and `attestation` lines, written by `epic-finding`/`epic-attest` and read
+#     back by `epic-findings` — the first reader this store has had. Those two
+#     kinds are primary writes and fail loudly (see append_epic_record), unlike
+#     the best-effort transition kinds above.
 #   .studious/evidence/<branch-slug>.jsonl — append-only, harness-captured record
 #     of verification commands run while a story is armed (one JSON object per
 #     line; written via `evidence-append` by hooks/evidence-capture.sh; read via
 #     `evidence-list` — see reference/evidence-format.md).
-# All five stores are anchored to the MAIN working tree (see repo_root), so
+#   .studious/telemetry/<branch-slug>.jsonl — append-only routing telemetry: one
+#     `dispatch` line per review agent sent out (written via `telemetry-dispatch`
+#     by hooks/dispatch-telemetry.sh and by workflows/epic-driver.js's fan-out
+#     prompts) and one `outcome` line per gate verdict (written by `record` as a
+#     side effect). Joined, they tie a model choice at dispatch time to the verdict
+#     it produced — see reference/telemetry-format.md, which is the contract.
+#     A sidecar `.studious/telemetry/<branch-slug>.run` holds the last run id seen
+#     on that branch, so `record` can attribute a verdict to a run without any
+#     prompt carrying the id. No reader in this plugin; nothing branches on it.
+# All six stores are anchored to the MAIN working tree (see repo_root), so
 # agents running in linked worktrees (e.g. /work-through story worktrees)
 # share one .studious/ store instead of fragmenting it per worktree.
 #
@@ -117,6 +142,19 @@ evidence_dir() {
     printf '%s/.studious/evidence' "$root"
   else
     printf '.studious/evidence'
+  fi
+}
+
+telemetry_dir() {
+  # Same root-anchoring as ledger_dir, different store. An auditor dispatched
+  # into a linked story worktree still lands its dispatch line in the MAIN
+  # tree's .studious/telemetry/, so one branch's dispatches and its verdicts
+  # share a file and can be joined without a cross-worktree read.
+  local root
+  if root=$(repo_root); then
+    printf '%s/.studious/telemetry' "$root"
+  else
+    printf '.studious/telemetry'
   fi
 }
 
@@ -249,6 +287,35 @@ append_event() { # epic, story, kind, jq-object filter for the kind's own fields
   return 0
 }
 
+append_telemetry() { # capturer, kind, jq-object filter for the kind's own fields, then --arg/--argjson pairs for it
+  # The routing store's shared writer, modelled on append_event(): one jq -nc
+  # object per call, >> the branch's .jsonl, no read-modify-write, best-effort
+  # and silent on the happy path. `capturer` comes from the calling verb, and
+  # what that proves differs by verb: cmd_record hardcodes "ledger" for its
+  # outcome lines, but cmd_telemetry_dispatch forwards its own --capturer flag
+  # after validating it against the closed hook|driver set — so a dispatch
+  # line's capturer is always a documented value, yet remains the caller's
+  # CLAIM; nothing here can prove which code path actually invoked the verb
+  # (contrast cmd_evidence_append, which hardcodes its capturer and exposes no
+  # flag). See reference/telemetry-format.md.
+  local capturer="$1" kind="$2" fields="$3"
+  shift 3
+  if ! have jq || ! have git; then return 0; fi
+  local dir; dir=$(telemetry_dir)
+  mkdir -p "$dir" 2>/dev/null
+  local file; file="$dir/$(branch_slug).jsonl"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  if ! jq -nc "$@" \
+      --arg at "$(now_iso)" --arg kind "$kind" --arg capturer "$capturer" \
+      '{at: $at, kind: $kind, capturer: $capturer} + ('"$fields"')' >> "$file" 2>/dev/null
+  then
+    echo "gate-ledger: telemetry-append failed (kind $kind) — primary write unaffected" >&2
+  fi
+  return 0
+}
+
+telemetry_run_file() { printf '%s/%s.run' "$(telemetry_dir)" "$(branch_slug)"; }
+
 gates_file_init() { # ensures the current branch's gates file exists, echoes its path
   local dir; dir=$(ledger_dir)
   mkdir -p "$dir"
@@ -311,6 +378,22 @@ cmd_record() {
       append_event "$epicSlug" "$storySlug" "gate-verdict" '{gate: $gate, verdict: $verdict, sha: $sha}' \
         --arg gate "$gate" --arg verdict "$verdict" --arg sha "$sha"
     fi
+    # Outcome label (#133): the gate-time right side of the routing join, written
+    # here — the one site every verdict already passes through — rather than asked
+    # of four dispatch prompts that would each have to remember it. Unconditional:
+    # a verdict recorded in a run that emitted no dispatch telemetry still gets a
+    # label, with an empty run_id, because there is nothing for it to join to
+    # anyway. run_id comes from the branch's own run file, so no prompt carries an
+    # id; step_id defaults to the gate step every dispatch line's parent_step_id
+    # already points at. See reference/telemetry-format.md.
+    local run_id="" run_file
+    run_file=$(telemetry_run_file)
+    [ -f "$run_file" ] && run_id=$(head -n 1 "$run_file" 2>/dev/null)
+    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+    append_telemetry "ledger" "outcome" \
+      '{run_id: $run_id, step_id: $step_id, task_id: $task_id, gate: $gate, verdict: $verdict, sha: $sha}' \
+      --arg run_id "$run_id" --arg step_id "$(branch_slug):$gate" --arg task_id "$branch" \
+      --arg gate "$gate" --arg verdict "$verdict" --arg sha "$sha"
   fi
   return "$rc"
 }
@@ -429,6 +512,10 @@ cmd_gate_get() {
 #   + findings: {<fingerprint>: {lane, severity, round, status, ...}} once
 #     episode-finding records against the episode (full shape at
 #     cmd_episode_finding below)
+#   + blockingByRound: {"<round>": <count>} — the blocking-finding count each
+#     round left behind, snapshotted by episode-round (#291)
+#   + escalated: {round, blocking, priorBlocking, at} — set when episode-round
+#     refuses a non-converging round (#291); the human decides from there
 #
 # `sha` is the code state the episode's latest judgment saw: HEAD at open, then
 # refreshed by episode-verdict so the episode record and the dual-written legacy
@@ -441,10 +528,16 @@ cmd_gate_get() {
 # verdict: an episode carrying it is awaiting its re-review, so episode-round
 # re-enters it (clearing the round outcome, keeping the findings) while any
 # other verdict refuses episode-round and episode-finding, and episode-verdict
-# refuses to overwrite — reopening past a terminal verdict is always the
+# refuses to overwrite. Two doors stay open while the retry outcome rides, so
+# the refusals around it never wedge (each one's message otherwise prescribes
+# an act another verb refuses): episode-finding accepts a set-aside
+# disposition of an already-recorded finding, and — at the round cap only,
+# where re-entry is refused in code — episode-verdict accepts a TERMINAL
+# verdict over the riding outcome. Reopening past a terminal verdict is always the
 # explicit episode-open act, which archives the prior episode (findings,
 # waivers, verdict and all) under `.episodeHistory[<gate>]` so the
-# accountability trail survives the fresh start.
+# accountability trail survives the fresh start — readable back via
+# `episode-get --history`, never only by hand-written jq (#300).
 EPISODE_ROUND_CAP=2
 # The one fix-and-retry spelling every episode gate shares — canonical source
 # reference/gate-vocabulary.md; tests/python/test_episode_contract.py pins the
@@ -461,6 +554,46 @@ episode_verdict_get() { # gate → prints the episode's verdict if closed, nothi
   local file; file="$(ledger_dir)/$(branch_slug).json"
   [ -f "$file" ] || return 0
   jq -r --arg g "$1" '.episodes[$g].verdict // empty' "$file" 2>/dev/null
+}
+
+episode_blocking_count() { # gate → how many findings the episode currently carries in a
+  # merge-blocking state: status `open` at Critical or Important (Track never blocks, per
+  # reference/severity-rubric.md; carried/waived/rejected-as-noise are all set aside). Always
+  # prints a number — 0 when there is no episode, no findings, or no readable file.
+  local file count; file="$(ledger_dir)/$(branch_slug).json"
+  count=""
+  if [ -f "$file" ]; then
+    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+    count=$(jq -r --arg g "$1" \
+      '[(.episodes[$g].findings // {})[]
+        | select(.status == "open" and (.severity == "Critical" or .severity == "Important"))]
+       | length' "$file" 2>/dev/null)
+  fi
+  case "$count" in
+    ''|*[!0-9]*) count=0 ;;
+  esac
+  printf '%s' "$count"
+}
+
+episode_open_critical_count() { # gate → how many Criticals the episode still carries `open`
+  # Deliberately NOT episode_blocking_count with a filter bolted on: that one is the
+  # convergence metric (Critical + Important, the set a round must shrink), this one is
+  # the verdict guard's metric. Only a Critical blocks a verdict — an Important may ride
+  # out a terminal PASS still `open` (reference/gate-vocabulary.md), and conflating the
+  # two would refuse verdicts that vocabulary explicitly permits. Always prints a number.
+  local file count; file="$(ledger_dir)/$(branch_slug).json"
+  count=""
+  if [ -f "$file" ]; then
+    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+    count=$(jq -r --arg g "$1" \
+      '[(.episodes[$g].findings // {})[]
+        | select(.status == "open" and .severity == "Critical")]
+       | length' "$file" 2>/dev/null)
+  fi
+  case "$count" in
+    ''|*[!0-9]*) count=0 ;;
+  esac
+  printf '%s' "$count"
 }
 
 cmd_episode_open() {
@@ -482,6 +615,23 @@ cmd_episode_open() {
 
   ensure_gitignore
   local file; file=$(gates_file_init)
+  # An unparseable gates file stops HERE, named, rather than reaching the jq
+  # below and surfacing a bare `jq: parse error: Invalid numeric literal ...`
+  # under an exit code no door branch documents. This verb is where a corrupt
+  # ledger lands: `episode-round`/`-verdict`/`-finding` all read the round
+  # through `episode_round_get`, whose `2>/dev/null` turns a parse failure into
+  # "no open episode" — exit 2, which commands/gate-audit.md's branch table
+  # reads as "a ledger written before episodes existed: treat it as a fresh
+  # entry" and routes straight to episode-open. Exit 1 is the state-refusal
+  # code `epic-reconcile` already uses for a corrupted stored file, and both
+  # doors read a non-zero episode-open as "stop and tell the user". Nothing is
+  # repaired or removed here — what the file was supposed to hold is a human's
+  # call, and overwriting it would destroy the only copy of the answer.
+  if [ -f "$file" ] && ! jq empty "$file" 2>/dev/null; then
+    echo "gate-ledger: episode-open: the gates file at $file is not valid JSON —" \
+         "repair or remove it before continuing" >&2
+    return 1
+  fi
   # Reopening starts a fresh episode at round 1, but never silently discards
   # the prior one: an existing episode (its findings, waivers, and verdict) is
   # archived under `.episodeHistory[<gate>]` first, so a carried Critical's
@@ -528,6 +678,61 @@ cmd_episode_round() {
   case "$round" in
     *[!0-9]*) echo "gate-ledger: episode-round: corrupted round '$round' for gate '$gate'" >&2; return 1 ;;
   esac
+  local file; file="$(ledger_dir)/$(branch_slug).json"
+  local blocking prior rc
+  blocking=$(episode_blocking_count "$gate")
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  prior=$(jq -r --arg g "$gate" --arg r "$((round - 1))" \
+    '.episodes[$g].blockingByRound[$r] // empty' "$file" 2>/dev/null)
+  case "$prior" in
+    ''|*[!0-9]*) prior="" ;;
+  esac
+  # Convergence, checked BEFORE the cap (#291): the cap bounds the loop but
+  # cannot tell "converged" from "gave up" — both exit the same way. So a round
+  # that failed to strictly reduce the blocking set is refused here, in code,
+  # and the episode is marked escalated: a human decides, rather than the loop
+  # spending its last round. Exit 3 keeps that distinct from the cap's exit 1,
+  # because the two put different choices to the operator.
+  #
+  # A prior count of 0 is not a convergence signal — nothing strictly decreases
+  # from none — so the comparison runs only against a non-zero predecessor.
+  #
+  # This fires on the natural round-2 boundary — it is NOT latent under the
+  # current cap. The check runs BEFORE the cap check below, and the first
+  # `episode-round` call banks `blockingByRound["1"]` on its way past, so the
+  # second call reads a real predecessor and refuses at exit 3 whenever the
+  # blocking set failed to shrink. Only a converging round (or one with a zero
+  # predecessor) ever reaches the cap's exit 1. Do not delete this as dead code.
+  if [ -n "$prior" ] && [ "$prior" -gt 0 ] && [ "$blocking" -ge "$prior" ]; then
+    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+    json_update "$file" \
+      '.episodes[$g].escalated = {round: ($r | tonumber), blocking: ($b | tonumber),
+                                  priorBlocking: ($p | tonumber), at: $t}' \
+      --arg g "$gate" --arg r "$round" --arg b "$blocking" --arg p "$prior" --arg t "$(now_iso)"
+    rc=$?
+    # The escalation record IS this branch's product — the durable thing the
+    # human comes back to. If the write failed (read-only store, full disk,
+    # mktemp failure), say so instead of announcing a record that does not
+    # exist: returning 3 here would tell the door "the episode is marked
+    # escalated" over an untouched file. Exit 1 instead — both doors read 1 as
+    # "stop before dispatching anyone, put the choice to the user", which is
+    # right either way, and the message names which fact it is. Same rc-capture
+    # discipline cmd_episode_verdict already applies to its own writes; the
+    # round is still refused, it is only the bookkeeping that is missing.
+    if [ "$rc" -ne 0 ]; then
+      echo "gate-ledger: episode-round: the escalation record for gate '$gate' could NOT be written" \
+           "to $file (write failed, exit $rc) — round $round carries $blocking blocking finding(s)" \
+           "against the prior round's $prior, so this round is still refused, but nothing was" \
+           "recorded and no episode is marked escalated. Fix the write (permissions, disk space)" \
+           "and re-run, or take the non-convergence to a human directly" >&2
+      return 1
+    fi
+    echo "gate-ledger: episode-round refused for gate '$gate' — round $round carries $blocking blocking" \
+         "finding(s) against the prior round's $prior: the episode is not converging, and it is now marked" \
+         "escalated. Put the choice to a human — waive what will not be fixed, or episode-open a fresh" \
+         "episode — before spending another round" >&2
+    return 3
+  fi
   # The cap is enforced HERE, in code, never left to a prompt's own counting
   # ("code owns bookkeeping"): round 1 is the gate's first run, round 2 its one
   # fix-and-re-check, and a third round is refused — exit 1 (a state refusal,
@@ -537,15 +742,18 @@ cmd_episode_round() {
          "the ${EPISODE_ROUND_CAP}-round cap allows no third round; record a verdict, or episode-open a fresh episode" >&2
     return 1
   fi
-  local file; file="$(ledger_dir)/$(branch_slug).json"
   # Re-entering clears the round outcome (the retry token), never the findings:
   # the episode is open again, awaiting the re-review's own verdict. The
   # dual-written legacy `.gates` entry keeps the retry token untouched — that is
-  # what the door's re-entry condition and the narrowing read.
+  # what the door's re-entry condition and the narrowing read. The round being
+  # left behind banks its blocking count first: that snapshot is the only thing
+  # the next round's convergence check has to compare against.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     '.episodes[$g].round = (.episodes[$g].round + 1)
-     | .episodes[$g] |= del(.verdict, .verdictAt)' --arg g "$gate"
+     | .episodes[$g].blockingByRound = ((.episodes[$g].blockingByRound // {}) + {($r): ($b | tonumber)})
+     | .episodes[$g] |= del(.verdict, .verdictAt)' \
+    --arg g "$gate" --arg r "$round" --arg b "$blocking"
 }
 
 cmd_episode_verdict() {
@@ -575,12 +783,64 @@ cmd_episode_verdict() {
   local prior; prior=$(episode_verdict_get "$gate")
   if [ -n "$prior" ]; then
     if [ "$prior" = "$EPISODE_RETRY_VERDICT" ]; then
-      echo "gate-ledger: episode for gate '$gate' carries round outcome '$prior' —" \
-           "run episode-round to re-enter its re-review before recording the next verdict" >&2
+      # The retry outcome awaits its re-review, so the next verdict normally
+      # arrives through episode-round's re-entry. At the round cap that
+      # re-entry is refused in code — and pointing there anyway wedged the
+      # operator between refusals: episode-round's cap message says "record a
+      # verdict" while this refusal said "run episode-round". So the cap is
+      # exactly where a TERMINAL verdict may land over the riding outcome:
+      # the retry token is a round outcome, never a closing verdict, so
+      # "closed by exactly one verdict" still holds, and rule 2 below still
+      # refuses to close over an open Critical (waive it first — the
+      # episode-finding disposition door stays open for exactly that).
+      # Below the cap the re-entry is actionable and stays the only path; a
+      # corrupt round fails closed, keeping this door shut.
+      local at_cap=0
+      case "$round" in
+        *[!0-9]*) ;;
+        *) if [ "$round" -ge "$EPISODE_ROUND_CAP" ]; then at_cap=1; fi ;;
+      esac
+      if [ "$at_cap" -eq 1 ] && [ "$verdict" != "$EPISODE_RETRY_VERDICT" ]; then
+        : # fall through: the terminal verdict closes the episode over its spent retry outcome
+      elif [ "$at_cap" -eq 1 ]; then
+        echo "gate-ledger: episode for gate '$gate' already carries round outcome '$prior' and the" \
+             "${EPISODE_ROUND_CAP}-round cap allows no further re-entry — re-recording the retry" \
+             "outcome moves nothing; record a terminal verdict to close the episode, or episode-open" \
+             "a fresh one" >&2
+        return 1
+      else
+        echo "gate-ledger: episode for gate '$gate' carries round outcome '$prior' —" \
+             "run episode-round to re-enter its re-review before recording the next verdict" >&2
+        return 1
+      fi
     else
       echo "gate-ledger: episode for gate '$gate' is already closed by verdict '$prior' —" \
            "an episode is closed by exactly one verdict; run episode-open to re-judge in a fresh one" >&2
+      return 1
     fi
+  fi
+  # Rule 2, at the verdict: an unfixed Critical needs the operator's explicit word
+  # before an episode closes on it. `episode-finding` already refuses to set a
+  # Critical aside without --waiver, but nothing stopped a caller from simply
+  # leaving it `open` and recording the verdict over the top — the same outcome
+  # (a Critical riding through unfixed) with none of the accountability. So the
+  # findings ledger is consulted here too, in code, never left to the compiling
+  # prompt's own reading of it.
+  #
+  # The retry verdict is exempt by construction: `FIX AND RE-REVIEW` is the round
+  # outcome that MEANS "these Criticals are open, go fix them" — refusing it would
+  # refuse the documented main path. Every other token closes the episode, and a
+  # close is what needs the word. This stays gate-agnostic rather than keying on a
+  # per-gate proceed token, so it fails closed for the doors that adopt the
+  # episode verbs later, not open.
+  local open_criticals; open_criticals=$(episode_open_critical_count "$gate")
+  if [ "$open_criticals" -gt 0 ] && [ "$verdict" != "$EPISODE_RETRY_VERDICT" ]; then
+    echo "gate-ledger: episode-verdict refused for gate '$gate' — $open_criticals Critical" \
+         "finding(s) are still 'open', and a verdict closing this episode cannot be recorded" \
+         "over them. Resolve each one first (episode-finding --status closed), or set it aside" \
+         "on the operator's own word (episode-finding --status carried --waiver <reason>)." \
+         "'$EPISODE_RETRY_VERDICT' is recordable as-is — it is the round outcome that says" \
+         "these are open" >&2
     return 1
   fi
   local file rc; file="$(ledger_dir)/$(branch_slug).json"
@@ -605,6 +865,20 @@ cmd_episode_verdict() {
   else
     cmd_record --gate "$gate" --verdict "$verdict"
   fi
+  rc=$?
+  # The episode write above already landed, so a re-run of episode-verdict now
+  # refuses this gate as already closed — the only repair for the half-written
+  # state is cmd_record's own verb, so the failure message names that exact
+  # command rather than leaving the operator between a refusal and a stale
+  # legacy record nothing points at.
+  if [ "$rc" -ne 0 ]; then
+    # shellcheck disable=SC2016 # the quotes around $verdict are for the operator to copy-paste, not an expansion
+    echo "gate-ledger: episode-verdict: the episode for gate '$gate' closed (verdict '$verdict'" \
+         "recorded), but the legacy dual-write failed (exit $rc) — re-running episode-verdict" \
+         "would refuse it as already closed; repair the legacy record directly:" \
+         "gate-ledger record --gate $gate --verdict '$verdict'${blocking_lanes:+ --blocking-lanes '$blocking_lanes'}" >&2
+  fi
+  return "$rc"
 }
 
 # Findings ledger (episode convergence): a finding lives on the gate's open
@@ -619,8 +893,16 @@ cmd_episode_verdict() {
 #
 # `severity` is the canonical three-tier ladder (reference/severity-rubric.md):
 # Critical | Important | Track — callers map per-auditor labels into these
-# BEFORE recording, exactly as /gate-audit's orchestrator already does.
-# `status` is open | closed | carried | waived. `round` is stamped from the
+# BEFORE recording, exactly as /gate-audit's orchestrator already does. A
+# Critical must cite the objective anchor its tier rests on (the anchors table
+# in that same rubric); a Critical filed with no anchor is recorded Important
+# instead — that judgment happens before the write, since severity is fixed at
+# first record here.
+# `status` is open | closed | carried | waived | rejected-as-noise. The last is
+# the disposition memory (#292): the human or the compile step ruled the finding
+# non-actionable, and that ruling is durable — later rounds read it back through
+# `episode-get --findings` and suppress findings similar to it (same lane, same
+# fingerprint) instead of re-manufacturing them. `round` is stamped from the
 # episode's current round at first record and never moves — it is the fact
 # --regression-of validates against. `lane`/`severity` are fixed at first
 # record: re-recording a fingerprint at a different tier is refused, so a
@@ -634,12 +916,51 @@ cmd_episode_verdict() {
 #      unless --regression-of names a round-1 finding of this episode. Round 2
 #      exists to fix round 1, not to widen the blocking set; a new Critical
 #      stays recordable because it is the stop signal.
-#   2. A Critical reaches `carried` only with --waiver <reason>, and the
-#      reason lands on the finding record. Carrying an unfixed Critical is an
+#   2. A Critical reaches any set-aside status — `carried`, `waived`, or
+#      `rejected-as-noise` — only with --waiver <reason>, and the reason lands
+#      on the finding record. Setting an unfixed Critical aside is an
 #      accountable act, never a silent one.
 #
 # Which agent judges whether something IS a regression stays in prose; this
 # verb only refuses the write shapes those judgments must not produce.
+finding_status_is_set_aside() { # status → true when it rides through the verdict unfixed
+  # The three statuses that dispose of a finding without resolving it. `closed`
+  # is resolved and `open` is unresolved; these three are the accountable middle,
+  # and they share one guard so no sibling word can dodge it.
+  case "$1" in
+    carried|waived|rejected-as-noise) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Both findings verbs render their fields into line- and tab-structured reads
+# (`episode-get --findings`, `episode-get --history`, `epic-findings`), and
+# `/gate-audit` injects those lines verbatim into the next round's lane dispatch
+# prompts. A value that can carry a newline or a tab can therefore forge an extra
+# line in a downstream prompt — so identity fields are guarded on the way IN, at
+# the boundary, exactly as `--fingerprint` already is.
+finding_field_is_token() { # value → true when empty or a single whitespace-free token
+  # For the identity fields (`--lane`): same guard as --fingerprint. These are
+  # `security-auditor`-shaped names, never prose. Empty passes — the callers that
+  # allow an omitted lane check for that themselves.
+  case "$1" in
+    *[[:space:][:cntrl:]]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+finding_reason_is_single_line() { # value → true when empty or free of control characters
+  # For the prose field (`--waiver`): deliberately WEAKER than the token guard
+  # above — a waiver is the operator's own sentence ("the exact word they typed",
+  # #300), so spaces must survive. `[[:cntrl:]]` is the whole attack surface for a
+  # line- and tab-structured read; it covers both newline and tab. Do not
+  # "unify" this with finding_field_is_token: rejecting spaces here would reduce
+  # every documented waiver reason to a single token.
+  case "$1" in
+    *[[:cntrl:]]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
 cmd_episode_finding() {
   local gate="" lane="" severity="" fingerprint="" status="" regression_of="" waiver=""
   while [ $# -gt 0 ]; do
@@ -665,11 +986,21 @@ cmd_episode_finding() {
       return 2
       ;;
   esac
+  if ! finding_field_is_token "$lane"; then
+    echo "gate-ledger: --lane must be a single token with no whitespace or control" \
+         "characters — it is a field of episode-get --findings' tab-separated detail line" >&2
+    return 2
+  fi
+  if ! finding_reason_is_single_line "$waiver"; then
+    echo "gate-ledger: --waiver must not contain control characters — it is the last field" \
+         "of one episode-get --history line, and a newline or tab in it forges another" >&2
+    return 2
+  fi
   case "$status" in
-    open|closed|carried|waived) ;;
+    open|closed|carried|waived|rejected-as-noise) ;;
     *)
       echo "gate-ledger: --status '$status' is not a recognized finding status;" \
-           "use open, closed, carried, or waived" >&2
+           "use open, closed, carried, waived, or rejected-as-noise" >&2
       return 2
       ;;
   esac
@@ -683,8 +1014,8 @@ cmd_episode_finding() {
         ;;
     esac
   fi
-  if [ -n "$waiver" ] && [ "$status" != "carried" ] && [ "$status" != "waived" ]; then
-    echo "gate-ledger: --waiver requires --status carried or waived" >&2
+  if [ -n "$waiver" ] && ! finding_status_is_set_aside "$status"; then
+    echo "gate-ledger: --waiver requires --status carried, waived, or rejected-as-noise" >&2
     return 2
   fi
   if ! have jq || ! have git; then
@@ -698,22 +1029,46 @@ cmd_episode_finding() {
     return 2
   fi
   local closed; closed=$(episode_verdict_get "$gate")
+  local file; file="$(ledger_dir)/$(branch_slug).json"
   if [ -n "$closed" ]; then
     if [ "$closed" = "$EPISODE_RETRY_VERDICT" ]; then
-      echo "gate-ledger: episode for gate '$gate' carries round outcome '$closed' —" \
-           "run episode-round to re-enter its re-review before recording findings" >&2
+      # The one door left open while the retry outcome rides: a set-aside
+      # disposition (carried, waived, or rejected-as-noise — the same trio
+      # finding_status_is_set_aside guards) of a fingerprint ALREADY on the
+      # episode. This is what the escalation and cap refusals prescribe
+      # ("waive what will not be fixed"; episode-verdict's Critical guard
+      # names `--status carried --waiver` verbatim) — without it those
+      # messages pointed at a verb that refused right back here, leaving
+      # episode-open, which archives the very findings a waiver must land
+      # on, as the only exit. Everything else still refuses: a fingerprint
+      # not on the episode (no NEW finding enters through this door), and
+      # any non-set-aside status (open/closed are round work, owned by the
+      # re-review). What the door admits still runs every downstream guard —
+      # severity/lane fixed at first record, rule 2's Critical-needs-waiver.
+      local disposition_ok=""
+      if finding_status_is_set_aside "$status"; then
+        # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+        disposition_ok=$(jq -r --arg g "$gate" --arg fp "$fingerprint" \
+          '.episodes[$g].findings[$fp] != null' "$file" 2>/dev/null)
+      fi
+      if [ "$disposition_ok" != "true" ]; then
+        echo "gate-ledger: episode for gate '$gate' carries round outcome '$closed' —" \
+             "run episode-round to re-enter its re-review before recording findings" \
+             "(while that outcome rides, only a set-aside disposition — carried, waived, or" \
+             "rejected-as-noise — of an already-recorded finding may land)" >&2
+        return 1
+      fi
     else
       echo "gate-ledger: episode for gate '$gate' is closed (verdict '$closed' recorded) —" \
            "findings record during a round, before its verdict; run episode-open for a fresh episode" >&2
+      return 1
     fi
-    return 1
   fi
   case "$round" in
     *[!0-9]*) echo "gate-ledger: episode-finding: corrupted round '$round' for gate '$gate'" >&2; return 1 ;;
   esac
 
-  local file; file="$(ledger_dir)/$(branch_slug).json"
-  local existing stored_severity stored_lane
+  local existing stored_severity stored_lane first_round classified
   existing=$(jq -c --arg g "$gate" --arg fp "$fingerprint" \
     '.episodes[$g].findings[$fp] // empty' "$file" 2>/dev/null)
 
@@ -722,6 +1077,14 @@ cmd_episode_finding() {
     # only the status moves, and regression classification is not relitigated.
     stored_severity=$(printf '%s' "$existing" | jq -r '.severity // ""')
     stored_lane=$(printf '%s' "$existing" | jq -r '.lane // ""')
+    first_round=$(printf '%s' "$existing" | jq -r '.round // ""')
+    classified=$(printf '%s' "$existing" | jq -r '.regressionOf // ""')
+    # A stored record with no readable round is treated as if it were first
+    # recorded THIS round — fail closed, so a corrupted record cannot buy its way
+    # past rule 1 below by having no round to test.
+    case "$first_round" in
+      ''|*[!0-9]*) first_round="$round" ;;
+    esac
     if [ -n "$severity" ] && [ "$severity" != "$stored_severity" ]; then
       echo "gate-ledger: episode-finding: severity is fixed at first record" \
            "('$stored_severity' for '$fingerprint') — a reclassification is a new finding" >&2
@@ -755,21 +1118,41 @@ cmd_episode_finding() {
         return 1
       fi
     fi
-    # Rule 1: round 2 may not widen the blocking set below Critical.
-    if [ "$round" -ge 2 ] && [ "$status" = "open" ] && [ "$severity" = "Important" ] && [ -z "$regression_of" ]; then
-      echo "gate-ledger: episode-finding refused — round $round fixes round 1, it does not widen the" \
-           "blocking set: a new blocking finding below Critical must name --regression-of <round-1" \
-           "fingerprint> (a new Critical, or a non-blocking Track, stays recordable)" >&2
-      return 1
-    fi
+    first_round="$round"
+    classified="$regression_of"
   fi
 
-  # Rule 2: a Critical is set aside — `carried` or `waived`, both meaning it
-  # rides through the verdict unfixed — only under a recorded waiver. Checked
-  # against the STORED severity on an update (see above), so it cannot be
-  # dodged by restating the finding at a lower tier, and guarded on both
-  # set-aside statuses so it cannot be dodged by the sibling word either.
-  if [ "$severity" = "Critical" ] && { [ "$status" = "carried" ] || [ "$status" = "waived" ]; } && [ -z "$waiver" ]; then
+  # Rule 1: round 2 may not widen the blocking set below Critical.
+  #
+  # Keyed on the round the finding was FIRST recorded in, never on the round
+  # doing the recording, and checked on BOTH paths — because a finding reaches
+  # `open` in two calls as easily as in one. Recording a round-2 finding
+  # `carried` and then re-recording the same fingerprint `open` used to land it
+  # unrefused: the first call dodged the rule on its status, the second dodged it
+  # by being an update. That is a widened blocking set on round 2 with no
+  # --regression-of behind it, and it defeats the convergence guard downstream,
+  # which counts exactly these open findings.
+  #
+  # `classified` carries the regression classification made at first record, so a
+  # finding legitimately admitted on round 2 as a regression stays updatable; a
+  # round-1 finding restated as still-standing has first_round 1 and is never in
+  # scope here, which is the case this rule must not touch.
+  if [ "$first_round" -ge 2 ] && [ "$status" = "open" ] && [ "$severity" = "Important" ] \
+     && [ -z "$classified" ]; then
+    echo "gate-ledger: episode-finding refused — round $round fixes round 1, it does not widen the" \
+         "blocking set: a new blocking finding below Critical must name --regression-of <round-1" \
+         "fingerprint> (a new Critical, or a non-blocking Track, stays recordable)" >&2
+    return 1
+  fi
+
+  # Rule 2: a Critical is set aside — `carried`, `waived`, or
+  # `rejected-as-noise`, all three meaning it rides through the verdict unfixed
+  # — only under a recorded waiver. Checked against the STORED severity on an
+  # update (see above), so it cannot be dodged by restating the finding at a
+  # lower tier, and guarded on every set-aside status so it cannot be dodged by
+  # a sibling word either — dismissing a Critical as noise is the same
+  # accountable act as carrying it.
+  if [ "$severity" = "Critical" ] && finding_status_is_set_aside "$status" && [ -z "$waiver" ]; then
     echo "gate-ledger: episode-finding refused — a Critical reaches '$status' only with" \
          "--waiver <reason>; fix it, or record why it is being set aside" >&2
     return 1
@@ -791,19 +1174,35 @@ cmd_episode_finding() {
     --arg waiver "$waiver" --arg t "$(now_iso)"
 }
 
-cmd_episode_get() { # --gate G [--findings] -> one line a prose surface can quote verbatim: "round R of C — N open, M carried"
+cmd_episode_get() { # --gate G [--findings | --history] -> one line a prose surface can quote verbatim: "round R of C — N open, M carried"
   # The findings ledger's read side. Only `open` and `carried` are counted —
   # they are the two states a verdict has to answer for (`closed` is resolved,
-  # `waived` is explicitly set aside). Prints nothing when no episode is
-  # recorded for the gate, mirroring gate-get/epic-get. With --findings (#289,
-  # the re-entry read /gate-audit injects into lane dispatches), the summary
-  # line is followed by one fingerprint-sorted, tab-separated line per finding
-  # in those same two statuses: status, severity, lane, fingerprint.
-  local gate="" findings=0
+  # `waived` and `rejected-as-noise` are explicitly set aside). Prints nothing
+  # when no episode is recorded for the gate, mirroring gate-get/epic-get.
+  #
+  # --findings (#289, the re-entry read /gate-audit injects into lane
+  # dispatches) follows the summary line with two fingerprint-sorted, tab-
+  # separated blocks — compaction (#298) is what keeps a later round's
+  # inheritance a digest rather than a transcript:
+  #
+  #   detail (open, carried):   <status>\t<severity>\t<lane>\t<fingerprint>
+  #   digest (everything else): digest\t<lane>\t<fingerprint>\t<status>\t<round>
+  #
+  # A round-2 dispatch inherits full detail only for what is still live; a
+  # disposed finding costs one line, which is all the suppression contract
+  # needs to match a re-manufactured finding against it (#292) — lane and
+  # fingerprint, the two match keys, both as fields rather than as a naming
+  # convention a reader has to parse out of the fingerprint.
+  #
+  # --history (#300) is the accountability read: every archived episode plus the
+  # current one, each with its verdict, counts, escalation, and the reason text
+  # behind every waiver — the word the operator typed, shown back to them.
+  local gate="" findings=0 history=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --gate)     gate="$2"; shift 2 ;;
       --findings) findings=1; shift ;;
+      --history)  history=1; shift ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
@@ -811,9 +1210,27 @@ cmd_episode_get() { # --gate G [--findings] -> one line a prose surface can quot
     echo "gate-ledger: --gate required" >&2
     return 2
   fi
+  if [ "$findings" -eq 1 ] && [ "$history" -eq 1 ]; then
+    echo "gate-ledger: --findings and --history are separate reads; pass one" >&2
+    return 2
+  fi
   if ! have jq || ! have git; then return 0; fi
   local file; file="$(ledger_dir)/$(branch_slug).json"
   [ -f "$file" ] || return 0
+  if [ "$history" -eq 1 ]; then
+    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+    jq -r --arg g "$gate" --arg cap "$EPISODE_ROUND_CAP" \
+      '((.episodeHistory[$g] // []) | map({e: ., current: false}))
+       + (if .episodes[$g] then [{e: .episodes[$g], current: true}] else [] end)
+       | to_entries[]
+       | (.key + 1) as $n | .value.current as $cur | .value.e as $e
+       | (($e.findings // {}) | to_entries | sort_by(.key)) as $es
+       | "episode \($n)\(if $cur then " (current)" else "" end) — opened \($e.openedAt // "?") at \($e.sha // "?"), round \($e.round) of \($cap), \(if $e.verdict then "verdict \($e.verdict)" else "no verdict yet" end) — \([$es[].value | select(.status == "open")] | length) open, \([$es[].value | select(.status == "carried")] | length) carried",
+         (if $e.escalated then "escalated\tround \($e.escalated.round)\t\($e.escalated.blocking) blocking, prior round \($e.escalated.priorBlocking)" else empty end),
+         ($es[] | select(.value.waiver) | "waiver\t\(.key)\t\(.value.status)\t\(.value.waiver)")' \
+      "$file" 2>/dev/null
+    return
+  fi
   if [ "$findings" -eq 1 ]; then
     # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
     jq -r --arg g "$gate" --arg cap "$EPISODE_ROUND_CAP" \
@@ -822,7 +1239,9 @@ cmd_episode_get() { # --gate G [--findings] -> one line a prose surface can quot
        | ([$es[].value]) as $fs
        | "round \(.round) of \($cap) — \([$fs[] | select(.status == "open")] | length) open, \([$fs[] | select(.status == "carried")] | length) carried",
          ($es[] | select(.value.status == "open" or .value.status == "carried")
-          | "\(.value.status)\t\(.value.severity)\t\(.value.lane)\t\(.key)")' \
+          | "\(.value.status)\t\(.value.severity)\t\(.value.lane)\t\(.key)"),
+         ($es[] | select(.value.status != "open" and .value.status != "carried")
+          | "digest\t\(.value.lane)\t\(.key)\t\(.value.status)\t\(.value.round)")' \
       "$file" 2>/dev/null
     return
   fi
@@ -1112,6 +1531,85 @@ cmd_work_log() {
   return "$rc"
 }
 
+# Assignment-in-ledger (#295): a dispatch is a ledger write, and the work file is
+# where it lands. `.assignment` is the CURRENT assignment — what the phase now in
+# flight was told — and is what a successor rehydrates from after a crash, a stall,
+# or a park, instead of being re-briefed by a fresh prompt that may have drifted.
+# `.assignments` is the append-only history of every assignment ever written for
+# this feature, which is what makes "what was this worker actually told" answerable
+# after the fact rather than only from a transcript nobody kept.
+#
+# The payload is the DISPATCHER's, never the worker's: every value here is computed
+# by the caller before the dispatch and typed verbatim by the agent that runs the
+# command, the same posture the driver already uses for its pre-computed
+# `--scope-delta-*` flags. Nothing in this verb interprets, defaults, or judges a
+# field — it records four strings and two lists exactly as handed over.
+cmd_work_assign() {
+  local slug="" phase="" brief="" artifacts="" artifacts_given=0 branch="" worktree=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --slug)           slug="$2"; shift 2 ;;
+      --phase)          phase="$2"; shift 2 ;;
+      --brief)          brief="$2"; shift 2 ;;
+      --artifacts)      artifacts="$2"; artifacts_given=1; shift 2 ;;
+      --branch)         branch="$2"; shift 2 ;;
+      --worktree)       worktree="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug required" >&2
+    return 2
+  fi
+  # --phase and --brief are both required, unlike every optional field on
+  # `work-set`: an assignment that names no phase cannot be matched to the
+  # dispatch it describes, and one that carries no brief is a record of nothing.
+  # A half-written assignment is worse than none — a successor would rehydrate
+  # from it and silently resume with less than the first worker had.
+  if [ -z "$phase" ] || [ -z "$brief" ]; then
+    echo "gate-ledger: --phase and --brief are both required" >&2
+    return 2
+  fi
+  if ! have jq || ! have git; then
+    echo "gate-ledger: work-assign skipped (jq and git required)" >&2
+    return 0
+  fi
+
+  slug=$(slugify "$slug")
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug reduced to nothing after slugify" >&2
+    return 2
+  fi
+
+  ensure_gitignore
+  local file; file=$(work_file_init "$slug")
+  local sha; sha="$(head_sha)"
+  # The declared file set is deliberately not a field here. It already has one owner —
+  # `.declaredFiles`, written by `work-set --declared-files` — and the same `work-get`
+  # call that reads an assignment back returns it, so copying it into the assignment
+  # would create a second copy of one fact and a drift surface with it.
+  # `artifacts` follows `work-set --declared-files`'s own present-vs-absent rule: an
+  # explicitly empty flag records an empty list (a real contract for no artifact), an
+  # omitted flag leaves the key off entirely (nothing was contracted). A reader must be
+  # able to tell those apart.
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
+     ({phase: $phase, brief: $brief, sha: $s, at: $t}
+      + (if $artGiven  == "1" then {artifacts: ($art | csv_trim)} else {} end)
+      + (if $branch   != "" then {branch: $branch}   else {} end)
+      + (if $worktree != "" then {worktree: $worktree} else {} end)) as $a
+     | .schemaVersion = (.schemaVersion // 1)
+     | .createdAt = (.createdAt // $t)
+     | .updatedAt = $t
+     | .assignment = $a
+     | .assignments = ((.assignments // []) + [$a])' \
+    --arg phase "$phase" --arg brief "$brief" \
+    --arg art "$artifacts" --arg artGiven "$artifacts_given" \
+    --arg branch "$branch" --arg worktree "$worktree" \
+    --arg s "$sha" --arg t "$(now_iso)"
+}
+
 cmd_work_get() {
   local slug=""
   while [ $# -gt 0 ]; do
@@ -1139,16 +1637,31 @@ epic_file_init() { # slug → ensures the epic file exists, echoes its path
   printf '%s' "$file"
 }
 
+# Zero-landed stop-loss (#268). Two consecutive invocations that landed nothing
+# arm the refusal; the third dispatch is the one refused. The threshold lives
+# here, not in commands/work-through.md — a prompt comparing a counter against a
+# literal is the retry-counting-in-prose defect CLAUDE.md names. epic-reconcile
+# computes the boolean; the prose reads it.
+EPIC_ZERO_LANDED_LIMIT=2
+# How many run records an epic file keeps. The stop-loss only ever reads the
+# tail, so an unbounded array would grow for no reader.
+EPIC_RUN_HISTORY_CAP=20
+
 cmd_epic_set() {
   local slug="" title="" src="" goal="" branch="" premortem="" concurrency="" status=""
+  local appetite_tokens="" appetite_episodes="" canary="" acceptance_altitude=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --slug)        slug="$2"; shift 2 ;;
+      --acceptance-altitude) acceptance_altitude="$2"; shift 2 ;;
       --title)       title="$2"; shift 2 ;;
       --source)      src="$2"; shift 2 ;;
       --goal)        goal="$2"; shift 2 ;;
       --branch)      branch="$2"; shift 2 ;;
       --premortem)   premortem="$2"; shift 2 ;;
+      --appetite-tokens)   appetite_tokens="$2"; shift 2 ;;
+      --appetite-episodes) appetite_episodes="$2"; shift 2 ;;
+      --canary)      canary="$2"; shift 2 ;;
       --concurrency) concurrency="$2"; shift 2 ;;
       --status)      status="$2"; shift 2 ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
@@ -1161,6 +1674,30 @@ cmd_epic_set() {
   case "$concurrency" in
     '') ;; # not provided: fine, left unset in the jq update
     *[!0-9]*|0) echo "gate-ledger: --concurrency must be a positive integer" >&2; return 2 ;;
+  esac
+  case "$appetite_tokens" in
+    '') ;;
+    *[!0-9]*|0) echo "gate-ledger: --appetite-tokens must be a positive integer (tokens, not dollars)" >&2; return 2 ;;
+  esac
+  case "$appetite_episodes" in
+    '') ;;
+    *[!0-9]*|0) echo "gate-ledger: --appetite-episodes must be a positive integer" >&2; return 2 ;;
+  esac
+  case "$canary" in
+    ''|on|off) ;;
+    *) echo "gate-ledger: --canary must be 'on' or 'off'" >&2; return 2 ;;
+  esac
+  # #269, DEFAULT OFF AND NOT YET SAFE TO ENABLE. `delivery-boundary` moves
+  # product judgment to the epic finale and reduces per-story acceptance to
+  # criteria conformance. #269's own text refuses to ship that before the
+  # counter-evidence check it names — #281's findings ledger (the verbs above)
+  # and #133's outcome labels — and that evidence does not exist yet, because
+  # both were built in the same change as this flag. The token is validated
+  # here so a typo can never be mistaken for an opt-in; absence means
+  # `per-story`, today's behavior, unchanged.
+  case "$acceptance_altitude" in
+    ''|per-story|delivery-boundary) ;;
+    *) echo "gate-ledger: --acceptance-altitude must be 'per-story' or 'delivery-boundary'" >&2; return 2 ;;
   esac
   if ! have jq || ! have git; then
     echo "gate-ledger: epic-set skipped (jq and git required)" >&2
@@ -1187,9 +1724,15 @@ cmd_epic_set() {
      | (if $branch != "" then .branch      = $branch else . end)
      | (if $pm     != "" then .premortem   = $pm     else . end)
      | (if $conc   != "" then .concurrency = ($conc | tonumber) else . end)
-     | (if $status != "" then .status      = $status else . end)' \
+     | (if $status != "" then .status      = $status else . end)
+     | (if $apTok  != "" then .appetite = ((.appetite // {}) | .tokens = ($apTok | tonumber)) else . end)
+     | (if $apEp   != "" then .appetite = ((.appetite // {}) | .openEpisodes = ($apEp | tonumber)) else . end)
+     | (if $canary != "" then .canary = ($canary == "on") else . end)
+     | (if $accAlt != "" then .acceptanceAltitude = $accAlt else . end)' \
     --arg title "$title" --arg src "$src" --arg goal "$goal" --arg branch "$branch" \
-    --arg pm "$premortem" --arg conc "$concurrency" --arg status "$status" --arg t "$(now_iso)"
+    --arg pm "$premortem" --arg conc "$concurrency" --arg status "$status" \
+    --arg apTok "$appetite_tokens" --arg apEp "$appetite_episodes" --arg canary "$canary" \
+    --arg accAlt "$acceptance_altitude" --arg t "$(now_iso)"
   rc=$?
 
   if [ "$rc" -eq 0 ] && [ -n "$status" ]; then
@@ -1197,6 +1740,49 @@ cmd_epic_set() {
     append_event "$slug" "" "epic-status" '{status: $status}' --arg status "$status"
   fi
   return "$rc"
+}
+
+cmd_epic_run_log() { # --slug E --landed N -> appends one per-invocation landed count
+  # The write half of the zero-landed stop-loss (#268). Separate verb rather than
+  # an epic-set flag for the same reason work-log is separate from work-set: this
+  # appends an event, it does not set a field. commands/work-through.md calls it
+  # once at the close of every driver invocation, with the count the driver
+  # returned — the only number a run report can be wrong about without the
+  # stop-loss ever arming, which is why tests/test_gate_ledger.sh pins it.
+  local slug="" landed=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --slug)   slug="$2"; shift 2 ;;
+      --landed) landed="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$slug" ] || [ -z "$landed" ]; then
+    echo "gate-ledger: --slug and --landed required" >&2
+    return 2
+  fi
+  case "$landed" in
+    *[!0-9]*) echo "gate-ledger: --landed must be a non-negative integer" >&2; return 2 ;;
+  esac
+  if ! have jq || ! have git; then
+    echo "gate-ledger: epic-run-log skipped (jq and git required)" >&2
+    return 0
+  fi
+  slug=$(slugify "$slug")
+  if [ -z "$slug" ]; then
+    echo "gate-ledger: --slug reduced to nothing after slugify" >&2
+    return 2
+  fi
+  local file; file="$(epic_dir)/$slug.json"
+  if [ ! -f "$file" ]; then
+    echo "gate-ledger: no epic file for '$slug' (run epic-set first)" >&2
+    return 2
+  fi
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  json_update "$file" \
+    '.updatedAt = $t
+     | .runs = (((.runs // []) + [{at: $t, landed: ($n | tonumber)}]) | .[-($cap | tonumber):])' \
+    --arg n "$landed" --arg cap "$EPIC_RUN_HISTORY_CAP" --arg t "$(now_iso)"
 }
 
 cmd_epic_get() {
@@ -1300,6 +1886,288 @@ cmd_epic_story_set() {
       --arg bumpRetries "$bump_retries" --arg resetRetries "$reset_retries"
   fi
   return "$rc"
+}
+
+# ---------------------------------------------------------------------------
+# Per-epic findings ledger (#281) — record a finding once, verify closure later
+# ---------------------------------------------------------------------------
+#
+# The branch-scoped episode ledger above answers "is this gate's loop
+# converging?" for one branch. This one answers a different question the epic
+# finale used to re-derive from scratch by re-fanning every auditor across the
+# whole integration diff: *what did this epic find, and did it close?*
+#
+# Three verbs, all keyed by `--epic` (the same flag `epic-story-set` already
+# uses for the epic, so a story-attributed epic write reads the same way
+# everywhere):
+#
+#   epic-finding   one finding's identity + its current state, at a sha
+#   epic-attest    one lane's clean read of one story, at a sha (#130's
+#                  carry-forward attestation: a lane that returned zero
+#                  findings at sha X)
+#   epic-findings  the READER — folds the append-only trail into current state
+#
+# **Where it lives, and why.** These land in `.studious/epics/<slug>.events.jsonl`
+# — the same append-only trail `reference/events-format.md` pins — rather than in
+# `<slug>.json`. That is a concurrency requirement, not a filing preference: every
+# `<slug>.json` write goes through `json_update()`, which is read-modify-write, and
+# findings are recorded by story agents running concurrently under one epic. An
+# `O_APPEND` write of one small line never interleaves; a read-modify-write of a
+# shared snapshot silently loses one of two concurrent findings.
+#
+# **These two kinds are PRIMARY writes, unlike every other line in that file.**
+# `append_event()` is best-effort by contract — it swallows its own failure and
+# returns 0, because a lost transition line never changes a verdict. A lost
+# *finding* line does: the finale's closure check would see nothing to verify and
+# report clean, which is exactly the rigor property #130 says narrowing must
+# preserve. So these two verbs write through `append_epic_record()` instead,
+# which fails loudly and non-zero, and they refuse to no-op when jq/git are
+# missing rather than degrading like their transition-trail siblings.
+#
+# **Identity is the fingerprint, epic-wide**, chosen by the caller and never
+# normalized here — same contract as `episode-finding`'s. The fold below takes a
+# finding's identity fields (lane, story, severity, raised sha) from its FIRST
+# recorded line and its state from its LAST, so a later line cannot launder a
+# Critical down to a lower tier by restating it.
+append_epic_record() { # epic, story, kind, jq-object filter for the kind's own fields, then --arg/--argjson pairs
+  local epic="$1" story="$2" kind="$3" fields="$4"
+  shift 4
+  local dir; dir=$(epic_dir)
+  mkdir -p "$dir" 2>/dev/null
+  local file="$dir/$epic.events.jsonl"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  if ! jq -nc "$@" \
+      --arg at "$(now_iso)" --arg epic "$epic" --arg story "$story" --arg kind "$kind" \
+      '{at: $at, epic: $epic, story: $story, kind: $kind} + ('"$fields"')' >> "$file" 2>/dev/null
+  then
+    echo "gate-ledger: $kind append failed for epic '$epic' — NOTHING was recorded;" \
+         "re-run this call before treating the finding as on the record" >&2
+    return 1
+  fi
+  return 0
+}
+
+cmd_epic_finding() {
+  local epic="" story="" lane="" severity="" fingerprint="" status="" waiver="" sha=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --epic)        epic="$2"; shift 2 ;;
+      --story)       story="$2"; shift 2 ;;
+      --lane)        lane="$2"; shift 2 ;;
+      --severity)    severity="$2"; shift 2 ;;
+      --fingerprint) fingerprint="$2"; shift 2 ;;
+      --status)      status="$2"; shift 2 ;;
+      --waiver)      waiver="$2"; shift 2 ;;
+      --sha)         sha="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$epic" ] || [ -z "$story" ] || [ -z "$lane" ] || [ -z "$severity" ] \
+     || [ -z "$fingerprint" ] || [ -z "$status" ]; then
+    echo "gate-ledger: --epic, --story, --lane, --severity, --fingerprint, and --status required" >&2
+    return 2
+  fi
+  case "$fingerprint" in
+    *[[:space:][:cntrl:]]*)
+      echo "gate-ledger: --fingerprint must be a single token with no whitespace or" \
+           "control characters — it is the finding's identity across the whole epic" >&2
+      return 2
+      ;;
+  esac
+  if ! finding_field_is_token "$lane"; then
+    echo "gate-ledger: --lane must be a single token with no whitespace or control" \
+         "characters — it is a field of one epic-findings line" >&2
+    return 2
+  fi
+  if ! finding_reason_is_single_line "$waiver"; then
+    echo "gate-ledger: --waiver must not contain control characters — it is the last field" \
+         "of one epic-findings line, and a newline or tab in it forges another" >&2
+    return 2
+  fi
+  case "$severity" in
+    Critical|Important|Track) ;;
+    *)
+      echo "gate-ledger: --severity '$severity' is not a recognized tier;" \
+           "use Critical, Important, or Track (reference/severity-rubric.md)" >&2
+      return 2
+      ;;
+  esac
+  # Same five-word status vocabulary as `episode-finding`, deliberately: one
+  # findings vocabulary in this tool, not two that drift. `closed` is the
+  # resolved state — the line carrying it also carries the resolved sha.
+  case "$status" in
+    open|closed|carried|waived|rejected-as-noise) ;;
+    *)
+      echo "gate-ledger: --status '$status' is not a recognized finding status;" \
+           "use open, closed, carried, waived, or rejected-as-noise" >&2
+      return 2
+      ;;
+  esac
+  if [ -n "$waiver" ] && ! finding_status_is_set_aside "$status"; then
+    echo "gate-ledger: --waiver requires --status carried, waived, or rejected-as-noise" >&2
+    return 2
+  fi
+  # The episode ledger's rule 2, at epic scope: setting an unfixed Critical aside
+  # is an accountable act, never a silent one. This line-local check is only half
+  # the guard: alone it was dodged by restating the same fingerprint at a lower
+  # tier (the fold takes status from the LAST line), so the severity-restatement
+  # refusal below — which does read the trail — is what actually pins the tier
+  # this check judges against.
+  if [ "$severity" = "Critical" ] && finding_status_is_set_aside "$status" && [ -z "$waiver" ]; then
+    echo "gate-ledger: epic-finding refused — a Critical reaches '$status' only with" \
+         "--waiver <reason>; fix it, or record why it is being set aside" >&2
+    return 1
+  fi
+  if ! have jq || ! have git; then
+    echo "gate-ledger: epic-finding requires jq and git — a findings write is a primary write," \
+         "so it fails rather than degrading to a silent no-op" >&2
+    return 1
+  fi
+
+  epic=$(slugify "$epic")
+  story=$(slugify "$story")
+  if [ -z "$epic" ] || [ -z "$story" ]; then
+    echo "gate-ledger: --epic or --story reduced to nothing after slugify" >&2
+    return 2
+  fi
+  [ -n "$sha" ] || sha=$(head_sha)
+
+  # Severity is fixed by the fingerprint's FIRST recorded line, epic-wide — the
+  # same "a Critical can never be laundered down" rule episode-finding enforces
+  # on its update path. The fold in cmd_epic_findings already takes severity
+  # from the first line, but folding alone let a restated line dodge rule 2
+  # above: `--severity Critical --status waived` without --waiver is refused
+  # per-line, while the same fingerprint restated `--severity Important
+  # --status waived` was accepted — and the fold then reported a waived
+  # Critical with no waiver on record, with `--unresolved` reading 0. So the
+  # trail is consulted here, one read before the append, skipping malformed
+  # lines exactly as the fold does (`fromjson? // empty`).
+  local trail stored_severity
+  trail="$(epic_dir)/$epic.events.jsonl"
+  stored_severity=""
+  if [ -f "$trail" ]; then
+    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+    stored_severity=$(jq -Rrn --arg fp "$fingerprint" \
+      '[inputs | fromjson? // empty | select(.kind == "finding" and .finding == $fp)]
+       | first | .severity // empty' "$trail" 2>/dev/null)
+  fi
+  if [ -n "$stored_severity" ] && [ "$severity" != "$stored_severity" ]; then
+    echo "gate-ledger: epic-finding: severity is fixed at first record ('$stored_severity' for" \
+         "'$fingerprint') — a reclassification is a new finding, and a Critical can never be" \
+         "laundered down to dodge the waiver rule" >&2
+    return 2
+  fi
+
+  ensure_gitignore
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  append_epic_record "$epic" "$story" "finding" \
+    '{finding: $fp, lane: $lane, severity: $sev, status: $st, sha: $sha}
+     + (if $waiver != "" then {waiver: $waiver} else {} end)' \
+    --arg fp "$fingerprint" --arg lane "$lane" --arg sev "$severity" \
+    --arg st "$status" --arg sha "$sha" --arg waiver "$waiver"
+}
+
+cmd_epic_attest() {
+  # #130 mechanism 2's write half. One line per (lane, story) clean read: this
+  # lane ran against this story's changeset at this sha and returned zero
+  # findings. What a reader may CONCLUDE from a set of these is the reader's
+  # problem (workflows/epic-driver.js's finale carries a lane forward only when
+  # every landed story attested it) — this verb records the fact, nothing more.
+  local epic="" story="" lane="" sha=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --epic)  epic="$2"; shift 2 ;;
+      --story) story="$2"; shift 2 ;;
+      --lane)  lane="$2"; shift 2 ;;
+      --sha)   sha="$2"; shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$epic" ] || [ -z "$story" ] || [ -z "$lane" ]; then
+    echo "gate-ledger: --epic, --story, and --lane required" >&2
+    return 2
+  fi
+  if ! have jq || ! have git; then
+    echo "gate-ledger: epic-attest requires jq and git — an attestation is a primary write," \
+         "so it fails rather than degrading to a silent no-op" >&2
+    return 1
+  fi
+
+  epic=$(slugify "$epic")
+  story=$(slugify "$story")
+  if [ -z "$epic" ] || [ -z "$story" ]; then
+    echo "gate-ledger: --epic or --story reduced to nothing after slugify" >&2
+    return 2
+  fi
+  [ -n "$sha" ] || sha=$(head_sha)
+
+  ensure_gitignore
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  append_epic_record "$epic" "$story" "attestation" \
+    '{lane: $lane, sha: $sha}' --arg lane "$lane" --arg sha "$sha"
+}
+
+cmd_epic_findings() { # --epic E [--unresolved | --attestations] -> one summary line, then one line per record
+  # The reader `reference/events-format.md` has been waiting for. Folds the
+  # append-only trail — every other kind on those lines is ignored — into current
+  # state, in the same quotable, tab-separated style `episode-get` uses:
+  #
+  #   epic <slug> — N finding(s), U unresolved, A attestation(s)
+  #   <status>\t<severity>\t<story>\t<lane>\t<fingerprint>\t<raisedSha>\t<resolvedSha>
+  #
+  # `--unresolved` keeps only `open` and `carried` — the two states a verdict has
+  # to answer for, exactly as `episode-get` counts them (`closed` is resolved;
+  # `waived`/`rejected-as-noise` are explicitly set aside, with their reason on
+  # the record). `--attestations` prints the clean-lane trail instead:
+  #
+  #   attestation\t<lane>\t<story>\t<sha>
+  #
+  # A malformed line is skipped (`fromjson? // empty`) rather than failing the
+  # whole read: one corrupt append must not blind the finale to every other
+  # finding. Ordering within one fingerprint is by `at`, which has one-second
+  # resolution — two lines in the same second keep their physical order, which is
+  # their write order.
+  local epic="" unresolved=0 attestations=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --epic)         epic="$2"; shift 2 ;;
+      --unresolved)   unresolved=1; shift ;;
+      --attestations) attestations=1; shift ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$epic" ]; then
+    echo "gate-ledger: --epic required" >&2
+    return 2
+  fi
+  if [ "$unresolved" -eq 1 ] && [ "$attestations" -eq 1 ]; then
+    echo "gate-ledger: --unresolved and --attestations are separate reads; pass one" >&2
+    return 2
+  fi
+  if ! have jq; then return 0; fi
+  epic=$(slugify "$epic")
+  local file; file="$(epic_dir)/$epic.events.jsonl"
+  [ -f "$file" ] || return 0
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  jq -Rrn --arg epic "$epic" --arg unresolved "$unresolved" --arg attestations "$attestations" '
+    [inputs | fromjson? // empty] as $all
+    | ($all | map(select(.kind == "attestation"))) as $att
+    | ($all | map(select(.kind == "finding")) | group_by(.finding) | map(sort_by(.at))
+       | map(. as $es
+             | ($es | last) as $l
+             | {finding: $es[0].finding, lane: $es[0].lane, story: $es[0].story,
+                severity: $es[0].severity, raisedSha: ($es[0].sha // "-"),
+                status: $l.status, waiver: ($l.waiver // ""),
+                resolvedSha: (([$es[] | select(.status == "closed") | .sha] | last) // "-")})
+       | sort_by(.finding)) as $f
+    | ($f | map(select(.status == "open" or .status == "carried"))) as $open
+    | "epic \($epic) — \($f | length) finding(s), \($open | length) unresolved, \($att | length) attestation(s)",
+      (if $attestations == "1" then
+         ($att | sort_by(.lane, .story, .at)[] | "attestation\t\(.lane)\t\(.story)\t\(.sha // "-")")
+       else
+         ((if $unresolved == "1" then $open else $f end)[]
+          | "\(.status)\t\(.severity)\t\(.story)\t\(.lane)\t\(.finding)\t\(.raisedSha)\t\(.resolvedSha)")
+       end)' "$file" 2>/dev/null
 }
 
 cmd_worktree_path() { # --slug E [--story S | --json] -> one path, or the epic's whole layout as JSON
@@ -1471,10 +2339,18 @@ cmd_epic_reconcile() { # --slug E -> one JSON payload replacing work-through's ~
   # is actually an ancestor of the epic branch. This verb only aggregates and
   # computes; it never corrects a mismatch or decides a story's next phase —
   # that judgment stays in commands/work-through.md's prose.
-  local slug=""
+  local slug="" override="false"
   while [ $# -gt 0 ]; do
     case "$1" in
       --slug) slug="$2"; shift 2 ;;
+      # The operator's explicit consent to dispatch past the zero-landed stop-loss,
+      # for this one invocation (#268). It belongs here because this is where
+      # `.stopLoss.refuse` is computed — commands/work-through.md strips the same flag
+      # off `$ARGUMENTS` and passes it through, so the instruction that refusal prints
+      # ("re-invoke with --override-stop-loss") reaches a receiver that exists. It
+      # suppresses the refusal for this read and nothing else: no state is written, the
+      # streak keeps counting, and the next invocation without the flag refuses again.
+      --override-stop-loss) override="true"; shift ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
@@ -1517,8 +2393,34 @@ cmd_epic_reconcile() { # --slug E -> one JSON payload replacing work-through's ~
       '$stories + {($s): $story}')
   done <<< "$story_slugs"
 
+  # Zero-landed stop-loss (#268), computed here rather than compared in prose.
+  # `consecutiveZeroLanded` counts the trailing run of invocations that landed
+  # nothing; `refuse` is true once that run reaches the limit, meaning the
+  # dispatch this reconcile is preparing would be the (limit + 1)th consecutive
+  # zero-landed one. An epic with no `runs` yet (recorded before this field
+  # existed, or never driven) reads 0 / false — absence is not evidence of a
+  # stalled epic.
+  #
+  # `--override-stop-loss` suppresses `refuse` and sets `overridden` in its place, so a
+  # reader can tell "never refused" from "refused, and the operator consented anyway."
+  # `overridden` is true only when the flag was passed AND the streak had actually
+  # reached the limit: a flag passed at a healthy epic is a no-op that must not read as
+  # a suppressed refusal in the run report. `consecutiveZeroLanded` is reported
+  # unchanged either way — the override is consent to dispatch, never a reset of the
+  # count, so the next invocation without the flag refuses again.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  jq -n --argjson epic "$epic_json" --argjson stories "$stories_json" '{epic: $epic, stories: $stories}'
+  jq -n --argjson epic "$epic_json" --argjson stories "$stories_json" \
+    --arg limit "$EPIC_ZERO_LANDED_LIMIT" --argjson override "$override" \
+    '($limit | tonumber) as $lim
+     | (reduce (($epic.runs // []) | reverse | .[]) as $r
+         ({streak: 0, done: false};
+          if .done then . elif ($r.landed // 0) == 0 then .streak += 1 else .done = true end)
+        | .streak) as $zeros
+     | ($zeros >= $lim) as $hit
+     | {epic: $epic, stories: $stories,
+        stopLoss: {consecutiveZeroLanded: $zeros, limit: $lim,
+                   refuse: ($hit and ($override | not)),
+                   overridden: ($hit and $override)}}'
 }
 
 cmd_epic_list() {
@@ -1712,6 +2614,31 @@ cmd_gc() {
       printf 'removed shipped epic: %s (status ready, branch %s no longer exists)\n' "$(basename "$f")" "$branch"
     fi
   done
+
+  # Telemetry: a branch's routing lines (`<branch-slug>.jsonl`) and its
+  # last-run sidecar (`<branch-slug>.run`) are keyed by branch SLUG, not
+  # branch name — branch_slug() collapses '/' to '-' and neither file carries
+  # a `.branch` field to read back. So "the branch is gone" is tested against
+  # the slugs of the branches that still exist: a telemetry file whose name
+  # matches no live branch's slug belongs to a deleted branch, the same fact
+  # rule 1 tests for gates and work files above. A slug shared by a live branch (feat/foo
+  # vs feat-foo) keeps the file — the same collision posture the gates
+  # ledger's branch-mismatch read already takes. Unconditional like the other
+  # per-branch rules: `--force` neither widens nor narrows this (it only
+  # governs the measured-scope-delta keep above), and the current branch's
+  # files survive by being a live branch's, never by a special case.
+  local tdir; tdir=$(telemetry_dir)
+  local live_slugs tslug
+  live_slugs=$(git for-each-ref refs/heads --format='%(refname:short)' 2>/dev/null | tr '/' '-')
+  for f in "$tdir"/*.jsonl "$tdir"/*.run; do
+    [ -e "$f" ] || continue
+    tslug=$(basename "$f")
+    tslug="${tslug%.jsonl}"; tslug="${tslug%.run}"
+    if ! printf '%s\n' "$live_slugs" | grep -qxF "$tslug"; then
+      rm -f "$f"
+      printf 'removed stale telemetry: %s (no live branch matches slug %s)\n' "$(basename "$f")" "$tslug"
+    fi
+  done
 }
 
 cmd_evidence_append() { # append-only: one jq -nc object per call, >> the branch's .jsonl
@@ -1762,6 +2689,123 @@ cmd_evidence_append() { # append-only: one jq -nc object per call, >> the branch
         predicateType: "https://in-toto.io/attestation/test-result/v0.1",
         predicate: {result: (if $exitCode == 0 then "PASSED" else "FAILED" end),
                     configuration: [{name: $command}]}}' >> "$file"
+}
+
+cmd_telemetry_dispatch() { # append-only: one `dispatch` line per review agent sent out
+  local run_id="" step_id="" parent_step_id="" task_id="" skill="" role=""
+  local model="" effort="" routing_reason="" capturer="driver"
+  local features=()
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --run-id)         run_id="$2"; shift 2 ;;
+      --step-id)        step_id="$2"; shift 2 ;;
+      --parent-step-id) parent_step_id="$2"; shift 2 ;;
+      --task-id)        task_id="$2"; shift 2 ;;
+      --skill)          skill="$2"; shift 2 ;;
+      --role)           role="$2"; shift 2 ;;
+      --model)          model="$2"; shift 2 ;;
+      --effort)         effort="$2"; shift 2 ;;
+      --routing-reason) routing_reason="$2"; shift 2 ;;
+      --capturer)       capturer="$2"; shift 2 ;;
+      --feature)        features+=("$2"); shift 2 ;;
+      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
+    esac
+  done
+  if [ -z "$run_id" ] || [ -z "$step_id" ] || [ -z "$role" ] || [ -z "$routing_reason" ]; then
+    echo "gate-ledger: --run-id, --step-id, --role, and --routing-reason required" >&2
+    return 2
+  fi
+  case "$capturer" in
+    hook|driver) ;;
+    *) echo "gate-ledger: --capturer must be 'hook' or 'driver'" >&2; return 2 ;;
+  esac
+  # routing_reason is a closed prefix set, validated here rather than trusted:
+  # a free-text reason makes the column unqueryable, which is the one thing this
+  # record exists for. `override` covers anything that displaced the static
+  # roster (a narrowed re-audit round is the case today). The two prefixed
+  # forms carry a real remainder check, not a glob that stops at the first
+  # character: `classifier:v` takes digits ONLY after the v, and an `ab:` arm
+  # is a single token under the same whitespace/control guard the finding
+  # identity fields use — reference/telemetry-format.md pins this grammar.
+  case "$routing_reason" in
+    static|override) ;;
+    classifier:v*)
+      case "${routing_reason#classifier:v}" in
+        ''|*[!0-9]*)
+          echo "gate-ledger: --routing-reason classifier:v<N> takes digits only after the v" \
+               "(e.g. classifier:v3)" >&2
+          return 2 ;;
+      esac ;;
+    ab:?*)
+      if ! finding_field_is_token "${routing_reason#ab:}"; then
+        echo "gate-ledger: --routing-reason ab:<arm> must name a single token with no" \
+             "whitespace or control characters" >&2
+        return 2
+      fi ;;
+    *) echo "gate-ledger: --routing-reason must be static, override, classifier:v<N>, or ab:<arm>" >&2; return 2 ;;
+  esac
+  # --role is the one field that becomes a filesystem path below
+  # ("$CLAUDE_PLUGIN_ROOT/agents/<role>.md", read for its model:/effort: pins),
+  # so it is validated at the boundary exactly like every sibling field above.
+  # A role is an agent's own `name` — `security-auditor`-shaped — never a path:
+  # `--role ../CLAUDE` otherwise resolves to and reads a file outside agents/.
+  # hooks/dispatch-telemetry.sh's roster check happens to exclude these today,
+  # but the verb accepts a role from any caller, so the guard belongs here.
+  case "$role" in
+    */*|*..*|-*)
+      echo "gate-ledger: --role must be an agent name, not a path" \
+           "(no '/', no '..', no leading '-')" >&2
+      return 2 ;;
+  esac
+  if ! have jq || ! have git; then
+    echo "gate-ledger: telemetry-dispatch skipped (jq and git required)" >&2
+    return 0
+  fi
+
+  # model/effort resolve from the agent's own frontmatter when the caller didn't
+  # state them, so both write paths get the pin from ONE place instead of each
+  # re-deriving it — the hook has no reason to know how an agent file is shaped,
+  # and the driver only states a tier for the lanes it pins itself. `inherit` is
+  # recorded verbatim; it is the live signal for #136, not a value to normalize
+  # away. A role with no agent file (e.g. the driver's fix-delta pass) simply
+  # leaves both empty unless flags supplied them.
+  local agent_file="${CLAUDE_PLUGIN_ROOT:-}/agents/${role}.md"
+  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$agent_file" ]; then
+    [ -n "$model" ]  || model=$(sed -n 's/^model:[[:space:]]*//p' "$agent_file" | head -n 1)
+    [ -n "$effort" ] || effort=$(sed -n 's/^effort:[[:space:]]*//p' "$agent_file" | head -n 1)
+  fi
+  [ -n "$task_id" ] || task_id=$(branch_name)
+
+  # --feature k=v pairs into one object, values coerced to number/boolean when
+  # they parse as one so a downstream comparison doesn't have to cast strings.
+  local feature_json="{}" pair key val
+  if [ ${#features[@]} -gt 0 ]; then
+    for pair in "${features[@]}"; do
+      key="${pair%%=*}"; val="${pair#*=}"
+      [ -n "$key" ] && [ "$key" != "$pair" ] || continue
+      feature_json=$(printf '%s' "$feature_json" | jq -c --arg k "$key" --arg v "$val" \
+        '.[$k] = (if ($v | test("^-?[0-9]+(\\.[0-9]+)?$")) then ($v | tonumber)
+                  elif $v == "true" then true elif $v == "false" then false
+                  else $v end)') || feature_json="{}"
+    done
+  fi
+
+  ensure_gitignore
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  append_telemetry "$capturer" "dispatch" \
+    '{run_id: $run_id, step_id: $step_id, parent_step_id: $parent_step_id, task_id: $task_id,
+      skill: $skill, role: $role, model: $model, effort: $effort,
+      routing_reason: $routing_reason, features: $features}' \
+    --arg run_id "$run_id" --arg step_id "$step_id" --arg parent_step_id "$parent_step_id" \
+    --arg task_id "$task_id" --arg skill "$skill" --arg role "$role" \
+    --arg model "$model" --arg effort "$effort" --arg routing_reason "$routing_reason" \
+    --argjson features "$feature_json"
+
+  # Remember this run for the branch, so cmd_record's outcome line can join to it
+  # without any prompt having to carry a run id (reference/telemetry-format.md,
+  # "How a verdict finds its run"). Best-effort like every write in this verb.
+  printf '%s\n' "$run_id" > "$(telemetry_run_file)" 2>/dev/null || true
+  return 0
 }
 
 cmd_evidence_list() { # optional --branch B: print that branch's evidence .jsonl verbatim; optional --dedupe: collapse to one record per distinct command (most recent wins), nothing if absent
@@ -1821,16 +2865,22 @@ case "${1:-}" in
   episode-get)     shift; cmd_episode_get "$@" ;;
   work-set)        shift; cmd_work_set "$@" ;;
   work-log)        shift; cmd_work_log "$@" ;;
+  work-assign)     shift; cmd_work_assign "$@" ;;
   work-get)        shift; cmd_work_get "$@" ;;
   work-list)       shift; cmd_work_list "$@" ;;
   epic-set)        shift; cmd_epic_set "$@" ;;
   epic-get)        shift; cmd_epic_get "$@" ;;
   epic-story-set)  shift; cmd_epic_story_set "$@" ;;
+  epic-run-log)    shift; cmd_epic_run_log "$@" ;;
+  epic-finding)    shift; cmd_epic_finding "$@" ;;
+  epic-attest)     shift; cmd_epic_attest "$@" ;;
+  epic-findings)   shift; cmd_epic_findings "$@" ;;
   epic-reconcile)  shift; cmd_epic_reconcile "$@" ;;
   epic-list)       shift; cmd_epic_list "$@" ;;
   worktree-path)   shift; cmd_worktree_path "$@" ;;
   evidence-append) shift; cmd_evidence_append "$@" ;;
   evidence-list)   shift; cmd_evidence_list "$@" ;;
+  telemetry-dispatch) shift; cmd_telemetry_dispatch "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-assign --slug S --phase PH --brief B [--artifacts A1,A2] [--branch BR] [--worktree W] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] [--appetite-tokens N] [--appetite-episodes N] [--canary on|off] [--acceptance-altitude per-story|delivery-boundary] | epic-run-log --slug E --landed N | epic-finding --epic E --story S --lane L --severity Critical|Important|Track --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--waiver R] [--sha X] | epic-attest --epic E --story S --lane L [--sha X] | epic-findings --epic E [--unresolved | --attestations] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] | epic-get --slug S | epic-reconcile --slug S [--override-stop-loss] | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | telemetry-dispatch --run-id R --step-id S --role RL --routing-reason static|override|classifier:vN|ab:ARM [--parent-step-id P] [--task-id T] [--skill K] [--model M] [--effort E] [--capturer hook|driver] [--feature k=v ...] | gc [--force]}" >&2; exit 2 ;;
 esac

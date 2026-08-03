@@ -44,12 +44,14 @@ If `gate-ledger` is not found, `gate-get` errors, or it returns empty output (no
 **Both hold → re-enter:** run `gate-ledger episode-round --gate acceptance` and branch on its exit code — the round cap is enforced there, in code, never re-counted here:
 
 - **Exit 0** — this is round 2, the episode's one re-review. Run every Part below in full — fresh eyes, full current changeset; re-entry changes the episode's round, never this gate's scope. (A deliberate deferral, stated so it reads as a decision rather than an omission: the delivery episode records no findings ledger yet — round 2 re-reviews without inherited findings, and the convergence rules the work episode enforces in `bin/gate-ledger` do not yet apply here. The delivery side adopts the ledger with #292's disposition memory.)
-- **Exit 1** — the 2-round cap: this episode already spent its re-review without converging. Stop before dispatching anyone. Put the choice to the user: reopen a fresh episode (`gate-ledger episode-open --gate acceptance`, a full round 1) or treat the still-standing findings as the rework decision they have become. Never reopen silently — the cap is the episode's stop-and-rethink point, and stepping past it is a deliberate human act.
+- **Exit 1** — the 2-round cap: this episode already spent its re-review without converging. Stop before dispatching anyone. Put the choice to the user: record the terminal verdict the re-review earned (`gate-ledger episode-verdict --gate acceptance --verdict <V>` — at the cap the ledger accepts a terminal verdict over the still-riding retry outcome, closing the episode), reopen a fresh episode (`gate-ledger episode-open --gate acceptance`, a full round 1), or treat the still-standing findings as the rework decision they have become. Never reopen silently — the cap is the episode's stop-and-rethink point, and stepping past it is a deliberate human act.
 - **Exit 2** — no open episode behind the recorded verdict (a ledger written before episodes existed): treat it as a fresh entry below.
 
 **Otherwise → fresh entry:** run `gate-ledger episode-open --gate acceptance` — round 1 of a new delivery episode.
 
 If `gate-ledger` is not found at all, tell the user the episode could not be opened — run the review anyway and report, but say up front that the verdict will not be recorded; do not skip silently.
+
+Dispatch telemetry for every agent you spawn — run, step, role, and the model and effort that agent's file pins — is appended by `hooks/dispatch-telemetry.sh` on the `Task` tool, with no step for you to run and nothing to pass. Schema: `reference/telemetry-format.md`. Nothing here reads it.
 
 ## Part 1 — Product review
 
@@ -102,6 +104,16 @@ have. Run (substituting the verdict token you just assigned — `SHIP`,
 ```bash
 gate-ledger episode-verdict --gate acceptance --verdict "SHIP"
 ```
+
+**Every Critical must be resolved before a closing verdict is recordable.** The ledger
+refuses `SHIP` and `HOLD` while any Critical is still `open` on this episode — each one
+has to be re-recorded `--status closed` or set aside with `--waiver <reason>` on the
+user's own word (`gate-ledger episode-finding`). Only `FIX AND RE-REVIEW` records over
+open Criticals; it is the round outcome that means "these are open, go fix them." An
+open Important does not block a verdict. This gate records no findings of its own until
+it adopts the findings ledger (#292), so today the refusal can only fire on a Critical
+another writer left open — resolve it and re-run the call rather than reaching for
+`record --gate acceptance` to get around it.
 
 The ledger is local and gitignored — it never enters the repo. If `gate-ledger` is not
 found (the plugin's `bin/` isn't on `PATH` in this environment), tell the user the

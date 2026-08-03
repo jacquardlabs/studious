@@ -1503,6 +1503,30 @@ check "gc keeps a ready epic whose branch is still live" "yes" \
 check "gc keeps a running epic" "yes" \
   "$([ -f "$d39/.studious/epics/running-epic.json" ] && echo yes || echo no)"
 
+# --- gc collects telemetry for deleted branches, keeps the live branch's ---
+# Telemetry files are keyed by branch SLUG with no .branch field inside, so gc
+# tests the slug against the slugs of the branches that still exist.
+dtg=$(sandbox)
+( cd "$dtg" && "$LEDGER" telemetry-dispatch --run-id run-a --step-id s1 \
+    --role security-auditor --routing-reason static ) >/dev/null
+( cd "$dtg" && git checkout -q -b ghost/tel )
+( cd "$dtg" && "$LEDGER" telemetry-dispatch --run-id run-b --step-id s1 \
+    --role security-auditor --routing-reason static ) >/dev/null
+check "telemetry exists for both branches before gc" "yes/yes" \
+  "$([ -f "$dtg/.studious/telemetry/feat-foo.jsonl" ] && echo -n yes || echo -n no; echo -n /; [ -f "$dtg/.studious/telemetry/ghost-tel.jsonl" ] && echo yes || echo no)"
+( cd "$dtg" && git checkout -q feat/foo && git branch -q -D ghost/tel )
+outtg=$( cd "$dtg" && "$LEDGER" gc 2>&1 )
+check "gc collects the deleted branch's telemetry lines" "no" \
+  "$([ -f "$dtg/.studious/telemetry/ghost-tel.jsonl" ] && echo yes || echo no)"
+check "gc collects the deleted branch's run sidecar too" "no" \
+  "$([ -f "$dtg/.studious/telemetry/ghost-tel.run" ] && echo yes || echo no)"
+check "gc keeps the live (current) branch's telemetry" "yes" \
+  "$([ -f "$dtg/.studious/telemetry/feat-foo.jsonl" ] && echo yes || echo no)"
+check "gc keeps the live branch's run sidecar" "yes" \
+  "$([ -f "$dtg/.studious/telemetry/feat-foo.run" ] && echo yes || echo no)"
+check "gc names the telemetry it collected" "yes" \
+  "$(case "$outtg" in (*"removed stale telemetry: ghost-tel.jsonl"*) echo yes ;; (*) echo no ;; esac)"
+
 # --- episode-open records sha and opens round 1; no legacy record yet (#289) ---
 dep1=$(sandbox)
 fep1="$dep1/.studious/gates/feat-foo.json"
@@ -1559,6 +1583,27 @@ contains "episode-open without --gate exits 2" "rc=2" "$err"
 err=$(cd "$dep3" && "$LEDGER" episode-verdict --gate audit 2>&1 1>/dev/null; echo "rc=$?")
 contains "episode-verdict requires --gate and --verdict" "--gate and --verdict required" "$err"
 contains "episode-verdict without --verdict exits 2" "rc=2" "$err"
+
+# --- a corrupt gates file is named by episode-open, not leaked as a raw jq error ---
+#
+# This is the path a corrupt ledger actually takes: the read verbs swallow the parse
+# failure and report "no open episode" (exit 2), which the door reads as a pre-episode
+# ledger and routes to episode-open. So episode-open is where the diagnostic has to land.
+dcor=$(sandbox)
+mkdir -p "$dcor/.studious/gates"
+echo "not json" > "$dcor/.studious/gates/feat-foo.json"
+err=$(cd "$dcor" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "a corrupt gates file still reads as 'no open episode' to episode-round" "run episode-open first" "$err"
+contains "which is the exit 2 the door routes onward to episode-open" "rc=2" "$err"
+err=$(cd "$dcor" && "$LEDGER" episode-open --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "episode-open names the unparseable gates file by path" \
+  ".studious/gates/feat-foo.json is not valid JSON" "$err"
+contains "episode-open tells the operator to repair or remove it" "repair or remove it before continuing" "$err"
+contains "episode-open refuses a corrupt gates file with exit 1, not jq's exit 5" "rc=1" "$err"
+check "no raw jq parse error reaches the operator" "no" \
+  "$(case "$err" in (*"jq: parse error"*) echo yes ;; (*) echo no ;; esac)"
+check "the corrupt file is left exactly as found (never repaired or deleted)" "not json" \
+  "$(cat "$dcor/.studious/gates/feat-foo.json")"
 
 # --- a fresh episode-open replaces the finished episode: the round cap bounds
 # one episode, never the branch's lifetime ---
@@ -1687,6 +1732,43 @@ err=$(cd "$def1" && "$LEDGER" episode-finding --gate audit --fingerprint fresh-c
 contains "re-recording a finding at a different severity is refused" "fixed at first record" "$err"
 contains "a severity change exits non-zero" "rc=2" "$err"
 
+# --- the widening rule holds on the UPDATE path too: a round-2 finding cannot reach
+# `open` in two calls when one call is refused. Own sandbox, so def1's counts below
+# stay the ones its own sequence produced. ---
+dwid=$(sandbox)
+fwid="$dwid/.studious/gates/feat-foo.json"
+( cd "$dwid" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dwid" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Important --fingerprint r1-known --status open ) >/dev/null
+( cd "$dwid" && "$LEDGER" episode-round --gate audit ) >/dev/null
+
+# a round-2 finding parked as `carried` first (which the rule does not refuse)...
+( cd "$dwid" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Important --fingerprint r2-sneak --status carried ); rc=$?
+check "a new round-2 Important records as carried (not blocking, not refused)" "0" "$rc"
+# ...cannot then be flipped `open`: that is the same widening the first-record path refuses
+err=$(cd "$dwid" && "$LEDGER" episode-finding --gate audit --fingerprint r2-sneak \
+    --status open 2>&1 1>/dev/null; echo "rc=$?")
+contains "re-recording a round-2 finding as open is refused as widening" "--regression-of" "$err"
+contains "the update-path widening refusal exits non-zero" "rc=1" "$err"
+check "the refused update leaves the finding carried" "carried" \
+  "$(jq -r '.episodes.audit.findings["r2-sneak"].status' "$fwid")"
+
+# a round-1 finding restated as still-standing on round 2 is NOT widening — it is the
+# whole point of round 2, and the rule keys on the first-record round to let it through
+( cd "$dwid" && "$LEDGER" episode-finding --gate audit --fingerprint r1-known --status carried ) >/dev/null
+( cd "$dwid" && "$LEDGER" episode-finding --gate audit --fingerprint r1-known --status open ); rc=$?
+check "a round-1 finding may be re-opened on round 2" "0" "$rc"
+check "the re-opened round-1 finding keeps its original round" "1" \
+  "$(jq -r '.episodes.audit.findings["r1-known"].round' "$fwid")"
+
+# a round-2 finding admitted as a classified regression stays updatable to open
+( cd "$dwid" && "$LEDGER" episode-finding --gate audit --lane code-auditor --severity Important \
+    --fingerprint r2-regression --status open --regression-of r1-known ) >/dev/null
+( cd "$dwid" && "$LEDGER" episode-finding --gate audit --fingerprint r2-regression --status closed ) >/dev/null
+( cd "$dwid" && "$LEDGER" episode-finding --gate audit --fingerprint r2-regression --status open ); rc=$?
+check "a classified round-2 regression may be re-opened" "0" "$rc"
+
 # --- episode-get: one parseable line prose surfaces can quote verbatim ---
 out=$(cd "$def1" && "$LEDGER" episode-get --gate audit)
 check "episode-get reports round and open/carried counts in one line" \
@@ -1713,7 +1795,7 @@ err=$(cd "$defg" && "$LEDGER" episode-finding --gate audit --lane x --severity S
 contains "episode-finding rejects a severity outside the rubric" "Critical, Important, or Track" "$err"
 err=$(cd "$defg" && "$LEDGER" episode-finding --gate audit --lane x --severity Critical \
     --fingerprint f --status fixed 2>&1 1>/dev/null; echo "rc=$?")
-contains "episode-finding rejects a status outside the vocabulary" "open, closed, carried, or waived" "$err"
+contains "episode-finding rejects a status outside the vocabulary" "open, closed, carried, waived, or rejected-as-noise" "$err"
 err=$(cd "$defg" && "$LEDGER" episode-finding --gate audit --fingerprint f2 --status open 2>&1 1>/dev/null; echo "rc=$?")
 contains "a first record requires --lane and --severity" "--lane and --severity required" "$err"
 err=$(cd "$defg" && "$LEDGER" episode-finding --gate audit --lane x --severity Track \
@@ -1739,6 +1821,40 @@ err=$(cd "$dcl" && "$LEDGER" episode-finding --gate audit --lane security-audito
     --severity Track --fingerprint "two words" --status open 2>&1 1>/dev/null; echo "rc=$?")
 contains "a fingerprint with whitespace is refused" "single token" "$err"
 contains "the fingerprint refusal is a usage error" "rc=2" "$err"
+
+# --lane carries the same guard: it is a field of a tab-separated detail line that
+# /gate-audit injects verbatim into the next round's lane dispatch prompts
+err=$(cd "$dcl" && "$LEDGER" episode-finding --gate audit --lane "$(printf 'x\tforged\tline')" \
+    --severity Track --fingerprint lane-tabs --status open 2>&1 1>/dev/null; echo "rc=$?")
+contains "a lane with tabs is refused" "--lane must be a single token" "$err"
+contains "the lane refusal is a usage error" "rc=2" "$err"
+check "the refused lane records nothing" "null" "$(jq -r '.episodes.audit.findings["lane-tabs"] // "null"' "$fcl")"
+
+# --waiver is prose, so spaces must survive — only control characters are refused,
+# because those are what forge an extra episode-get --history line
+err=$(cd "$dcl" && "$LEDGER" episode-finding --gate audit --lane security-auditor --severity Critical \
+    --fingerprint waiver-nl --status carried \
+    --waiver "$(printf 'ok\nwaiver\tforged\tline\tinjected')" 2>&1 1>/dev/null; echo "rc=$?")
+contains "a waiver with a newline is refused" "--waiver must not contain control characters" "$err"
+contains "the waiver refusal is a usage error" "rc=2" "$err"
+check "the refused waiver records nothing" "null" "$(jq -r '.episodes.audit.findings["waiver-nl"] // "null"' "$fcl")"
+( cd "$dcl" && "$LEDGER" episode-finding --gate audit --lane security-auditor --severity Critical \
+    --fingerprint waiver-prose --status carried --waiver "accepted risk, tracked in #300" ); rc=$?
+check "a multi-word waiver reason is still accepted (spaces are not the attack)" "0" "$rc"
+# the discriminating assertion is on the rendered SHAPE, not on the refusal: one waiver
+# recorded must render as exactly one waiver line, and a detail line must carry exactly
+# its four fields. A control character reaching either render breaks these counts, which
+# is the failure mode the guards above exist to prevent.
+histinj=$(cd "$dcl" && "$LEDGER" episode-get --gate audit --history)
+findinj=$(cd "$dcl" && "$LEDGER" episode-get --gate audit --findings)
+check "--history renders exactly one waiver line for the one waiver recorded" "1" \
+  "$(printf '%s\n' "$histinj" | grep -c '^waiver' || true)"
+check "no refused waiver forged a history line" "0" \
+  "$(printf '%s\n' "$histinj" | grep -c 'forged' || true)"
+check "--findings detail lines carry exactly four tab-separated fields" "4" \
+  "$(printf '%s\n' "$findinj" | sed -n 2p | awk -F'\t' '{print NF}')"
+check "--findings emits exactly the summary plus one detail line" "2" \
+  "$(printf '%s\n' "$findinj" | wc -l | tr -d ' ')"
 
 # Rule 2 guards waived exactly as it guards carried — no sibling-status bypass
 ( cd "$dcl" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
@@ -1816,6 +1932,50 @@ err=$(cd "$drt" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "
 contains "a terminally closed episode still refuses re-entry" "closed" "$err"
 contains "the terminal refusal stays the fresh-entry signal" "rc=2" "$err"
 
+# --- rule 2 at the verdict: an episode does not close over an open Critical ---
+dvg=$(sandbox)
+fvg="$dvg/.studious/gates/feat-foo.json"
+( cd "$dvg" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dvg" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Critical --fingerprint security-auditor/rce --status open ) >/dev/null
+err=$(cd "$dvg" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" 2>&1 1>/dev/null; echo "rc=$?")
+contains "a closing verdict over an open Critical is refused" "1 Critical finding(s) are still 'open'" "$err"
+contains "the refusal names both exits (close it, or waive it)" "--waiver <reason>" "$err"
+contains "the verdict refusal exits non-zero" "rc=1" "$err"
+check "no verdict lands on the refused episode" "null" "$(jq -r '.episodes.audit.verdict // "null"' "$fvg")"
+check "no legacy record is dual-written by a refused verdict" "null" \
+  "$(jq -r '.gates.audit.verdict // "null"' "$fvg")"
+
+# the stop/rethink token is refused too — closing IS the accountable act, whatever it is called
+err=$(cd "$dvg" && "$LEDGER" episode-verdict --gate audit --verdict "NEEDS DISCUSSION" 2>&1 1>/dev/null; echo "rc=$?")
+contains "a stop/rethink verdict over an open Critical is refused the same way" "still 'open'" "$err"
+
+# the retry verdict is exempt: it is the round outcome that MEANS these are open
+( cd "$dvg" && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" ); rc=$?
+check "the retry verdict records over an open Critical" "0" "$rc"
+
+# waive it on the operator's word and the episode closes
+( cd "$dvg" && "$LEDGER" episode-round --gate audit ) >/dev/null
+( cd "$dvg" && "$LEDGER" episode-finding --gate audit --fingerprint security-auditor/rce \
+    --status carried --waiver "exploit needs cluster-admin; tracked in #999" ) >/dev/null
+( cd "$dvg" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" ); rc=$?
+check "a waived Critical lets the episode close" "0" "$rc"
+check "the closing verdict is recorded" "PASS" "$(jq -r '.episodes.audit.verdict' "$fvg")"
+
+# an open Important never blocks a verdict — gate-vocabulary.md is explicit that it may
+# ride out a terminal PASS still open
+dvg2=$(sandbox)
+fvg2="$dvg2/.studious/gates/feat-foo.json"
+( cd "$dvg2" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dvg2" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Important --fingerprint code-auditor/dup --status open ) >/dev/null
+( cd "$dvg2" && "$LEDGER" episode-finding --gate audit --lane doc-auditor \
+    --severity Track --fingerprint doc-auditor/typo --status open ) >/dev/null
+( cd "$dvg2" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" ); rc=$?
+check "an open Important does not block a terminal PASS" "0" "$rc"
+check "that PASS is recorded with the Important still open" "PASS/open" \
+  "$(jq -r '.episodes.audit.verdict + "/" + .episodes.audit.findings["code-auditor/dup"].status' "$fvg2")"
+
 # the cap still binds at the end of round 2's retry outcome
 dcap=$(sandbox)
 ( cd "$dcap" && "$LEDGER" episode-open --gate audit && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" \
@@ -1827,6 +1987,708 @@ contains "the cap refusal exits 1 past a retry outcome" "rc=1" "$err"
 # episode-get names the bound: "round R of C"
 out=$(cd "$dcap" && "$LEDGER" episode-get --gate audit)
 check "episode-get names the bound in its readout" "round 2 of 2 — 0 open, 0 carried" "$out"
+
+# --- convergence (#291), the natural path: episode-open, findings, then two plain
+# episode-round calls. The first banks blockingByRound["1"] on its way past, so the
+# second reads a real predecessor and the check fires at the round-2 boundary with no
+# hand-seeding at all. This arm is reachable under the current cap, which is why the
+# guard is not dead code; the synthetic-seed cases below cover the arms this one can't.
+dnat=$(sandbox)
+fnat="$dnat/.studious/gates/feat-foo.json"
+( cd "$dnat" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dnat" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Critical --fingerprint security-auditor/sqli --status open ) >/dev/null
+( cd "$dnat" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Important --fingerprint code-auditor/dup --status open ) >/dev/null
+( cd "$dnat" && "$LEDGER" episode-round --gate audit ); rc=$?
+check "natural path: the first episode-round advances (no predecessor to compare)" "0" "$rc"
+# nothing was fixed between the rounds, so the blocking set is unchanged at 2 against 2
+err=$(cd "$dnat" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "natural path: the second episode-round is refused as non-convergence" "not converging" "$err"
+contains "natural path: that refusal is exit 3, reached without any hand-seeded state" "rc=3" "$err"
+check "natural path: the refused round does not advance past 2" "2" \
+  "$(jq -r '.episodes.audit.round' "$fnat")"
+check "natural path: the episode is marked escalated at round 2" "2" \
+  "$(jq -r '.episodes.audit.escalated.round' "$fnat")"
+check "natural path: the escalation records both counts" "2/2" \
+  "$(jq -r '.episodes.audit.escalated | (.blocking|tostring) + "/" + (.priorBlocking|tostring)' "$fnat")"
+
+# the same natural sequence converges when round 2 actually closed something: one
+# finding closed drops the set to 1 against 2, so the convergence check passes it
+# through and the cap is what stops it — exit 1, no escalation
+dnatc=$(sandbox)
+fnatc="$dnatc/.studious/gates/feat-foo.json"
+( cd "$dnatc" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dnatc" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Critical --fingerprint security-auditor/sqli --status open ) >/dev/null
+( cd "$dnatc" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Important --fingerprint code-auditor/dup --status open ) >/dev/null
+( cd "$dnatc" && "$LEDGER" episode-round --gate audit ) >/dev/null
+( cd "$dnatc" && "$LEDGER" episode-finding --gate audit --fingerprint code-auditor/dup \
+    --status closed ) >/dev/null
+err=$(cd "$dnatc" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "natural path: a converging round reaches the cap instead" "2-round cap" "$err"
+contains "natural path: the cap's refusal is exit 1" "rc=1" "$err"
+check "natural path: a converging round records no escalation" "null" \
+  "$(jq -r '.episodes.audit.escalated // "null"' "$fnatc")"
+
+# --- convergence (#291): a round that does not strictly reduce the blocking set is
+# refused and the episode is marked escalated, ahead of the cap ---
+#
+# The synthetic seeds below drive the comparison at rounds the cap does not permit an
+# episode to reach on its own (round 3), covering the arms the natural sequence above
+# cannot — the guard's behavior once the cap moves.
+dcv=$(sandbox)
+fcv="$dcv/.studious/gates/feat-foo.json"
+( cd "$dcv" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dcv" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Critical --fingerprint security-auditor/sqli --status open ) >/dev/null
+( cd "$dcv" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Important --fingerprint code-auditor/dup --status open ) >/dev/null
+( cd "$dcv" && "$LEDGER" episode-finding --gate audit --lane doc-auditor \
+    --severity Track --fingerprint doc-auditor/typo --status open ) >/dev/null
+
+# first round: no predecessor to compare against, so the check cannot refuse
+( cd "$dcv" && "$LEDGER" episode-round --gate audit ); rc=$?
+check "the first episode-round has no prior round and is not refused" "0" "$rc"
+check "the round it left banks its blocking count (Track never blocks)" "2" \
+  "$(jq -r '.episodes.audit.blockingByRound["1"]' "$fcv")"
+check "an allowed round records no escalation" "null" "$(jq -r '.episodes.audit.escalated // "null"' "$fcv")"
+
+# non-decrease: the blocking set held at 2 against a prior round of 2 — refused, escalated
+jq '.episodes.audit.blockingByRound = {"1": 2, "2": 2} | .episodes.audit.round = 3' "$fcv" > "$fcv.t" && mv "$fcv.t" "$fcv"
+err=$(cd "$dcv" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "a non-decreasing round is refused as non-convergence" "not converging" "$err"
+contains "the convergence refusal exits 3, distinct from the cap's 1" "rc=3" "$err"
+check "the refused round does not advance" "3" "$(jq -r '.episodes.audit.round' "$fcv")"
+check "the refusal marks the episode escalated at that round" "3" "$(jq -r '.episodes.audit.escalated.round' "$fcv")"
+check "the escalation records both counts" "2/2" \
+  "$(jq -r '.episodes.audit.escalated | (.blocking|tostring) + "/" + (.priorBlocking|tostring)' "$fcv")"
+
+# decrease: the identical state against a prior round of 3 is converging, so the
+# convergence check passes it through — and what stops it is the cap, on its own exit
+# code, with no escalation recorded. Same findings, different predecessor, different refusal.
+jq '.episodes.audit.blockingByRound = {"1": 2, "2": 3} | del(.episodes.audit.escalated)' "$fcv" > "$fcv.t" && mv "$fcv.t" "$fcv"
+err=$(cd "$dcv" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "a strictly decreasing round passes the convergence check to the cap" "2-round cap" "$err"
+contains "a converging round is refused as the cap's exit 1, never as escalation" "rc=1" "$err"
+check "a converging round records no escalation" "null" "$(jq -r '.episodes.audit.escalated // "null"' "$fcv")"
+
+# a prior round of 0 is not a convergence signal — nothing strictly decreases from none,
+# and the 2-round cap stays the bound there (the pre-existing no-findings path)
+dcv0=$(sandbox)
+( cd "$dcv0" && "$LEDGER" episode-open --gate audit && "$LEDGER" episode-round --gate audit ) >/dev/null
+err=$(cd "$dcv0" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "a zero prior count leaves the cap as the bound, not escalation" "2-round cap" "$err"
+contains "that refusal is still the cap's exit 1" "rc=1" "$err"
+
+# --- a failed escalation write is reported as a failed write, never as an escalation ---
+#
+# The store is made read-only (dir r-x: the file still reads, json_update's mktemp cannot
+# write) so the convergence branch is reached with real counts and only its write fails.
+# Skipped when the test runs as a user that ignores the mode bits (root).
+dwf=$(sandbox)
+fwf="$dwf/.studious/gates/feat-foo.json"
+( cd "$dwf" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dwf" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Critical --fingerprint security-auditor/sqli --status open ) >/dev/null
+( cd "$dwf" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Important --fingerprint code-auditor/dup --status open ) >/dev/null
+jq '.episodes.audit.blockingByRound = {"1": 2, "2": 2} | .episodes.audit.round = 3' "$fwf" > "$fwf.t" && mv "$fwf.t" "$fwf"
+chmod 555 "$dwf/.studious/gates"
+if : > "$dwf/.studious/gates/.probe" 2>/dev/null; then
+  rm -f "$dwf/.studious/gates/.probe"; chmod 755 "$dwf/.studious/gates"
+  echo "ok   - (skipped: this user writes through a read-only directory)"
+else
+  err=$(cd "$dwf" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+  chmod 755 "$dwf/.studious/gates"
+  contains "a failed escalation write says the record could NOT be written" "could NOT be written" "$err"
+  contains "and states plainly that no episode is marked escalated" "no episode is marked escalated" "$err"
+  check "it never claims the episode is now marked escalated" "no" \
+    "$(case "$err" in (*"is now marked"*) echo yes ;; (*) echo no ;; esac)"
+  contains "a failed escalation write exits 1, not the escalation's 3" "rc=1" "$err"
+  check "and nothing was in fact written" "null" "$(jq -r '.episodes.audit.escalated // "null"' "$fwf")"
+fi
+
+# --- disposition memory (#292): rejected-as-noise is a recordable disposition ---
+drn=$(sandbox)
+frn="$drn/.studious/gates/feat-foo.json"
+( cd "$drn" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$drn" && "$LEDGER" episode-finding --gate audit --lane doc-auditor --severity Track \
+    --fingerprint doc-auditor/nit --status rejected-as-noise --waiver "style preference, not a defect" ); rc=$?
+check "a finding records as rejected-as-noise with exit 0" "0" "$rc"
+check "the disposition lands on the record" "rejected-as-noise" \
+  "$(jq -r '.episodes.audit.findings["doc-auditor/nit"].status' "$frn")"
+check "the rejection reason lands with it" "style preference, not a defect" \
+  "$(jq -r '.episodes.audit.findings["doc-auditor/nit"].waiver' "$frn")"
+
+# a Critical dismissed as noise is the same accountable act as carrying one
+( cd "$drn" && "$LEDGER" episode-finding --gate audit --lane security-auditor --severity Critical \
+    --fingerprint security-auditor/xss --status open ) >/dev/null
+err=$(cd "$drn" && "$LEDGER" episode-finding --gate audit --fingerprint security-auditor/xss \
+    --status rejected-as-noise 2>&1 1>/dev/null; echo "rc=$?")
+contains "dismissing a Critical as noise without --waiver is refused" "--waiver" "$err"
+contains "the noise-dismissal refusal exits non-zero" "rc=1" "$err"
+check "the refused Critical stays open" "open" "$(jq -r '.episodes.audit.findings["security-auditor/xss"].status' "$frn")"
+( cd "$drn" && "$LEDGER" episode-finding --gate audit --fingerprint security-auditor/xss \
+    --status rejected-as-noise --waiver "reflected in a dev-only fixture page" ); rc=$?
+check "a Critical dismissed as noise with --waiver records" "0" "$rc"
+
+# a rejected finding is disposed of, so it is neither open nor carried in the counts
+check "rejected-as-noise counts as neither open nor carried" "round 1 of 2 — 0 open, 0 carried" \
+  "$(cd "$drn" && "$LEDGER" episode-get --gate audit)"
+
+# --- compaction (#298): disposed findings inherit as one-line digests ---
+( cd "$drn" && "$LEDGER" episode-finding --gate audit --lane code-auditor --severity Important \
+    --fingerprint code-auditor/leak --status open ) >/dev/null
+( cd "$drn" && "$LEDGER" episode-finding --gate audit --lane test-auditor --severity Important \
+    --fingerprint test-auditor/gap --status closed ) >/dev/null
+out=$(cd "$drn" && "$LEDGER" episode-get --gate audit --findings)
+check "--findings keeps full detail for the open finding" \
+  "$(printf 'open\tImportant\tcode-auditor\tcode-auditor/leak')" \
+  "$(printf '%s\n' "$out" | sed -n 2p)"
+check "--findings digests the rejected finding to one line, lane and all" \
+  "$(printf 'digest\tdoc-auditor\tdoc-auditor/nit\trejected-as-noise\t1')" \
+  "$(printf '%s\n' "$out" | sed -n 3p)"
+check "--findings digests the noise-dismissed Critical too" \
+  "$(printf 'digest\tsecurity-auditor\tsecurity-auditor/xss\trejected-as-noise\t1')" \
+  "$(printf '%s\n' "$out" | sed -n 4p)"
+check "--findings digests the closed finding rather than dropping it" \
+  "$(printf 'digest\ttest-auditor\ttest-auditor/gap\tclosed\t1')" \
+  "$(printf '%s\n' "$out" | sed -n 5p)"
+check "--findings emits exactly one line per finding plus the summary" "5" \
+  "$(printf '%s\n' "$out" | wc -l | tr -d ' ')"
+
+# --- accountability (#300): episode-get --history reads back what the ledger archived ---
+dhi=$(sandbox)
+( cd "$dhi" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dhi" && "$LEDGER" episode-finding --gate audit --lane security-auditor --severity Critical \
+    --fingerprint security-auditor/ssrf --status carried --waiver "metadata IP blocked at the egress proxy" ) >/dev/null
+( cd "$dhi" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" ) >/dev/null
+( cd "$dhi" && "$LEDGER" episode-open --gate audit ) >/dev/null
+hist=$(cd "$dhi" && "$LEDGER" episode-get --gate audit --history)
+contains "--history renders the archived episode and its verdict" "episode 1 — opened" "$hist"
+contains "--history names the archived verdict" "verdict PASS" "$hist"
+contains "--history shows the waiver reason back to the operator" \
+  "$(printf 'waiver\tsecurity-auditor/ssrf\tcarried\tmetadata IP blocked at the egress proxy')" "$hist"
+contains "--history marks the live episode as current" "episode 2 (current)" "$hist"
+contains "--history reports an unfinished episode as such" "no verdict yet" "$hist"
+check "--history prints nothing for a gate with no episode" "" "$(cd "$dhi" && "$LEDGER" episode-get --gate acceptance --history)"
+err=$(cd "$dhi" && "$LEDGER" episode-get --gate audit --history --findings 2>&1 1>/dev/null; echo "rc=$?")
+contains "--history and --findings are separate reads" "pass one" "$err"
+contains "asking for both exits 2" "rc=2" "$err"
+
+# an escalated episode reads its escalation back in the same quotable style
+( cd "$dhi" && "$LEDGER" episode-finding --gate audit --lane code-auditor --severity Important \
+    --fingerprint code-auditor/dead --status open ) >/dev/null
+fhi="$dhi/.studious/gates/feat-foo.json"
+jq '.episodes.audit.round = 2 | .episodes.audit.blockingByRound = {"1": 1}' "$fhi" > "$fhi.t" && mv "$fhi.t" "$fhi"
+( cd "$dhi" && "$LEDGER" episode-round --gate audit ) 2>/dev/null
+contains "--history renders an escalation line" \
+  "$(printf 'escalated\tround 2\t1 blocking, prior round 1')" \
+  "$(cd "$dhi" && "$LEDGER" episode-get --gate audit --history)"
+
+# --- the escalated-state wedge has a real exit: while the retry outcome rides,
+# a set-aside disposition of a recorded finding lands, and at the cap a terminal
+# verdict closes the episode. Before this, the escalation's own prescription
+# ("waive what will not be fixed") was refused by episode-finding, which pointed
+# at episode-round, which re-refused at exit 3, which pointed back — three
+# refusals with no exit but episode-open, which archives the findings a waiver
+# must land on. ---
+dwedge=$(sandbox)
+fwedge="$dwedge/.studious/gates/feat-foo.json"
+( cd "$dwedge" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dwedge" && "$LEDGER" episode-finding --gate audit --lane security-auditor \
+    --severity Critical --fingerprint security-auditor/hole --status open ) >/dev/null
+( cd "$dwedge" && "$LEDGER" episode-finding --gate audit --lane code-auditor \
+    --severity Important --fingerprint code-auditor/mess --status open ) >/dev/null
+( cd "$dwedge" && "$LEDGER" episode-finding --gate audit --lane test-auditor \
+    --severity Important --fingerprint test-auditor/gap --status open ) >/dev/null
+( cd "$dwedge" && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" ) >/dev/null
+( cd "$dwedge" && "$LEDGER" episode-round --gate audit ) >/dev/null
+( cd "$dwedge" && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" ) >/dev/null
+err=$(cd "$dwedge" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "the wedge opens: the non-converging round is refused as escalation" "rc=3" "$err"
+
+# the door admits ONLY set-aside dispositions of findings already on the episode
+err=$(cd "$dwedge" && "$LEDGER" episode-finding --gate audit --lane doc-auditor \
+    --severity Track --fingerprint doc-auditor/new --status waived 2>&1 1>/dev/null; echo "rc=$?")
+contains "a NEW fingerprint still cannot enter while the retry outcome rides" "rc=1" "$err"
+contains "that refusal names the one door that is open" "set-aside disposition" "$err"
+err=$(cd "$dwedge" && "$LEDGER" episode-finding --gate audit \
+    --fingerprint code-auditor/mess --status closed 2>&1 1>/dev/null; echo "rc=$?")
+contains "a non-set-aside status is still round work, refused while the outcome rides" "rc=1" "$err"
+check "the refused close left the finding open" "open" \
+  "$(jq -r '.episodes.audit.findings["code-auditor/mess"].status' "$fwedge")"
+
+# the prescribed exits now work — and rule 2 still holds through the door
+err=$(cd "$dwedge" && "$LEDGER" episode-finding --gate audit \
+    --fingerprint security-auditor/hole --status waived 2>&1 1>/dev/null; echo "rc=$?")
+contains "a Critical still waives only with --waiver, even through the door" "rc=1" "$err"
+( cd "$dwedge" && "$LEDGER" episode-finding --gate audit --fingerprint security-auditor/hole \
+    --status waived --waiver "accepted: legacy surface, tracked in #999" ); rc=$?
+check "waiving the blocking Critical now succeeds in the escalated state" "0" "$rc"
+check "the waiver reason landed on the finding" "accepted: legacy surface, tracked in #999" \
+  "$(jq -r '.episodes.audit.findings["security-auditor/hole"].waiver' "$fwedge")"
+( cd "$dwedge" && "$LEDGER" episode-finding --gate audit --fingerprint code-auditor/mess \
+    --status rejected-as-noise ); rc=$?
+check "dismissing an Important as noise succeeds through the door" "0" "$rc"
+( cd "$dwedge" && "$LEDGER" episode-finding --gate audit --fingerprint test-auditor/gap \
+    --status carried ); rc=$?
+check "carrying an Important (the messages' own prescribed spelling) succeeds too" "0" "$rc"
+
+# ...and the terminal verdict is recordable at the cap, over the spent retry outcome
+( cd "$dwedge" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" ); rc=$?
+check "the terminal verdict closes the wedged episode" "0" "$rc"
+check "the episode records the terminal verdict" "PASS" "$(jq -r '.episodes.audit.verdict' "$fwedge")"
+check "the legacy record is dual-written on the way out" "PASS" "$(jq -r '.gates.audit.verdict' "$fwedge")"
+check "the escalation record survives as the episode's accountability trail" "2" \
+  "$(jq -r '.episodes.audit.escalated.round' "$fwedge")"
+
+# --- the same exit un-wedges the pre-existing cap state: a retry outcome riding
+# at the cap used to bounce between "record a verdict" (episode-round's cap
+# refusal) and "run episode-round" (episode-verdict's retry refusal) ---
+dcw=$(sandbox)
+fcw="$dcw/.studious/gates/feat-foo.json"
+( cd "$dcw" && "$LEDGER" episode-open --gate audit && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" \
+    && "$LEDGER" episode-round --gate audit && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" ) >/dev/null
+err=$(cd "$dcw" && "$LEDGER" episode-round --gate audit 2>&1 1>/dev/null; echo "rc=$?")
+contains "the cap still refuses the third round, prescribing a verdict" "record a verdict" "$err"
+err=$(cd "$dcw" && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" 2>&1 1>/dev/null; echo "rc=$?")
+contains "re-recording the retry outcome at the cap is refused as movement-free" "rc=1" "$err"
+contains "and that refusal prescribes the terminal verdict, not episode-round" "record a terminal verdict" "$err"
+( cd "$dcw" && "$LEDGER" episode-verdict --gate audit --verdict "NEEDS DISCUSSION" ); rc=$?
+check "a terminal verdict is recordable at the cap over the riding retry outcome" "0" "$rc"
+check "the cap-state verdict lands on the episode" "NEEDS DISCUSSION" "$(jq -r '.episodes.audit.verdict' "$fcw")"
+check "and dual-writes the legacy record" "NEEDS DISCUSSION" "$(jq -r '.gates.audit.verdict' "$fcw")"
+
+# below the cap the retry outcome still routes through episode-round — the
+# verdict door is cap-only
+dcw1=$(sandbox)
+( cd "$dcw1" && "$LEDGER" episode-open --gate audit && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" ) >/dev/null
+err=$(cd "$dcw1" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" 2>&1 1>/dev/null; echo "rc=$?")
+contains "below the cap a verdict over the retry outcome still points at episode-round" "run episode-round" "$err"
+contains "and still refuses" "rc=1" "$err"
+
+# --- episode-verdict names the exact repair when the legacy dual-write fails ---
+#
+# A jq shim fails exactly the legacy-record write (cmd_record's filter is the
+# only one on this path that touches `.gates[$g]`), so the episode write lands
+# and the dual-write does not — the half-written state whose re-run refuses as
+# "already closed" and whose repair the message must name.
+ddw=$(sandbox)
+fdw="$ddw/.studious/gates/feat-foo.json"
+( cd "$ddw" && "$LEDGER" episode-open --gate audit ) >/dev/null
+shimbin=$(mktemp -d)
+cat > "$shimbin/jq" <<'SHIM'
+#!/bin/bash
+for a in "$@"; do
+  case "$a" in
+    (*'.gates[$g]'*) echo "shim: refusing the legacy-record write" >&2; exit 5 ;;
+  esac
+done
+exec "$REAL_JQ" "$@"
+SHIM
+chmod +x "$shimbin/jq"
+err=$(cd "$ddw" && REAL_JQ="$(command -v jq)" PATH="$shimbin:$PATH" \
+    "$LEDGER" episode-verdict --gate audit --verdict PASS 2>&1 1>/dev/null; echo "rc=$?")
+contains "a failed dual-write names the exact repair command" \
+  "record --gate audit --verdict 'PASS'" "$err"
+contains "and says a re-run would refuse as already closed" "already closed" "$err"
+contains "the failure keeps the dual-write's non-zero exit" "rc=5" "$err"
+check "the episode write itself landed (the verdict is recorded)" "PASS" \
+  "$(jq -r '.episodes.audit.verdict' "$fdw")"
+check "no legacy record was written by the failed dual-write" "null" \
+  "$(jq -r '.gates.audit // "null"' "$fdw")"
+err=$(cd "$ddw" && "$LEDGER" episode-verdict --gate audit --verdict PASS 2>&1 1>/dev/null; echo "rc=$?")
+contains "re-running episode-verdict indeed refuses as already closed" "already closed" "$err"
+( cd "$ddw" && "$LEDGER" record --gate audit --verdict PASS ); rc=$?
+check "the named repair command heals the legacy record" "0" "$rc"
+check "after the repair the legacy verdict matches the episode's" "PASS" \
+  "$(jq -r '.gates.audit.verdict' "$fdw")"
+
+
+# --- telemetry-dispatch: the routing store's dispatch line (#132) ---
+dt=$(sandbox)
+tf="$dt/.studious/telemetry/feat-foo.jsonl"
+( cd "$dt" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch \
+    --run-id run-7 --step-id lane-1 --parent-step-id feat-foo:audit \
+    --skill gate-audit --role security-auditor --routing-reason static --capturer hook \
+    --feature round=2 --feature narrowed=true --feature note=hello ) >/dev/null
+check "telemetry-dispatch writes one line" "1" "$(wc -l < "$tf" | tr -d ' ')"
+check "dispatch kind" "dispatch" "$(jq -r '.kind' "$tf")"
+check "dispatch capturer is the caller-declared path" "hook" "$(jq -r '.capturer' "$tf")"
+check "dispatch carries run_id" "run-7" "$(jq -r '.run_id' "$tf")"
+check "dispatch carries parent_step_id" "feat-foo:audit" "$(jq -r '.parent_step_id' "$tf")"
+check "task_id defaults to the branch" "feat/foo" "$(jq -r '.task_id' "$tf")"
+check "model falls back to the agent's frontmatter" "opus" "$(jq -r '.model' "$tf")"
+check "effort falls back to the agent's frontmatter" "high" "$(jq -r '.effort' "$tf")"
+check "numeric feature coerces to a number" "number" "$(jq -r '.features.round | type' "$tf")"
+check "boolean feature coerces to a boolean" "boolean" "$(jq -r '.features.narrowed | type' "$tf")"
+check "non-scalar feature stays a string" "string" "$(jq -r '.features.note | type' "$tf")"
+check "telemetry store is gitignored" "" "$(cd "$dt" && git status --porcelain .studious 2>/dev/null)"
+
+# an explicit --model/--effort wins over the agent file (the driver pins some lanes itself)
+( cd "$dt" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id run-7 --step-id lane-2 \
+    --role security-auditor --routing-reason override --model sonnet --effort medium ) >/dev/null
+check "explicit --model overrides the frontmatter" "sonnet" "$(jq -rs '.[1].model' "$tf")"
+check "override is an accepted routing reason" "override" "$(jq -rs '.[1].routing_reason' "$tf")"
+
+# a role with no agent file records empty tiers rather than inventing them
+( cd "$dt" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id run-7 --step-id lane-3 \
+    --role fix-delta --routing-reason static ) >/dev/null
+check "unknown role leaves model empty" "" "$(jq -rs '.[2].model' "$tf")"
+
+# --- telemetry-dispatch validation ---
+check "missing --role exits 2" "2" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s --routing-reason static >/dev/null 2>&1; echo $?)"
+check "free-text routing reason exits 2" "2" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s --role x --routing-reason "because" >/dev/null 2>&1; echo $?)"
+check "classifier routing reason is accepted" "0" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s4 --role x --routing-reason classifier:v3 >/dev/null 2>&1; echo $?)"
+check "ab-arm routing reason is accepted" "0" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s5 --role x --routing-reason ab:control >/dev/null 2>&1; echo $?)"
+# the two prefixed reasons carry a real remainder grammar, not a first-character glob
+check "classifier reason with trailing garbage exits 2" "2" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s6 --role x --routing-reason classifier:v1garbage >/dev/null 2>&1; echo $?)"
+check "classifier reason with no digits after the v exits 2" "2" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s7 --role x --routing-reason classifier:v >/dev/null 2>&1; echo $?)"
+check "multi-digit classifier reason is accepted" "0" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s8 --role x --routing-reason classifier:v12 >/dev/null 2>&1; echo $?)"
+check "ab arm with whitespace exits 2" "2" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s9 --role x --routing-reason "ab:arm a" >/dev/null 2>&1; echo $?)"
+check "hyphenated ab arm is accepted" "0" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s10 --role x --routing-reason ab:arm-a >/dev/null 2>&1; echo $?)"
+check "unknown capturer exits 2" "2" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s --role x --routing-reason static --capturer agent >/dev/null 2>&1; echo $?)"
+err=$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s --role x --routing-reason static --capturer agent 2>&1 1>/dev/null)
+contains "the capturer refusal names the closed set" "--capturer must be 'hook' or 'driver'" "$err"
+
+# --- --role is validated like its siblings: it becomes a path, so it may not BE one ---
+#
+# CLAUDE_PLUGIN_ROOT must be set for this to test anything — the model/effort lookup
+# short-circuits on an unset root, so an unset-root traversal test passes vacuously.
+drl=$(sandbox)
+rf="$drl/.studious/telemetry/feat-foo.jsonl"
+err=$(cd "$drl" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id r --step-id s1 \
+    --role "../CLAUDE" --routing-reason static 2>&1 1>/dev/null; echo "rc=$?")
+contains "a traversing --role is refused before it builds a path" "must be an agent name, not a path" "$err"
+contains "a traversing --role exits 2, like every sibling field's validation" "rc=2" "$err"
+check "a refused --role writes no telemetry line" "no" "$([ -f "$rf" ] && echo yes || echo no)"
+check "an absolute --role is refused too" "2" \
+  "$(cd "$drl" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id r --step-id s2 \
+      --role "/etc/passwd" --routing-reason static >/dev/null 2>&1; echo $?)"
+check "a dash-leading --role is refused too" "2" \
+  "$(cd "$drl" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id r --step-id s3 \
+      --role "-n" --routing-reason static >/dev/null 2>&1; echo $?)"
+( cd "$drl" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id r --step-id s4 \
+    --role security-auditor --routing-reason static ) >/dev/null 2>&1
+check "a real agent name still dispatches and still resolves its model pin" "opus" "$(jq -rs '.[0].model' "$rf")"
+
+# --- record's outcome label (#133), joinable to the dispatch lines above ---
+do_=$(sandbox)
+of="$do_/.studious/telemetry/feat-foo.jsonl"
+( cd "$do_" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id run-9 --step-id lane-1 \
+    --role code-auditor --routing-reason static ) >/dev/null
+( cd "$do_" && "$LEDGER" record --gate audit --verdict "FIX AND RE-REVIEW" ) >/dev/null
+check "record appends exactly one outcome line" "1" "$(jq -rs '[.[] | select(.kind=="outcome")] | length' "$of")"
+check "outcome carries the closed-enum verdict verbatim" "FIX AND RE-REVIEW" "$(jq -rs '.[1].verdict' "$of")"
+check "outcome capturer is the ledger itself" "ledger" "$(jq -rs '.[1].capturer' "$of")"
+check "outcome joins to the run the dispatch recorded" "run-9" "$(jq -rs '.[1].run_id' "$of")"
+check "outcome step_id is the gate step" "feat-foo:audit" "$(jq -rs '.[1].step_id' "$of")"
+check "outcome records the verdict's sha" "$(git -C "$do_" rev-parse --short HEAD)" "$(jq -rs '.[1].sha' "$of")"
+
+# a verdict with no dispatch telemetry is still labelled, with nothing to join to
+dn=$(sandbox)
+( cd "$dn" && "$LEDGER" record --gate acceptance --verdict SHIP ) >/dev/null
+nf="$dn/.studious/telemetry/feat-foo.jsonl"
+check "an unjoinable verdict is still labelled" "SHIP" "$(jq -r '.verdict' "$nf")"
+check "its run_id is empty, not invented" "" "$(jq -r '.run_id' "$nf")"
+check "record still reports success" "0" "$(cd "$dn" && "$LEDGER" record --gate audit --verdict PASS >/dev/null 2>&1; echo $?)"
+
+# --- appetite, canary, and the zero-landed stop-loss (#144, #268, #297) ---
+da=$(sandbox)
+( cd "$da" && "$LEDGER" epic-set --slug pricey --title "Priced epic" --goal g \
+    --appetite-tokens 4200000 --appetite-episodes 3 --canary on ) >/dev/null
+( cd "$da" && "$LEDGER" epic-story-set --epic pricey --slug alpha --title A ) >/dev/null
+ef="$da/.studious/epics/pricey.json"
+check "epic-set stores the token appetite" "4200000" "$(jq -r '.appetite.tokens' "$ef")"
+check "epic-set stores the open-episode appetite" "3" "$(jq -r '.appetite.openEpisodes' "$ef")"
+check "epic-set stores canary as a boolean" "true" "$(jq -r '.canary' "$ef")"
+check "--canary off records false, not the string" "false" \
+  "$(cd "$da" && "$LEDGER" epic-set --slug pricey --canary off >/dev/null && jq -r '.canary' "$ef")"
+# One flag must not clobber the other half of the appetite object.
+( cd "$da" && "$LEDGER" epic-set --slug pricey --appetite-tokens 5000000 ) >/dev/null
+check "setting tokens alone preserves openEpisodes" "3" "$(jq -r '.appetite.openEpisodes' "$ef")"
+
+check "--appetite-tokens rejects zero" "2" \
+  "$(cd "$da" && "$LEDGER" epic-set --slug pricey --appetite-tokens 0 >/dev/null 2>&1; echo $?)"
+check "--appetite-tokens rejects a dollar figure" "2" \
+  "$(cd "$da" && "$LEDGER" epic-set --slug pricey --appetite-tokens '40USD' >/dev/null 2>&1; echo $?)"
+check "--appetite-episodes rejects a negative" "2" \
+  "$(cd "$da" && "$LEDGER" epic-set --slug pricey --appetite-episodes -1 >/dev/null 2>&1; echo $?)"
+check "--canary rejects anything but on/off" "2" \
+  "$(cd "$da" && "$LEDGER" epic-set --slug pricey --canary sometimes >/dev/null 2>&1; echo $?)"
+
+# epic-run-log is the write half of the stop-loss: if /work-through skips it the
+# stop-loss never arms, so the append and the computed refusal are both pinned.
+check "reconcile reports no stop-loss before any run" "false" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.refuse')"
+check "reconcile counts zero consecutive zero-landed runs" "0" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.consecutiveZeroLanded')"
+( cd "$da" && "$LEDGER" epic-run-log --slug pricey --landed 0 ) >/dev/null
+check "one zero-landed run does not arm the stop-loss" "false" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.refuse')"
+( cd "$da" && "$LEDGER" epic-run-log --slug pricey --landed 0 ) >/dev/null
+check "two zero-landed runs arm it (the third dispatch is refused)" "true" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.refuse')"
+check "the count is the run's own, not a total" "2" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.consecutiveZeroLanded')"
+check "the limit travels with the payload" "2" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.limit')"
+# --override-stop-loss is the receiver for the flag the refusal itself tells the
+# operator to re-invoke with (#268, #276/#278: never print an instruction with no
+# mechanism behind it). It suppresses the refusal and records that it did.
+check "the override suppresses an armed refusal" "false" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey --override-stop-loss | jq -r '.stopLoss.refuse')"
+check "a suppressed refusal is reported as overridden" "true" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey --override-stop-loss | jq -r '.stopLoss.overridden')"
+check "the override consents to dispatch, it does not reset the count" "2" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey --override-stop-loss | jq -r '.stopLoss.consecutiveZeroLanded')"
+check "the next invocation without the flag refuses again" "true" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.refuse')"
+dov=$(sandbox)
+( cd "$dov" && "$LEDGER" epic-set --slug unarmed --title U ) >/dev/null
+check "the flag at a healthy epic is a no-op, not a suppressed refusal" "false" \
+  "$(cd "$dov" && "$LEDGER" epic-reconcile --slug unarmed --override-stop-loss | jq -r '.stopLoss.overridden')"
+check "epic-reconcile still rejects an unknown flag" "2" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey --override-everything >/dev/null 2>&1; echo $?)"
+( cd "$da" && "$LEDGER" epic-run-log --slug pricey --landed 2 ) >/dev/null
+check "a landing run resets the streak" "0" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.consecutiveZeroLanded')"
+( cd "$da" && "$LEDGER" epic-run-log --slug pricey --landed 0 ) >/dev/null
+check "only the trailing run of zeros counts" "1" \
+  "$(cd "$da" && "$LEDGER" epic-reconcile --slug pricey | jq -r '.stopLoss.consecutiveZeroLanded')"
+check "each invocation appends exactly one run record" "4" "$(jq -r '.runs | length' "$ef")"
+check "run records carry a timestamp" "true" \
+  "$(jq -r '[.runs[] | (.at | type == "string" and length > 0)] | all' "$ef")"
+
+check "epic-run-log rejects a non-numeric count" "2" \
+  "$(cd "$da" && "$LEDGER" epic-run-log --slug pricey --landed many >/dev/null 2>&1; echo $?)"
+check "epic-run-log requires --landed" "2" \
+  "$(cd "$da" && "$LEDGER" epic-run-log --slug pricey >/dev/null 2>&1; echo $?)"
+check "epic-run-log refuses an unrecorded epic" "2" \
+  "$(cd "$da" && "$LEDGER" epic-run-log --slug ghost --landed 1 >/dev/null 2>&1; echo $?)"
+
+# Run history is bounded — the stop-loss only ever reads the tail.
+db=$(sandbox)
+( cd "$db" && "$LEDGER" epic-set --slug longrun --title L ) >/dev/null
+for _ in $(seq 1 25); do ( cd "$db" && "$LEDGER" epic-run-log --slug longrun --landed 1 ) >/dev/null; done
+check "run history is capped, not unbounded" "20" "$(jq -r '.runs | length' "$db/.studious/epics/longrun.json")"
+
+# An epic recorded before these fields existed must still reconcile.
+dc=$(sandbox)
+( cd "$dc" && "$LEDGER" epic-set --slug legacy --title L ) >/dev/null
+check "an epic with no appetite reconciles" "false" \
+  "$(cd "$dc" && "$LEDGER" epic-reconcile --slug legacy | jq -r '.stopLoss.refuse')"
+check "absent appetite reads as null, not a default" "null" \
+  "$(cd "$dc" && "$LEDGER" epic-reconcile --slug legacy | jq -r '.epic.appetite')"
+
+# --- per-epic findings ledger: epic-finding / epic-attest / epic-findings (#281) ---
+df=$(sandbox)
+efile="$df/.studious/epics/ledgered.events.jsonl"
+( cd "$df" && "$LEDGER" epic-set --slug ledgered --title L ) >/dev/null
+sha0=$(git -C "$df" rev-parse --short HEAD)
+( cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane security-auditor \
+    --severity Critical --fingerprint sec-token-leak --status open ) >/dev/null
+( cd "$df" && "$LEDGER" epic-finding --epic ledgered --story beta --lane code-auditor \
+    --severity Important --fingerprint code-dup --status open ) >/dev/null
+check "epic-finding writes one line into the epic's events log" "2" \
+  "$(grep -c '"kind":"finding"' "$efile")"
+check "epic-finding stamps HEAD as the raised sha" "$sha0" \
+  "$(jq -r 'select(.finding == "sec-token-leak") | .sha' "$efile" | head -1)"
+out=$(cd "$df" && "$LEDGER" epic-findings --epic ledgered)
+contains "epic-findings summarizes the epic's findings" "epic ledgered — 2 finding(s), 2 unresolved" "$out"
+contains "epic-findings prints identity fields per finding" \
+  "open	Critical	alpha	security-auditor	sec-token-leak" "$out"
+
+# Closure: the last line's status wins, and its sha becomes the resolved sha.
+git -C "$df" commit -q --allow-empty -m fix
+sha1=$(git -C "$df" rev-parse --short HEAD)
+( cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane security-auditor \
+    --severity Critical --fingerprint sec-token-leak --status closed ) >/dev/null
+out=$(cd "$df" && "$LEDGER" epic-findings --epic ledgered)
+contains "a closed finding carries both the raised and the resolved sha" \
+  "closed	Critical	alpha	security-auditor	sec-token-leak	$sha0	$sha1" "$out"
+contains "closing one finding drops the unresolved count" "1 unresolved" "$out"
+out=$(cd "$df" && "$LEDGER" epic-findings --epic ledgered --unresolved)
+contains "--unresolved keeps the open finding" "code-dup" "$out"
+check "--unresolved drops the closed one" "" "$(printf '%s' "$out" | grep 'sec-token-leak' || true)"
+
+# Identity is fixed by the FIRST line: a severity-differing restatement is refused
+# at the write boundary (rc 2, naming the recorded tier), so the fold never sees one.
+err=$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane docs \
+    --severity Track --fingerprint sec-token-leak --status closed 2>&1 1>/dev/null; echo "rc=$?")
+contains "a severity-differing restatement is refused naming the recorded severity" \
+  "severity is fixed at first record ('Critical' for 'sec-token-leak')" "$err"
+contains "the severity-restatement refusal is a usage error" "rc=2" "$err"
+contains "severity folds from the first recorded line, and the refused line never landed" \
+  "closed	Critical	alpha	security-auditor	sec-token-leak" \
+  "$(cd "$df" && "$LEDGER" epic-findings --epic ledgered)"
+
+# The exact two-line laundering dodge (rule 2 at epic scope): line 1 records a
+# Critical open; line 2 used to restate it Important + waived — the per-line
+# guard passed it, the fold then reported a waived Critical with no waiver, and
+# --unresolved read 0. Both lines of the dodge are refused now.
+( cd "$df" && "$LEDGER" epic-finding --epic launder --story alpha --lane security-auditor \
+    --severity Critical --fingerprint sec-hole --status open ) >/dev/null
+check "the dodge's honest form is still refused per-line (Critical waived, no waiver)" "1" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic launder --story alpha --lane security-auditor \
+      --severity Critical --fingerprint sec-hole --status waived >/dev/null 2>&1; echo $?)"
+err=$(cd "$df" && "$LEDGER" epic-finding --epic launder --story alpha --lane security-auditor \
+    --severity Important --fingerprint sec-hole --status waived 2>&1 1>/dev/null; echo "rc=$?")
+contains "restating the fingerprint at Important to dodge the waiver rule is refused" \
+  "severity is fixed at first record ('Critical' for 'sec-hole')" "$err"
+contains "the dodge refusal exits 2" "rc=2" "$err"
+contains "the dodged Critical still counts as unresolved" "1 unresolved" \
+  "$(cd "$df" && "$LEDGER" epic-findings --epic launder)"
+# a consistent restatement still works: same severity, accountable set-aside
+check "a same-severity restatement with --waiver records" "0" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic launder --story alpha --lane security-auditor \
+      --severity Critical --fingerprint sec-hole --status waived --waiver "accepted for this epic" >/dev/null 2>&1; echo $?)"
+contains "the waived Critical is now set aside, waiver on the record" "0 unresolved" \
+  "$(cd "$df" && "$LEDGER" epic-findings --epic launder)"
+# the restatement guard is per-fingerprint: a NEW fingerprint records at any tier
+check "a new fingerprint at a different severity is unaffected by the guard" "0" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic launder --story beta --lane code-auditor \
+      --severity Track --fingerprint fresh-track --status open >/dev/null 2>&1; echo $?)"
+
+# Attestations (#130 carry-forward): one line per (lane, story) clean read.
+( cd "$df" && "$LEDGER" epic-attest --epic ledgered --story alpha --lane doc-auditor ) >/dev/null
+( cd "$df" && "$LEDGER" epic-attest --epic ledgered --story beta --lane doc-auditor --sha cafe123 ) >/dev/null
+out=$(cd "$df" && "$LEDGER" epic-findings --epic ledgered --attestations)
+contains "epic-attest records a clean lane at a sha" "attestation	doc-auditor	beta	cafe123" "$out"
+contains "epic-attest defaults its sha to HEAD" "attestation	doc-auditor	alpha	$sha1" "$out"
+check "--attestations prints no finding lines" "" \
+  "$(printf '%s' "$out" | grep 'code-dup' || true)"
+
+# A malformed line never blinds the reader to the rest of the trail.
+printf 'not json at all\n' >> "$efile"
+contains "a corrupt line is skipped, not fatal" "code-dup" \
+  "$(cd "$df" && "$LEDGER" epic-findings --epic ledgered)"
+
+# Refusals, all before anything is appended.
+before=$(wc -l < "$efile")
+check "a Critical set aside without --waiver is refused" "1" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane l --severity Critical \
+      --fingerprint fp-x --status waived >/dev/null 2>&1; echo $?)"
+check "an unrecognized severity is refused" "2" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane l --severity Blocker \
+      --fingerprint fp-x --status open >/dev/null 2>&1; echo $?)"
+check "an unrecognized status is refused" "2" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane l --severity Track \
+      --fingerprint fp-x --status maybe >/dev/null 2>&1; echo $?)"
+check "a whitespace-carrying fingerprint is refused" "2" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane l --severity Track \
+      --fingerprint "fp x" --status open >/dev/null 2>&1; echo $?)"
+check "--waiver on a non-set-aside status is refused" "2" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane l --severity Track \
+      --fingerprint fp-x --status open --waiver "why" >/dev/null 2>&1; echo $?)"
+check "a whitespace-carrying lane is refused (it is a field of an epic-findings line)" "2" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane "$(printf 'l\tforged')" \
+      --severity Track --fingerprint fp-x --status open >/dev/null 2>&1; echo $?)"
+check "a control-character-carrying waiver is refused" "2" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane l --severity Track \
+      --fingerprint fp-x --status carried --waiver "$(printf 'ok\nforged')" >/dev/null 2>&1; echo $?)"
+check "epic-finding requires every identity flag" "2" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --fingerprint fp-x --status open >/dev/null 2>&1; echo $?)"
+check "epic-attest requires --lane" "2" \
+  "$(cd "$df" && "$LEDGER" epic-attest --epic ledgered --story alpha >/dev/null 2>&1; echo $?)"
+check "no refused call appended anything" "$before" "$(wc -l < "$efile")"
+check "a Critical set aside WITH --waiver is recorded" "0" \
+  "$(cd "$df" && "$LEDGER" epic-finding --epic ledgered --story alpha --lane l --severity Critical \
+      --fingerprint fp-x --status waived --waiver "accepted for this epic" >/dev/null 2>&1; echo $?)"
+contains "the waiver reason lands on the record" "accepted for this epic" \
+  "$(grep '"finding":"fp-x"' "$efile")"
+
+# --unresolved and --attestations are separate reads; an unknown epic is silent.
+check "--unresolved and --attestations are mutually exclusive" "2" \
+  "$(cd "$df" && "$LEDGER" epic-findings --epic ledgered --unresolved --attestations >/dev/null 2>&1; echo $?)"
+check "epic-findings requires --epic" "2" \
+  "$(cd "$df" && "$LEDGER" epic-findings >/dev/null 2>&1; echo $?)"
+check "epic-findings prints nothing for an epic with no trail" "" \
+  "$(cd "$df" && "$LEDGER" epic-findings --epic never-ran)"
+
+# A findings write is a PRIMARY write: it fails loudly rather than degrading to a
+# no-op the way the best-effort transition kinds do.
+dg=$(sandbox)
+nojqbin=$(mktemp -d)
+for tool in bash git date mktemp grep mv mkdir rm cat; do
+  src=$(command -v "$tool" 2>/dev/null) || continue
+  ln -sf "$src" "$nojqbin/$tool"
+done
+check "epic-finding fails (never silently skips) when jq is unavailable" "1" \
+  "$(cd "$dg" && PATH="$nojqbin" "$LEDGER" epic-finding --epic e --story s --lane l \
+      --severity Track --fingerprint fp --status open >/dev/null 2>&1; echo $?)"
+contains "and says why, naming it a primary write" "primary write" \
+  "$(cd "$dg" && PATH="$nojqbin" "$LEDGER" epic-finding --epic e --story s --lane l \
+      --severity Track --fingerprint fp --status open 2>&1 1>/dev/null)"
+check "epic-attest fails the same way" "1" \
+  "$(cd "$dg" && PATH="$nojqbin" "$LEDGER" epic-attest --epic e --story s --lane l >/dev/null 2>&1; echo $?)"
+
+# --- epic-set --acceptance-altitude (#269, default off) ---
+dh=$(sandbox)
+( cd "$dh" && "$LEDGER" epic-set --slug altitude --title A ) >/dev/null
+check "an epic with no acceptance altitude records none (default is per-story)" "null" \
+  "$(jq -r '.acceptanceAltitude // "null"' "$dh/.studious/epics/altitude.json")"
+( cd "$dh" && "$LEDGER" epic-set --slug altitude --acceptance-altitude delivery-boundary ) >/dev/null
+check "--acceptance-altitude records the opt-in token" "delivery-boundary" \
+  "$(jq -r '.acceptanceAltitude' "$dh/.studious/epics/altitude.json")"
+check "an unrecognized altitude token is refused before any write" "2" \
+  "$(cd "$dh" && "$LEDGER" epic-set --slug altitude --acceptance-altitude boundary >/dev/null 2>&1; echo $?)"
+check "the refused token left the recorded one untouched" "delivery-boundary" \
+  "$(jq -r '.acceptanceAltitude' "$dh/.studious/epics/altitude.json")"
+check "the altitude rides through epic-reconcile to the driver" "delivery-boundary" \
+  "$(cd "$dh" && "$LEDGER" epic-reconcile --slug altitude | jq -r '.epic.acceptanceAltitude')"
+
+# --- assignment-in-ledger (#295): work-assign ---
+di=$(sandbox)
+( cd "$di" && "$LEDGER" work-assign --slug "asg-epic--s1" --phase design \
+    --brief "author the design doc for story s1" \
+    --artifacts "commit, designDoc " \
+    --branch "epic/asg-epic--s1" --worktree "/tmp/wt/s1" )
+wfi="$di/.studious/work/asg-epic-s1.json"
+check "work-assign creates the work file" "yes" "$([ -f "$wfi" ] && echo yes || echo no)"
+check "work-assign records the phase" "design" "$(jq -r '.assignment.phase' "$wfi")"
+check "work-assign records the brief verbatim" "author the design doc for story s1" \
+  "$(jq -r '.assignment.brief' "$wfi")"
+check "work-assign trims each contracted artifact but keeps the dispatcher's own order" '["commit","designDoc"]' \
+  "$(jq -c '.assignment.artifacts' "$wfi")"
+check "work-assign records no file set of its own (declaredFiles has one owner)" "absent" \
+  "$(jq -r '.assignment | if has("declaredFiles") then "present" else "absent" end' "$wfi")"
+check "work-assign records the branch" "epic/asg-epic--s1" "$(jq -r '.assignment.branch' "$wfi")"
+check "work-assign records the worktree" "/tmp/wt/s1" "$(jq -r '.assignment.worktree' "$wfi")"
+check "work-assign stamps the sha it was written at" "$(git -C "$di" rev-parse --short HEAD)" \
+  "$(jq -r '.assignment.sha' "$wfi")"
+check "the first assignment is also the first history entry" "1" "$(jq -r '.assignments | length' "$wfi")"
+
+# A second assignment replaces .assignment (what a successor rehydrates from) and
+# APPENDS to .assignments (what makes the earlier dispatch auditable after the fact).
+( cd "$di" && "$LEDGER" work-assign --slug "asg-epic--s1" --phase build \
+    --brief "implement the recorded design" --artifacts "commit" )
+check "a later assignment moves .assignment to the current phase" "build" "$(jq -r '.assignment.phase' "$wfi")"
+check "a later assignment appends rather than overwriting the history" "2" "$(jq -r '.assignments | length' "$wfi")"
+check "the earlier assignment is still readable in full" "author the design doc for story s1" \
+  "$(jq -r '.assignments[0].brief' "$wfi")"
+( cd "$di" && "$LEDGER" work-assign --slug "asg-epic--s1" --phase build --brief "b" )
+check "an omitted --artifacts leaves the key off entirely (never an empty list)" "absent" \
+  "$(jq -r '.assignment | if has("artifacts") then "present" else "absent" end' "$wfi")"
+( cd "$di" && "$LEDGER" work-assign --slug "asg-epic--s1" --phase build --brief "b" --artifacts "" )
+check "an explicit empty --artifacts records a real contract for no artifact" '[]' \
+  "$(jq -c '.assignment.artifacts' "$wfi")"
+
+check "work-assign refuses a call with no --phase" "2" \
+  "$(cd "$di" && "$LEDGER" work-assign --slug asg-none --brief b >/dev/null 2>&1; echo $?)"
+check "work-assign refuses a call with no --brief" "2" \
+  "$(cd "$di" && "$LEDGER" work-assign --slug asg-none --phase design >/dev/null 2>&1; echo $?)"
+check "a refused work-assign wrote no work file at all" "no" \
+  "$([ -f "$di/.studious/work/asg-none.json" ] && echo yes || echo no)"
+check "work-assign refuses an unknown flag" "2" \
+  "$(cd "$di" && "$LEDGER" work-assign --slug asg-none --phase design --brief b --nope x >/dev/null 2>&1; echo $?)"
+check "work-assign preserves fields work-set already wrote" "Fancy" \
+  "$(cd "$di" && "$LEDGER" work-set --slug asg-epic--s2 --title Fancy >/dev/null; \
+     "$LEDGER" work-assign --slug asg-epic--s2 --phase design --brief b >/dev/null; \
+     jq -r '.title' "$di/.studious/work/asg-epic-s2.json")"
 
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

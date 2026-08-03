@@ -97,7 +97,11 @@ CONTRACT_ARG_SUBSTRING = "contract: CONTRACT"
 # via `injectionDefensePreamble`, not the full CONTRACT text — see the comment
 # above that function and `test_audit_first_round_routing.py`'s own contract-
 # injection tests for that dispatch's coverage instead.
-EXPECTED_CONTRACT_ARG_COUNT = 8
+#
+# Grew to 10 under #281/#130's finale re-aim: finaleAuditRound now also dispatches a
+# findings-closure lane and a seam lane, both fresh agents reading the integrated code,
+# so both must carry the same injection-defense posture every other lane does.
+EXPECTED_CONTRACT_ARG_COUNT = 10
 
 # The driver's pure, explicitly-parameterized prompt-assembly functions (see
 # workflows/epic-driver.js). Extracted verbatim below and executed by a plain Node
@@ -116,6 +120,11 @@ DISPATCH_FUNCTION_NAMES = (
     "requireContract",
     "requireFields",
     "diffBlock",
+    "telemetryBlock",
+    # The GitHub read-only invariant every finale-altitude builder stamps (#276).
+    # Extracted verbatim like every other helper here, never restated: a test that
+    # reimplemented it would go on passing after the real text drifted.
+    "githubReadOnlyInvariant",
     "auditDispatchPrompt",
     "finaleAuditDispatchPrompt",
     "premortemDispatchPrompt",
@@ -200,6 +209,12 @@ function attempt(name, fn) {{
 attempt('audit', () => auditDispatchPrompt({{ ctxBlock: 'CTX-BLOCK', note: 'NOTE', slug: 'epic-slug', storyWorktreePath: '/worktree/story-a', contract }}))
 attempt('finale', () => finaleAuditDispatchPrompt({{ note: 'NOTE', repoRoot: '/repo', epicWorktreePath: '/worktree/__epic', slug: 'epic-slug', defaultBranch: 'main', epicGoal: 'goal text', contract }}))
 attempt('premortem', () => premortemDispatchPrompt({{ repoRoot: '/repo', premortemPath: 'docs/premortem.md', slug: 'epic-slug', epicWorktreePath: '/worktree/__epic', note: 'NOTE', contract }}))
+// Same site again with a populated telemetry block (#132): the block splices in
+// between the task text and the contract, so a probe that only ever passes
+// `telemetry: undefined` renders '' and never builds the prompt the driver actually
+// ships. Both callers of this probe iterate every entry, so this one gets the
+// contract-verbatim assertion and the fail-closed assertion for free.
+attempt('audit-with-telemetry', () => auditDispatchPrompt({{ ctxBlock: 'CTX-BLOCK', note: 'NOTE', slug: 'epic-slug', storyWorktreePath: '/worktree/story-a', contract, telemetry: {{ runId: 'epic:s:1', stepId: 'story-a:audit:r2:security-auditor', parentStepId: 'epic-s--story-a:audit', taskId: 'epic/s--story-a', skill: 'gate-audit', role: 'security-auditor', routingReason: 'override', features: {{ round: 2 }} }} }}))
 attempt('fixDelta', () => fixDeltaDispatchPrompt({{ ctxBlock: 'CTX-BLOCK', note: 'NOTE', storyWorktreePath: '/worktree/story-a', priorSha: 'abc123', contract }}))
 attempt('finaleFixDelta', () => finaleFixDeltaDispatchPrompt({{ note: 'NOTE', repoRoot: '/repo', epicWorktreePath: '/worktree/__epic', slug: 'epic-slug', defaultBranch: 'main', priorSha: 'abc123', contract }}))
 console.log(JSON.stringify(results))

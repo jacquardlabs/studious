@@ -9,9 +9,10 @@ product-judgment workflow for Claude Code. Its thesis, stated directly in the RE
 > longer *can we build it*. It's *should we build it, and did we build it right*."
 
 Studious adds that judgment back as a **delivery discipline entered at the scope of
-the work**: quality gates and periodic reviews (the judgment), a story navigator
-(`/work-on`), and an epic driver (`/work-through`) that dispatches contracted workers
-under those same gates. Judgment remains the spine — nothing is auto-approved, and
+the work**: quality gates and periodic reviews (the judgment), an epic driver
+(`/work-through`) that dispatches contracted workers under those same gates and is the
+front door, and a story navigator (`/work-on`) for taking one feature over — by hand,
+or because the driver's plan classed it story-supervised and handed it back. Judgment remains the spine — nothing is auto-approved, and
 every altitude ends at a human — but the *how* is no longer deferred to a companion
 product: it enters through `reference/worker-contract.md` (story brief in;
 implementation + evidence out), which any executor can satisfy — a dispatched agent,
@@ -219,9 +220,10 @@ entry here is not a documentation nit — it is the discipline running on bad fu
    fan-out. No per-gate latency or cost budget is stated anywhere, which means nothing
    can be over budget. Cost is the UX for a tool a developer runs per feature.
 2. **The merge unified the repo, not the flow** (M10) — `/work-on` and `/coach` answer
-   "what's next" from two state stores neither reads (#214), and the design-review
-   model differs between the story and epic pipelines for reasons that accumulated
-   rather than being decided (#210).
+   "what's next" from two state stores neither reads (#214). The design-review model
+   was the other half of this and is now decided (#210, #280): a human signs off where
+   a gate cannot verify mechanically, and story class routes each story to the pipeline
+   that holds.
 3. **Contracts are pinned by prose, not by tests** (M9) — vocabulary and roster facts
    are restated across surfaces and re-derived by regex over that prose (#176, #116,
    #115). #211 and #213 were both this failure class reaching production behavior.

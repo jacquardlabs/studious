@@ -681,6 +681,9 @@ def _full_roster_pass_rules(story: str) -> list[dict]:
 _FINALE_CLEAN_RULES = [
     {"match": rf"^finale:{name}$", "result": {"findings": "clean"}} for name in AUDITOR_SHORT_NAMES
 ] + [
+    {"match": r"^finale:attestations$", "result": {"findings": '{"attestations": []}'}},
+    {"match": r"^finale:findings-closure$", "result": {"findings": "every recorded finding reached a resolved sha"}},
+    {"match": r"^finale:seams$", "result": {"findings": "no cross-story seam findings"}},
     {"match": r"^finale:audit-compile$", "result": {"verdict": "PASS", "sha": "f1", "summary": "clean"}},
     {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "f2", "summary": "ship it"}},
     {"match": r"^finale:ready$", "result": {"verdict": "READY", "sha": "f3", "summary": "marked ready"}},
@@ -1224,6 +1227,9 @@ def test_finale_routing_mirrors_the_story_level_mechanism() -> None:
         {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
         {"match": r"^finale:routing-scope$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False, "depMatch": False, "promptMatch": False})}},
         *[{"match": rf"^finale:{name}$", "result": {"findings": "clean"}} for name in always_run],
+        {"match": r"^finale:attestations$", "result": {"findings": '{"attestations": []}'}},
+        {"match": r"^finale:findings-closure$", "result": {"findings": "every recorded finding reached a resolved sha"}},
+        {"match": r"^finale:seams$", "result": {"findings": "no cross-story seam findings"}},
         {"match": r"^finale:audit-compile$", "result": {"verdict": "PASS", "sha": "f1", "summary": "clean"}},
         {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "f2", "summary": "ship it"}},
         {"match": r"^finale:ready$", "result": {"verdict": "READY", "sha": "f3", "summary": "marked ready"}},

@@ -50,7 +50,17 @@ EPIC_STORY_SET_BARE_SLUG_COUNT = 4
 # FIX) consolidated that branch to route through the shared park() helper instead
 # of its own inline push, dropping this back to 6 — the workSlug-tagged push still
 # happens, just inside park() rather than duplicated at the call site.
-DISPLAY_WORK_SLUG_COUNT = 6
+# The appetite/canary story (#268/#144/#297) adds three more: two heldThisRun
+# pushes (the refusal path in runStory, the canary-didn't-land path in the run
+# section) and the `canary:` field of the returned report. Held entries carry the
+# same identity requirement as parked ones — an operator reading "held" still has
+# to be able to hand the printed slug to /work-on — so they are counted here
+# rather than exempted, bumping this from 6 to 9.
+# The #304 review fixes add two more: a heldThisRun push for a resume-at-merge
+# story refused by a ceiling before its first (merge) dispatch, and a
+# parkedThisRun push for a story whose dep names no story in the plan
+# (UNKNOWN DEP) — bumping this from 9 to 11.
+DISPLAY_WORK_SLUG_COUNT = 11
 
 
 def _extract_function(source: str, name: str) -> str:
