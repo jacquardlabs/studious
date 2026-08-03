@@ -13,7 +13,12 @@ gate ledger is local, gitignored, per-branch *flow state* — `/work-on` reads i
 know where a feature stands. The journal is committed, project-lifetime *decision
 memory* — durable across clones, branches, and sessions. Neither substitutes for
 the other. Committing `docs/studious/decisions.jsonl` stays with the user's normal
-git flow — Studious never runs `git commit` in a consuming project.
+git flow — this journal specifically is never auto-committed by any Studious process,
+unlike a gate's own incidental commit of a register or note it wrote (CLAUDE.md's
+recommend-only invariant, bookkeeping-boundary bullet) or an executor's implementation
+commits (`reference/worker-contract.md`). The distinction is deliberate: this file
+accumulates across the whole project's lifetime, never scoped to one branch or one
+gate's run, so no single gate run is positioned to commit it honestly.
 
 ## Record shape
 
