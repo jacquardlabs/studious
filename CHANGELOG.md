@@ -2,6 +2,75 @@
 
 <!-- version list -->
 
+## v2.30.1 (2026-08-03)
+
+### Bug Fixes
+
+- Address gate-audit round-1 findings for #257
+  ([#305](https://github.com/jacquardlabs/studious/pull/305),
+  [`7485b4e`](https://github.com/jacquardlabs/studious/commit/7485b4e8a9f1f092a64c35de625b69e34afbc1e2))
+
+- Gate-acceptance findings — missed prefix sites, bullet 1 clarity
+  ([#305](https://github.com/jacquardlabs/studious/pull/305),
+  [`7485b4e`](https://github.com/jacquardlabs/studious/commit/7485b4e8a9f1f092a64c35de625b69e34afbc1e2))
+
+- Gate-acceptance round-2 findings — coach's own spoken text, misc
+  ([#305](https://github.com/jacquardlabs/studious/pull/305),
+  [`7485b4e`](https://github.com/jacquardlabs/studious/commit/7485b4e8a9f1f092a64c35de625b69e34afbc1e2))
+
+- Land the prose fixes for #257's gate-audit round-1 findings
+  ([#305](https://github.com/jacquardlabs/studious/pull/305),
+  [`7485b4e`](https://github.com/jacquardlabs/studious/commit/7485b4e8a9f1f092a64c35de625b69e34afbc1e2))
+
+- Repair evidence manifests' branch field after build-branch merge
+  ([#305](https://github.com/jacquardlabs/studious/pull/305),
+  [`7485b4e`](https://github.com/jacquardlabs/studious/commit/7485b4e8a9f1f092a64c35de625b69e34afbc1e2))
+
+- Rescope the recommend-only invariant (#257)
+  ([#305](https://github.com/jacquardlabs/studious/pull/305),
+  [`7485b4e`](https://github.com/jacquardlabs/studious/commit/7485b4e8a9f1f092a64c35de625b69e34afbc1e2))
+
+- Round-2 audit findings plus /studious: prefix in dispatch text
+  ([#305](https://github.com/jacquardlabs/studious/pull/305),
+  [`7485b4e`](https://github.com/jacquardlabs/studious/commit/7485b4e8a9f1f092a64c35de625b69e34afbc1e2))
+
+### Chores
+
+- Capture Task 1 build evidence ([#305](https://github.com/jacquardlabs/studious/pull/305),
+  [`7485b4e`](https://github.com/jacquardlabs/studious/commit/7485b4e8a9f1f092a64c35de625b69e34afbc1e2))
+
+- Capture Task 2 build evidence ([#305](https://github.com/jacquardlabs/studious/pull/305),
+  [`7485b4e`](https://github.com/jacquardlabs/studious/commit/7485b4e8a9f1f092a64c35de625b69e34afbc1e2))
+
+- Capture Task 3 build evidence ([#305](https://github.com/jacquardlabs/studious/pull/305),
+  [`7485b4e`](https://github.com/jacquardlabs/studious/commit/7485b4e8a9f1f092a64c35de625b69e34afbc1e2))
+
+- Capture Task 4 build evidence ([#305](https://github.com/jacquardlabs/studious/pull/305),
+  [`7485b4e`](https://github.com/jacquardlabs/studious/commit/7485b4e8a9f1f092a64c35de625b69e34afbc1e2))
+
+- Persist design-review pre-mortem for #257
+  ([#305](https://github.com/jacquardlabs/studious/pull/305),
+  [`7485b4e`](https://github.com/jacquardlabs/studious/commit/7485b4e8a9f1f092a64c35de625b69e34afbc1e2))
+
+### Documentation
+
+- Build report for #257 — recommend-only invariant rescope
+  ([#305](https://github.com/jacquardlabs/studious/pull/305),
+  [`7485b4e`](https://github.com/jacquardlabs/studious/commit/7485b4e8a9f1f092a64c35de625b69e34afbc1e2))
+
+- Cite CLAUDE.md's recommend-only invariant instead of restating it
+  ([#305](https://github.com/jacquardlabs/studious/pull/305),
+  [`7485b4e`](https://github.com/jacquardlabs/studious/commit/7485b4e8a9f1f092a64c35de625b69e34afbc1e2))
+
+- Correct decision-journal-format's false commit-scope claim
+  ([#305](https://github.com/jacquardlabs/studious/pull/305),
+  [`7485b4e`](https://github.com/jacquardlabs/studious/commit/7485b4e8a9f1f092a64c35de625b69e34afbc1e2))
+
+- Rescope the recommend-only invariant into three bullets
+  ([#305](https://github.com/jacquardlabs/studious/pull/305),
+  [`7485b4e`](https://github.com/jacquardlabs/studious/commit/7485b4e8a9f1f092a64c35de625b69e34afbc1e2))
+
+
 ## v2.30.0 (2026-08-03)
 
 ### Bug Fixes
