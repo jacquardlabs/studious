@@ -37,9 +37,9 @@ the same tokens.
 | Episode | Command | Verdict tokens (canonical) | Source of truth | Consumers |
 |---------|---------|----------------------------|-----------------|-----------|
 | bet | `gate-should-we-build` | `BUILD` · `BUILD SMALLER` · `DEFER` · `DON'T BUILD` | `commands/bet.md` | skill `evaluate-feature-idea` · `/next` |
-| design | `gate-design-review` | `PROCEED TO PLAN` · `REVISE` · `RETHINK` | `commands/review.md` | skill `review-design-before-build` · `/next` |
+| design | `gate-design-review` | `PROCEED TO PLAN` · `REVISE` · `RETHINK` | `commands/review.md` | skill `review-the-work` · `/next` |
 | work | `gate-audit` | `PASS` · `FIX AND RE-REVIEW` · `NEEDS DISCUSSION` | `commands/review.md` | `/next` (no skill shim) |
-| delivery | `gate-acceptance` | `SHIP` · `FIX AND RE-REVIEW` · `HOLD` | `commands/review.md` | skill `acceptance-check-before-merge` · `/next` |
+| delivery | `gate-acceptance` | `SHIP` · `FIX AND RE-REVIEW` · `HOLD` | `commands/review.md` | skill `review-the-work` · `/next` |
 
 Each vocabulary is three or four tokens: one "proceed," one "fix and retry," and (most)
 one "stop/rethink." The canonical listing and per-gate breakdown now live in
@@ -170,5 +170,5 @@ documents the policy for the interface surface, it does not restate the per-agen
 3. ~~**`gate-audit` has no skill shim**~~ Resolved by the persona restructure: the three
    review gates became one `/review` door with one `review-the-work` shim covering all
    three intents. The historical note follows. (`evaluate-feature-idea`,
-   `review-design-before-build`, `acceptance-check-before-merge`) — natural-language access
+   `review-the-work`, `do-the-next-piece`) — natural-language access
    is inconsistent across the gate family.

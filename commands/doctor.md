@@ -59,6 +59,23 @@ Classify:
 
 Report the counts, never the full list — this is a health check, not an inventory. And recommend `gc`; never run it. Same recommend-only posture as every other check in this command.
 
+## 5. Retired door names
+
+The door surface collapsed from eighteen names to nine (`reference/personas.md`). A
+consuming project's `CLAUDE.md`, its README, or a `.github/` workflow may still name a
+door that no longer exists — an instruction pointing at nothing, which reads as Studious
+being broken rather than as a stale reference.
+
+Read `reference/personas.md`'s `Absorbed` column: each row lists the names that door took
+over. Grep the consuming project's `CLAUDE.md`, `README.md`, and `.github/workflows/*.yml`
+for any of them as a slash-command invocation (`/work-on`, not `docs/design/`), and report
+each hit with the door that replaced it.
+
+**Propose, don't apply.** Print the rewire as a diff the human can apply; never edit their
+files. This is the same posture every other check here takes — `/doctor` fixes nothing.
+
+Absent files are not findings: a project without a README simply has nothing to check.
+
 ## Output
 
 ```
@@ -74,6 +91,9 @@ Report the counts, never the full list — this is a health check, not an invent
 - [OK|Important] PRODUCT.md: <populated | stub (<section>) | missing> — <consequence if not OK>
 - [OK|Important] DESIGN.md: <same>
 - [OK|Important] CLAUDE.md: <populated | missing> — <consequence if not OK>
+
+**Retired door names**
+- [OK|Important] <no retired door names found | `<file>:<line>` names `/<old>`, now `/<new>`> — <consequence if not OK>
 
 **Flow state**
 - [OK|Important] <n active, k retained for scope-delta, m epics> — <"clean" | "`/next` will ask you to choose from n features" | "k retained for scope-delta — `gate-ledger work-get --slug <slug>` to read any before deciding; `gate-ledger gc --force` to collect now (discards their scope-delta history for good), or plain `gc` once their window lapses (same permanent loss)">

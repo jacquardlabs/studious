@@ -318,7 +318,7 @@ def display_path(folder: Path, repo: Path) -> str:
     own cwd and never joins its `--repo`, so its caller joins `<worktree>/`
     onto this path first — unjoined, it exits 2 with "no manifest.json found"
     — while `/finish`'s raw GitHub URL appends exactly this bare form with no
-    prefix to strip. `skills/finish/SKILL.md` states that asymmetry for the
+    prefix to strip. `skills/ship/SKILL.md` states that asymmetry for the
     personas; the one repair it rules out is closing it by changing what this
     prints.
     """
