@@ -58,8 +58,8 @@ from the target project's own `CLAUDE.md` (Step 1.3), and every
 executed verbatim via the shell (`subprocess.run(..., shell=True)`), with
 no allowlist, sandbox, or confirmation gate. This is by design, the same
 trust model as `make`/`npm test`/a CI runner, not a defect. Commands in a
-plan are executed verbatim via the shell; only run `/build` on plans you
-would run by hand. This holds for the whole dogfood scope (a developer's
+plan are executed verbatim via the shell; only run `/studious:build` on
+plans you would run by hand. This holds for the whole dogfood scope (a developer's
 own hand-written `PLAN.md`); it becomes local code execution the moment a
 task block is seeded from untrusted provenance — an external issue/PR
 body, or a `PLAN.md` carrying prompt-injection that steers the Foreman's
@@ -122,9 +122,9 @@ may appear anywhere in the block. No `Risk:` line means `LOW` — see Cadence.
    all**, stop here — before creating any worktree — and report **PAUSED**,
    naming exactly what's missing (no "Tests" or equivalent convention in
    `CLAUDE.md`) and the resume action (add a baseline-command convention to
-   `CLAUDE.md`, then re-invoke `/build`). Do not add a second input or flag
-   to work around this; silent, unverified building is the one thing this
-   stop exists to prevent.
+   `CLAUDE.md`, then re-invoke `/studious:build`). Do not add a second
+   input or flag to work around this; silent, unverified building is the
+   one thing this stop exists to prevent.
 2. **Name a fresh branch/worktree.** Derive it from the plan file's own
    name plus a timestamp: `build/<plan-slug>-<YYYYMMDDHHMM>`. The timestamp
    keeps a second `/build` run over the same plan from colliding with a

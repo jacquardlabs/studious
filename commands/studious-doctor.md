@@ -57,7 +57,7 @@ Classify:
 - **1–10 active** — **OK**, with the active count (and the retained count, if nonzero).
 - **A work file whose branch no longer exists** — name it: `gc` will collect it outright on its next run, no retention window and no `--force` needed even if it carries a measured scope-delta cohort — that guard applies to a *finished* story's work file only, never to a still-in-flight one whose branch is gone (a parked story never reached acceptance, so there is no completed cohort to protect) — and until collected it is noise in every `work-list` read.
 
-Report the counts, never the full list — this is a health check, not an inventory. And recommend `gc`; never run it. Same recommend-only posture as everything else here.
+Report the counts, never the full list — this is a health check, not an inventory. And recommend `gc`; never run it. Same recommend-only posture as every other check in this command.
 
 ## Output
 

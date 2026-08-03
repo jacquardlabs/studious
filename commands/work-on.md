@@ -81,7 +81,7 @@ gate-ledger work-log --slug "<slug>" --step decide --outcome "<verdict>" --phase
 This command doesn't author the design doc — the contract is normative (`reference/design-doc-contract.md`), the route to satisfying it is the user's pick — deliberately, so this stays true even now that `/design` ships in this same plugin: a gate must reach the same verdict regardless of who produced the branch (`reference/worker-contract.md`), and `scripts/check_gate_independence.py` enforces it in CI. Set them up, then stop:
 
 - Hand over the decide verdict, the (possibly scoped-down) title, and the contract's required sections; point at `templates/design-doc.md` as the scaffold.
-- Name `/design` as the route that ships with this plugin — batch interview → drafted doc → viva sign-off — and produces a doc satisfying the contract.
+- Name `/studious:design` as the route that ships with this plugin — batch interview → drafted doc → viva sign-off — and produces a doc satisfying the contract. Qualified, not bare: a bare `/design` collides with a Claude Code built-in of the same name.
 - If Superpowers is installed, its brainstorming and planning workflow produces a satisfying doc too. So does any hand-written spec.
 - Do not draft the doc yourself. It may well get written right here in the session — that work belongs to the user and their workflow, not to this command.
 
@@ -109,7 +109,7 @@ The flow hands off rather than builds. Hand over the working context, then stop:
 
 - The design doc path, the pre-mortem register path (its items are what `/gate-audit` and `/gate-acceptance` verify at the end), the scoped title, and the source issue if any.
 - Once a feature branch exists, record it — the gate ledger is per-branch, so later pieces need it: `work-set --branch "<branch>"`.
-- Name `/plan` + `/build` as the route that ships with this plugin: it picks up from the design doc and reports `BUILT | PAUSED | ESCALATED` back into this work file (see "Find the next piece — evidence first" below), so the next `/work-on` invocation resumes from that without asking.
+- Name `/studious:plan` + `/studious:build` as the route that ships with this plugin (`/plan`, bare, has no Claude Code built-in to collide with today, but qualify it too for consistency with `/design`): it picks up from the design doc and reports `BUILT | PAUSED | ESCALATED` back into this work file (see "Find the next piece — evidence first" below), so the next `/work-on` invocation resumes from that without asking.
 - If Superpowers is installed, its plan/execute workflow picks up from the design doc instead. Either way the user builds however they like — no gate cares which. Deliberately, so this stays true even now that `/plan` and `/build` ship in this same plugin: a gate must reach the same verdict regardless of who produced the branch (`reference/worker-contract.md`), and `scripts/check_gate_independence.py` enforces it in CI.
 
 Log `work-log --step build --outcome HANDED-OFF`. Phase stays `build`; the evidence check advances it when implementation commits exist.
@@ -145,7 +145,7 @@ Both gates have passed. Closing out is a handoff, not a gate — there is no ver
 Hand over and stop:
 
 - The verdict trail (every gate, its token, and the sha it was recorded at), and the pre-mortem register path.
-- Name `/finish` as the route that ships with this plugin: it assembles the evidence table, removes the branch-local scaffolding (`docs/design/<slug>.md`, `PLAN.md`), and ends in one of `MERGE` / `PR` / `KEEP` / `DISCARD`. Doing it by hand is equally fine — no gate cares which, and nothing downstream reads a `/finish` artifact.
+- Name `/studious:finish` as the route that ships with this plugin: it assembles the evidence table, removes the branch-local scaffolding (`docs/design/<slug>.md`, `PLAN.md`), and ends in one of `MERGE` / `PR` / `KEEP` / `DISCARD`. Doing it by hand is equally fine — no gate cares which, and nothing downstream reads a `/finish` artifact.
 - The PR is the user's to open either way.
 
 Log `work-log --step finish --outcome HANDED-OFF --phase done`.

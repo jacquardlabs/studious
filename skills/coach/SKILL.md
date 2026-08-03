@@ -111,9 +111,11 @@ the human, before any confirmation is requested.
 The output is a coach's call, not a menu: **one action**, why (the
 evidence lines that determined it), rough cost, the path ahead, then the
 confirmation question. The action comes from a closed set: dispatch one of
-`/design` `/plan` `/build` `/finish`; recommend the human run a named
-studious gate; name a manual step; or state "nothing to dispatch." Never
-two options, never a ranked list.
+`/studious:design` `/studious:plan` `/studious:build` `/studious:finish`
+(qualified — a bare `/design` collides with a Claude Code built-in of the
+same name; the others are qualified too for consistency); recommend the
+human run a named studious gate; name a manual step; or state "nothing to
+dispatch." Never two options, never a ranked list.
 
 Routing, observed state → the one action:
 
@@ -121,12 +123,12 @@ Routing, observed state → the one action:
 |---|---|---|
 | No design doc, no `PLAN.md`; no should-we-build verdict recorded (or the ledger is unreadable) | Recommend the human run `/gate-should-we-build` | The feature idea from conversation |
 | Design doc present and signed off (`## Revision History`, or this conversation's own `DESIGNED`); no design-review verdict recorded (or the ledger is unreadable) | Recommend the human run `/gate-design-review` | The doc path |
-| Design doc signed off, design-review verdict recorded (or the ledger is unreadable — gap named); no `PLAN.md` | Dispatch `/plan` | The design doc path |
-| `PLAN.md` present, no terminal suffixes | Dispatch `/build` | The plan path |
-| ` [REPLAN]` suffix on Task N | Name the manual step: revise Task N's checkpoint block by hand, quoting the status-flip commit's reason; after the human says done, reassess and recommend `/build` | The quoted REPLAN reason |
-| ` [ESCALATE]` suffix on Task N | Dispatch `/design` in revision mode | The ESCALATE finding (status-flip commit body, quoted) plus the design doc path |
+| Design doc signed off, design-review verdict recorded (or the ledger is unreadable — gap named); no `PLAN.md` | Dispatch `/studious:plan` | The design doc path |
+| `PLAN.md` present, no terminal suffixes | Dispatch `/studious:build` | The plan path |
+| ` [REPLAN]` suffix on Task N | Name the manual step: revise Task N's checkpoint block by hand, quoting the status-flip commit's reason; after the human says done, reassess and recommend `/studious:build` | The quoted REPLAN reason |
+| ` [ESCALATE]` suffix on Task N | Dispatch `/studious:design` in revision mode | The ESCALATE finding (status-flip commit body, quoted) plus the design doc path |
 | Every task ` [PASS]`; audit/acceptance not yet recorded (or the ledger is unreadable) | Recommend the human run `/gate-audit` (then `/gate-acceptance`) | The branch name |
-| Every task ` [PASS]`; both gates recorded as passed | Dispatch `/finish` | Nothing beyond the invocation — `/finish` reads `PLAN.md` and the evidence folders itself |
+| Every task ` [PASS]`; both gates recorded as passed | Dispatch `/studious:finish` | Nothing beyond the invocation — `/finish` reads `PLAN.md` and the evidence folders itself |
 | Dated build report exists for this story / branch closed out | Nothing to dispatch — state it and stop | — |
 
 **What the work file adds to this table.** It never overrides a row — the
