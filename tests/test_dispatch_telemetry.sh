@@ -81,10 +81,12 @@ run_hook "$d" "$(payload security-auditor x)" >/dev/null
 run_hook "$d" "$(payload review-readme x)" >/dev/null
 run_hook "$d" "$(payload product-reviewer x)" >/dev/null
 run_hook "$d" "$(payload code-auditor x)" >/dev/null
+run_hook "$d" "$(payload review-outcomes x)" >/dev/null
 check "auditor maps to gate-audit" "gate-audit" "$(jq -r 'select(.role=="security-auditor").skill' "$f")"
 check "review-* maps to deep-review" "deep-review" "$(jq -r 'select(.role=="review-readme").skill' "$f")"
 check "product-reviewer maps to gate-acceptance" "gate-acceptance" "$(jq -r 'select(.role=="product-reviewer").skill' "$f")"
 check "dual-surface code-auditor leaves skill empty" "" "$(jq -r 'select(.role=="code-auditor").skill' "$f")"
+check "review-outcomes maps to its own command, not deep-review" "review-outcomes" "$(jq -r 'select(.role=="review-outcomes").skill' "$f")"
 
 # --- parent_step_id comes from agent_id when nested in a subagent ---
 d=$(sandbox); f=$(telemetry_file "$d" feat/foo)

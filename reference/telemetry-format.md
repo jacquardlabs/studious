@@ -28,7 +28,7 @@ other silently. This file, not either implementation, is the contract.
 |-------|-------|
 | `at` | UTC `%Y-%m-%dT%H:%M:%SZ`, stamped by the writer, never a caller-supplied flag. Physical line order is not guaranteed under concurrent writers (the audit fan-out is 11+ simultaneous dispatches) — sort by `at`. |
 | `kind` | `dispatch` or `outcome`. Determines which payload fields follow. |
-| `capturer` | Which write path produced the line: `hook` (`hooks/dispatch-telemetry.sh` observing a `Task` dispatch), `driver` (a dispatch prompt built by `workflows/epic-driver.js` self-reporting its own driver-computed identity), or `ledger` (an outcome line, written by `record` itself). Hardcoded per path, so a line's provenance is never in doubt. |
+| `capturer` | Which write path produced the line: `hook` (`hooks/dispatch-telemetry.sh` observing a `Task` dispatch), `driver` (a dispatch prompt built by `workflows/epic-driver.js` self-reporting its own driver-computed identity), or `ledger` (an outcome line, written by `record` itself). `ledger` is hardcoded by `record`; on dispatch lines the value is `--capturer`, validated against the closed `hook\|driver` set but claimed by the caller — provenance there is honest labeling, not proof. |
 
 No `schemaVersion` per line, matching `reference/evidence-format.md` and
 `reference/events-format.md`: each line is a flat, self-describing object, not part of
@@ -55,11 +55,11 @@ convention and no cross-surface consumer reads them.
 | `step_id` | `--step-id` | Unique within the run. The hook passes `tool_use_id`; the driver passes `<story>:<gate>:r<round>:<lane>`. |
 | `parent_step_id` | `--parent-step-id` | The step this dispatch hangs off. The driver passes the gate step (`<branch-slug>:<gate>`), which is exactly what an outcome line's `step_id` defaults to — that is the join. The hook passes the enclosing subagent's `agent_id`, or `""` at top level. |
 | `task_id` | `--task-id`, defaulting to the current branch name | The unit of work under review. |
-| `skill` | `--skill` | The dispatch surface: `gate-audit`, `gate-acceptance`, `deep-review`. |
+| `skill` | `--skill` | The dispatch surface: `gate-audit`, `gate-acceptance`, `deep-review`, `review-outcomes`. |
 | `role` | `--role` | The agent's own `name` (`security-auditor`), never the `studious:`-qualified dispatch string. |
 | `model` | `--model`, else resolved from `agents/<role>.md`'s frontmatter | `inherit` is recorded verbatim when that is what the agent declares — that is live evidence for #136, not a gap to paper over. Empty only when neither a flag nor an agent file supplied one. |
 | `effort` | `--effort`, same fallback | The other half of the cost dial (CLAUDE.md pins `model` and `effort` independently). |
-| `routing_reason` | `--routing-reason` | Closed prefix set: `static` (a fixed roster), `classifier:v<N>`, `ab:<arm>`, `override` (something displaced the static roster — a narrowed re-audit round is `override`). Rejected otherwise. |
+| `routing_reason` | `--routing-reason` | Closed set: `static` (a fixed roster), `override` (something displaced the static roster — a narrowed re-audit round is `override`), `classifier:v<digits>` (a literal `v` followed by digits only), or `ab:<arm>` (`<arm>` is one non-empty token with no whitespace or control characters). Rejected otherwise. |
 | `features` | zero or more `--feature <name>=<value>` | Classifier features cheaply available at dispatch time. Values coerce to number or boolean when they parse as one, else stay strings. Names align with #186 where the concept carries over (`input_bytes`, `files_touched`, `load_bearing`); gate-specific names used today are `prompt_bytes` (hook) and `round`, `narrowed`, `lane_count` (driver). The set is open by design — a new feature is a new `--feature`, never a schema change. |
 
 ## `kind: "outcome"` — the gate-time label
@@ -155,12 +155,15 @@ in the hook is the whole filter.
 ### `skill` on the hook path
 
 The hook derives `skill` from the role by pattern — `review-*` is `/deep-review`'s,
-`*-auditor`/`*-reviewer` is `/gate-audit`'s — plus two short exception lists the pattern
-cannot carry: `product-reviewer` and `premortem-auditor` belong to `/gate-acceptance`,
-and `code-auditor` is genuinely ambiguous (it serves both `/gate-audit`'s lane 2 and
-`/deep-review`'s idiom-feedback step), so its lines carry `skill: ""` rather than a
-confident guess and a joiner resolves them from the run's other lines. Both exception
-lists are tested before the pattern, since all three names match it.
+`*-auditor`/`*-reviewer` is `/gate-audit`'s — plus the carve-outs the patterns cannot
+carry: `product-reviewer` and `premortem-auditor` belong to `/gate-acceptance`;
+`review-outcomes` matches `review-*` but is dispatched by its own `/review-outcomes`
+command, which runs outside the `/deep-review` sweep, so it maps to `review-outcomes`
+before the pattern is consulted; and `code-auditor` is genuinely ambiguous (it serves
+both `/gate-audit`'s lane 2 and `/deep-review`'s idiom-feedback step), so its lines
+carry `skill: ""` rather than a confident guess and a joiner resolves them from the
+run's other lines. Every carve-out is tested before the patterns, since all four names
+match one.
 
 The allow-list is `agents/<role>.md` existing: a role that matches no pattern, or matches
 one but names no shipped agent, produces no record at all — same conservative posture as

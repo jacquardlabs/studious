@@ -13,8 +13,10 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 PLUGIN = REPO / ".claude-plugin" / "plugin.json"
+HOOKS = REPO / "hooks" / "hooks.json"
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 NAME = re.compile(r"^[a-z0-9-]+$")
+PLUGIN_ROOT_REF = re.compile(r"\$\{CLAUDE_PLUGIN_ROOT\}/([^\"\s]+)")
 REQUIRED = ("name", "description", "version", "author", "repository", "license", "keywords")
 
 
@@ -46,6 +48,48 @@ def validate(data: dict) -> list[str]:
     return errors
 
 
+def validate_hooks(data: object, repo: Path) -> list[str]:
+    """Basic-shape check for hooks/hooks.json — not a full schema validation.
+
+    Asserts only what a syntax or path error would silently break: the top-level
+    ``hooks`` object of event -> matcher entries, each entry carrying a ``hooks``
+    array of command hooks, and every command's ``${CLAUDE_PLUGIN_ROOT}/...``
+    reference resolving to a file that ships in this repo. Matcher strings, hook
+    types beyond ``command``, and Claude Code's own schema are not checked here.
+    """
+    errors: list[str] = []
+    if not isinstance(data, dict):
+        return ["hooks.json: top level must be an object"]
+    hooks = data.get("hooks")
+    if not isinstance(hooks, dict):
+        return ["hooks.json: 'hooks' must be an object of event name -> entry array"]
+    for event, entries in hooks.items():
+        if not isinstance(entries, list):
+            errors.append(f"hooks.json: {event} must be an array of matcher entries")
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict) or not isinstance(entry.get("hooks"), list):
+                errors.append(f"hooks.json: each {event} entry must carry a 'hooks' array")
+                continue
+            for hook in entry["hooks"]:
+                command = hook.get("command") if isinstance(hook, dict) else None
+                if not isinstance(command, str) or not command.strip():
+                    errors.append(f"hooks.json: a {event} hook has no command string")
+                    continue
+                refs = PLUGIN_ROOT_REF.findall(command)
+                if not refs:
+                    errors.append(
+                        f"hooks.json: {event} command references no"
+                        f" ${{CLAUDE_PLUGIN_ROOT}} file: {command}"
+                    )
+                errors.extend(
+                    f"hooks.json: {event} command references missing file: {ref}"
+                    for ref in refs
+                    if not (repo / ref).is_file()
+                )
+    return errors
+
+
 def main() -> int:
     try:
         data = json.loads(PLUGIN.read_text(encoding="utf-8"))
@@ -53,12 +97,21 @@ def main() -> int:
         print(f"plugin.json could not be read/parsed: {exc}")
         return 1
     errors = validate(data)
+    if HOOKS.exists():
+        try:
+            hooks_data = json.loads(HOOKS.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            errors.append(f"hooks.json could not be read/parsed: {exc}")
+        else:
+            errors.extend(validate_hooks(hooks_data, REPO))
     if errors:
         print("Plugin manifest validation FAILED:")
         for e in errors:
             print(f"  - {e}")
         return 1
     print("Plugin manifest valid.")
+    if HOOKS.exists():
+        print("hooks/hooks.json parses and its hook commands resolve.")
     return 0
 
 

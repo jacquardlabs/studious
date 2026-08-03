@@ -80,10 +80,13 @@ role="${subagent#studious:}"   # the agent's own `name`, never the qualified dis
 #
 # ORDER IS LOAD-BEARING: product-reviewer, premortem-auditor, and code-auditor all
 # match the *-reviewer/*-auditor pattern, so both exception lists must be tested
-# before it. The one genuine ambiguity is recorded as an ambiguity, not guessed —
-# code-auditor serves both /gate-audit's lane 2 and /deep-review's idiom feedback
-# step, and the hook cannot see which command dispatched it, so its lines carry an
-# empty `skill` (reference/telemetry-format.md says how a joiner resolves them).
+# before it, and review-outcomes matches review-* but is dispatched by its own
+# /review-outcomes command, which runs OUTSIDE the /deep-review sweep — its case
+# branch must precede that pattern. The one genuine ambiguity is recorded as an
+# ambiguity, not guessed — code-auditor serves both /gate-audit's lane 2 and
+# /deep-review's idiom feedback step, and the hook cannot see which command
+# dispatched it, so its lines carry an empty `skill`
+# (reference/telemetry-format.md says how a joiner resolves them).
 [ -f "${CLAUDE_PLUGIN_ROOT}/agents/${role}.md" ] || exit 0
 ACCEPTANCE_ROLES="product-reviewer premortem-auditor"
 AMBIGUOUS_ROLES="code-auditor"
@@ -92,6 +95,7 @@ if   in_list "$role" "$ACCEPTANCE_ROLES"; then skill="gate-acceptance"
 elif in_list "$role" "$AMBIGUOUS_ROLES";  then skill=""
 else
   case "$role" in
+    review-outcomes)      skill="review-outcomes" ;;
     review-*)             skill="deep-review" ;;
     *-auditor|*-reviewer) skill="gate-audit" ;;
     *) exit 0 ;;
