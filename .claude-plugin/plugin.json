@@ -1,7 +1,7 @@
 {
   "name": "studious",
   "description": "Studious — a delivery discipline for Claude Code. It examines each piece of work: whether to build it, whether the design serves users, and whether the result holds up — then builds it under those same gates. Quality gates, periodic health reviews, pre-merge audits, and a script-verified build loop.",
-  "version": "2.29.0",
+  "version": "2.30.0",
   "author": {
     "name": "Jacquard Labs"
   },

@@ -2,6 +2,98 @@
 
 <!-- version list -->
 
+## v2.30.0 (2026-08-03)
+
+### Bug Fixes
+
+- Close four gaps in gate-ledger's episode logic found by independent review
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Close seven review findings in the epic driver and its reference docs
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Close the episode wedges, pin epic severity at first record, and pass on bash 3.2
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Judge a build phase on its recorded outcome, not the step's name
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Label review-outcomes dispatches correctly and validate hooks.json in CI
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Name three failure modes gate-ledger reported as something else
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Record landedThisRun in the run log, wire the saves-ledger renderer, and true up doc defaults
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Rehydrate a worker resumed across invocations, and arm the stop-loss on a crash
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Survive the Workflow runtime — RUN_ID from the orchestrator clock, finale crash isolation,
+  ceilings on merge resume ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+### Documentation
+
+- Close seven documentation gaps the review pass found
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Name why /work-on hands off design and build
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+### Features
+
+- Compute each story's gate profile from the plan's own data
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Give every review dispatch a routing identity and every verdict a label
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Grade shipped work against the fixes that followed it
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Harden the episode ledger — convergence, dispositions, anchors, compaction, history
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Land M13 — one flow, priced ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Price the epic, canary the first story, and cap open judgment episodes
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Record a finding once, verify closure at the finale, and price the epic's last re-fan
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Render the saves ledger — the catches, with the sha that proves them
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Route stories by class, and decide the review model both pipelines run
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+- Verify a dispatched phase mechanically, and make dispatch a ledger write
+  ([#304](https://github.com/jacquardlabs/studious/pull/304),
+  [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
+
+
 ## v2.29.0 (2026-08-01)
 
 ### Bug Fixes
