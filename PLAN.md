@@ -34,7 +34,7 @@ Done means:
 5. [hold] the adjacent "Stay in lane" bullet is untouched   (tier: probe)
 Evidence: (recorded by `scripts/evidence-capture` once `/build` executes this task; none yet -- this plan has not been built)
 
-### Task 2 — CONTRIBUTING.md: cite CLAUDE.md instead of restating; drop the now-redundant sentence
+### Task 2 — CONTRIBUTING.md: cite CLAUDE.md instead of restating; drop the now-redundant sentence [PASS]
 Why now:    CONTRIBUTING.md:46 currently restates the same false claim as CLAUDE.md:77; Q6 settled that this file should cite the canonical source instead, matching this repo's own established pattern.
 Read first: `CONTRIBUTING.md`, `docs/design/recommend-only-invariant-scope.md`
 Rests on:   n/a -- independent of Task 1 and Task 3.
