@@ -47,7 +47,7 @@ Done means:
 3. [hold] `CONTRIBUTING.md`'s Naming conventions section (`CONTRIBUTING.md:53`) is untouched   (tier: probe)
 Evidence: (recorded by `scripts/evidence-capture` once `/build` executes this task; none yet -- this plan has not been built)
 
-### Task 3 — Correct reference/decision-journal-format.md's false commit-scope claim
+### Task 3 — Correct reference/decision-journal-format.md's false commit-scope claim [PASS]
 Why now:    line 16's "Studious never runs `git commit` in a consuming project" is false -- `/gate-design-review` and `/gate-acceptance` both commit a file before recording, and `/build`/`/finish` commit as their normal operation; Q5 settled correcting rather than deleting it.
 Read first: `reference/decision-journal-format.md`, `docs/design/recommend-only-invariant-scope.md`
 Rests on:   n/a -- independent of Task 1 and Task 2.
