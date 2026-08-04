@@ -166,9 +166,11 @@ class TestFinishSkillBody(unittest.TestCase):
 
     def test_two_evidence_shapes_are_named(self) -> None:
         self.assertPhraseIn("quoted **inline**, in a collapsible `<details>` block per item")
-        self.assertPhraseIn("referenced by its raw URL")
-        self.assertIn("raw.githubusercontent.com", self.body)
-        self.assertPhraseIn("never the branch name")
+        # A local, gitignored store has no commit for a raw URL to anchor to; the
+        # image contract is name-the-path + human attach, never a fabricated URL.
+        self.assertPhraseIn("local store — attach to the PR if a reviewer needs it")
+        self.assertPhraseIn("never fabricate a URL")
+        self.assertNotIn("raw.githubusercontent.com", self.body)
 
     # -- Step 2: cctx footer ------------------------------------------------
 
@@ -242,10 +244,14 @@ class TestFinishSkillBody(unittest.TestCase):
         self.assertPhraseIn("`build-report` does not commit its own write")
         self.assertPhraseIn("Commit the new report file yourself")
 
-    def test_evidence_and_reports_survive_cleanup(self) -> None:
-        self.assertPhraseIn(
-            "`docs/jig/evidence/` and `docs/jig/reports/` are never touched by Step 6's cleanup"
-        )
+    def test_evidence_is_local_and_reports_are_conditional(self) -> None:
+        # Evidence never enters the repo, so cleanup has nothing to touch; the
+        # report is written only for the three PR-less verdicts, where it is the
+        # sole surviving record.
+        self.assertPhraseIn("the store is local and gitignored")
+        self.assertPhraseIn("nothing for Step 6's cleanup to touch")
+        self.assertPhraseIn("only when no PR body will exist")
+        self.assertPhraseIn("On the `PR` verdict, skip this step entirely")
 
     # -- Step 6: verdict + cleanup ---------------------------------------------
 
@@ -313,7 +319,7 @@ class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
         without the assertion below the line could revert to the pre-#258 shape
         with the whole suite green (#260 audit, test-auditor High).
         """
-        self.assertIn("capture writes `docs/jig/evidence/<date>-<task>-<branch-slug>/`", self.body)
+        self.assertIn("capture writes `.studious/build-evidence/<date>-<task>-<branch-slug>/`", self.body)
         self.assertIn("evidence-capture resolve --repo <worktree> --branch", self.body)
         self.assertPhraseIn("never rebuild the path from its shape")
         # The image-evidence URL is built from the folder the verb printed.
@@ -335,27 +341,22 @@ class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
         first_use = self.flat_body.index("evidence-capture resolve --repo <worktree>")
         self.assertLess(definition, first_use, "`<worktree>` is used before it is defined")
 
-    def test_the_freshness_call_joins_the_worktree_onto_the_resolved_path(self) -> None:
-        # `resolve` prints repo-relative; `evidence-freshness` resolves
-        # `--evidence` against the process cwd and never joins its own
-        # `--repo`. An unjoined path exits 2 and stops /ship outright.
+    def test_the_freshness_call_takes_the_printed_path_verbatim(self) -> None:
+        # `resolve` prints an absolute path now that the store lives outside the
+        # tracked tree, so the old "<worktree>/<folder>" join (and the asymmetry
+        # note that guarded it against the raw-URL call site) is retired — an
+        # absolute path ignores `evidence-freshness`'s cwd resolution entirely.
         self.assertIn(
-            "scripts/evidence-freshness --repo <worktree> --evidence <worktree>/<folder>",
+            "scripts/evidence-freshness --repo <worktree> --evidence <folder>",
             normalize_ws(self.body),
         )
-        self.assertPhraseIn("**joined onto `<worktree>/`**")
-        self.assertPhraseIn("resolves `--evidence` against the process's own cwd")
-
-    def test_the_two_uses_of_the_resolved_path_are_named_as_asymmetric(self) -> None:
-        # The join belongs to the freshness call only: the raw-URL
-        # construction appends the repo-relative form, so "fixing" the
-        # asymmetry in either direction breaks the other call site.
-        self.assertPhraseIn("The raw-URL construction in the image-evidence bullet below wants the bare")
-        self.assertPhraseIn('do not "fix" this by changing what `resolve` prints')
+        self.assertPhraseIn("passed **verbatim**")
+        self.assertPhraseIn("no join against `<worktree>` is needed or wanted")
+        self.assertNotIn("--evidence <worktree>/<folder>", normalize_ws(self.body))
 
     def test_the_manifest_sentence_describes_the_folder_resolve_printed(self) -> None:
         # Its antecedent is the exit-0 resolved folder, and it has one home.
         contents = normalize_ws("carries a `manifest.json` (`commit_sha`, `commit_timestamp`, `branch`")
         self.assertEqual(self.flat_body.count(contents), 1, "the manifest description has one home")
-        exit_zero_at = self.flat_body.index(normalize_ws("It prints one folder path, repo-relative, on exit 0."))
+        exit_zero_at = self.flat_body.index(normalize_ws("It prints one folder path — absolute, since the store lives outside the tracked tree — on exit 0."))
         self.assertLess(exit_zero_at, self.flat_body.index(contents))

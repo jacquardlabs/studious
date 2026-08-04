@@ -2,7 +2,7 @@
 """jig's evidence-freshness script (story finish-skill, issue #20).
 
 `/finish`'s Step 1 freshness hold: re-validates each already-captured
-evidence folder (`docs/jig/evidence/<date>-<task>-<branch-slug>/`, written
+evidence folder (`.studious/build-evidence/<date>-<task>-<branch-slug>/`, written
 by `evidence-capture` during `/build`) against its own recorded
 `manifest.json` -- never against the branch's current `HEAD`, which would
 reproduce issue #44's bug shape one layer up (a producing step that commits
@@ -114,7 +114,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="evidence-freshness",
         description=(
-            "Re-validate already-captured docs/jig/evidence/ folders against each folder's "
+            "Re-validate already-captured build-evidence folders against each folder's "
             "own recorded manifest.json commit -- never the branch's current HEAD."
         ),
     )

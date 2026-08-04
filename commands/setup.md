@@ -80,6 +80,34 @@ Create these directories if they don't exist:
 
 Add a `.gitkeep` to each empty directory so they're tracked in git.
 
+## Step 5b — Propose the .gitignore entries
+
+Studious keeps its process residue out of the repo by convention, and the convention
+only works if the consuming project's `.gitignore` carries it. Read the project's
+`.gitignore` (create one if absent) and check for these entries:
+
+```gitignore
+# Studious local state — gate ledger, work files, telemetry, build evidence (never committed)
+.studious/
+
+# Disposable build scaffolding — lives on the branch, dies at closeout
+# (the durable record is the PR body's evidence table and the pre-mortem register)
+/PLAN.md
+docs/design/
+```
+
+Propose the exact missing lines as a diff, state what each one keeps out of review, and
+add them on the user's word in this same invocation — never silently, and never touching
+any other line of their `.gitignore`. All three matter, but `.studious/` most:
+`/build`'s evidence store is `.studious/build-evidence/` under the main checkout, and an
+untracked-but-unignored store shows up as noise in every `git status` the user runs.
+(`bin/gate-ledger` self-heals the `.studious/` entry when it first creates ledger state,
+so a skipped proposal degrades to that — later, and without the other two entries.)
+
+A project that deliberately tracks its design docs or `PLAN.md` can decline those lines —
+`/ship`'s closeout handles the tracked case with a `git rm` commit instead. Note the
+choice; don't relitigate it.
+
 ## Step 6 — Update CLAUDE.md
 
 If CLAUDE.md exists, append the review workflow section (if not already present). If it doesn't exist, create it with just this section. Check for existing content first — don't duplicate.

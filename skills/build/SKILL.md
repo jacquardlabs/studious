@@ -478,13 +478,16 @@ For each task block, in order:
      committed change, so `evidence-capture`'s clean-tree check has a real,
      clean tree to check (issue #45) instead of refusing before task 1 ever
      completes.
-   - **Commit the evidence directory `evidence-capture` just wrote** — a
-     plain `git add`/`git commit` of exactly that dated folder, distinct
-     from `status-flip`'s own commit below. `evidence-capture` writes
-     files but never commits them; skip this and the working tree stays
-     dirty, which makes the *next* task's `evidence-capture` call refuse
-     against it (it requires a clean tree — see its own freshness rule).
-     Do this before calling `status-flip`, not after.
+   - **No evidence commit exists any more, deliberately.** `evidence-capture`
+     writes to the main checkout's gitignored `.studious/build-evidence/` —
+     outside this worktree's tracked tree entirely — so the capture leaves
+     the working tree exactly as clean as it found it, the next task's
+     clean-tree check has nothing to refuse against, and the PR that
+     eventually opens carries no evidence files and no capture commits.
+     The PR body's assembled table (`/ship` Step 1) is the durable record.
+     Do not `git add` the evidence folder to "preserve" it — committing a
+     gitignored store back into the diff is the review noise this design
+     removed.
    - Call `scripts/status-flip --plan <path> --task <label> --results <scratch-path>/results.json`,
      the same scratch-path file from step 5 — `status-flip` only reads it,
      never requires it to live in the worktree either.

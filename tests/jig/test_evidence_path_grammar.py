@@ -41,11 +41,11 @@ from _evidence_grammar import derive_folder_grammar
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-EVIDENCE_ROOT = "docs/jig/evidence/"
+EVIDENCE_ROOT = ".studious/build-evidence/"
 
 # A placeholder path opens with this; `<` is what makes it a *shape* a reader
-# would rebuild rather than a literal directory (`docs/jig/evidence/` alone, or
-# the `docs/jig/evidence/*/manifest.json` glob, name a real read and are fine).
+# would rebuild rather than a literal directory (`.studious/build-evidence/` alone,
+# or the `.studious/build-evidence/*/manifest.json` glob, name a real read and are fine).
 PLACEHOLDER_PREFIX = EVIDENCE_ROOT + "<"
 
 # Derived from `scripts/evidence-capture`'s own `target_dir`, never transcribed
@@ -63,11 +63,11 @@ COUNTEREXAMPLE_SENTINEL = "evidence-grammar: counterexample"
 
 # The shape `evidence-capture` wrote before #258 -- kept only as a planted
 # violation for the guard-the-guard case below, never as the assertion itself.
-PRE_258_GRAMMAR = "docs/jig/evidence/<date>-<task>/"
+PRE_258_GRAMMAR = ".studious/build-evidence/<date>-<task>/"
 
 # Every model-facing surface that could send a reader to a folder path and is not
 # already guarded elsewhere. `agents/` is deliberately absent, not overlooked:
-# `scripts/check_gate_independence.py`'s `ARTIFACTS` regex forbids `docs/jig/evidence`
+# `scripts/check_gate_independence.py`'s `ARTIFACTS` regex forbids the evidence store
 # under `agents/*.md` outright, so a stale grammar there fails CI before this scan
 # would see it -- and adding it here would assert a weaker rule over the same files.
 SURFACES = ("skills", "commands", "reference")
@@ -157,17 +157,17 @@ class TestEvidencePathGrammarOnPromptSurfaces(unittest.TestCase):
         """Guard the guard -- prove the assertion fires, and only when it should."""
         for planted in (
             f"read the evidence folder `{PRE_258_GRAMMAR}` it wrote",
-            "| Evidence | `docs/jig/evidence/<date>-<task>/` | Which tasks captured |",
-            "the folders are `docs/jig/evidence/<date>/`",
-            "the folders are `docs/jig/evidence/<date>-<task>-<slug>/`",
-            "the folders are `docs/jig/evidence/<date>-<task>-<branch-slug>`",
+            "| Evidence | `.studious/build-evidence/<date>-<task>/` | Which tasks captured |",
+            "the folders are `.studious/build-evidence/<date>/`",
+            "the folders are `.studious/build-evidence/<date>-<task>-<slug>/`",
+            "the folders are `.studious/build-evidence/<date>-<task>-<branch-slug>`",
         ):
             with self.subTest(planted=planted):
                 self.assertNotEqual([], wrong_shapes(planted))
         for clean in (
             f"the folders are named `{CURRENT_GRAMMAR}`",
-            "Glob `docs/jig/evidence/*/manifest.json`, then Read each manifest",
-            "no `docs/jig/evidence/` at all",
+            "Glob `.studious/build-evidence/*/manifest.json`, then Read each manifest",
+            "no `.studious/build-evidence/` at all",
             # A surface warning a reader off the old shape must be able to
             # print it; without this the scan forces the warning to go vague,
             # which is what happened to skills/ship/SKILL.md (#260 audit).

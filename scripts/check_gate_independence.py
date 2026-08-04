@@ -80,8 +80,9 @@ BUILD_EXECUTABLES = (
 )
 
 #: Artifacts only a producer run creates. A judge that reads one has the same dependency
-#: as a judge that invokes the door.
-ARTIFACTS = re.compile(r"(?<![\w/-])(PLAN\.md|docs/jig/evidence)")
+#: as a judge that invokes the door. `docs/jig/evidence` is the store's retired committed
+#: location — banned still, so prose reintroducing it fails the same way live paths do.
+ARTIFACTS = re.compile(r"(?<![\w/-])(PLAN\.md|docs/jig/evidence|\.studious/build-evidence)")
 
 #: Sentinel comments bounding a worker-dispatch region. Exempt from INVOCATION only.
 REGION_OPEN = "gate-independence: begin worker-dispatch"
