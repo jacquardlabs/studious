@@ -29,7 +29,7 @@ Open an issue for bugs, unclear documentation, or suggestions. Include:
 
 ```
 agents/       — Agent definitions (name, description, tools, model in frontmatter)
-bin/          — Executables used by commands (e.g. gate-ledger for gate verdicts, /next's per-feature state, and /next's per-epic state)
+bin/          — Executables used by commands (e.g. gate-ledger for gate verdicts and /next's per-feature and per-epic state)
 commands/     — Slash commands (description, allowed-tools in frontmatter)
 scripts/      — CI helper scripts (link checking, manifest validation)
 skills/       — Natural-language trigger shims (skills/<name>/SKILL.md)

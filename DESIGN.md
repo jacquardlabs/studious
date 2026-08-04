@@ -54,10 +54,10 @@ The gate vocabularies above judge work; these describe producing it. Absorbed wi
 | Concept | Canonical display | Source of truth | Consumers |
 |---------|-------------------|-----------------|-----------|
 | `/shape` verdict | `DESIGNED` \| `NEEDS RESEARCH` \| `REVISED` | `skills/shape/SKILL.md` (verdict table) | `/shape` output; read by `/build` and `/review` |
-| `/build` verdict | `PLAN READY` \| `DESIGN GAP` \| `TOO BIG` | `reference/planning-contract.md` (verdict table) | `/build` output; `DESIGN GAP` routes back to `/shape` |
+| `/build` planning verdict | `PLAN READY` \| `DESIGN GAP` \| `TOO BIG` | `reference/planning-contract.md` (verdict table) | `/build` Step 0 output; `DESIGN GAP` routes back to `/shape` |
 | `/build` task status | `todo` → `in-progress` → `PASS`/`REPLAN`/`ESCALATE` | `skills/build/SKILL.md` | flipped by scripts only, never the model |
 | `/build` failure-routine action | `FIX` \| `RESAMPLE` | `skills/build/SKILL.md` | the Foreman's own per-attempt judgment call after an item FAIL; transient, never written as a task status suffix |
-| `/build` session verdict | `BUILT` \| `PAUSED` \| `ESCALATED` | `skills/build/SKILL.md` (verdict table) | reported to the coach, the human, and `gate-ledger` |
+| `/build` session verdict | `BUILT` \| `PAUSED` \| `ESCALATED` | `skills/build/SKILL.md` (verdict table) | reported to `/next`, the human, and `gate-ledger` |
 | inspector verdict | `CLEAR` \| `DEFECT` \| `CONCERN` | `skills/build/SKILL.md` (step 2.6) | `/build`'s failure routine; `CONCERN` forwards to `/review` |
 | `/ship` verdict | `MERGE` \| `PR` \| `KEEP` \| `DISCARD` | `skills/ship/SKILL.md` (verdict table) | closes out a build branch |
 | checkpoint item type | `cap` \| `hold` | `reference/planning-contract.md` (checkpoint block template) | every checkpoint block in `PLAN.md` |
@@ -66,7 +66,7 @@ The gate vocabularies above judge work; these describe producing it. Absorbed wi
 
 **`PASS` means two different things and the collision is deliberate-adjacent, not
 resolved.** A `/build` task status `PASS` is a `PLAN.md` heading suffix written by
-`scripts/status-flip`; a `gate-audit` `PASS` is a gate verdict in the ledger. Name which
+`scripts/status-flip`; a work-episode `PASS` is a gate verdict in the ledger. Name which
 one you mean whenever both could be read — tracked as #174.
 
 ### Severity tiers
@@ -86,7 +86,7 @@ cited by the auditor/reviewer agents rather than restated per-agent.
 
 - **Report structure** — Summary first, then findings grouped by severity tier (Critical →
   Important → Track), then a final **Verdict** line carrying one of the command's
-  verdict tokens. Used by `gate-audit`, `gate-acceptance`, and the review agents.
+  verdict tokens. Used by the work and delivery episodes (`commands/review.md`) and the review agents.
 - **Summary line** — "one line per auditor/review: name, findings by severity, pass/fail."
 - **Report file paths** — periodic reviews write to `docs/studious/<area>-reviews/YYYY-MM-DD-<area>-review.md`.
 - **The checkpoint block** is the build side's closest analog to a type scale — a fixed

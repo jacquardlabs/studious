@@ -112,14 +112,18 @@ missing evidence log only means the report reads exactly as it always has.
 
 ## Open or re-enter the episode (before dispatching)
 
-Run `gate-ledger gate-get` once, before dispatching anyone. `<gate>` below is this
-episode's ledger gate from the table above. This round **re-enters** the branch's open
-episode — its one fix-and-retry round — only if every applicable condition holds against
-what it returns for `.gates.<gate>`:
+**This step governs the work and delivery episodes.** The design episode sits outside
+the episode verbs entirely — its Part 4 exception explains why — so on the design episode,
+skip this step: each design round simply runs, records via `record`, and amends the
+register in place.
 
-1. `.gates.<gate>.verdict` is exactly the episode's fix-and-retry token (`FIX AND
-   RE-REVIEW` for the work and delivery episodes, `REVISE` for the design episode) — the
-   prior round blocked, and a fix has presumably landed since.
+Run `gate-ledger gate-get` once, before dispatching anyone. `<gate>` below is this
+episode's ledger gate from the table above — `audit` or `acceptance`. This round
+**re-enters** the branch's open episode — its one fix-and-retry round — only if every
+applicable condition holds against what it returns for `.gates.<gate>`:
+
+1. `.gates.<gate>.verdict` is exactly `FIX AND RE-REVIEW` — the prior round blocked,
+   and a fix has presumably landed since.
 2. `.gates.<gate>.sha` is an ancestor of current `HEAD` — check with `git merge-base
    --is-ancestor <that sha> HEAD`. A non-ancestor (rebase, force-push, squash — history
    rewritten out from under the recorded verdict) fails this condition.
@@ -143,9 +147,9 @@ exit code — the round cap is enforced there, in code, never re-counted here:
   lanes named in `.gates.audit.blockingLanes`, each exactly as described in its own entry —
   full current changeset, fresh eyes, unchanged rubric — with the findings-ledger injection
   from the next step; every other tracked lane is **not** dispatched this round, and is
-  carried forward per the compilation step, never silently dropped. In the design and
-  delivery episodes, run every Part in full — fresh eyes, full current scope; re-entry
-  changes the episode's round, never the scope.
+  carried forward per the compilation step, never silently dropped. In the delivery
+  episode, run every Part in full — fresh eyes, full current scope; re-entry changes the
+  episode's round, never the scope.
 - **Exit 1** — the 2-round cap: this episode already spent its fix-and-retry round, and it
   is simply out of rounds. Reaching this exit means the round *was* converging (the
   convergence check runs first and intercepts a round that failed to shrink the blocking
@@ -340,11 +344,16 @@ until then this episode records the way it always has, and
 `reference/gate-vocabulary.md` says the same. The commit-before-record rule in the shared
 section below still applies here.
 
-### Persist the register (PROCEED TO PLAN only)
+### Persist the register
 
-If and only if the verdict is PROCEED TO PLAN, write the pre-mortem to
-`docs/studious/premortems/<slug>.md`, where `<slug>` is the design doc's filename without
-its extension. Create the directory if needed.
+Write the pre-mortem to `docs/studious/premortems/<slug>.md` on **every** round, whatever
+the verdict — `<slug>` is the design doc's filename without its extension; create the
+directory if needed. Round 1 creates the file; a re-run after REVISE amends it in place,
+per Part 3's amendment rule. This is what makes "amended per round, never regenerated"
+mechanically possible: a register that only existed on a pass would leave a REVISE round
+nothing to amend. The commit-before-record rule in the shared section below then commits
+whatever this round left, so the recorded sha always contains the register a later reader
+verifies against.
 
 The register outlives the doc it was written against, by design: design docs are
 branch-local and removed at closeout, while the register is committed and read later by the
@@ -365,9 +374,10 @@ already pointing at deleted files (#216).
 | 1 | technical | ... | ... |
 ```
 
-Tell the user the register was written and that the work episode (technical lane) and the
-delivery episode (product lane) will verify it at the end of the build. On REVISE or
-RETHINK, do not write the file — the amendment on re-entry is what carries it forward.
+Tell the user the register was written (or amended) and that the work episode (technical
+lane) and the delivery episode (product lane) will verify it at the end of the build. On
+RETHINK the register stays as the round left it — a rethought design comes back through a
+fresh round 1, which amends from whatever stands rather than starting blind.
 
 ---
 

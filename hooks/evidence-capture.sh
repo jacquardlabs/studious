@@ -67,7 +67,7 @@ pattern="(^|[^A-Za-z0-9])(${alt})(\$|[^A-Za-z0-9])"
 printf '%s' "$command_str" | grep -Eq "$pattern" || exit 0
 
 # --- armed check: current branch must be a branch gate-ledger already knows
-# about (a work file's .branch, written by /next or /next's driver
+# about (a work file's .branch, written by /next or its epic driver
 # when the story was set up — an existing step, not a new one). work-list's
 # column 3 is the branch, exact string match (not the gates ledger's slug —
 # no collision risk here, this compares full branch names).

@@ -81,7 +81,7 @@ role="${subagent#studious:}"   # the agent's own `name`, never the qualified dis
 # ORDER IS LOAD-BEARING: product-reviewer, premortem-auditor, and code-auditor all
 # match the *-reviewer/*-auditor pattern, so both exception lists must be tested
 # before it, and review-outcomes matches review-* but is dispatched by its own
-# /retro command, which runs OUTSIDE the /retro sweep — its case
+# /retro outcomes mode, which runs OUTSIDE the full /retro sweep — its case
 # branch must precede that pattern. The one genuine ambiguity is recorded as an
 # ambiguity, not guessed — code-auditor serves both /review's lane 2 and
 # /retro's idiom feedback step, and the hook cannot see which command

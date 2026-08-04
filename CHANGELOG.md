@@ -117,7 +117,7 @@
   ([#304](https://github.com/jacquardlabs/studious/pull/304),
   [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
 
-- Name why /next hands off design and build
+- Name why /work-on hands off design and build
   ([#304](https://github.com/jacquardlabs/studious/pull/304),
   [`1dd3fd1`](https://github.com/jacquardlabs/studious/commit/1dd3fd16e713934303a8a02242665b24966eb3ae))
 
@@ -239,7 +239,7 @@
   ([#301](https://github.com/jacquardlabs/studious/pull/301),
   [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
 
-- Make /review the work-episode door ([#301](https://github.com/jacquardlabs/studious/pull/301),
+- Make /gate-audit the work-episode door ([#301](https://github.com/jacquardlabs/studious/pull/301),
   [`ec4764a`](https://github.com/jacquardlabs/studious/commit/ec4764ad9101d3d5665a55c6eae801164a4bdab5))
 
 - Scope staleness to episodes and put acceptance at the delivery boundary
@@ -251,11 +251,11 @@
 
 ### Bug Fixes
 
-- /next reads the evidence path capture actually writes
+- /coach reads the evidence path capture actually writes
   ([#290](https://github.com/jacquardlabs/studious/pull/290),
   [`7435381`](https://github.com/jacquardlabs/studious/commit/7435381154c02a2863069bd47c0820aac6eeeca7))
 
-- /next reads the evidence path capture actually writes (#260)
+- /coach reads the evidence path capture actually writes (#260)
   ([#290](https://github.com/jacquardlabs/studious/pull/290),
   [`7435381`](https://github.com/jacquardlabs/studious/commit/7435381154c02a2863069bd47c0820aac6eeeca7))
 
@@ -788,11 +788,11 @@
 
 ### Bug Fixes
 
-- Cover the build half in /doctor, and refresh the stale ground truth
+- Cover the build half in /studious-doctor, and refresh the stale ground truth
   ([#236](https://github.com/jacquardlabs/studious/pull/236),
   [`704381d`](https://github.com/jacquardlabs/studious/commit/704381db9f6835bfffa20a4c55ed1cd6eb056b26))
 
-- Name the no-row-matches case in /next's routing
+- Name the no-row-matches case in /coach's routing
   ([#236](https://github.com/jacquardlabs/studious/pull/236),
   [`704381d`](https://github.com/jacquardlabs/studious/commit/704381db9f6835bfffa20a4c55ed1cd6eb056b26))
 
@@ -869,7 +869,7 @@
   ([#172](https://github.com/jacquardlabs/studious/pull/172),
   [`00ba9a9`](https://github.com/jacquardlabs/studious/commit/00ba9a96eb647d646d3dadf644c633871fc3e6dd))
 
-- Route /next toward the gate when the ledger is unreadable, and pin the flaky freshness floor
+- Route /coach toward the gate when the ledger is unreadable, and pin the flaky freshness floor
   ([#171](https://github.com/jacquardlabs/studious/pull/171),
   [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
 
@@ -925,7 +925,7 @@
 
 ### Documentation
 
-- /ship build report for epic/m3-plan-skill
+- /finish build report for epic/m3-plan-skill
   ([#171](https://github.com/jacquardlabs/studious/pull/171),
   [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
 
@@ -945,7 +945,7 @@
   ([#171](https://github.com/jacquardlabs/studious/pull/171),
   [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
 
-- Dated build report for coach-skill (/ship step 5)
+- Dated build report for coach-skill (/finish step 5)
   ([#171](https://github.com/jacquardlabs/studious/pull/171),
   [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
 
@@ -1034,17 +1034,17 @@
   ([#171](https://github.com/jacquardlabs/studious/pull/171),
   [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
 
-- Implement /next, the user-invoked orchestrator (M6)
+- Implement /coach, the user-invoked orchestrator (M6)
   ([#171](https://github.com/jacquardlabs/studious/pull/171),
   [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
 
-- Implement /shape skill (M2) ([#171](https://github.com/jacquardlabs/studious/pull/171),
+- Implement /design skill (M2) ([#171](https://github.com/jacquardlabs/studious/pull/171),
   [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
 
-- Implement /build skill (M3) ([#171](https://github.com/jacquardlabs/studious/pull/171),
+- Implement /plan skill (M3) ([#171](https://github.com/jacquardlabs/studious/pull/171),
   [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
 
-- Implement the coach — /next, the user-invoked orchestrator (issue #21)
+- Implement the coach — /coach, the user-invoked orchestrator (issue #21)
   ([#171](https://github.com/jacquardlabs/studious/pull/171),
   [`980d523`](https://github.com/jacquardlabs/studious/commit/980d523eb1a33c9293cfa5acda89c4195818bad5))
 
@@ -1262,7 +1262,7 @@
   ([#167](https://github.com/jacquardlabs/studious/pull/167),
   [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
 
-- Surface per-phase gate durations in /next's report
+- Surface per-phase gate durations in /work-through's report
   ([#167](https://github.com/jacquardlabs/studious/pull/167),
   [`75c1378`](https://github.com/jacquardlabs/studious/commit/75c1378a1c4eb67b578bc6acbd13fa6019dd32d5))
 
@@ -1363,7 +1363,7 @@
   ([#153](https://github.com/jacquardlabs/studious/pull/153),
   [`de96a9e`](https://github.com/jacquardlabs/studious/commit/de96a9ee99b13f0bf18145c8250d3bcba0054aef))
 
-- Give /bet a decision journal of past verdicts
+- Give /gate-should-we-build a decision journal of past verdicts
   ([#153](https://github.com/jacquardlabs/studious/pull/153),
   [`de96a9e`](https://github.com/jacquardlabs/studious/commit/de96a9ee99b13f0bf18145c8250d3bcba0054aef))
 
@@ -1662,7 +1662,7 @@
   hygiene ([#123](https://github.com/jacquardlabs/studious/pull/123),
   [`63b99f4`](https://github.com/jacquardlabs/studious/commit/63b99f4568c062d3101ee95c24d7ba2ddb098bbf))
 
-- Wire operability lane into /review as auditor 10; premortem renumbers to 11
+- Wire operability lane into /gate-audit as auditor 10; premortem renumbers to 11
   ([#123](https://github.com/jacquardlabs/studious/pull/123),
   [`63b99f4`](https://github.com/jacquardlabs/studious/commit/63b99f4568c062d3101ee95c24d7ba2ddb098bbf))
 
@@ -1821,7 +1821,7 @@
   ([#114](https://github.com/jacquardlabs/studious/pull/114),
   [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
 
-- Add security posture as /retro's sixth periodic lane
+- Add security posture as /deep-review's sixth periodic lane
   ([#114](https://github.com/jacquardlabs/studious/pull/114),
   [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
 
@@ -1841,7 +1841,7 @@
   ([#114](https://github.com/jacquardlabs/studious/pull/114),
   [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
 
-- Route test-auditor and infra-auditor through /review
+- Route test-auditor and infra-auditor through /gate-audit
   ([#114](https://github.com/jacquardlabs/studious/pull/114),
   [`7a13b7e`](https://github.com/jacquardlabs/studious/commit/7a13b7eb92e1b940bff74cea54a648dfe4be658e))
 
@@ -1921,7 +1921,7 @@
 
 ### Documentation
 
-- Add /next epic orchestration spec and plan
+- Add /work-through epic orchestration spec and plan
   ([#105](https://github.com/jacquardlabs/studious/pull/105),
   [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
 
@@ -1929,7 +1929,7 @@
   ([#105](https://github.com/jacquardlabs/studious/pull/105),
   [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
 
-- Document /next in README, CONTRIBUTING, and gate vocabulary
+- Document /work-through in README, CONTRIBUTING, and gate vocabulary
   ([#105](https://github.com/jacquardlabs/studious/pull/105),
   [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
 
@@ -1939,7 +1939,7 @@
 
 ### Features
 
-- Add /next — drive a whole epic through the gate flow
+- Add /work-through — drive a whole epic through the gate flow
   ([#105](https://github.com/jacquardlabs/studious/pull/105),
   [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
 
@@ -1958,7 +1958,7 @@
   ([#105](https://github.com/jacquardlabs/studious/pull/105),
   [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
 
-- Add run-the-milestone skill shim for /next
+- Add run-the-milestone skill shim for /work-through
   ([#105](https://github.com/jacquardlabs/studious/pull/105),
   [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
 
@@ -1966,7 +1966,7 @@
   ([#105](https://github.com/jacquardlabs/studious/pull/105),
   [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
 
-- Move /next's driver to the Workflow substrate with prompt fallback
+- Move /work-through's driver to the Workflow substrate with prompt fallback
   ([#105](https://github.com/jacquardlabs/studious/pull/105),
   [`92836f6`](https://github.com/jacquardlabs/studious/commit/92836f69ae1bbba758b999c622714146688c5e5e))
 
@@ -1985,16 +1985,16 @@
 
 ### Documentation
 
-- Document /doctor in README ([#87](https://github.com/jacquardlabs/studious/pull/87),
+- Document /studious-doctor in README ([#87](https://github.com/jacquardlabs/studious/pull/87),
   [`d5db2ab`](https://github.com/jacquardlabs/studious/commit/d5db2ab34c390eb6a0418ef44aa202a7becf1856))
 
 ### Features
 
-- Add /doctor read-only health check
+- Add /studious-doctor read-only health check
   ([#87](https://github.com/jacquardlabs/studious/pull/87),
   [`d5db2ab`](https://github.com/jacquardlabs/studious/commit/d5db2ab34c390eb6a0418ef44aa202a7becf1856))
 
-- Add check-studious-health skill shim for /doctor
+- Add check-studious-health skill shim for /studious-doctor
   ([#87](https://github.com/jacquardlabs/studious/pull/87),
   [`d5db2ab`](https://github.com/jacquardlabs/studious/commit/d5db2ab34c390eb6a0418ef44aa202a7becf1856))
 
@@ -2012,7 +2012,7 @@
 
 ### Features
 
-- Add /next — navigate the feature flow one piece at a time
+- Add /work-on — navigate the feature flow one piece at a time
   ([#84](https://github.com/jacquardlabs/studious/pull/84),
   [`9716a2c`](https://github.com/jacquardlabs/studious/commit/9716a2cc3f8949a765ffb43f1337ec83c18817df))
 
@@ -2358,7 +2358,7 @@
 
 ### Breaking Changes
 
-- The plugin installs as studious@... and the init command is /setup. Existing installs and
+- The plugin installs as studious@... and the init command is /studious-init. Existing installs and
   /jaqal-init muscle memory break; reinstall under the new name.
 
 
@@ -2377,7 +2377,7 @@
   ([#23](https://github.com/jacquardlabs/jaqal/pull/23),
   [`76c71cd`](https://github.com/jacquardlabs/jaqal/commit/76c71cd58cf2aa3cc67c55250daa44ee18f20060))
 
-- Reconcile /review severities, diff base, and a11y call (B2, I1, I2)
+- Reconcile /gate-audit severities, diff base, and a11y call (B2, I1, I2)
   ([#23](https://github.com/jacquardlabs/jaqal/pull/23),
   [`76c71cd`](https://github.com/jacquardlabs/jaqal/commit/76c71cd58cf2aa3cc67c55250daa44ee18f20060))
 
@@ -2429,7 +2429,7 @@
   ([#8](https://github.com/jacquardlabs/jaqal/pull/8),
   [`b5ca8c3`](https://github.com/jacquardlabs/jaqal/commit/b5ca8c3efec9624f50f7cf0b0448b0a25549da23))
 
-- Collapse review commands into /retro [area] and finalize naming
+- Collapse review commands into /deep-review [area] and finalize naming
   ([#17](https://github.com/jacquardlabs/jaqal/pull/17),
   [`a379219`](https://github.com/jacquardlabs/jaqal/commit/a37921938d8e964253f33b6047b3dfc762309da4))
 
@@ -2437,7 +2437,7 @@
   ([#8](https://github.com/jacquardlabs/jaqal/pull/8),
   [`b5ca8c3`](https://github.com/jacquardlabs/jaqal/commit/b5ca8c3efec9624f50f7cf0b0448b0a25549da23))
 
-- Collapse the 5 review commands into /retro [area]
+- Collapse the 5 review commands into /deep-review [area]
   ([#17](https://github.com/jacquardlabs/jaqal/pull/17),
   [`a379219`](https://github.com/jacquardlabs/jaqal/commit/a37921938d8e964253f33b6047b3dfc762309da4))
 
@@ -2447,7 +2447,7 @@
 - Remove vestigial fix-orchestration layer ([#8](https://github.com/jacquardlabs/jaqal/pull/8),
   [`b5ca8c3`](https://github.com/jacquardlabs/jaqal/commit/b5ca8c3efec9624f50f7cf0b0448b0a25549da23))
 
-- Rename /audit to /review and drop Gate N labels
+- Rename /audit to /gate-audit and drop Gate N labels
   ([#20](https://github.com/jacquardlabs/jaqal/pull/20),
   [`0f2975b`](https://github.com/jacquardlabs/jaqal/commit/0f2975b457cbb56e297ad115aaf0d30c6ed2f3e9))
 
@@ -2460,7 +2460,7 @@
 
 ### Features
 
-- Include /review-readme in /retro and flag README drift in /audit
+- Include /review-readme in /deep-review and flag README drift in /audit
   ([#7](https://github.com/jacquardlabs/jaqal/pull/7),
   [`f0222e3`](https://github.com/jacquardlabs/jaqal/commit/f0222e34d3602b14337cb4c725b6f398fcbfca24))
 

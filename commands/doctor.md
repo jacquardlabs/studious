@@ -1,5 +1,5 @@
 ---
-description: Check tooling, plugin registration, and context-doc health for silent-degradation risks
+description: Invoke as /studious:doctor — Claude Code's built-in /doctor wins the bare name. Check tooling, plugin registration, and context-doc health for silent-degradation risks
 allowed-tools: Read, Glob, Grep, Bash
 ---
 

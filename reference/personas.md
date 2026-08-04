@@ -38,6 +38,18 @@ mention.
 | `/setup` | — | infra | `commands/setup.md` | studious-init, extract-product-context, extract-design-system |
 | `/doctor` | — | infra | `commands/doctor.md` | studious-doctor |
 
+### Bare names and collisions
+
+The bare verbs are deliberate — recognition is the rename's whole bet — but a bare door
+name resolves only while nothing else claims it. Claude Code built-ins win over plugin
+commands, and `/doctor` collides today (Claude Code ships its own `/doctor`); any other
+name can collide tomorrow with a new built-in or another installed plugin. The
+namespaced form is always unambiguous: `/studious:doctor`, `/studious:review`,
+`/studious:<door>`. When actionable text tells a human to run a door whose bare name is
+known to collide, write the namespaced form — a copy-pasted command that runs the wrong
+tool is worse than a longer one. This is the same finding #257's session hit with the
+old bare `/design`, applied to the new surface.
+
 ### What each class may do
 
 - **judge** — records verdicts. May never invoke a producer door or require a producer's

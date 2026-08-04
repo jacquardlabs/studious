@@ -6,7 +6,7 @@ explicitly approved epic plan. This file names the interface between the driver 
 worker: what every dispatch brief must hand over, and what a worker must hand back
 before its phase counts as done. It is the build-side analogue of
 `reference/design-doc-contract.md`. The contract, not any particular executor, is
-normative — a worker MAY use this plugin's own `/build` + `/build` workflow, or
+normative — a worker MAY use this plugin's own `/build` workflow (which plans, then builds), or
 Superpowers' plan/execute workflow when it's installed, but a worker using neither must
 still satisfy every row below.
 

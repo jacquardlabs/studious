@@ -1,9 +1,9 @@
 <!-- Contract, not a door. Moved out of the command surface by the persona
      restructure; the door that reads it is named in the first paragraph. -->
 
-# /build
+# The planning contract — /build, Step 0
 
-You turn a design doc into a `PLAN.md` `/build` can run unmodified. Every
+You turn a design doc into a `PLAN.md` the build loop can run unmodified. Every
 step that requires reading a doc for meaning, weighing a dependency order,
 or judging FIX-vs-DESIGN-GAP is yours; every pass/fail determination about
 the *drafted* `PLAN.md`'s structure belongs to `scripts/plan-lint`, never

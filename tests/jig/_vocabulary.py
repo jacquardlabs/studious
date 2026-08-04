@@ -36,7 +36,7 @@ RELEVANT_VOCABULARY_CONCEPTS = frozenset(
 # Vocabulary-table concepts that belong to the /build Foreman's own domain
 # (skills/build/SKILL.md) -- the task-status enum it flips via status-flip,
 # its own session verdict, and the risk tag its cadence logic reacts to --
-# as opposed to /shape's, /build's, or /ship's verdict vocabularies, none
+# as opposed to /shape's, /ship's, or the planning step's verdict vocabularies, none
 # of which this skill discusses.
 BUILD_VOCABULARY_CONCEPTS = frozenset(
     {"/build task status", "/build session verdict", "risk tag"}
@@ -52,21 +52,21 @@ FINISH_VOCABULARY_CONCEPTS = frozenset({"/ship verdict"})
 # (reference/planning-contract.md): its own closed verdict enum, plus the checkpoint
 # grammar it drafts into every task block (item type, verification tier)
 # and the risk tag it assigns before /build ever sees the plan -- as
-# opposed to /shape's, /build's, or /ship's own verdict vocabularies,
+# opposed to /shape's, /ship's, or the build session's own verdict vocabularies,
 # none of which this skill discusses.
 PLAN_VOCABULARY_CONCEPTS = frozenset(
-    {"/build verdict", "checkpoint item type", "verification tier", "risk tag"}
+    {"/build planning verdict", "checkpoint item type", "verification tier", "risk tag"}
 )
 
 # Vocabulary-table concepts that belong to /shape's own domain
 # (skills/shape/SKILL.md) -- just its own closed verdict enum, as opposed
-# to /build's, /build's, or /ship's verdict vocabularies, none of which
+# to the planning and session verdicts, or /ship's, none of which
 # this skill discusses.
 DESIGN_VOCABULARY_CONCEPTS = frozenset({"/shape verdict"})
 
 # Vocabulary-table concepts the coach (commands/next.md) *reads* while
 # assessing pipeline state -- the three session-verdict enums it can meet
-# in conversation (/shape's, /build's, /build's -- the session-verdict
+# in conversation (/shape's, the planning step's, the build session's -- the session-verdict
 # row's own consumer cell names the coach) plus the script-written task
 # status suffixes it reads from PLAN.md headings. Deliberately not
 # /ship's verdict enum (the coach dispatches /ship but never consumes
@@ -75,7 +75,7 @@ DESIGN_VOCABULARY_CONCEPTS = frozenset({"/shape verdict"})
 # verdict enum of its own by design (`commands/next.md` states it: "no
 # verdict enum of its own") -- there is no coach-owned row to derive.
 COACH_VOCABULARY_CONCEPTS = frozenset(
-    {"/shape verdict", "/build verdict", "/build task status", "/build session verdict"}
+    {"/shape verdict", "/build planning verdict", "/build task status", "/build session verdict"}
 )
 
 

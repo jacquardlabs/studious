@@ -90,9 +90,9 @@ def test_coach_is_gone_from_every_shipped_surface() -> None:
     offenders = [
         rel
         for rel in tracked
-        # `docs/` holds historical review reports and decision records, which describe the
-        # surface as it stood when they were written; `tests/` holds this file's own prose.
-        if not rel.startswith(("docs/", "tests/"))
+        # `docs/` and CHANGELOG.md hold historical records, which describe the surface as
+        # it stood when they were written; `tests/` holds this file's own prose.
+        if not rel.startswith(("docs/", "tests/", "CHANGELOG"))
         and invocation.search((REPO_ROOT / rel).read_text(encoding="utf-8"))
     ]
     assert offenders == [], f"/coach still invoked in: {offenders}"

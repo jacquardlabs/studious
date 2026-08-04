@@ -181,7 +181,9 @@ opens the design episode. Then:
 
 - **PROCEED TO PLAN** → phase `build`
 - **REVISE** → phase stays `design-review`; the next piece is addressing the listed changes,
-  after which `/review` re-enters the same episode for its one revision round
+  after which `/review` re-runs against the revised doc, amending the pre-mortem register in
+  place rather than regenerating it (the design episode records via `record`, outside the
+  ledger's round-cap verbs — `/review`'s own exception section explains why)
 - **RETHINK** → phase `design`; back to the doc with the reasoning
 
 Log with `work-log --step design-review --outcome "<verdict>" --phase "<phase>"`.

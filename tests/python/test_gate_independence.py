@@ -148,7 +148,7 @@ def test_region_exempts_a_worker_dispatch_invocation(tmp_path: Path, monkeypatch
     _workflow(
         tmp_path,
         f"// {gi.REGION_OPEN}\n"
-        "const build = `The route that ships with this plugin is /build then /build.`\n"
+        "const build = `The route that ships with this plugin is /shape then /build.`\n"
         f"// {gi.REGION_CLOSE}\n",
     )
     monkeypatch.setattr(gi, "REPO", tmp_path)
@@ -175,12 +175,12 @@ def test_the_same_string_outside_the_region_still_fails(tmp_path: Path, monkeypa
     _workflow(
         tmp_path,
         f"// {gi.REGION_OPEN}\n// {gi.REGION_CLOSE}\n"
-        "const build = `The route that ships with this plugin is /build then /build.`\n",
+        "const build = `The route that ships with this plugin is /shape then /build.`\n",
     )
     monkeypatch.setattr(gi, "REPO", tmp_path)
     problems = gi.violations()
     assert len(problems) == 1
-    assert "must not invoke /build" in problems[0]
+    assert "must not invoke /shape" in problems[0]
 
 
 def test_a_gate_compiler_may_not_be_moved_inside_the_region(tmp_path: Path, monkeypatch) -> None:

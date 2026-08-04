@@ -28,9 +28,8 @@ A fixture planting an uncertain-but-real defect would be the honest re-test.
 
 # Prompt contract — shared posture, scope, output, closer, and style
 
-Canonical source for the five blocks the fan-out gate and review commands
-(`commands/review.md`, `commands/retro.md`, `commands/review.md`,
-`commands/review.md`) read once and inject verbatim into every agent they
+Canonical source for the five blocks the fan-out doors (`commands/review.md`,
+`commands/retro.md`) read once and inject verbatim into every agent they
 dispatch. The audit/review agents (`agents/*-auditor.md`, `agents/*-reviewer.md`,
 `agents/review-*.md`) receive the five blocks inline in their dispatch prompt rather than
 reading this file — a dispatched agent runs with its working directory in the *consuming*

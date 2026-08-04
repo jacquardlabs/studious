@@ -32,8 +32,12 @@ knows or cares which one produced the branch, and CI enforces that.
 | `/next [anything]` | The standup question, at any scale | standup · pull · hill chart |
 | `/retro [area]` | The periodic look-back | retrospective · kaizen · cool-down |
 
-Plus two you'll run rarely: `/setup` (first-time scaffolding) and `/doctor` (install
-diagnostics).
+Plus two you'll run rarely: `/setup` (first-time scaffolding) and `/studious:doctor`
+(install diagnostics — namespaced, because Claude Code ships its own `/doctor`).
+
+Every door also answers to its namespaced form, `/studious:<door>`. Reach for it when a
+bare name collides with a Claude Code built-in or another plugin — the namespaced form is
+always unambiguous.
 
 **The flow is scale-invariant.** A bet's scope may be one story, a list of stories, or a
 whole milestone — same doors, same order, every time. Scope changes how many stories a bet

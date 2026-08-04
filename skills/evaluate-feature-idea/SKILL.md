@@ -1,6 +1,6 @@
 ---
 name: evaluate-feature-idea
-description: Use when the user is explicitly deciding whether to build a specific feature — asking "should we build X", "is this worth building", "is this a good idea", or weighing a feature idea against what else matters. This routes the decision to Studious's should-we-build gate. Do NOT use for general feature brainstorming, for shaping a design once the decision to build is already made, or for prioritizing existing issues (that's /bet).
+description: Use when the user is explicitly deciding whether to build a specific feature — asking "should we build X", "is this worth building", "is this a good idea", or weighing a feature idea against what else matters. This routes the decision to Studious's should-we-build gate. Do NOT use for general feature brainstorming, for shaping a design once the decision to build is already made, or for prioritizing existing issues (that's bare /bet with no argument — the backlog-ranking mode, a different intent than judging one idea).
 ---
 
 # Should we build this?

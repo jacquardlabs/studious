@@ -92,7 +92,7 @@ def test_the_driver_names_the_in_box_route_first() -> None:
     assert build_prompt, "epic-driver.js has no build worker prompt"
 
     prompt = build_prompt.group(1)
-    assert "/build" in prompt and "/build" in prompt
+    assert "/build" in prompt and "plans and then builds" in prompt
     assert prompt.index("/build") < prompt.index("Superpowers")
     assert "worker contract is normative" in prompt
 
