@@ -136,8 +136,11 @@ The tracker owns individual features. PRODUCT.md owns strategic context only.
 **The roadmap lives in [milestones](https://github.com/jacquardlabs/studious/milestones), not here.** Restating it in this file is how it went stale
 before: the original A/M/X tiers were listed as the live roadmap long after every
 A-tier and M-tier issue had closed, and every gate reads this file as ground truth.
-Milestones are ordered by their own descriptions; the run order as of 2026-07-25 is
-M10 → M11 → M9 → M6 → M12 → M8 → M5.
+**Milestone numbers carry delivery order** — M1 runs first. That is a convention for
+reading the tracker, not a roadmap: which milestones exist, what is in them, and what
+runs concurrently are the tracker's to answer, and each description states its own
+position and why. Numbering was reset on 2026-08-03, so a reference dated before then
+uses the old numbers; every current milestone names the one it was renumbered from.
 
 The one durable point: **X-tier is the strategic bet.** Spec traceability (#31), the
 post-ship outcome gate (#32), and the self-tuning corpus (#33) are what turn a set of
@@ -219,11 +222,11 @@ shipped: the self-verification harness (#24, CI now runs seven jobs), stateless 
 undefined design-doc contract (#29). Every gate and review reads this file, so a stale
 entry here is not a documentation nit — it is the discipline running on bad fuel.
 
-1. **Cost is unbudgeted and grows with the auditor roster, not the diff** (#130, #144,
-   #142) — a gate's price scales O(auditors), so a one-line change pays for a full
-   fan-out. No per-gate latency or cost budget is stated anywhere, which means nothing
-   can be over budget. Cost is the UX for a tool a developer runs per feature.
-2. ~~**The merge unified the repo, not the flow** (M10) — two navigators answered
+1. **Cost is unbudgeted and grows with the auditor roster, not the diff** (M1) — a
+   gate's price scales O(auditors), so a one-line change pays for a full fan-out. Cost
+   is the UX for a tool a developer runs per feature. The remedies are M1's contents;
+   the earlier citations (#130, #144, #142) all shipped without closing the problem.
+2. ~~**The merge unified the repo, not the flow** (retired M10) — two navigators answered
    "what's next" from two state stores neither read (#214), and #280 shipped a rule for
    choosing between them rather than collapsing them.~~ Resolved: the persona
    restructure collapsed 18 doors to 9, `/next` is the single navigator at every scale,
@@ -231,15 +234,19 @@ entry here is not a documentation nit — it is the discipline running on bad fu
    design-review model that was the other half of this stands as decided (#210, #280):
    a human signs off where an episode cannot verify mechanically, and story class routes
    each story to the pipeline that holds.
-3. **Contracts are pinned by prose, not by tests** (M9) — vocabulary and roster facts
+3. **Contracts are pinned by prose, not by tests** (M3, formerly M9) — vocabulary and roster facts
    are restated across surfaces and re-derived by regex over that prose (#176, #116,
    #115). #211 and #213 were both this failure class reaching production behavior.
-4. **Two evidence stores, and CI blesses the thinner one** (#148) — the committed,
-   freshness-verified per-task evidence is the store no gate may read; the ephemeral
-   JSONL is the sanctioned contract. Defensible, but written down nowhere as a
-   decision.
-5. **Nothing closes the loop after ship** (M5) — the gates judge intent and execution,
-   then stop. Whether a shipped feature worked is not read back into anything.
+4. **Two evidence stores, and CI blesses the thinner one** (#148, M3) — the richer,
+   freshness-stamped per-task store (`.studious/build-evidence/`) is the one no gate
+   may read, named a forbidden producer artifact at
+   `scripts/check_gate_independence.py:85`; the thinner per-command JSONL
+   (`.studious/evidence/<branch-slug>.jsonl`) is the sanctioned contract. Defensible,
+   but written down nowhere as a decision. Neither store is committed since v3.1.0
+   (#307); the asymmetry outlived that change.
+5. **Nothing closes the loop after ship** (M6, formerly M5) — the gates judge intent
+   and execution, then stop. Whether a shipped feature worked is not read back into
+   anything.
 
 ## Business model
 
