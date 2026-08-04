@@ -4,7 +4,7 @@
 # Six stores in the consuming project:
 #   .studious/gates/<branch-slug>.json  — per-branch gate verdicts. Written by the
 #     gate commands (via `record`); read by the PR-time hook (via `status`) and by
-#     /work-on's evidence check (via `gate-get`) — never read as a raw file by callers.
+#     /next's evidence check (via `gate-get`) — never read as a raw file by callers.
 #     The same file also carries `episodes` (#289): one bounded gate episode per
 #     gate, written via `episode-open`/`episode-round`/`episode-verdict` — see
 #     those verbs for the record's schema. `status` and every other legacy reader
@@ -12,11 +12,11 @@
 #     A gate's entry optionally carries `blockingLanes` (delta-scoped re-audit, #130):
 #     set via `record --gate audit --blocking-lanes L1,L2` — or through
 #     `episode-verdict`'s passthrough of the same flag (#289) — when the audit verdict
-#     is the retry token; read back via `gate-get` by commands/gate-audit.md and
+#     is the retry token; read back via `gate-get` by commands/review.md and
 #     workflows/epic-driver.js to narrow the *next* round's dispatch width. Absent on
 #     every other verdict and on every record written before this field existed —
 #     indistinguishable from "malformed," which both readers fail closed on (full audit).
-#   .studious/work/<feature-slug>.json  — per-feature flow position for /work-on
+#   .studious/work/<feature-slug>.json  — per-feature flow position for /next
 #     (written via `work-set` / `work-log`; read via `work-get` / `work-list`).
 #     Optional scope-delta measurement fields (#244), epic-driven path only:
 #     `declaredFiles` — the design worker's own forecast of exact files this story
@@ -40,7 +40,7 @@
 #     is that fact's one owner, and the same `work-get` read returns both.
 #     `assignments` — the append-only history of every assignment written for this
 #     feature, which is what makes "what was this worker told" auditable after the fact.
-#   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /work-through (written via epic-set / epic-story-set / epic-run-log; read via epic-get / epic-reconcile / epic-list).
+#   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /next (written via epic-set / epic-story-set / epic-run-log; read via epic-get / epic-reconcile / epic-list).
 #     Alongside the plan it carries the epic's approved appetite (`appetite.tokens`,
 #     `appetite.openEpisodes`), its canary flag, and `runs` — one record per driver
 #     invocation with the count of stories that landed, which is what arms the
@@ -72,10 +72,10 @@
 #     on that branch, so `record` can attribute a verdict to a run without any
 #     prompt carrying the id. No reader in this plugin; nothing branches on it.
 # All six stores are anchored to the MAIN working tree (see repo_root), so
-# agents running in linked worktrees (e.g. /work-through story worktrees)
+# agents running in linked worktrees (e.g. /next story worktrees)
 # share one .studious/ store instead of fragmenting it per worktree.
 #
-# Alongside the five stores, .studious/worktrees/<epic-slug>/ holds /work-through's
+# Alongside the five stores, .studious/worktrees/<epic-slug>/ holds /next's
 # checkouts — `__epic` for the integration worktree, one directory per in-flight
 # story. This script owns that layout (worktree_path); everyone else asks for a
 # path via the `worktree-path` verb rather than composing one.
@@ -91,7 +91,7 @@ have() { command -v "$1" >/dev/null 2>&1; }
 
 repo_root() {
   # Anchor state to the MAIN working tree so agents running in linked
-  # worktrees (e.g. /work-through story worktrees) share one .studious/ store.
+  # worktrees (e.g. /next story worktrees) share one .studious/ store.
   local common
   common=$(git rev-parse --git-common-dir 2>/dev/null) || return 1
   common=$(cd "$common" 2>/dev/null && pwd) || return 1  # may be relative ".git"
@@ -159,17 +159,17 @@ telemetry_dir() {
 }
 
 worktree_path() { # <repo-root> <epic-slug> [<story-slug>] -> that worktree's absolute path
-  # THE owner of /work-through's worktree layout: `.studious/worktrees/<epic>/`
+  # THE owner of /next's worktree layout: `.studious/worktrees/<epic>/`
   # holds one checkout per in-flight story plus `__epic`, the integration
   # checkout the stories merge into. Everything that needs one of these paths
   # goes through here — cmd_epic_reconcile's designDocExists lookup below, the
   # `worktree-path` verb, and (via that verb, across the args boundary)
-  # workflows/epic-driver.js and commands/work-through.md — so the layout has
+  # workflows/epic-driver.js and reference/epic-orchestration.md — so the layout has
   # one definition to change instead of four to keep in step (#166).
   #
   # Pure string composition: no git, no epic file, no filesystem check. Callers
   # resolving a path for a worktree that may not exist yet — `git worktree add`
-  # in work-through.md's step 5 runs before any of this exists on disk — depend
+  # in reference/epic-orchestration.md's step 5 runs before any of this exists on disk — depend
   # on that.
   #
   # `__epic` cannot collide with a story: slugify()'s `tr -cs 'a-z0-9' '-'`
@@ -213,7 +213,7 @@ epic_context_from_slug() { # raw (pre-slugify) --slug value -> prints "epicSlug<
   # split a silent, permanent no-op if run after (see reference/events-format.md).
   case "$1" in
     *--*) printf '%s\t%s' "${1%%--*}" "${1#*--}" ;;
-    *)    return 0 ;;  # never-epic-qualified /work-on feature slug: silent no-op
+    *)    return 0 ;;  # never-epic-qualified /next feature slug: silent no-op
   esac
 }
 
@@ -356,7 +356,7 @@ cmd_record() {
   # recorded WITHOUT --blocking-lanes (a PASS, or a caller that never
   # computed one) correctly leaves the field absent rather than carrying a
   # stale list forward. Absence is exactly the "malformed/unavailable" signal
-  # commands/gate-audit.md's and workflows/epic-driver.js's re-audit-scope
+  # commands/review.md's and workflows/epic-driver.js's re-audit-scope
   # readers already fail closed on.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
@@ -620,7 +620,7 @@ cmd_episode_open() {
   # under an exit code no door branch documents. This verb is where a corrupt
   # ledger lands: `episode-round`/`-verdict`/`-finding` all read the round
   # through `episode_round_get`, whose `2>/dev/null` turns a parse failure into
-  # "no open episode" — exit 2, which commands/gate-audit.md's branch table
+  # "no open episode" — exit 2, which commands/review.md's branch table
   # reads as "a ledger written before episodes existed: treat it as a fresh
   # entry" and routes straight to episode-open. Exit 1 is the state-refusal
   # code `epic-reconcile` already uses for a corrupted stored file, and both
@@ -893,7 +893,7 @@ cmd_episode_verdict() {
 #
 # `severity` is the canonical three-tier ladder (reference/severity-rubric.md):
 # Critical | Important | Track — callers map per-auditor labels into these
-# BEFORE recording, exactly as /gate-audit's orchestrator already does. A
+# BEFORE recording, exactly as /review's orchestrator already does. A
 # Critical must cite the objective anchor its tier rests on (the anchors table
 # in that same rubric); a Critical filed with no anchor is recorded Important
 # instead — that judgment happens before the write, since severity is fixed at
@@ -935,7 +935,7 @@ finding_status_is_set_aside() { # status → true when it rides through the verd
 
 # Both findings verbs render their fields into line- and tab-structured reads
 # (`episode-get --findings`, `episode-get --history`, `epic-findings`), and
-# `/gate-audit` injects those lines verbatim into the next round's lane dispatch
+# `/review` injects those lines verbatim into the next round's lane dispatch
 # prompts. A value that can carry a newline or a tab can therefore forge an extra
 # line in a downstream prompt — so identity fields are guarded on the way IN, at
 # the boundary, exactly as `--fingerprint` already is.
@@ -1180,7 +1180,7 @@ cmd_episode_get() { # --gate G [--findings | --history] -> one line a prose surf
   # `waived` and `rejected-as-noise` are explicitly set aside). Prints nothing
   # when no episode is recorded for the gate, mirroring gate-get/epic-get.
   #
-  # --findings (#289, the re-entry read /gate-audit injects into lane
+  # --findings (#289, the re-entry read /review injects into lane
   # dispatches) follows the summary line with two fingerprint-sorted, tab-
   # separated blocks — compaction (#298) is what keeps a later round's
   # inheritance a digest rather than a transcript:
@@ -1308,7 +1308,7 @@ cmd_work_set() {
   # this verb, it is written whenever the flag is present at all (tracked by
   # `declared_given`, set in the arg-parsing loop above), not only when
   # non-empty. `| unique` matches the report side's own treatment of
-  # `outsideFiles` (commands/work-through.md's jq) — a repeated path in the
+  # `outsideFiles` (reference/epic-orchestration.md's jq) — a repeated path in the
   # declaration must not inflate `declared \(N)` against a set that "one file
   # counts once" already keeps disjoint on the outside-files side.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
@@ -1417,13 +1417,13 @@ cmd_work_log() {
   # Per-step outcome vocabulary. Only a step whose *reader* branches on the token is
   # constrained here; gate steps carry verdicts owned by reference/gate-vocabulary.md
   # and stay free-form, as do markers like run-boundary. `build` is constrained because
-  # work-on.md's "Executor-reported build status" check branches on exactly these, and
+  # commands/next.md's "Executor-reported build status" check branches on exactly these, and
   # three writers had drifted into two dialects with nothing to catch it (#213). This
   # vocabulary governs `--outcome` alone — scope-delta measurement (#244) rides its own
   # dedicated fields (`--scope-delta-*`/`--amend-*`) precisely so it never has to widen
   # (or smuggle a composite value through) this closed list.
   #   BUILT | PAUSED | ESCALATED  executor-reported terminal status (worker-contract.md)
-  #   HANDED-OFF | SKIPPED        /work-on's own non-terminal flow markers
+  #   HANDED-OFF | SKIPPED        /next's own non-terminal flow markers
   if [ "$step" = "build" ]; then
     case "$outcome" in
       BUILT|PAUSED|ESCALATED|HANDED-OFF|SKIPPED) ;;
@@ -1471,7 +1471,7 @@ cmd_work_log() {
   # per-moment measurements (one entry per work-log call that carries
   # --scope-delta-phase with either --scope-delta-files or
   # --scope-delta-unmeasured) — never rewritten, never summed here (the
-  # reader, commands/work-through.md, does that from the verbatim entries).
+  # reader, reference/epic-orchestration.md, does that from the verbatim entries).
   # `.amendments` is a separate append-only list keyed by file: a one-line
   # justification attached to a file some moment already counted as
   # outside the declaration. Neither ever removes or edits a prior entry in
@@ -1639,7 +1639,7 @@ epic_file_init() { # slug → ensures the epic file exists, echoes its path
 
 # Zero-landed stop-loss (#268). Two consecutive invocations that landed nothing
 # arm the refusal; the third dispatch is the one refused. The threshold lives
-# here, not in commands/work-through.md — a prompt comparing a counter against a
+# here, not in reference/epic-orchestration.md — a prompt comparing a counter against a
 # literal is the retry-counting-in-prose defect CLAUDE.md names. epic-reconcile
 # computes the boolean; the prose reads it.
 EPIC_ZERO_LANDED_LIMIT=2
@@ -1745,7 +1745,7 @@ cmd_epic_set() {
 cmd_epic_run_log() { # --slug E --landed N -> appends one per-invocation landed count
   # The write half of the zero-landed stop-loss (#268). Separate verb rather than
   # an epic-set flag for the same reason work-log is separate from work-set: this
-  # appends an event, it does not set a field. commands/work-through.md calls it
+  # appends an event, it does not set a field. reference/epic-orchestration.md calls it
   # once at the close of every driver invocation, with the count the driver
   # returned — the only number a run report can be wrong about without the
   # stop-loss ever arming, which is why tests/test_gate_ledger.sh pins it.
@@ -2182,13 +2182,13 @@ cmd_worktree_path() { # --slug E [--story S | --json] -> one path, or the epic's
   # The --json form has exactly one caller, and it needs the whole map rather
   # than one path per call for a structural reason: workflows/epic-driver.js
   # runs on the Workflow substrate with no filesystem or exec access, so it can
-  # never invoke this verb itself. commands/work-through.md calls it once and
+  # never invoke this verb itself. reference/epic-orchestration.md calls it once and
   # hands the result to the driver as args.worktrees. The layout crosses that
   # boundary as data — the only way the driver can reference the owner instead
   # of re-deriving the layout a fourth time (#166).
   #
   # The two plain forms compose a path without consulting the epic file, so
-  # they answer for a worktree that doesn't exist yet — work-through.md's step 5
+  # they answer for a worktree that doesn't exist yet — reference/epic-orchestration.md's step 5
   # runs `git worktree add` at a path this verb resolved before there was an
   # epic file to read.
   local slug="" story="" as_json=""
@@ -2338,14 +2338,14 @@ cmd_epic_reconcile() { # --slug E -> one JSON payload replacing work-through's ~
   # recorded designDoc exists on disk, and whether a story recorded `landed`
   # is actually an ancestor of the epic branch. This verb only aggregates and
   # computes; it never corrects a mismatch or decides a story's next phase —
-  # that judgment stays in commands/work-through.md's prose.
+  # that judgment stays in reference/epic-orchestration.md's prose.
   local slug="" override="false"
   while [ $# -gt 0 ]; do
     case "$1" in
       --slug) slug="$2"; shift 2 ;;
       # The operator's explicit consent to dispatch past the zero-landed stop-loss,
       # for this one invocation (#268). It belongs here because this is where
-      # `.stopLoss.refuse` is computed — commands/work-through.md strips the same flag
+      # `.stopLoss.refuse` is computed — reference/epic-orchestration.md strips the same flag
       # off `$ARGUMENTS` and passes it through, so the instruction that refusal prints
       # ("re-invoke with --override-stop-loss") reaches a receiver that exists. It
       # suppresses the refusal for this read and nothing else: no state is written, the
@@ -2520,7 +2520,7 @@ cmd_gc() {
   #
   # Rule 2 exists because rule 1 alone could not fire on the epic path (#237):
   # a landed story's branch is deliberately kept, so its work file was pinned
-  # forever at phase `merge` and `/work-on` counted it as an active feature. Once
+  # forever at phase `merge` and `/next` counted it as an active feature. Once
   # the driver writes a terminal phase, this is what actually collects it.
   #
   # A work file with no branch yet (decide/design happen before one exists) is
@@ -2529,13 +2529,13 @@ cmd_gc() {
   # measured-scope-delta guard below applies to rule 2 (terminal phase) ONLY —
   # never to rule 1 (branch gone), a deliberate asymmetry, not an oversight.
   # A story a human parked and then abandoned (deleted its branch, per
-  # `commands/work-through.md`'s own parked-story instructions) never reached
+  # `reference/epic-orchestration.md`'s own parked-story instructions) never reached
   # acceptance, so its cohort is incomplete by construction and can never feed
   # the success-metric read the guard exists to protect (design doc's
   # "Success metrics" scopes that read to *landed* stories). Guarding rule 1
-  # too was tried and reverted: `commands/work-on.md`'s resolve-the-feature
+  # too was tried and reverted: `commands/next.md`'s resolve-the-feature
   # step selects by phase alone, never branch existence, so a rule-1 file the
-  # guard kept pinned stayed counted Active in `commands/studious-doctor.md`'s
+  # guard kept pinned stayed counted Active in `commands/doctor.md`'s
   # own >10 threshold — silently reintroducing the #237 symptom rule 2 exists
   # to avoid, to protect data nothing reads. Scoping the guard to rule 2 alone
   # keeps that command's Active count, and its "gc will collect it" promise
@@ -2818,9 +2818,10 @@ cmd_evidence_list() { # optional --branch B: print that branch's evidence .jsonl
     esac
   done
   # Same evidence_dir()/branch_slug() anchoring evidence-append already uses,
-  # so a caller (e.g. /handback) never re-derives repo-root or slug logic
-  # itself — one place this store's location lives, reused by both the
-  # writer and this reader. Mirrors cmd_gate_get's shape: resolve one
+  # so a caller never re-derives repo-root or slug logic itself — one place
+  # this store's location lives, reused by both the writer and this reader.
+  # Named generically on purpose: this file is shared bookkeeping on the
+  # guarded surface, so it never names a producer door. Mirrors cmd_gate_get's shape: resolve one
   # branch's file, print it verbatim, nothing if it doesn't exist yet.
   local slug; slug=$(branch_slug "$branch")
   local file; file="$(evidence_dir)/$slug.jsonl"

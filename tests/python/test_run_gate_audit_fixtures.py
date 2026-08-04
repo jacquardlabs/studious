@@ -42,7 +42,7 @@ None.
 None.
 
 ### Verdict
-**FIX AND RE-REVIEW** — Critical findings listed. Fix these, then re-run `/gate-audit`.
+**FIX AND RE-REVIEW** — Critical findings listed. Fix these, then re-run `/review`.
 """
 
 PASS_WITH_IMPORTANT_REPORT = """\
@@ -232,7 +232,7 @@ def test_parse_cli_json_rejects_a_bool_as_a_cost() -> None:
 
 # --- nested-subheading sections -------------------------------------------
 #
-# Regression test for a silent scoring bug. Real /gate-audit reports nest one
+# Regression test for a silent scoring bug. Real /review reports nest one
 # `###` subheading per finding inside the `## Critical findings` section. An
 # any-heading section terminator returned the blank line between the two, so a
 # correctly-filed Critical parsed as an empty section: the golden harness

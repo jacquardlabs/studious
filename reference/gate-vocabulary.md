@@ -4,7 +4,7 @@ Canonical source for each gate's exact verdict tokens. Each gate command file (l
 remains the source of truth for *how* it decides between its tokens — this file exists so
 consumers that must react to a specific token, not just display it, cite one spelling instead
 of retyping it, so a rename in the command doesn't silently drift out of sync with its
-consumers. `commands/work-on.md` cites this file instead of restating token definitions.
+consumers. `commands/next.md` cites this file instead of restating token definitions.
 
 ## The three-outcome shape
 
@@ -14,15 +14,15 @@ how to resolve it). The tokens differ per episode; the shape doesn't.
 
 | Episode | Ledger gate | Command (source of truth) | Proceed | Fix and retry | Stop / rethink |
 |---------|-------------|---------------------------|---------|----------------|-----------------|
-| bet | `decide` | `commands/gate-should-we-build.md` | `BUILD` · `BUILD SMALLER` | — | `DEFER` · `DON'T BUILD` |
-| design | `design-review` | `commands/gate-design-review.md` | `PROCEED TO PLAN` | `REVISE` | `RETHINK` |
-| work | `audit` | `commands/gate-audit.md` | `PASS` | `FIX AND RE-REVIEW` | `NEEDS DISCUSSION` |
-| delivery | `acceptance` | `commands/gate-acceptance.md` | `SHIP` | `FIX AND RE-REVIEW` | `HOLD` |
+| bet | `decide` | `commands/bet.md` | `BUILD` · `BUILD SMALLER` | — | `DEFER` · `DON'T BUILD` |
+| design | `design-review` | `commands/review.md` | `PROCEED TO PLAN` | `REVISE` | `RETHINK` |
+| work | `audit` | `commands/review.md` | `PASS` | `FIX AND RE-REVIEW` | `NEEDS DISCUSSION` |
+| delivery | `acceptance` | `commands/review.md` | `SHIP` | `FIX AND RE-REVIEW` | `HOLD` |
 
 The bet and design rows carry the same tokens they always have. The work and delivery
 episodes share one fix-and-retry spelling, `FIX AND RE-REVIEW` (#289) — one retry token
 for both review episodes, replacing `FIX AND RE-AUDIT` and `FIX AND RE-CHECK`. The
-"Ledger gate" column is the key `bin/gate-ledger` and `commands/work-on.md` record
+"Ledger gate" column is the key `bin/gate-ledger` and `commands/next.md` record
 under; the episode name is the vocabulary the gate prose and reports speak.
 
 Note: bet has no "fix and retry" token — `BUILD SMALLER` is a scoped-down proceed, not a
@@ -46,7 +46,7 @@ The terms the episode rows above are written against, one line each (#289):
   this bound governs the episode verbs, not those loops.
 - **lane profile** — the set of specialist review lanes (auditors/reviewers) a round
   dispatches for this changeset: the always-on lanes plus the conditionally-routed
-  ones, per `commands/gate-audit.md`'s routing rules.
+  ones, per `commands/review.md`'s routing rules.
 - **open** — a finding's status while it awaits its answer. An Important may ride out
   a terminal `PASS` still `open`: the readout's "N open" beside a pass names unfinished
   should-fix work, never a blocked verdict — only a Critical blocks.
@@ -66,7 +66,7 @@ one you mean whenever both could be read.
 Not every verdict `bin/gate-ledger` recognizes is a phase gate. `pre-mortem` is an
 advisory-only signal `cmd_status`/`record` track alongside the four gates above, but it
 does not join the table: it has no "fix and retry" or "stop/rethink" token, no phase
-transition in `commands/work-on.md`, and no skill shim — it exists solely so
+transition in `commands/next.md`, and no skill shim — it exists solely so
 `hooks/gate-reminder.sh`'s PR-time reminder can name a materialized cross-story risk.
 
 | Verdict source | Roll-up tokens | Recorded on | Absence |
@@ -85,11 +85,11 @@ rationale behind this shape.
 
 Update this table first when a gate's tokens change, then update these consumers:
 
-- The matching skill shim (`skills/evaluate-feature-idea`, `skills/review-design-before-build`,
-  `skills/acceptance-check-before-merge`, `skills/run-the-milestone`) — each mentions its gate's tokens in one line.
-- `commands/work-on.md`'s per-piece phase-transition mapping (`## Run exactly one piece`) —
+- The matching trigger shim (`skills/evaluate-feature-idea`, `skills/review-the-work`,
+  `skills/do-the-next-piece`) and `commands/next.md` — each mentions its episode's tokens in one line.
+- `commands/next.md`'s per-piece phase-transition mapping (`## Run exactly one piece`) —
   reacts to every token to decide the next phase.
-- `commands/work-through.md`'s driver — advances on proceed tokens, bounds retries on
+- `reference/epic-orchestration.md`'s driver — advances on proceed tokens, bounds retries on
   fix-and-retry tokens, and parks the story on stop/rethink tokens.
 - `DESIGN.md`'s "Gate verdict vocabularies" table — documents this same mapping for readers of
   the interface contract; keep it a mirror of this file, not an independent listing.

@@ -1,4 +1,4 @@
-"""Regression tests for skills/plan/SKILL.md (story plan-skill, issues
+"""Regression tests for reference/planning-contract.md (story plan-skill, issues
 #11, #23, #13).
 
 Standard library only, matching test_build_skill.py's and
@@ -7,12 +7,12 @@ test_finish_skill.py's own convention. Run with:
     uv run --no-project python3 -m unittest discover -s tests -v
 
 Checks this story's acceptance criteria and the epic/story pre-mortems'
-named risks mechanically, by inspecting the prose `/plan`'s session
+named risks mechanically, by inspecting the prose `/build`'s session
 actually reads:
 
-1. `skills/plan/SKILL.md` has valid `name`/`description` frontmatter,
+1. `reference/planning-contract.md` has valid `name`/`description` frontmatter,
    `name` matching the directory, and no longer reads as the M1 stub.
-2. The body carries jig's own `/plan`-level vocabulary (`PLAN READY`/
+2. The body carries jig's own `/build`-level vocabulary (`PLAN READY`/
    `DESIGN GAP`/`TOO BIG`, `cap`/`hold`, `script`/`test-backed`/`probe`,
    `LOW`/`REPLAN-RISK`/`ESCALATE-RISK`), derived from DESIGN.md at test
    time, not hand-copied.
@@ -40,79 +40,50 @@ actually reads:
    no explicit constraints/assumptions section (story pre-mortem risk #4).
 10. No `SKILL.md` is nested deeper than the directory's top level.
 11. The two already-shipped stale-reference sites this story updates
-    (`skills/build/SKILL.md`, `skills/finish/SKILL.md`) still name the
+    (`skills/build/SKILL.md`, `skills/ship/SKILL.md`) still name the
     `##` heading level and now cite this story's own verified round-trip.
 """
 from __future__ import annotations
 
-import re
 import unittest
 from pathlib import Path
 
-from _frontmatter import FRONTMATTER
 from _text import normalize_ws
 from _vocabulary import derive_plan_vocabulary
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SKILL_DIR = REPO_ROOT / "skills" / "plan"
-SKILL_MD = SKILL_DIR / "SKILL.md"
+SKILL_MD = REPO_ROOT / "reference" / "planning-contract.md"
 DESIGN_MD = REPO_ROOT / "DESIGN.md"
 BUILD_SKILL_MD = REPO_ROOT / "skills" / "build" / "SKILL.md"
-FINISH_SKILL_MD = REPO_ROOT / "skills" / "finish" / "SKILL.md"
+FINISH_SKILL_MD = REPO_ROOT / "skills" / "ship" / "SKILL.md"
 
 PLAN_VOCABULARY = derive_plan_vocabulary(DESIGN_MD.read_text(encoding="utf-8"))
 
 
 
 
-class TestPlanSkillFile(unittest.TestCase):
-    def setUp(self) -> None:
-        self.assertTrue(SKILL_MD.is_file(), f"{SKILL_MD} does not exist")
-        self.text = SKILL_MD.read_text(encoding="utf-8")
-        match = FRONTMATTER.match(self.text)
-        self.assertIsNotNone(match, f"{SKILL_MD} has no --- frontmatter block")
-        self.frontmatter = match.group(1)
-        self.body = self.text[match.end() :]
+class TestPlanningContractFile(unittest.TestCase):
+    """`/plan` folded into `/build` in the persona restructure, so the planning procedure
+    is a contract `/build`'s Step 0 follows rather than a door of its own. What used to be
+    frontmatter assertions here are now the two facts that keep that true."""
 
-    def test_name_matches_directory(self) -> None:
-        name_match = re.search(r"^name:\s*(\S+)", self.frontmatter, re.MULTILINE)
-        self.assertIsNotNone(name_match, f"{SKILL_MD} missing name: field")
-        self.assertEqual(name_match.group(1), "plan")
+    def test_contract_exists(self) -> None:
+        self.assertTrue(SKILL_MD.is_file(), f"{SKILL_MD} is missing")
 
-    def test_description_is_present_and_no_longer_a_stub(self) -> None:
-        desc_match = re.search(r"^description:\s*(.*)$", self.frontmatter, re.MULTILINE)
-        self.assertIsNotNone(desc_match, f"{SKILL_MD} missing description: field")
-        description = desc_match.group(1)
-        self.assertTrue(description.strip())
-        self.assertNotIn(
-            "STUB",
-            description,
-            "plan has real workflow content as of story plan-skill; "
-            "it is no longer one of the STUB placeholder skills",
-        )
-        self.assertNotIn("Do not invoke for actual planning work yet", self.body)
-
-    def test_description_is_a_valid_unquoted_yaml_plain_scalar(self) -> None:
-        desc_match = re.search(r"^description:\s*(.*)$", self.frontmatter, re.MULTILINE)
-        self.assertIsNotNone(desc_match)
-        description = desc_match.group(1)
-        self.assertNotIn(
-            ": ",
-            description,
-            "unquoted description contains ': ' -- a strict YAML frontmatter "
-            "loader will fail to parse this plain scalar",
-        )
-        self.assertNotRegex(
-            description,
-            r"\s#",
-            "unquoted description contains whitespace followed by '#' -- a "
-            "strict YAML loader reads this as a comment and silently "
-            "truncates the rest of the value",
+    def test_contract_carries_no_command_frontmatter(self) -> None:
+        """Frontmatter would put a tenth door back on the surface."""
+        self.assertFalse(
+            SKILL_MD.read_text(encoding="utf-8").lstrip().startswith("---"),
+            f"{SKILL_MD} carries command frontmatter — it is a contract, not a door",
         )
 
-    def test_no_nested_skill_md(self) -> None:
-        nested = list(SKILL_DIR.rglob("SKILL.md"))
-        self.assertEqual(nested, [SKILL_MD], f"{SKILL_DIR} contains nested SKILL.md files: {nested}")
+    def test_build_step_zero_names_the_contract(self) -> None:
+        """A contract nothing reads is dead prose."""
+        self.assertIn(
+            "reference/planning-contract.md",
+            BUILD_SKILL_MD.read_text(encoding="utf-8"),
+            "/build's Step 0 does not name the planning contract it absorbed",
+        )
 
 
 class TestPlanVocabularyDerivation(unittest.TestCase):
@@ -138,7 +109,7 @@ class TestPlanSkillBody(unittest.TestCase):
 
     def test_body_uses_plan_level_vocabulary(self) -> None:
         missing = [term for term in PLAN_VOCABULARY if term not in self.body]
-        self.assertEqual(missing, [], f"{SKILL_MD} body is missing /plan vocabulary terms: {missing}")
+        self.assertEqual(missing, [], f"{SKILL_MD} body is missing /build vocabulary terms: {missing}")
 
     def test_names_all_six_steps(self) -> None:
         for step in (
@@ -157,7 +128,7 @@ class TestPlanSkillBody(unittest.TestCase):
             with self.subTest(field=field):
                 self.assertIn(field, self.body)
 
-    # -- Input: no hard dependency on /design ------------------------------
+    # -- Input: no hard dependency on /shape ------------------------------
 
     def test_input_reads_design_docs_semantically_not_by_fixed_grammar(self) -> None:
         self.assertPhraseIn("Read it **semantically**, not by parsing a fixed heading grammar")
@@ -276,7 +247,7 @@ class TestPlanSkillBody(unittest.TestCase):
     def test_viva_not_installed_reports_clearly_not_silently(self) -> None:
         # Story pre-mortem risk #7.
         self.assertPhraseIn("If viva is not installed")
-        self.assertPhraseIn("is required for `/plan`'s review step and is not installed")
+        self.assertPhraseIn("is required for `/build`'s review step and is not installed")
         self.assertIn("No stack trace, no silent hang", self.body)
 
     def test_viva_always_passes_explicit_split_on(self) -> None:

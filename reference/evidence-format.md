@@ -56,7 +56,7 @@ append-only log doesn't need `json_update`'s rename dance).
 |-------|--------|-------|
 | `capturedAt` | `now_iso()` inside `gate-ledger`, not a caller-supplied flag | UTC, `%Y-%m-%dT%H:%M:%SZ` |
 | `capturer` | Hardcoded `"hook"` inside `cmd_evidence_append` | Not a flag — no caller can write a different capturer value. The field that makes capturer ≠ claimant checkable, per the amendment. |
-| `origin` | `"subagent"` if the hook input's `agent_id` is present, else `"interactive"` | See "Open item: origin and /work-through's actual dispatch mechanism" below — this is a real, currently-unverified gap, not a settled fact. |
+| `origin` | `"subagent"` if the hook input's `agent_id` is present, else `"interactive"` | See "Open item: origin and /next's actual dispatch mechanism" below — this is a real, currently-unverified gap, not a settled fact. |
 | `agentType` | Hook input's `agent_type`, when present | **Omitted entirely** (not `null`, not `""`) when absent — e.g. every `origin: "interactive"` record. |
 | `command` | `tool_input.command`, verbatim | Also becomes `predicate.configuration[0].name` — one source, not duplicated independently. |
 | `exitCode` | See "Resolved: PostToolUse vs PostToolUseFailure" below | `0` on the `PostToolUse` path; best-effort parsed (or a `1` sentinel) on the `PostToolUseFailure` path. |
@@ -109,17 +109,17 @@ Consequences of the split, both load-bearing:
   - `PostToolUseFailure`: `sha256:` of the `error` string alone — the only content
     available on this event.
 
-## Open item: `origin` and `/work-through`'s actual dispatch mechanism
+## Open item: `origin` and `/next`'s actual dispatch mechanism
 
 `agent_id`/`agent_type` are documented as present "only when the hook fires inside a
 subagent call" — i.e. a Claude Code Task-tool-dispatched subagent within one session.
 That's confirmed from the docs, not guessed.
 
-**Not confirmed:** whether `/work-through`'s primary dispatch path populates these the
+**Not confirmed:** whether `/next`'s primary dispatch path populates these the
 same way. `workflows/epic-driver.js` dispatches workers through an `agent(...)` global
-provided by the Workflow tool substrate (`commands/work-through.md`, "Run the driver
+provided by the Workflow tool substrate (`reference/epic-orchestration.md`, "Run the driver
 script (primary mode)") — a different, less-documented mechanism than the in-session
-Task tool the fallback driver uses directly (`commands/work-through.md`'s "Fallback
+Task tool the fallback driver uses directly (`reference/epic-orchestration.md`'s "Fallback
 driver" section explicitly dispatches via Task calls). Whether the Workflow tool's own
 `agent()` primitive is, under the hood, a Task-tool subagent call (in which case
 `agent_id` is populated and `origin` resolves to `"subagent"` correctly) or a separate
@@ -138,7 +138,7 @@ everything mechanically checkable without a live dispatch: that the hook correct
 resolves the armed check and writes to the **shared main-tree** evidence store when its
 own process cwd is a **linked worktree** (mirroring a worker's actual cwd), and that
 `origin` resolves to `"subagent"` given an `agent_id`-bearing payload shaped exactly per
-the docs above. The one thing left unverified — does a real `/work-through` dispatch
+the docs above. The one thing left unverified — does a real `/next` dispatch
 populate `agent_id` — is exactly what issue #97's own dogfood plan (studyengine #210,
 then #209) is the intended real-world validation loop for; a follow-up should update
 this section, not silently leave it stale, once that run produces a real answer.
@@ -146,7 +146,7 @@ this section, not silently leave it stale, once that run produces a real answer.
 ## Reading the log: `evidence-list`
 
 `bin/gate-ledger evidence-list [--branch B] [--dedupe]` is the one read verb for this
-store, added by `handback-skill` (`commands/handback.md`). It resolves the branch's
+store, added by `handback-skill` (`reference/handback-contract.md`). It resolves the branch's
 `.jsonl` path through the same `evidence_dir()`/`branch_slug()` functions
 `evidence-append` already writes through and prints the file verbatim — nothing if
 it's absent — so no caller re-derives repo-root/slug anchoring on the read side
@@ -166,9 +166,9 @@ dependency-free read) and **fails closed**: no `jq`, or a malformed line in the 
 means no stdout and a non-zero exit — never a plausible-looking partial result. Every
 existing caller of `evidence-list` already documents "treat an error identically to
 empty output, degrade silently," so a `--dedupe` failure needs no new caller-side
-handling. `commands/gate-audit.md`'s test-auditor/premortem-auditor dispatches and
-`commands/gate-acceptance.md`'s premortem dispatch use `--dedupe`;
-`commands/handback.md` deliberately keeps reading the raw (non-deduped) form, since its
+handling. `commands/review.md`'s test-auditor/premortem-auditor dispatches and
+`commands/review.md`'s premortem dispatch use `--dedupe`;
+`reference/handback-contract.md` deliberately keeps reading the raw (non-deduped) form, since its
 manifest's job is a complete history, not current-state-only.
 
 ## Consumers that must stay in sync
@@ -184,13 +184,13 @@ manifest's job is a complete history, not current-state-only.
   collapsed record count is smaller than the raw count, that it equals the number of
   distinct commands, and that each distinct command's surviving record is its
   **last**-appended one — update both together.
-- `commands/handback.md` reads this file's pinned shape before assembling its
+- `reference/handback-contract.md` reads this file's pinned shape before assembling its
   manifest table (timestamp, command, `predicate.result`, origin, `outputDigest`
   only — never any other field).
 - `gate-ledger evidence-list` is a plain passthrough of this shape, one line per
   record (or, with `--dedupe`, one line per distinct `command`) — neither mode
-  reshapes a record, only which ones are selected. `commands/gate-audit.md` and
-  `commands/gate-acceptance.md` stamp its `--dedupe` output into `@agent-test-auditor`'s
+  reshapes a record, only which ones are selected. `commands/review.md` and
+  `commands/review.md` stamp its `--dedupe` output into `@agent-test-auditor`'s
   and `@agent-premortem-auditor`'s dispatch prompts; both agents read `command`,
   `predicate.result`, and `capturedAt` directly off records in this shape when
   citing an entry.

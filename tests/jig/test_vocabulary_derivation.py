@@ -33,7 +33,6 @@ from pathlib import Path
 from _vocabulary import (
     _derive_vocabulary,
     derive_build_vocabulary,
-    derive_coach_vocabulary,
     derive_design_vocabulary,
     derive_finish_vocabulary,
     derive_jig_vocabulary,
@@ -44,10 +43,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DESIGN_MD = REPO_ROOT / "DESIGN.md"
 SKILL_MD = REPO_ROOT / "skills" / "task-execution-discipline" / "SKILL.md"
 BUILD_SKILL_MD = REPO_ROOT / "skills" / "build" / "SKILL.md"
-FINISH_SKILL_MD = REPO_ROOT / "skills" / "finish" / "SKILL.md"
-PLAN_SKILL_MD = REPO_ROOT / "skills" / "plan" / "SKILL.md"
-DESIGN_SKILL_MD = REPO_ROOT / "skills" / "design" / "SKILL.md"
-COACH_SKILL_MD = REPO_ROOT / "skills" / "coach" / "SKILL.md"
+FINISH_SKILL_MD = REPO_ROOT / "skills" / "ship" / "SKILL.md"
+PLAN_SKILL_MD = REPO_ROOT / "reference" / "planning-contract.md"
+DESIGN_SKILL_MD = REPO_ROOT / "skills" / "shape" / "SKILL.md"
 
 
 class TestDeriveJigVocabulary(unittest.TestCase):
@@ -64,7 +62,7 @@ class TestDeriveJigVocabulary(unittest.TestCase):
                 self.assertIn(term, self.vocabulary)
 
     def test_excludes_other_commands_verdict_vocabularies(self) -> None:
-        # /design, /plan, /finish, and the inspector each own their own
+        # /shape, /build, /ship, and the inspector each own their own
         # verdict enum in the same Vocabulary table; task-execution-
         # discipline discusses none of them, so they must not leak in.
         for term in ("DESIGNED", "PLAN READY", "MERGE", "CLEAR", "LOW"):
@@ -141,7 +139,7 @@ class TestDeriveBuildVocabulary(unittest.TestCase):
                 self.assertIn(term, self.vocabulary)
 
     def test_excludes_other_commands_verdict_vocabularies(self) -> None:
-        # /design, /plan, /finish, and the inspector each own their own
+        # /shape, /build, /ship, and the inspector each own their own
         # verdict enum in the same Vocabulary table; the /build Foreman
         # discusses none of them.
         for term in ("DESIGNED", "PLAN READY", "MERGE", "CLEAR"):
@@ -193,8 +191,8 @@ class TestDeriveFinishVocabulary(unittest.TestCase):
                 self.assertIn(term, self.vocabulary)
 
     def test_excludes_other_commands_verdict_vocabularies(self) -> None:
-        # /design, /plan, and /build each own their own verdict enum in the
-        # same Vocabulary table; /finish discusses none of them.
+        # /shape, /build, and /build each own their own verdict enum in the
+        # same Vocabulary table; /ship discusses none of them.
         for term in ("DESIGNED", "PLAN READY", "BUILT", "CLEAR"):
             with self.subTest(term=term):
                 self.assertNotIn(term, self.vocabulary)
@@ -204,9 +202,9 @@ class TestDeriveFinishVocabulary(unittest.TestCase):
         self.assertEqual(missing, [])
 
     def test_deliberate_design_md_token_change_is_caught(self) -> None:
-        """Same demonstration as TestDeriveBuildVocabulary, for /finish's
+        """Same demonstration as TestDeriveBuildVocabulary, for /ship's
         own verdict enum: rename DISCARD in an in-memory copy of
-        DESIGN.md, without touching skills/finish/SKILL.md, and confirm the
+        DESIGN.md, without touching skills/ship/SKILL.md, and confirm the
         derived vocabulary now flags it missing."""
         mutated_design_text = self.design_text.replace("`DISCARD`", "`ABANDON`", 1)
         self.assertEqual(
@@ -255,8 +253,8 @@ class TestDerivePlanVocabulary(unittest.TestCase):
                 self.assertIn(term, self.vocabulary)
 
     def test_excludes_other_commands_verdict_vocabularies(self) -> None:
-        # /design, /build, and /finish each own their own verdict enum in
-        # the same Vocabulary table; /plan discusses none of them.
+        # /shape, /build, and /ship each own their own verdict enum in
+        # the same Vocabulary table; /build discusses none of them.
         for term in ("DESIGNED", "BUILT", "MERGE", "CLEAR"):
             with self.subTest(term=term):
                 self.assertNotIn(term, self.vocabulary)
@@ -267,8 +265,8 @@ class TestDerivePlanVocabulary(unittest.TestCase):
 
     def test_deliberate_design_md_token_change_is_caught(self) -> None:
         """Same demonstration as the other TestDerive*Vocabulary classes,
-        for /plan's own verdict enum: rename PLAN READY in an in-memory
-        copy of DESIGN.md, without touching skills/plan/SKILL.md, and
+        for /build's own verdict enum: rename PLAN READY in an in-memory
+        copy of DESIGN.md, without touching reference/planning-contract.md, and
         confirm the derived vocabulary now flags it missing."""
         mutated_design_text = self.design_text.replace("`PLAN READY`", "`PLAN GOOD`", 1)
         self.assertEqual(
@@ -305,8 +303,8 @@ class TestDeriveDesignVocabulary(unittest.TestCase):
                 self.assertIn(term, self.vocabulary)
 
     def test_excludes_other_commands_verdict_vocabularies(self) -> None:
-        # /plan, /build, /finish, and the inspector each own their own
-        # verdict enum in the same Vocabulary table; /design discusses none
+        # /build, /build, /ship, and the inspector each own their own
+        # verdict enum in the same Vocabulary table; /shape discusses none
         # of them.
         for term in ("PLAN READY", "BUILT", "MERGE", "CLEAR"):
             with self.subTest(term=term):
@@ -317,9 +315,9 @@ class TestDeriveDesignVocabulary(unittest.TestCase):
         self.assertEqual(missing, [])
 
     def test_deliberate_design_md_token_change_is_caught(self) -> None:
-        """Same demonstration as TestDeriveFinishVocabulary, for /design's
+        """Same demonstration as TestDeriveFinishVocabulary, for /shape's
         own verdict enum: rename NEEDS RESEARCH in an in-memory copy of
-        DESIGN.md, without touching skills/design/SKILL.md, and confirm the
+        DESIGN.md, without touching skills/shape/SKILL.md, and confirm the
         derived vocabulary now flags it missing."""
         mutated_design_text = self.design_text.replace(
             "`NEEDS RESEARCH`", "`SPIKE NEEDED`", 1
@@ -346,76 +344,6 @@ class TestDeriveDesignVocabulary(unittest.TestCase):
         )
 
 
-class TestDeriveCoachVocabulary(unittest.TestCase):
-    def setUp(self) -> None:
-        self.design_text = DESIGN_MD.read_text(encoding="utf-8")
-        self.coach_skill_body = COACH_SKILL_MD.read_text(encoding="utf-8")
-        self.vocabulary = derive_coach_vocabulary(self.design_text)
-
-    def test_pulls_known_terms_from_the_real_design_md(self) -> None:
-        # The three session-verdict enums the coach can meet in
-        # conversation, plus the script-written task statuses it reads
-        # from PLAN.md headings.
-        for term in (
-            "DESIGNED",
-            "NEEDS RESEARCH",
-            "REVISED",
-            "PLAN READY",
-            "DESIGN GAP",
-            "TOO BIG",
-            "PASS",
-            "REPLAN",
-            "ESCALATE",
-            "BUILT",
-            "PAUSED",
-            "ESCALATED",
-        ):
-            with self.subTest(term=term):
-                self.assertIn(term, self.vocabulary)
-
-    def test_excludes_vocabularies_the_coach_never_consumes(self) -> None:
-        # /finish's outcome enum (the coach dispatches /finish but never
-        # consumes its verdict), the inspector's, and the risk tags are
-        # all outside the coach's reading domain.
-        for term in ("MERGE", "DISCARD", "CLEAR", "LOW", "REPLAN-RISK"):
-            with self.subTest(term=term):
-                self.assertNotIn(term, self.vocabulary)
-
-    def test_every_derived_term_is_present_in_coach_skill_md(self) -> None:
-        missing = [t for t in self.vocabulary if t not in self.coach_skill_body]
-        self.assertEqual(missing, [])
-
-    def test_deliberate_design_md_token_change_is_caught(self) -> None:
-        """Same demonstration as the other TestDerive*Vocabulary classes,
-        for the /build session-verdict enum the coach reads: rename PAUSED
-        in an in-memory copy of DESIGN.md, without touching
-        skills/coach/SKILL.md, and confirm the derived vocabulary now
-        flags it missing."""
-        mutated_design_text = self.design_text.replace("`PAUSED`", "`STALLED`", 1)
-        self.assertEqual(
-            self.design_text.count("`PAUSED`"),
-            1,
-            "expected exactly one `PAUSED` token in DESIGN.md's Vocabulary "
-            "table; this test's mutation assumption needs updating to "
-            "match the table's current shape",
-        )
-
-        mutated_vocabulary = derive_coach_vocabulary(mutated_design_text)
-
-        self.assertIn("STALLED", mutated_vocabulary)
-        self.assertNotIn("PAUSED", mutated_vocabulary)
-
-        missing = [t for t in mutated_vocabulary if t not in self.coach_skill_body]
-        self.assertIn(
-            "STALLED",
-            missing,
-            "a deliberate DESIGN.md token rename should have been caught "
-            "as a missing term once SKILL.md wasn't updated to match",
-        )
-
-
-# A synthetic table, not the real DESIGN.md: order and dedup are properties of
-# the parsing path, and pinning them against live prose would make this fail on
 # an unrelated Vocabulary edit. `mid` is deliberately in two rows.
 _ORDERING_FIXTURE = """## Vocabulary
 

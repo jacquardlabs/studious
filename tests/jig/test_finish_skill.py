@@ -1,17 +1,17 @@
-"""Regression tests for skills/finish/SKILL.md (issue #20, story finish-skill).
+"""Regression tests for skills/ship/SKILL.md (issue #20, story finish-skill).
 
 Standard library only, matching test_build_skill.py's convention. Run with:
 
     uv run --no-project python3 -m unittest discover -s tests -v
 
 Checks this story's acceptance criteria and the epic pre-mortem's named
-risks mechanically, by inspecting the prose `/finish`'s session actually
+risks mechanically, by inspecting the prose `/ship`'s session actually
 reads (the same approach test_build_skill.py already takes for its own
 sibling skill):
 
-1. `skills/finish/SKILL.md` has valid `name`/`description` frontmatter,
+1. `skills/ship/SKILL.md` has valid `name`/`description` frontmatter,
    `name` matching the directory, and no longer reads as the M1 stub.
-2. The body carries jig's own `/finish`-level verdict vocabulary (`MERGE`/
+2. The body carries jig's own `/ship`-level verdict vocabulary (`MERGE`/
    `PR`/`KEEP`/`DISCARD`), derived from DESIGN.md at test time (see
    `_vocabulary.py`), not hand-copied.
 3. Step 1's freshness hold is floored on each evidence folder's own
@@ -45,7 +45,7 @@ from _text import normalize_ws
 from _vocabulary import derive_finish_vocabulary
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SKILL_DIR = REPO_ROOT / "skills" / "finish"
+SKILL_DIR = REPO_ROOT / "skills" / "ship"
 SKILL_MD = SKILL_DIR / "SKILL.md"
 DESIGN_MD = REPO_ROOT / "DESIGN.md"
 
@@ -64,7 +64,7 @@ class TestFinishSkillFile(unittest.TestCase):
     def test_name_matches_directory(self) -> None:
         name_match = re.search(r"^name:\s*(\S+)", self.frontmatter, re.MULTILINE)
         self.assertIsNotNone(name_match, f"{SKILL_MD} missing name: field")
-        self.assertEqual(name_match.group(1), "finish")
+        self.assertEqual(name_match.group(1), "ship")
 
     def test_description_is_present_and_no_longer_a_stub(self) -> None:
         desc_match = re.search(r"^description:\s*(.*)$", self.frontmatter, re.MULTILINE)
@@ -126,13 +126,13 @@ class TestFinishSkillBody(unittest.TestCase):
 
     def test_body_uses_finish_level_vocabulary(self) -> None:
         missing = [term for term in FINISH_VOCABULARY if term not in self.body]
-        self.assertEqual(missing, [], f"{SKILL_MD} body is missing /finish vocabulary terms: {missing}")
+        self.assertEqual(missing, [], f"{SKILL_MD} body is missing /ship vocabulary terms: {missing}")
 
     def test_precondition_never_reads_gate_ledger_itself(self) -> None:
         self.assertIn("BUILT", self.body)
-        self.assertIn("gate-audit", self.body)
-        self.assertIn("gate-acceptance", self.body)
-        self.assertPhraseIn("`/finish` never checks for a recorded gate verdict itself")
+        self.assertIn("/review", self.body)
+        self.assertIn("/review --delivery", self.body)
+        self.assertPhraseIn("`/ship` never checks for a recorded gate verdict itself")
 
     def test_names_both_new_scripts(self) -> None:
         self.assertIn("evidence-freshness", self.body)
@@ -284,7 +284,7 @@ class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
 
     The folder name gained a branch slug, so any reader that rebuilds
     `<date>-<task>` from its shape now matches nothing. These pin only that
-    `/finish` asks the script and joins the path correctly -- the token
+    `/ship` asks the script and joins the path correctly -- the token
     *reporting* contract (labels, quoted messages, stream separation) was
     split out of this story and is tracked separately.
     """
@@ -327,7 +327,7 @@ class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
         self.assertPhraseIn("not `git branch --show-current`")
 
     def test_the_worktree_placeholder_is_defined_before_its_first_use(self) -> None:
-        # `--repo` defaults to `.`, so an undefined placeholder lets /finish
+        # `--repo` defaults to `.`, so an undefined placeholder lets /ship
         # resolve against whatever checkout the session's cwd sits in.
         self.assertPhraseIn("`<worktree>` wherever it appears in this skill** is the checkout the build ran in")
         self.assertIn("git rev-parse --show-toplevel", self.body)
@@ -338,7 +338,7 @@ class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
     def test_the_freshness_call_joins_the_worktree_onto_the_resolved_path(self) -> None:
         # `resolve` prints repo-relative; `evidence-freshness` resolves
         # `--evidence` against the process cwd and never joins its own
-        # `--repo`. An unjoined path exits 2 and stops /finish outright.
+        # `--repo`. An unjoined path exits 2 and stops /ship outright.
         self.assertIn(
             "scripts/evidence-freshness --repo <worktree> --evidence <worktree>/<folder>",
             normalize_ws(self.body),

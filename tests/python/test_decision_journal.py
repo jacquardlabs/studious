@@ -1,8 +1,8 @@
 """Structural regression tests for the decision-journal story (issue #94).
 
-`/gate-should-we-build` gains a memory: it appends each verdict (with rationale and
+`/bet` gains a memory: it appends each verdict (with rationale and
 revisit condition) to `docs/studious/decisions.jsonl` in the consuming project, and
-both `/gate-should-we-build` and `@agent-backlog-priorities` read that journal before
+both `/bet` and `@agent-backlog-priorities` read that journal before
 evaluating, surfacing prior verdicts with their dates. The record shape is pinned in
 `reference/decision-journal-format.md`, mirroring how `reference/evidence-format.md`
 pins the evidence log.
@@ -22,7 +22,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FORMAT_REF = REPO_ROOT / "reference" / "decision-journal-format.md"
-GATE = REPO_ROOT / "commands" / "gate-should-we-build.md"
+GATE = REPO_ROOT / "commands" / "bet.md"
 BACKLOG = REPO_ROOT / "agents" / "backlog-priorities.md"
 CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 
@@ -72,9 +72,9 @@ def test_gate_append_snippet_matches_format_reference_byte_for_byte() -> None:
     """Risk #6: the command's inline append snippet and the format file's canonical
     append must be identical — field order and date mechanics can't drift apart."""
     ref_snippet = _append_snippet(FORMAT_REF.read_text(), "decision-journal-format.md")
-    gate_snippet = _append_snippet(GATE.read_text(), "gate-should-we-build.md")
+    gate_snippet = _append_snippet(GATE.read_text(), "commands/bet.md")
     assert gate_snippet == ref_snippet, (
-        "gate-should-we-build.md's append snippet differs from the canonical append "
+        "commands/bet.md's append snippet differs from the canonical append "
         "pinned in reference/decision-journal-format.md"
     )
 
@@ -90,7 +90,7 @@ def test_gate_reads_journal_before_evaluating() -> None:
     text = GATE.read_text()
 
     read_pos = text.index("## Check the decision journal")
-    eval_pos = text.index("Now evaluate honestly")
+    eval_pos = text.index("## Evaluate")
     assert read_pos < eval_pos, "journal read step must precede the evaluation"
 
     section = text[read_pos:eval_pos]
@@ -112,7 +112,7 @@ def test_gate_journal_informs_never_decides() -> None:
     a contradicting fresh verdict is surfaced with both dates."""
     text = GATE.read_text()
     section = text[
-        text.index("## Check the decision journal"):text.index("Now evaluate honestly")
+        text.index("## Check the decision journal"):text.index("## Evaluate")
     ]
     assert "informs, never decides" in section
     assert "run all five criteria" in section
@@ -124,7 +124,7 @@ def test_gate_read_step_untrusted_data_posture() -> None:
     and malformed lines are skipped, not a crash."""
     text = GATE.read_text()
     section = text[
-        text.index("## Check the decision journal"):text.index("Now evaluate honestly")
+        text.index("## Check the decision journal"):text.index("## Evaluate")
     ]
     assert "untrusted" in section
     assert "never instructions" in section

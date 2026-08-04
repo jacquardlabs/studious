@@ -1,25 +1,38 @@
 ---
-name: finish
-description: Closes out a BUILT branch — an assembled PR evidence table (Done-means item -> verification method -> evidence link -> pass), a cctx session-cost footer with a preview-only harvest offer, per-item-confirmed follow-up filing, proposed (never auto-applied) PRODUCT.md/DESIGN.md/CLAUDE.md decision patches, a dated build report, and MERGE | PR | KEEP | DISCARD verdict + cleanup. Use when the user says /finish, or a /build session has already reported BUILT (with /gate-audit and /gate-acceptance already passed) and the branch is ready to close out. Never invents evidence, never files an issue or applies a harvest without explicit per-item confirmation in the same turn, and never writes a decision patch to a context doc itself.
+name: ship
+description: Closes out a BUILT branch — an assembled PR evidence table (Done-means item -> verification method -> evidence link -> pass), a cctx session-cost footer with a preview-only harvest offer, per-item-confirmed follow-up filing, proposed (never auto-applied) PRODUCT.md/DESIGN.md/CLAUDE.md decision patches, a dated build report, and MERGE | PR | KEEP | DISCARD verdict + cleanup. Use when the user says /ship, or a /build session has already reported BUILT (with /review and /review --delivery already passed) and the branch is ready to close out. `/ship --handback` is the PR-less variant a dispatched worker uses to return its branch — manifest and summary only, no episode, no PR. Never invents evidence, never files an issue or applies a harvest without explicit per-item confirmation in the same turn, and never writes a decision patch to a context doc itself.
 ---
 
-# /finish
+# /ship
 
 You are the session that closes out a `BUILT` branch. `/build` produces the
-branch; studious's `/gate-audit` and `/gate-acceptance` (if installed) judge
-it; `/finish` is what turns a judged-ready branch into an evidence-backed
+branch; studious's `/review` and `/review --delivery` (if installed) judge
+it; `/ship` is what turns a judged-ready branch into an evidence-backed
 PR (or a merge, a kept branch, or a discard) and leaves nothing about that
 branch that a human had to hand-assemble.
 
-**Precondition.** `/finish` runs after a `/build` session reports `BUILT`
-and after `/gate-audit`/`/gate-acceptance` have passed on this branch.
-`/finish` never checks for a recorded gate verdict itself: the gate ledger
+**Precondition.** `/ship` runs after a `/build` session reports `BUILT`
+and after `/review`/`/review --delivery` have passed on this branch.
+`/ship` never checks for a recorded gate verdict itself: the gate ledger
 is per-branch flow state that a human can legitimately have bypassed —
-gates are skippable by design, and a `/finish` that refused on an unrecorded
+gates are skippable by design, and a `/ship` that refused on an unrecorded
 verdict would turn "use judgment about which gates the risk warrants" into
 a hard requirement. It assumes the human invoked it because the branch is
-ready, the same trust boundary `/build`'s own `BUILT` → "run `/gate-audit`
+ready, the same trust boundary `/build`'s own `BUILT` → "run `/review`
 next" hand-off already relies on.
+
+## Two modes
+
+- **`/ship`** — the full closeout below: evidence table, cost footer, follow-ups,
+  decision patches, dated report, and one of `MERGE` / `PR` / `KEEP` / `DISCARD`.
+- **`/ship --handback`** — the worker's PR-less return. A dispatched executor finishing
+  its story hands the branch back with a manifest and a summary and nothing else: no
+  episode is convened, no PR is opened, no verdict is recorded. Follow
+  `reference/handback-contract.md`, which carries that procedure in full; consult it,
+  don't restate it here, and don't run any of the six steps below on this path.
+
+Convening is not judging: `/ship` may convene the delivery episode as a convenience, but
+the verdict is always `/review`'s. This door never writes one.
 
 Six steps, in order. Steps 1 and 5 are mechanical (scripts decide); Steps
 2–4 always end on an explicit human decision in the same turn; Step 6
@@ -66,7 +79,7 @@ asymmetric with the other use of that same printed path below:
 `evidence-freshness` resolves `--evidence` against the process's own cwd and
 never joins its `--repo`, and no script in this repo may assume cwd is the
 worktree — so an unjoined path exits 2 with `no manifest.json found in
-'<path>'` and stops `/finish` before it assembles anything. The raw-URL
+'<path>'` and stops `/ship` before it assembles anything. The raw-URL
 construction in the image-evidence bullet below wants the bare repo-relative
 form instead, because that path is what the URL appends. Do not unify the
 two, and do not "fix" this by changing what `resolve` prints.
@@ -90,9 +103,9 @@ purely mechanical things:
 **A folder that fails either check is not promoted silently.** Stop before
 assembling the PR body. Report the exact task and reason (stale/orphaned)
 by name. The human's resume action is re-running the task's evidence
-capture (via `/studious:build` or by hand) and re-invoking
-`/studious:finish`. Do not call
-`evidence-capture` yourself to backfill a gap — `/finish` does not invent
+capture (via `/build` or by hand) and re-invoking
+`/ship`. Do not call
+`evidence-capture` yourself to backfill a gap — `/ship` does not invent
 or re-capture evidence (see Out of scope in the design doc this skill
 implements).
 
@@ -166,7 +179,7 @@ until now:
   confirmed safe, not just carried forward (story `plan-skill`, issue #23):
   that story re-verified this against the
   actually-installed viva, including the `Revision History`-collision case
-  a bare heading-level read would miss — `/plan`'s own viva invocation
+  a bare heading-level read would miss — `/build`'s own viva invocation
   passes an explicit `--split-on` rather than relying on auto-detect alone.
 - **NOTES stubs** — an executor's stray discoveries during a task ("outside
   Done-means... never into the diff") are meant to land in a NOTES stub
@@ -210,7 +223,7 @@ other patch mechanism against `PRODUCT.md`, `DESIGN.md`, or `CLAUDE.md` in
 this step, under any branch of this flow, even after an explicit "yes."
 "Propose; never apply" is this step's whole shape — the human copies the
 diff in by hand, or runs it through their own separate process. This is the
-same propose-only posture studious's own `/deep-review` reviewers already
+same propose-only posture studious's own `/retro` reviewers already
 take toward these same three context docs.
 
 ## Step 5 — Dated build report

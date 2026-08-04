@@ -3,19 +3,19 @@
 <!-- This documents Studious's INTERFACE conventions — its user-facing surface, not how the
      code is written. Studious is a Claude Code plugin: its "interface" is the set of slash
      commands and their output contracts (verdict vocabularies, severity tiers, report
-     structure), not a visual UI. Extracted by /extract-design-system; correct anything wrong. -->
+     structure), not a visual UI. Extracted by /setup; correct anything wrong. -->
 
 ## Surfaces
 
 | Surface | Framework / tech | Entry point |
 |---------|------------------|-------------|
 | `plugin` | Claude Code plugin — Markdown commands, agents, skills + one hook | `.claude-plugin/plugin.json`; `commands/`, `agents/`, `skills/`, `hooks/` |
-| `board-ui` | Local, read-only web board over one epic's `/work-through` state — stdlib-only Python HTTP+SSE server, one self-contained HTML/CSS/JS document, no build step, no external requests | `bin/board-server EPIC_SLUG [--open]`; `assets/board-ui/` |
+| `board-ui` | Local, read-only web board over one epic's `/next` state — stdlib-only Python HTTP+SSE server, one self-contained HTML/CSS/JS document, no build step, no external requests | `bin/board-server EPIC_SLUG [--open]`; `assets/board-ui/` |
 
 Studious's primary surface is a Claude Code plugin: no build step, no runtime app, output
 is GitHub-flavored markdown that Claude Code renders in the terminal. `board-ui` is a
 narrow, opt-in exception — a local dev instrument (`GET /state`, `GET /events`, `GET /`;
-`reference/board-schema.md`) for watching one `/work-through` epic run live. It binds to
+`reference/board-schema.md`) for watching one `/next` epic run live. It binds to
 `127.0.0.1` only, has no write endpoint, and reads only the same `.studious/epics/`
 files `gate-ledger` already writes durably — it does not turn Studious into a service.
 
@@ -36,14 +36,14 @@ the same tokens.
 
 | Episode | Command | Verdict tokens (canonical) | Source of truth | Consumers |
 |---------|---------|----------------------------|-----------------|-----------|
-| bet | `gate-should-we-build` | `BUILD` · `BUILD SMALLER` · `DEFER` · `DON'T BUILD` | `commands/gate-should-we-build.md` | skill `evaluate-feature-idea` · `/work-on` |
-| design | `gate-design-review` | `PROCEED TO PLAN` · `REVISE` · `RETHINK` | `commands/gate-design-review.md` | skill `review-design-before-build` · `/work-on` |
-| work | `gate-audit` | `PASS` · `FIX AND RE-REVIEW` · `NEEDS DISCUSSION` | `commands/gate-audit.md` | `/work-on` (no skill shim) |
-| delivery | `gate-acceptance` | `SHIP` · `FIX AND RE-REVIEW` · `HOLD` | `commands/gate-acceptance.md` | skill `acceptance-check-before-merge` · `/work-on` |
+| bet | `gate-should-we-build` | `BUILD` · `BUILD SMALLER` · `DEFER` · `DON'T BUILD` | `commands/bet.md` | skill `evaluate-feature-idea` · `/next` |
+| design | `gate-design-review` | `PROCEED TO PLAN` · `REVISE` · `RETHINK` | `commands/review.md` | skill `review-the-work` · `/next` |
+| work | `gate-audit` | `PASS` · `FIX AND RE-REVIEW` · `NEEDS DISCUSSION` | `commands/review.md` | `/next` (no skill shim) |
+| delivery | `gate-acceptance` | `SHIP` · `FIX AND RE-REVIEW` · `HOLD` | `commands/review.md` | skill `review-the-work` · `/next` |
 
 Each vocabulary is three or four tokens: one "proceed," one "fix and retry," and (most)
 one "stop/rethink." The canonical listing and per-gate breakdown now live in
-`reference/gate-vocabulary.md`, cited by `commands/work-on.md` rather than restated there —
+`reference/gate-vocabulary.md`, cited by `commands/next.md` rather than restated there —
 this table should mirror that file, not diverge from it.
 
 ### Build-execution vocabularies
@@ -53,20 +53,20 @@ The gate vocabularies above judge work; these describe producing it. Absorbed wi
 
 | Concept | Canonical display | Source of truth | Consumers |
 |---------|-------------------|-----------------|-----------|
-| `/design` verdict | `DESIGNED` \| `NEEDS RESEARCH` \| `REVISED` | `skills/design/SKILL.md` (verdict table) | `/design` output; read by `/plan` and `/gate-design-review` |
-| `/plan` verdict | `PLAN READY` \| `DESIGN GAP` \| `TOO BIG` | `skills/plan/SKILL.md` (verdict table) | `/plan` output; `DESIGN GAP` routes back to `/design` |
+| `/shape` verdict | `DESIGNED` \| `NEEDS RESEARCH` \| `REVISED` | `skills/shape/SKILL.md` (verdict table) | `/shape` output; read by `/build` and `/review` |
+| `/build` planning verdict | `PLAN READY` \| `DESIGN GAP` \| `TOO BIG` | `reference/planning-contract.md` (verdict table) | `/build` Step 0 output; `DESIGN GAP` routes back to `/shape` |
 | `/build` task status | `todo` → `in-progress` → `PASS`/`REPLAN`/`ESCALATE` | `skills/build/SKILL.md` | flipped by scripts only, never the model |
 | `/build` failure-routine action | `FIX` \| `RESAMPLE` | `skills/build/SKILL.md` | the Foreman's own per-attempt judgment call after an item FAIL; transient, never written as a task status suffix |
-| `/build` session verdict | `BUILT` \| `PAUSED` \| `ESCALATED` | `skills/build/SKILL.md` (verdict table) | reported to the coach, the human, and `gate-ledger` |
-| inspector verdict | `CLEAR` \| `DEFECT` \| `CONCERN` | `skills/build/SKILL.md` (step 2.6) | `/build`'s failure routine; `CONCERN` forwards to `/gate-audit` |
-| `/finish` verdict | `MERGE` \| `PR` \| `KEEP` \| `DISCARD` | `skills/finish/SKILL.md` (verdict table) | closes out a build branch |
-| checkpoint item type | `cap` \| `hold` | `skills/plan/SKILL.md` (checkpoint block template) | every checkpoint block in `PLAN.md` |
-| verification tier | `script` \| `test-backed` \| `probe` | `skills/plan/SKILL.md` (checkpoint block template) | every checkpoint item; no `judgment` tier permitted |
-| risk tag | `LOW` \| `REPLAN-RISK` \| `ESCALATE-RISK` | `skills/plan/SKILL.md` (Risk tagging) | assigned by `/plan`, consumed by `/build`'s cadence/pause logic |
+| `/build` session verdict | `BUILT` \| `PAUSED` \| `ESCALATED` | `skills/build/SKILL.md` (verdict table) | reported to `/next`, the human, and `gate-ledger` |
+| inspector verdict | `CLEAR` \| `DEFECT` \| `CONCERN` | `skills/build/SKILL.md` (step 2.6) | `/build`'s failure routine; `CONCERN` forwards to `/review` |
+| `/ship` verdict | `MERGE` \| `PR` \| `KEEP` \| `DISCARD` | `skills/ship/SKILL.md` (verdict table) | closes out a build branch |
+| checkpoint item type | `cap` \| `hold` | `reference/planning-contract.md` (checkpoint block template) | every checkpoint block in `PLAN.md` |
+| verification tier | `script` \| `test-backed` \| `probe` | `reference/planning-contract.md` (checkpoint block template) | every checkpoint item; no `judgment` tier permitted |
+| risk tag | `LOW` \| `REPLAN-RISK` \| `ESCALATE-RISK` | `reference/planning-contract.md` (Risk tagging) | assigned by `/build`, consumed by `/build`'s cadence/pause logic |
 
 **`PASS` means two different things and the collision is deliberate-adjacent, not
 resolved.** A `/build` task status `PASS` is a `PLAN.md` heading suffix written by
-`scripts/status-flip`; a `gate-audit` `PASS` is a gate verdict in the ledger. Name which
+`scripts/status-flip`; a work-episode `PASS` is a gate verdict in the ledger. Name which
 one you mean whenever both could be read — tracked as #174.
 
 ### Severity tiers
@@ -74,7 +74,7 @@ one you mean whenever both could be read — tracked as #174.
 Findings across audits and reviews sort into three tiers, named consistently everywhere:
 `Critical` · `Important` · `Track`. The canonical ladder and the per-auditor label→tier
 mapping (e.g. `VISUAL BUG`, `BUG`, `PERFORMANCE`, `CLEANUP`, `SUGGESTION`, `INCONSISTENCY`,
-`IMPROVEMENT`) live in `reference/severity-rubric.md`, cited by `commands/gate-audit.md`
+`IMPROVEMENT`) live in `reference/severity-rubric.md`, cited by `commands/review.md`
 rather than restated there. `deep-review` and the `review-*` agents already emit directly
 in this vocabulary and need no mapping.
 
@@ -86,7 +86,7 @@ cited by the auditor/reviewer agents rather than restated per-agent.
 
 - **Report structure** — Summary first, then findings grouped by severity tier (Critical →
   Important → Track), then a final **Verdict** line carrying one of the command's
-  verdict tokens. Used by `gate-audit`, `gate-acceptance`, and the review agents.
+  verdict tokens. Used by the work and delivery episodes (`commands/review.md`) and the review agents.
 - **Summary line** — "one line per auditor/review: name, findings by severity, pass/fail."
 - **Report file paths** — periodic reviews write to `docs/studious/<area>-reviews/YYYY-MM-DD-<area>-review.md`.
 - **The checkpoint block** is the build side's closest analog to a type scale — a fixed
@@ -112,12 +112,12 @@ cited by the auditor/reviewer agents rather than restated per-agent.
 - **Design doc structure** (`reference/design-doc-contract.md` — the sole authority): 8
   required sections, each tied to a named downstream consumer (Problem & persona, Proposed
   design, User journey, Out of scope, Alternatives considered, Success metrics, Operational
-  readiness, Open questions — see `skills/design/SKILL.md` Step 4 for the section→consumer
+  readiness, Open questions — see `skills/shape/SKILL.md` Step 4 for the section→consumer
   table). A doc may carry sections beyond these; `scripts/design-lint` enforces the floor,
   not an exact count.
-- **Task calibration**: `/plan` produces 3–8 tasks per plan; <3 is too big to verify, >8
+- **Task calibration**: `/build` produces 3–8 tasks per plan; <3 is too big to verify, >8
   is fragmenting or the feature itself is `TOO BIG`.
-- **PR evidence table**: `/finish` promotes each task's Done-means into the PR body as
+- **PR evidence table**: `/ship` promotes each task's Done-means into the PR body as
   item → verification method → evidence link → pass.
 
 ## Per-surface conventions
@@ -125,8 +125,10 @@ cited by the auditor/reviewer agents rather than restated per-agent.
 ### Plugin / prompt tooling
 
 - **Command naming** — `verb`-prefixed families: `gate-*` (per-feature quality gates),
-  `deep-review` (periodic reviews), `backlog-*` (issue triage), `extract-*` (context-doc
-  population), `studious-init` (setup), `work-on` (feature-flow navigation). All lowercase, hyphenated.
+  `retro` (periodic reviews, backlog hygiene, outcome grading), `setup` (context-doc
+  scaffolding and extraction), `next` (flow navigation at every scale). All lowercase,
+  hyphenated, and declared in `reference/personas.md` — which is the authority, not this
+  list.
 - **Frontmatter** — commands carry `description` + `allowed-tools`; agents carry `name` +
   `description` + `tools` + `model`. Descriptions are one line, imperative.
 - **Skills as trigger shims** — `skills/<name>/SKILL.md` holds a tightly-scoped `description`
@@ -162,9 +164,11 @@ documents the policy for the interface surface, it does not restate the per-agen
    `Track` everywhere; the canonical ladder and per-auditor mapping now live in
    `reference/severity-rubric.md`.
 2. **No shared source for gate verdict vocabularies** — partially addressed: the canonical
-   listing now lives in `reference/gate-vocabulary.md`, and `/work-on` cites it rather than
+   listing now lives in `reference/gate-vocabulary.md`, and `/next` cites it rather than
    restating token definitions. The three skill shims still restate their gate's tokens
    independently in a one-line summary and haven't been repointed at the reference file yet.
-3. **`gate-audit` has no skill shim** while the other three gates do (`evaluate-feature-idea`,
-   `review-design-before-build`, `acceptance-check-before-merge`) — natural-language access
+3. ~~**`gate-audit` has no skill shim**~~ Resolved by the persona restructure: the three
+   review gates became one `/review` door with one `review-the-work` shim covering all
+   three intents. The historical note follows. (`evaluate-feature-idea`,
+   `review-the-work`, `do-the-next-piece`) — natural-language access
    is inconsistent across the gate family.

@@ -1,6 +1,6 @@
 ---
 name: prompt-auditor
-description: Prompt auditor. Reviews a changeset's prompt-file changes — agent/command/skill definitions, model-facing instruction docs, prompt templates — for trigger reliability, instruction conflicts, orchestrator-subagent contract drift, duplication across copies, injection safety, runtime identity, and token economy. Diff-scoped and gate-invoked (/gate-audit); skipped when the changeset touches no prompt files — not the periodic whole-repo prompt review, which review-prompt-health owns.
+description: Prompt auditor. Reviews a changeset's prompt-file changes — agent/command/skill definitions, model-facing instruction docs, prompt templates — for trigger reliability, instruction conflicts, orchestrator-subagent contract drift, duplication across copies, injection safety, runtime identity, and token economy. Diff-scoped and gate-invoked (/review); skipped when the changeset touches no prompt files — not the periodic whole-repo prompt review, which review-prompt-health owns.
 tools: Read, Grep, Glob, Bash
 model: opus
 effort: medium

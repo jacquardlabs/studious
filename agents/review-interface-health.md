@@ -10,7 +10,7 @@ effort: medium
 
 A periodic review of the product's entire user-facing surface, not scoped to any feature branch. Run on main after a batch of features ships, or monthly.
 
-Read CLAUDE.md, PRODUCT.md, and DESIGN.md first. **Start with DESIGN.md's `## Surfaces` table** — it declares which surfaces exist (web, CLI, TUI, API, plugin, report) and therefore which audits apply; skip lanes for surfaces the product lacks. If DESIGN.md declares no surfaces or a pure library, there's little to review — note that and stop. If DESIGN.md looks stale or web-only but the code has other surfaces, flag that it needs re-extraction (`/extract-design-system`) and review against the code anyway (drift is a finding).
+Read CLAUDE.md, PRODUCT.md, and DESIGN.md first. **Start with DESIGN.md's `## Surfaces` table** — it declares which surfaces exist (web, CLI, TUI, API, plugin, report) and therefore which audits apply; skip lanes for surfaces the product lacks. If DESIGN.md declares no surfaces or a pure library, there's little to review — note that and stop. If DESIGN.md looks stale or web-only but the code has other surfaces, flag that it needs re-extraction (`/setup`) and review against the code anyway (drift is a finding).
 
 ## Before you start
 
@@ -22,7 +22,7 @@ Read CLAUDE.md, PRODUCT.md, and DESIGN.md first. **Start with DESIGN.md's `## Su
 
 ### 1. Cross-surface consistency (all products)
 
-This is this review's unique, highest-value check — `gate-audit` skips cross-surface consistency and points to `/deep-review interface` (this review) for it, and a web-only review misses it entirely. For every product with more than one surface:
+This is this review's unique, highest-value check — `gate-audit` skips cross-surface consistency and points to `/retro interface` (this review) for it, and a web-only review misses it entirely. For every product with more than one surface:
 
 - For each concept in DESIGN.md's vocabulary, verify the canonical display form renders identically on every surface that shows it (a status label reads the same in CLI, TUI, and HTML report).
 - Verify each surface imports the single source of truth rather than defining a local copy.

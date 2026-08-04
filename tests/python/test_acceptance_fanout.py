@@ -1,6 +1,6 @@
 """Regression tests for the acceptance-gate fan-out story (perf item 10).
 
-`commands/gate-acceptance.md` dispatches @agent-product-reviewer for Part 1 and
+`commands/review.md` dispatches @agent-product-reviewer for Part 1 and
 self-performs the Part 3 walkthrough serially inside one agent — the shape that
 produced issue #142's case study (a single acceptance dispatch that took 117
 minutes). `workflows/epic-driver.js`'s story-level acceptance gate mirrored that

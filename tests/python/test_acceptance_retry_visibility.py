@@ -3,12 +3,12 @@
 That story's design determined that no layer this repo controls (`workflows/epic-driver.js`, `bin/gate-ledger`,
 the dispatched-agent prompts) has an accessible signal that a prior `agent()` dispatch was
 abandoned/superseded before a retry began — so acceptance criterion 2 (a `work-log RETRY`
-entry) does not ship. Instead, per criterion 3, `commands/work-through.md`'s report gained
+entry) does not ship. Instead, per criterion 3, `reference/epic-orchestration.md`'s report gained
 a staleness-heuristic mitigation: reconstruct each reported story's per-phase wall-clock
 duration from `gate-ledger work-get`'s own `history` array (data already recorded today,
 no new instrumentation) and render it next to that phase's verdict.
 
-`commands/work-through.md` is prose, not executable code, so there is no runtime harness
+`reference/epic-orchestration.md` is prose, not executable code, so there is no runtime harness
 for the render loop itself (mirrors `tests/python/test_handback_skill.py`'s framing for the
 same reason). The one piece of real logic this story adds — the `jq` filter that turns a
 work file's `history` array into a duration chain — *is* executable, so these tests extract
@@ -64,7 +64,7 @@ import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
+WORK_THROUGH = REPO_ROOT / "reference" / "epic-orchestration.md"
 
 # `gate-acceptance` FIX AND RE-CHECK, Finding 1: a bare `(resumed)` tag reads as a
 # benign lifecycle fact to a scanning maintainer, not an invitation to investigate a
@@ -111,7 +111,7 @@ def _extract_jq_filter() -> str:
         re.DOTALL,
     )
     assert match is not None, (
-        "duration jq pipeline fenced block not found in commands/work-through.md — "
+        "duration jq pipeline fenced block not found in reference/epic-orchestration.md — "
         "did its shape change?"
     )
     return match.group(1)
@@ -412,7 +412,7 @@ def test_resumed_tag_states_no_measurement_and_invites_a_manual_check() -> None:
 
 def test_resumed_tag_matches_the_hardcoded_regression_constant() -> None:
     """Guards `RESUMED_TAG` itself against silent drift from the actual rendered
-    text — if a future edit changes the tag's wording in `commands/work-through.md`
+    text — if a future edit changes the tag's wording in `reference/epic-orchestration.md`
     without updating this module's constant, this is the test that catches it."""
     payload = {
         "createdAt": "2026-07-18T16:50:00Z",
@@ -497,11 +497,11 @@ def test_rationale_citation_resolves() -> None:
     """This guard originally asserted a `docs/superpowers/specs/` design doc existed.
     Under the ratified rule a design doc is branch-local and dies at closeout (#219),
     so a permanent command file must not cite one — that is the dangling-pointer
-    class this guard exists to catch, not an exception to it. `work-through.md` now
+    class this guard exists to catch, not an exception to it. `reference/epic-orchestration.md` now
     cites the issue that owns the decision, which does not expire.
 
     Generalized rather than deleted: every path this file names in a doc tree *this*
-    repo owns must resolve. Scoped to those three trees deliberately — `work-through.md`
+    repo owns must resolve. Scoped to those three trees deliberately — `reference/epic-orchestration.md`
     also names `docs/headless-contract.md`, which lives in viva's repo behind the
     published contract that keeps it a separate repo (CLAUDE.md boundary criterion (e)),
     and a checkout-local existence check is the wrong question to ask of it."""
@@ -510,4 +510,4 @@ def test_rationale_citation_resolves() -> None:
 
     owned = re.findall(r"(?<![\w/-])(docs/(?:design|superpowers|studious)/[\w./-]+\.md)", text)
     missing = sorted({p for p in owned if not (REPO_ROOT / p).is_file()})
-    assert not missing, f"commands/work-through.md cites paths that do not exist: {missing}"
+    assert not missing, f"reference/epic-orchestration.md cites paths that do not exist: {missing}"

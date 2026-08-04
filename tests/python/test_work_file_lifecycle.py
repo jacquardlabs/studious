@@ -1,7 +1,7 @@
 """A landed story must close its work file out (issue #237).
 
 `.studious/work/` had 35 files and 34 were "active" — 33 pinned at phase `merge`.
-`commands/work-on.md` lists every active feature and asks which one you mean, so
+`commands/next.md` lists every active feature and asks which one you mean, so
 "do the next piece" became a 34-item menu.
 
 The cause was not worktree leakage: of those 34, only 2 were pinned by a live
@@ -27,12 +27,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
-WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
-WORK_ON = REPO_ROOT / "commands" / "work-on.md"
-DOCTOR = REPO_ROOT / "commands" / "studious-doctor.md"
+WORK_THROUGH = REPO_ROOT / "reference" / "epic-orchestration.md"
+WORK_ON = REPO_ROOT / "commands" / "next.md"
+DOCTOR = REPO_ROOT / "commands" / "doctor.md"
 LEDGER = REPO_ROOT / "bin" / "gate-ledger"
 
-#: The phases `commands/work-on.md` treats as "not active". `gc`'s terminal rule and
+#: The phases `commands/next.md` treats as "not active". `gc`'s terminal rule and
 #: the driver's closing write both have to land inside this set or the fix does nothing.
 TERMINAL_PHASES = ("done", "stopped")
 
@@ -52,7 +52,7 @@ def test_driver_writes_a_terminal_phase_when_a_story_lands() -> None:
     match = re.search(r"work-log[^`]*?--step merge --outcome (\w+) --phase (\w+)", prompt)
     assert match, "mergePrompt does not close the work file out"
     assert match.group(2) in TERMINAL_PHASES, (
-        f"phase {match.group(2)!r} is not terminal, so /work-on still counts the story active"
+        f"phase {match.group(2)!r} is not terminal, so /next still counts the story active"
     )
     assert prompt.index("--status landed") < prompt.index("work-log"), (
         "the work-log write must follow the landed status, in the same success chain"
@@ -60,7 +60,7 @@ def test_driver_writes_a_terminal_phase_when_a_story_lands() -> None:
 
 
 def test_the_prompt_fallback_writes_it_too() -> None:
-    """`commands/work-through.md` is the execution mode used where the Workflow tool
+    """`reference/epic-orchestration.md` is the execution mode used where the Workflow tool
     isn't available. It has identical semantics by contract, so a fix that lands in
     only one mode is a fix that leaks on the other."""
     text = WORK_THROUGH.read_text(encoding="utf-8")
@@ -114,7 +114,7 @@ def test_work_on_caps_the_disambiguation_menu() -> None:
 
 
 def test_doctor_reports_flow_state_but_does_not_collect_it() -> None:
-    """`/studious-doctor` is where a user finds out the store needs collecting — it
+    """`/doctor` is where a user finds out the store needs collecting — it
     is the command for silent degradation. It stays recommend-only like everything
     else there."""
     text = DOCTOR.read_text(encoding="utf-8")
@@ -126,7 +126,7 @@ def test_doctor_reports_flow_state_but_does_not_collect_it() -> None:
 def test_doctor_menu_threshold_is_keyed_on_active_not_total() -> None:
     """An acceptance fix-and-retry round found the '>10 work files' threshold counted
     *every* work file, including scope-delta-retained ones sitting at a terminal
-    phase — files `commands/work-on.md`'s own menu (phase not `done`/`stopped`)
+    phase — files `commands/next.md`'s own menu (phase not `done`/`stopped`)
     never lists. The threshold must be stated against the active count, not the
     raw `work-list` count, or the doctor's consequence is false for exactly the
     cohort #244 introduced."""
@@ -156,7 +156,7 @@ def test_doctor_keep_window_is_keyed_on_last_write_not_flow_end() -> None:
 
 
 def test_doctor_reads_work_files_through_the_ledger_tool() -> None:
-    """`commands/work-on.md` states work files are read and written only through
+    """`commands/next.md` states work files are read and written only through
     the ledger tool. The retained-file check must resolve scope-delta data via
     `gate-ledger work-get`, never a raw glob of `.studious/work/*.json`."""
     text = DOCTOR.read_text(encoding="utf-8")

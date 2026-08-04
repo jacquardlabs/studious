@@ -18,7 +18,7 @@ proven by running the real, unmodified driver source under
 `test_driver_crash_hardening.py`'s documented harness shape.
 
 The closing report's own `### Scope-delta line (#244)` section in
-`commands/work-through.md` embeds a second, independent `jq` filter (never
+`reference/epic-orchestration.md` embeds a second, independent `jq` filter (never
 reimplemented here) — covered the same way `test_acceptance_retry_visibility.py`
 covers that command's duration-chain filter: extracted verbatim from its fenced
 block and run against constructed fixtures via `jq` directly.
@@ -46,7 +46,7 @@ from test_driver_crash_hardening import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
+WORK_THROUGH = REPO_ROOT / "reference" / "epic-orchestration.md"
 
 # ---------- scopeDeltaPhase: pure-function executed fixture ----------
 
@@ -935,9 +935,9 @@ def test_fixer_prompt_names_the_correct_fix_cycle_phase() -> None:
     assert '--scope-delta-phase "audit-fix-1"' in fix_prompts[0]
 
 
-# ---------- work-through.md's own Scope-delta line jq report (#244) ----------
+# ---------- reference/epic-orchestration.md's own Scope-delta line jq report (#244) ----------
 #
-# `commands/work-through.md`'s closing report embeds a SECOND jq filter (never
+# `reference/epic-orchestration.md`'s closing report embeds a SECOND jq filter (never
 # reimplemented here, following test_acceptance_retry_visibility.py's own
 # `_extract_jq_filter`/`_run_jq` precedent for locking prose-embedded logic
 # against silent drift) that turns a work file's `.declaredFiles`/`.scopeDelta`/
@@ -961,7 +961,7 @@ def _extract_scope_delta_jq_filter() -> str:
         re.DOTALL,
     )
     assert match is not None, (
-        "scope-delta jq pipeline fenced block not found in commands/work-through.md — "
+        "scope-delta jq pipeline fenced block not found in reference/epic-orchestration.md — "
         "did its shape change?"
     )
     return match.group(1)
@@ -1030,7 +1030,7 @@ def test_report_all_unmeasured_moments_lead_with_the_fact_not_a_false_clean_outs
     """Fix-and-retry finding 3: a scope check that dies or can't resolve a diff
     on the script path writes --scope-delta-unmeasured (`computeScopeDelta`'s
     dead-end path, workflows/epic-driver.js) — the fallback driver
-    (commands/work-through.md) writes no scope-delta entries at all, so it was
+    (reference/epic-orchestration.md) writes no scope-delta entries at all, so it was
     never the source of this. A work file whose scopeDelta is all such entries
     used to fall into the general branch and render 'outside 0' with the
     all-zero measured count demoted to a trailing clause — the exact
@@ -1353,7 +1353,7 @@ def test_report_denominator_falls_back_when_history_undercounts_a_no_audit_profi
 # ---------- closing report's literal shape block (#244 fix-and-retry finding 6) ----------
 #
 # The jq filter above computes the value; these lock the SEPARATE prose surface
-# (`commands/work-through.md`'s "End with exactly this shape" block) that a
+# (`reference/epic-orchestration.md`'s "End with exactly this shape" block) that a
 # compiling model actually copies from — a discrepancy between the two entries in
 # that block, or a failure-path rendering missing from it, is invisible to every
 # test above this point, since none of them touch the shape block at all.
@@ -1368,7 +1368,7 @@ def _closing_shape_section() -> str:
 
 def _extract_closing_shape_fence() -> str:
     match = re.search(r"```text\n(.*?)\n```", _closing_shape_section(), re.DOTALL)
-    assert match is not None, "closing-shape fenced block not found in commands/work-through.md"
+    assert match is not None, "closing-shape fenced block not found in reference/epic-orchestration.md"
     return match.group(1)
 
 
@@ -1437,7 +1437,7 @@ def test_closing_shape_never_refers_to_a_rendering_by_ordinal() -> None:
     "rendering" phrase the stale sentence actually used. A bullet list that has
     drifted twice will drift a third time, so the fix is to ban any ordinal
     reference to a specific rendering outright — content-based description only
-    (89d8546's precedent for the same class of drift in studious-doctor.md)."""
+    (89d8546's precedent for the same class of drift in commands/doctor.md)."""
     section = _closing_shape_section()
     assert not re.search(r"\b(first|second|third|fourth|fifth|sixth)\s+rendering\b", section, re.IGNORECASE)
 

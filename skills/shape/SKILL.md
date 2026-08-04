@@ -1,9 +1,9 @@
 ---
-name: design
-description: Runs the /design workflow -- inventories PRODUCT.md, DESIGN.md, CLAUDE.md, and the touched code, a batch interview (viva-qa) of 5-9 tagged questions with forks presented as 2-3 options carrying one recommended_choice, a drafted design-<slug>.md (Problem & persona through Open questions, each section carrying a named consumer), a design-lint pass fixed before viva ever starts, and a viva sign-off loop that distinguishes a fresh round from a REVISED resume via --prior-input/--prior-verdicts. Use when the user says /design, hands over a feature idea to turn into a design doc, or a /build ESCALATED verdict routes back here for revision. Emits exactly one verdict -- DESIGNED, NEEDS RESEARCH, or REVISED -- and hands off to /gate-design-review.
+name: shape
+description: Runs the /shape workflow -- inventories PRODUCT.md, DESIGN.md, CLAUDE.md, and the touched code, a batch interview (viva-qa) of 5-9 tagged questions with forks presented as 2-3 options carrying one recommended_choice, a drafted design-<slug>.md (Problem & persona through Open questions, each section carrying a named consumer), a design-lint pass fixed before viva ever starts, and a viva sign-off loop that distinguishes a fresh round from a REVISED resume via --prior-input/--prior-verdicts. Use when the user says /shape, hands over a feature idea to turn into a design doc, or a /build ESCALATED verdict routes back here for revision. Emits exactly one verdict -- DESIGNED, NEEDS RESEARCH, or REVISED -- and hands off to /review.
 ---
 
-# /design
+# /shape
 
 You are the session that turns a feature idea into a `design-<slug>.md` a
 human has signed off on, section by section, via a real viva review --
@@ -18,7 +18,7 @@ skip flag.** Everything else in this file assumes it already ran.
 
 One argument: a one-line description of the feature idea (or the
 conversation's own prior context, if the human already stated it). No
-schema beyond that -- the only structured input `/design` produces from
+schema beyond that -- the only structured input `/shape` produces from
 here on is what it writes itself (`.viva/qa-input.json`, then
 `design-<slug>.md`).
 
@@ -32,7 +32,7 @@ Read, in this order, always:
 4. Whatever code the feature ask actually touches -- `Grep`/`Glob` scoped to
    the named area, never a full-repo read.
 
-If a prior `/gate-should-we-build` verdict was recorded for this feature
+If a prior `/bet` verdict was recorded for this feature
 (`gate-ledger` on `PATH`), read it too -- framing context for the interview,
 not a hard input this design requires standalone-capable operation to
 depend on.
@@ -46,7 +46,7 @@ else to resolve here.
 ## Step 2 -- Batch interview (viva-qa)
 
 **Skip this step when the forks arrive already answered.** A dispatched run —
-studious's `/work-through` driver, or any orchestrator that settled its forks
+studious's `/next` driver, or any orchestrator that settled its forks
 up front — passes them in its brief as a `Decisions already made by the human`
 line. You have no human in your loop to interview, so a fresh round here would
 either stall or, worse, invent answers.
@@ -62,8 +62,8 @@ When that line is present:
   RESEARCH` naming it, so the orchestrator parks the story and it reaches a
   human through the escalation path — never guess to keep the run moving.
 
-This is the same distinction studious's `/work-through` documents: the interview
-front-loads, the sign-off does not. Interactive `/design` — a human at the
+This is the same distinction studious's `/next` documents: the interview
+front-loads, the sign-off does not. Interactive `/shape` — a human at the
 keyboard, no decisions in the brief — runs the full round below unchanged.
 
 Write `.viva/qa-input.json`:
@@ -141,14 +141,14 @@ naming every prior design doc in this project already uses.
 **Eight required sections, each with a named consumer.**
 `reference/design-doc-contract.md` is the sole authority for the set;
 `templates/design-doc.md` ships the same eight as a scaffold, and
-`scripts/design-lint` checks they are all present before `/plan` will read
+`scripts/design-lint` checks they are all present before `/build` will read
 the doc:
 
 1. **Problem & persona** -- Consumer: the human deciding to fund the work;
    product-reviewer Q1.
-2. **Proposed design** -- Consumer: product-reviewer Q2/Q6; `/plan`'s
+2. **Proposed design** -- Consumer: product-reviewer Q2/Q6; `/build`'s
    spine-building step.
-3. **User journey** -- Consumer: product-reviewer Q3; `/plan`'s
+3. **User journey** -- Consumer: product-reviewer Q3; `/build`'s
    task-boundary decisions.
 4. **Out of scope** -- Consumer: product-reviewer Q4.
 5. **Alternatives considered** -- Consumer: product-reviewer Q5; future
@@ -157,9 +157,9 @@ the doc:
    outcome read. Answer it from the interview rather than defaulting to
    `N/A` -- the contract permits `N/A -- no measurable surface` with a
    one-line reason, so the failure mode is a lazy `N/A`, not a blocked doc.
-7. **Operational readiness** -- Consumer: `/gate-audit`'s operability lane;
+7. **Operational readiness** -- Consumer: `/review`'s operability lane;
    `/build`'s rollout-tier verification.
-8. **Open questions** -- Consumer: the human sponsor; the next `/design`
+8. **Open questions** -- Consumer: the human sponsor; the next `/shape`
    revision round.
 
 Give each section heading its own `Consumer:` line naming who reads it --
@@ -196,7 +196,7 @@ sibling lint/verify script in this repo already uses: `0` (clean), `1`
 invented here.
 
 **A non-zero exit is fixed and re-linted before Step 6 ever launches a
-server.** `/design` never starts a viva round against a lint-failing doc --
+server.** `/shape` never starts a viva round against a lint-failing doc --
 if `design-lint` reports a violation, revise the doc and re-run
 `scripts/design-lint` until it exits `0`. Exit `2` means the doc itself (or
 the invocation) is malformed -- fix that structurally, not by editing
@@ -249,18 +249,18 @@ letting it silently collapse into case 1.
 A `viva`/`viva-qa` launch failure (the skills' own pre-existing guard --
 `.viva/server.url` already present, or `server.py` missing entirely)
 surfaces verbatim, exactly as their own `SKILL.md`s already specify --
-`/design` invents no retry logic on top of it.
+`/shape` invents no retry logic on top of it.
 
 ## Step 7 -- Hand off
 
-Report the verdict and tell the developer to run `/gate-design-review`
+Report the verdict and tell the developer to run `/review`
 next. Unconditionally: this skill and that gate ship in the same plugin,
-so the gate is there whenever `/design` ran.
+so the gate is there whenever `/shape` ran.
 
 `gate-ledger` on `PATH` is a separate question -- it governs whether the
 gate can *record* its verdict, not whether the gate exists. Don't probe
 for it here and don't let its absence suppress the hand-off; a broken
-`PATH` is what `/studious-doctor` reports.
+`PATH` is what `/doctor` reports.
 
 ## Verdicts
 
@@ -268,10 +268,10 @@ for it here and don't let its absence suppress the hand-off; a broken
 |---|---|
 | `DESIGNED` | Every section of `design-<slug>.md` reaches `approved` in the viva loop; `design-lint` was already clean. |
 | `NEEDS RESEARCH` | The interview's round 2 still leaves an unresolved fork that would need a round 3. No doc is drafted or committed. |
-| `REVISED` | A previously-`DESIGNED` (or previously-`REVISED`) doc is re-drafted -- after a studious `/gate-design-review` REVISE/RETHINK, or a direct human request -- and re-signed-off via the resume path (Step 6, case 3). |
+| `REVISED` | A previously-`DESIGNED` (or previously-`REVISED`) doc is re-drafted -- after a studious `/review` REVISE/RETHINK, or a direct human request -- and re-signed-off via the resume path (Step 6, case 3). |
 
 Report exactly one of these three tokens, never more than one, at the end
-of every `/design` session.
+of every `/shape` session.
 
 ## Open questions this skill inherits (not fixed here)
 
@@ -291,7 +291,7 @@ derived from `reference/design-doc-contract.md` and pinned by
 "Recommend one action; the human decides" is Step 3's whole shape --
 `recommended_choice` names one option, never pre-selects it. "Nothing signs
 off on itself" is why Step 5 runs a real, separate script rather than
-`/design` asserting its own doc is well-formed, and why sign-off itself is a
+`/shape` asserting its own doc is well-formed, and why sign-off itself is a
 human viva round, never a self-report. "Standalone-capable" is Step 7's
 explicit, named studious-absent path. "Anti-cleverness tripwire" is why
 this skill adds no named sub-roles or ceremony beyond the plain interview ->

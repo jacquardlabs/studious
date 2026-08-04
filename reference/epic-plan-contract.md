@@ -1,6 +1,6 @@
 # Epic-plan contract — lookup data
 
-`/work-through`'s plan piece proposes a decomposition; the user approves it. This file
+`/next`'s plan piece proposes a decomposition; the user approves it. This file
 names what an approvable plan must contain — the analogue of
 `reference/design-doc-contract.md` one level up. A plan missing a required element isn't
 a style nit: the driver schedules from this data, so a gap here becomes an unscheduled
@@ -10,11 +10,11 @@ or unjudgeable story later.
 
 | Element | Why the driver needs it |
 |---------|-------------------------|
-| Epic goal statement | One sentence. The epic-finale `/gate-acceptance` judges the integrated result against it, not against any single story. |
+| Epic goal statement | One sentence. The epic-finale `/review --delivery` judges the integrated result against it, not against any single story. |
 | Stories | Each: a short slug, a title, and its source issue(s). Splitting or merging GitHub issues is proposed here, never applied to GitHub. |
 | Stated file surface per story | The files the story expects to touch. The plan already carries this fact implicitly — criteria and dependency edges can't be written without it — so state it, because the story class below is computed from it. |
 | Story class per story | `epic-default` or `story-supervised`, plus the one clause that decided it. Shown next to the story in the plan the user approves, and overridable there like any other element. |
-| Acceptance criteria per story | What the story's `/gate-acceptance` run must be able to verify — concrete and observable. "Works" is not a criterion. |
+| Acceptance criteria per story | What the story's `/review --delivery` run must be able to verify — concrete and observable. "Works" is not a criterion. |
 | Settled forks per story | The product/scope questions answered at the plan piece's one interview, recorded per story as `decisions`. Every phase is dispatched to a subagent with no human in its loop, so an unanswered fork can only be guessed or parked — this is where the human answers instead. Distinct from acceptance criteria: criteria say what "done" means, decisions say which of two defensible designs was chosen. Absent for a story whose forks were all obvious. |
 | Dependency edges | The DAG the scheduler runs. Only real sequencing dependencies: an edge claims the downstream story cannot be designed or built until the upstream one lands. |
 | Gate profile per story | Which of design → design-review → build → audit → acceptance run for this story. Default is all five. Build and audit are never trimmed. Trimming is proposed by the planner, decided by the user at approval — computed from the plan's own data by the "Gate profile" section below, not from what a planning session happened to notice. |
@@ -34,7 +34,7 @@ before any dispatch, not after a design doc nobody signed off on reaches the epi
   Requires **both**: the story's stated file surface is code with executable
   verification, and its source issue already carries acceptance criteria with
   citations.
-- **`story-supervised`** — the story stays in the epic but is handed to `/work-on`.
+- **`story-supervised`** — the story stays in the epic but is handed to `/next`.
   Any **one** of: its stated file surface is majority prompt-prose — **matched against
   `reference/audit-routing-signals.md`'s Prompt signal list, never a list restated
   here**; or its source is a raw idea with no acceptance criteria; or it is the epic's
@@ -73,7 +73,7 @@ consequences the plan must state at approval, because the user is approving them
   on its first driver invocation, and that has to be visible before approval, not
   discovered after.
 - The supervised story has no branch and no worktree yet. Taking it over means running
-  `/work-on` against it from the user's own checkout, on the branch the driver would
+  `/next` against it from the user's own checkout, on the branch the driver would
   have used.
 
 ## Gate profile — computed from the plan's own data, decided by the user
@@ -91,7 +91,7 @@ may trim it at approval like any other element, but the computation never propos
 because none of the inputs below say anything about whether the story's result is worth
 judging against its criteria.
 
-**The pair trims as a unit.** `/gate-design-review` reads the working tree for the doc
+**The pair trims as a unit.** `/review` reads the working tree for the doc
 it reviews; with no `design` phase there is no doc, so a profile carrying `design-review`
 without `design` reviews nothing. Propose both or neither.
 
@@ -192,7 +192,7 @@ follows the mid-flight-story rule above.
 
 ## Consumers that must stay in sync
 
-- `commands/work-through.md` — the only writer. Its plan piece runs the interview and
+- `reference/epic-orchestration.md` — the only writer. Its plan piece runs the interview and
   records each element through `gate-ledger epic-set` / `epic-story-set`; the field
   names in its `--criteria` / `--decisions` / `--deps` / `--gates` flags are this
   table's elements.

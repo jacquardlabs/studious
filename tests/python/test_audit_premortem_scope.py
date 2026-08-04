@@ -2,14 +2,14 @@
 
 `workflows/epic-driver.js`'s `auditFanIn()` compiles the audit gate's verdict at
 two altitudes — per-story (`auditRound`) and epic-finale (`finaleAuditRound`) —
-by handing the compiling agent `commands/gate-audit.md`'s full compilation text.
+by handing the compiling agent `commands/review.md`'s full compilation text.
 That document's own auditor-11 "Pre-mortem verification" section fires whenever a
 pre-mortem register file is present — true in every story worktree, since the
 register lives on the epic branch and is checked out into each story worktree as
 a side effect of normal `git worktree add`. But the driver's own `AUDITORS`
 constant lists only the fixed lanes and never dispatches a pre-mortem auditor into the
 reports `auditFanIn()` receives, at either altitude — so, with nothing telling it
-otherwise, the compiling agent could read gate-audit.md's auditor-11 section,
+otherwise, the compiling agent could read commands/review.md's auditor-11 section,
 notice the register file, expect an extra report, find none, and raise a phantom
 missing-premortem-lane finding with no code behind it to fix.
 
@@ -63,7 +63,7 @@ def test_audit_fan_in_scopes_out_premortem_verification() -> None:
         "auditFanIn's scope carve-out does not mention pre-mortem verification"
     )
     assert "auditor 13" in body, (
-        "auditFanIn does not name gate-audit.md's auditor-13 pre-mortem lane"
+        "auditFanIn does not name commands/review.md's auditor-13 pre-mortem lane"
     )
 
 

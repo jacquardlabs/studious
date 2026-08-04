@@ -1,6 +1,6 @@
 """Every evidence-folder path a prompt surface names is the grammar capture writes.
 
-studious #260 was one table row in `skills/coach/SKILL.md` naming
+studious #260 was one table row in `commands/next.md` naming
 `docs/jig/evidence/<date>-<task>/` -- the shape `scripts/evidence-capture`
 stopped writing when #258 put a branch slug in its `target_dir`. That row's
 own fix is pinned in `test_coach_skill.py`, but the invariant is not: any
@@ -20,7 +20,7 @@ both wrong and both pass it. So every occurrence of the placeholder prefix
 which admits exactly one shape and rejects every other by construction.
 
 Why a module rather than another per-skill assertion: `test_finish_skill.py`
-carried an `assertNotIn` meant to hold this line for `skills/finish/SKILL.md`
+carried an `assertNotIn` meant to hold this line for `skills/ship/SKILL.md`
 and quoted a phrase that file never contained ("wrote for it: `docs/jig/
 evidence/<date>-<task>/`" against a body reading "a hand-rebuilt ... matches
 nothing"), so it passed before and after the change it was written to guard.
@@ -108,8 +108,8 @@ class TestEvidencePathGrammarOnPromptSurfaces(unittest.TestCase):
         # stops being reached -- the failure the glob can actually have. Any
         # single file may be renamed, split, or retired for reasons that have
         # nothing to do with this scan, so no one file is load-bearing here.
-        self.assertIn(REPO_ROOT / "skills" / "finish" / "SKILL.md", files)
-        self.assertIn(REPO_ROOT / "commands" / "work-on.md", files)
+        self.assertIn(REPO_ROOT / "skills" / "ship" / "SKILL.md", files)
+        self.assertIn(REPO_ROOT / "commands" / "next.md", files)
         self.assertIn(REPO_ROOT / "reference" / "evidence-format.md", files)
         self.assertGreater(
             len(files),
@@ -170,7 +170,7 @@ class TestEvidencePathGrammarOnPromptSurfaces(unittest.TestCase):
             "no `docs/jig/evidence/` at all",
             # A surface warning a reader off the old shape must be able to
             # print it; without this the scan forces the warning to go vague,
-            # which is what happened to skills/finish/SKILL.md (#260 audit).
+            # which is what happened to skills/ship/SKILL.md (#260 audit).
             f"rebuilding `{PRE_258_GRAMMAR}` matches nothing. <!-- {COUNTEREXAMPLE_SENTINEL} -->",
         ):
             with self.subTest(clean=clean):

@@ -3,12 +3,12 @@
 # hook wired to Bash in hooks.json). Requires git + jq.
 #
 # What this file does and doesn't prove (reference/evidence-format.md, "Open item:
-# origin and /work-through's actual dispatch mechanism" has the full account): every
+# origin and /next's actual dispatch mechanism" has the full account): every
 # test here feeds the hook a crafted JSON payload on stdin, exactly as Claude Code's
 # own hooks reference documents PostToolUse/PostToolUseFailure input for Bash — this
 # deterministically proves the hook's own logic (armed check, allow-list, exit-code
 # derivation per event, digest source, cross-worktree resolution) is correct given
-# that input shape. It does NOT prove a real /work-through dispatch actually produces
+# that input shape. It does NOT prove a real /next dispatch actually produces
 # an agent_id-bearing payload — no Task tool is available to this suite to dispatch a
 # real nested subagent and observe the hook fire from inside it.
 set -uo pipefail

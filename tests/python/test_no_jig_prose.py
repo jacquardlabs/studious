@@ -68,7 +68,7 @@ def test_the_evidence_paths_are_still_allowed() -> None:
 def test_prose_uses_would_be_caught() -> None:
     for phrasing in (
         "Runs jig's build loop over a hand-written PLAN.md",
-        "If jig is installed, its /plan workflow picks up",
+        "If jig is installed, its /build workflow picks up",
         "The four jig skills are the only dispatch targets",
         "no jig-specific flags invented",
     ):

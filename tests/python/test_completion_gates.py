@@ -5,7 +5,7 @@ reported `status` and a non-empty self-reported `evidence` string. #294 replaces
 with an independent, judgment-free read of the repository and the ledger, and #295 makes
 the dispatch itself a ledger write so a successor rehydrates from data instead of from a
 fresh re-briefing. #276 and #278 are the two defects that class produced: an invariant
-stated only in `commands/work-through.md`'s prose and never threaded into a dispatch,
+stated only in `reference/epic-orchestration.md`'s prose and never threaded into a dispatch,
 and a park dispatch with nothing enforcing its own "no fixing, no retrying".
 
 The driver's pure classifiers are **executed**, extracted verbatim by balanced-brace
@@ -22,7 +22,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 LEDGER = REPO_ROOT / "bin" / "gate-ledger"
-WORK_THROUGH = REPO_ROOT / "commands" / "work-through.md"
+WORK_THROUGH = REPO_ROOT / "reference" / "epic-orchestration.md"
 
 
 def _extract_function(source: str, name: str) -> str:
@@ -315,7 +315,7 @@ def test_a_story_resumed_by_a_later_invocation_rehydrates_from_its_record() -> N
     """#295's PRIMARY case: the successor to a parked or crashed worker, next run.
 
     `redispatchWhy` used to be set only inside the intra-run `MAX_COMPLETION_NUDGES`
-    loop, so a story parked at `build` and picked up by a LATER `/work-through` arrived
+    loop, so a story parked at `build` and picked up by a LATER `/next` arrived
     with `nudges` at zero and took `assignmentInstruction` — re-briefed from scratch on
     exactly the run whose whole reason for reading the record was that the last one
     died. The recorded assignment's phase crosses the args boundary (this script has no
@@ -338,7 +338,7 @@ def test_a_story_resumed_by_a_later_invocation_rehydrates_from_its_record() -> N
     # match — a reflow of the call site is not a regression.
     assert "? `a prior dispatch of this phase returned without the artifacts" in source
     assert (
-        "resumedFromRecord ? 'an earlier /work-through invocation dispatched this phase"
+        "resumedFromRecord ? 'an earlier /next invocation dispatched this phase"
     ) in source
 
 

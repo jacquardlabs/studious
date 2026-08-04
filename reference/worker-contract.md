@@ -1,12 +1,12 @@
 # Worker contract — lookup data
 
-`/work-through`'s driver dispatches worker agents to author design docs and build
+`/next`'s driver dispatches worker agents to author design docs and build
 stories — the how-layer Studious otherwise steps back from, running here under an
 explicitly approved epic plan. This file names the interface between the driver and a
 worker: what every dispatch brief must hand over, and what a worker must hand back
 before its phase counts as done. It is the build-side analogue of
 `reference/design-doc-contract.md`. The contract, not any particular executor, is
-normative — a worker MAY use this plugin's own `/plan` + `/build` workflow, or
+normative — a worker MAY use this plugin's own `/build` workflow (which plans, then builds), or
 Superpowers' plan/execute workflow when it's installed, but a worker using neither must
 still satisfy every row below.
 
@@ -43,17 +43,17 @@ branch's and the finale's concern, not the worker's.
 ## Status reporting
 
 A worker MAY additionally report its own terminal status for the phase it just
-finished. First resolve which work file is this feature's the same way `/work-on` does
+finished. First resolve which work file is this feature's the same way `/next` does
 it: `gate-ledger work-list`, match the current branch's row. Found → `gate-ledger
 work-log --slug "<that-slug>" --step <phase> --outcome "<status>"`, omitting `--phase`
-(the phase judgment stays `/work-on`'s call). No match, or `gate-ledger` not on `PATH`
+(the phase judgment stays `/next`'s call). No match, or `gate-ledger` not on `PATH`
 at all → skip silently; this is best-effort corroboration, not a required part of the
 contract. This is a first-person status report, not a gate verdict or a self-assessment
 against a rubric, and does not conflict with "workers never... record a verdict" below.
 
 **The build phase's status vocabulary is closed, and this table is where it lives.**
 Every executor reports one of these three for `--step build` — the built-in `/build`,
-`/work-through`'s dispatched workers, and any third-party workflow alike:
+`/next`'s dispatched workers, and any third-party workflow alike:
 
 | Status | Means |
 |--------|-------|
@@ -63,7 +63,7 @@ Every executor reports one of these three for `--step build` — the built-in `/
 
 `bin/gate-ledger` rejects anything else for that step, so a dialect fails at the write
 rather than being read back as an unhandled case (#213). Two further tokens are
-reserved for `/work-on`'s own bookkeeping and are not a worker's to write:
+reserved for `/next`'s own bookkeeping and are not a worker's to write:
 `HANDED-OFF` (the flow handed the build to a human or another tool) and `SKIPPED` (the
 user explicitly skipped the piece). Other steps' outcomes are free-form here — a gate
 step's token is owned by `reference/gate-vocabulary.md`.

@@ -1,9 +1,9 @@
-"""Regression tests for /gate-audit's diff-precompute step (perf item 8, 2026-07-17).
+"""Regression tests for /review's diff-precompute step (perf item 8, 2026-07-17).
 
 Every full-changeset auditor independently discovered the diff itself — 2-5
 `git`/`Read` round-trips per agent, times up to 11 auditors per round, purely to
 learn what the orchestrator already knows from establishing the changeset scope.
-`commands/gate-audit.md` now precomputes the diff once and stamps it into every
+`commands/review.md` now precomputes the diff once and stamps it into every
 full-changeset dispatch prompt when the changeset is small, skipping those
 round-trips; a large changeset falls back to today's self-discovery behavior
 unchanged.
@@ -20,7 +20,7 @@ import re
 
 from run_gate_audit_fixtures import REPO_ROOT
 
-GATE_AUDIT = REPO_ROOT / "commands" / "gate-audit.md"
+GATE_AUDIT = REPO_ROOT / "commands" / "review.md"
 
 
 def _precompute_section() -> str:
@@ -30,7 +30,7 @@ def _precompute_section() -> str:
         text,
         re.DOTALL,
     )
-    assert match, "gate-audit.md has no 'Precompute the changeset diff' section between the shared-contract and evidence-log steps"
+    assert match, "commands/review.md has no 'Precompute the changeset diff' section between the shared-contract and evidence-log steps"
     return match.group(1)
 
 

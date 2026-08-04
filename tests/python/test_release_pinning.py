@@ -1,6 +1,6 @@
 """Every input to a CI job is pinned to an immutable identity (issue #201).
 
-`review-security-health` raised this as Important in the 2026-07-17 `/deep-review`:
+`review-security-health` raised this as Important in the 2026-07-17 `/retro`:
 `.github/workflows/release.yml` ran `pip install python-semantic-release` unpinned
 inside the one job holding `RELEASE_TOKEN` — a PAT carrying `contents:write` on this
 repo *plus* a cross-repo `workflow run` dispatch against `jacquardlabs/marketplace`.

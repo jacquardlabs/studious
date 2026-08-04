@@ -1,6 +1,6 @@
 """Structural regression tests for the acceptance-scope story (issue #89).
 
-`commands/gate-acceptance.md` dispatched @agent-product-reviewer with only
+`commands/review.md` dispatched @agent-product-reviewer with only
 "review the implementation on the current branch against the original design
 doc" — but the reviewer has no Bash, so it could not compute the diff itself nor
 resolve the design-doc path. A compliant reviewer had to bounce back and ask, or
@@ -9,7 +9,7 @@ improvise scope from Glob/Grep.
 The fix adds a Part 0 that resolves both halves of the reviewer's scope up front —
 the named changeset (`git diff --name-only <merge-base>...HEAD`) and the design-doc
 path (the work file's recorded `designDoc`, else discovered the way
-`/gate-design-review` does) — and hands them, plus PRODUCT.md, explicitly into the
+`/review` does) — and hands them, plus PRODUCT.md, explicitly into the
 dispatch. These tests lock that resolution without a live model.
 """
 
@@ -18,22 +18,35 @@ from __future__ import annotations
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-GATE_ACCEPTANCE = REPO_ROOT / "commands" / "gate-acceptance.md"
+GATE_ACCEPTANCE = REPO_ROOT / "commands" / "review.md"
 
 
 def _text() -> str:
-    return GATE_ACCEPTANCE.read_text()
+    """The delivery episode's own section of the merged review door.
+
+    The three episodes share one file now, and the design episode has a `## Part 1` of its
+    own — so every assertion here slices to the delivery section first, or it would match
+    the design episode's headings instead.
+    """
+    full = GATE_ACCEPTANCE.read_text()
+    start = full.index("\n## Delivery episode")
+    return full[start:full.index("\n## Shared — record findings", start)]
 
 
 def test_part_0_establishes_scope_before_dispatch() -> None:
-    """A Part 0 section resolves scope ahead of the shared-contract assembly."""
+    """A Part 0 section resolves scope ahead of the Part 1 dispatch.
+
+    The shared-contract assembly used to sit between them; after the merge it is one
+    shared step at the top of the file, ahead of all three episodes, so the ordering this
+    asserts is Part 0 before Part 1 — the part that was ever load-bearing.
+    """
     text = _text()
-    assert "## Part 0" in text, "gate-acceptance has no Part 0 scope section"
-    part0 = text.index("## Part 0")
-    contract = text.index("## Assemble the shared contract")
-    part1 = text.index("## Part 1")
-    assert part0 < contract < part1, (
-        "Part 0 must precede the shared-contract assembly and Part 1 dispatch"
+    assert "## Part 0" in text, "the delivery episode has no Part 0 scope section"
+    assert text.index("## Part 0") < text.index("## Part 1"), (
+        "Part 0 must precede the Part 1 dispatch"
+    )
+    assert "## Assemble the shared contract" in GATE_ACCEPTANCE.read_text(), (
+        "the shared-contract assembly step is gone entirely"
     )
 
 
@@ -49,8 +62,8 @@ def test_part_0_resolves_the_design_doc_path() -> None:
     text = _text()
     assert "designDoc" in text, "Part 0 does not read the work file's designDoc"
     assert "gate-ledger work-get" in text, "Part 0 does not read the work file via gate-ledger"
-    assert "/gate-design-review" in text, (
-        "Part 0 does not fall back to /gate-design-review's discovery"
+    assert "/review" in text, (
+        "Part 0 does not fall back to /review's discovery"
     )
 
 

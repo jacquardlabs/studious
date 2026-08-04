@@ -99,7 +99,7 @@ Structure the report:
 **Windows and shape** — the lookback, the attribution window, the history shape detected, and the unit count after noise exclusion.
 **Critical**, **Important**, **Track** — findings grouped by tier.
 **Unit table** — one row per shipped unit with a corrective link: unit (sha / PR), ship date, files, corrective commits, days to first correction, confidence, recorded verdict (or `—`).
-**Metrics snapshot** — these keys are this review's own trend contract; they are deliberately *not* rows in `/deep-review`'s dashboard, which this review does not join:
+**Metrics snapshot** — these keys are this review's own trend contract; they are deliberately *not* rows in `/retro`'s dashboard, which this review does not join:
 
 - Units shipped (in lookback)
 - Units with a Confirmed correction

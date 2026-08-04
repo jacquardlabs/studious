@@ -13,7 +13,7 @@ Three defects, three test groups:
    (never `epic-story-set`, already scoped by its own `--epic` argument) keys
    an epic-dispatched story to `workSlug(story)`, an epic-qualified slug — and
    the same qualified string is what gets printed back to the user in
-   `parkedThisRun`/`landedThisRun`, so `/work-on "<the printed slug>"`
+   `parkedThisRun`/`landedThisRun`, so `/next "<the printed slug>"`
    resolves the exact on-disk work file. `workSlug`'s own round trip through
    `bin/gate-ledger`'s `slugify()` (which collapses the "--" separator to a
    single "-", same collision-acceptance precedent as `branch_slug()`
@@ -54,7 +54,7 @@ EPIC_STORY_SET_BARE_SLUG_COUNT = 4
 # pushes (the refusal path in runStory, the canary-didn't-land path in the run
 # section) and the `canary:` field of the returned report. Held entries carry the
 # same identity requirement as parked ones — an operator reading "held" still has
-# to be able to hand the printed slug to /work-on — so they are counted here
+# to be able to hand the printed slug to /next — so they are counted here
 # rather than exempted, bumping this from 6 to 9.
 # The #304 review fixes add two more: a heldThisRun push for a resume-at-merge
 # story refused by a ceiling before its first (merge) dispatch, and a
@@ -175,7 +175,7 @@ def test_reported_story_identifiers_match_the_work_file_key() -> None:
     """Every parkedThisRun/landedThisRun entry names the story with workSlug().
 
     Non-regression per the design doc: the identifier printed in the "Needs
-    you" queue must be the exact on-disk work-file key, or `/work-on "<the
+    you" queue must be the exact on-disk work-file key, or `/next "<the
     printed slug>"` cannot resolve the feature it names.
     """
     source = DRIVER.read_text()

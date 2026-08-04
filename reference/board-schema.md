@@ -53,7 +53,7 @@ slug that hasn't run `epic-set`, or a typo): the server does not 404. It returns
 with a degenerate snapshot — `epic: {"slug": "<the-slug-you-asked-for>", "status":
 "unknown"}`, empty `stories`, empty `events` — the same "just serve what's on disk, even
 if that's mostly empty" posture the design doc describes for a killed-and-resumed
-`/work-through` ("no separate reconciliation step to run"). A client that cares whether
+`/next` ("no separate reconciliation step to run"). A client that cares whether
 the epic is real checks whether `stories` is non-empty or `epic.status` is `"unknown"`.
 
 ## The `stories` object
@@ -71,7 +71,7 @@ whatever `cmd_epic_story_set` last wrote for that story, verbatim:
 
 **No `phase` field.** The design doc's own illustrative language ("status/phase/deps/
 retry-counts/park-reason") is not a literal field list — a blackboard story object has
-no `phase` key; that concept belongs to `/work-on`'s own per-feature state
+no `phase` key; that concept belongs to `/next`'s own per-feature state
 (`.studious/work/<slug>.json`), which this story's acceptance criteria deliberately
 exclude (blackboard + `events.jsonl` only — see the design doc's Out of scope). A future
 story that wires `.studious/work/*.json` in as an enrichment source should add a field

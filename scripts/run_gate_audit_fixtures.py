@@ -1,9 +1,9 @@
-"""Golden-fixture behavioral eval for /gate-audit.
+"""Golden-fixture behavioral eval for /review.
 
 For each directory under tests/fixtures/, builds an ephemeral git repo from
 its base/ (committed as the tip of a faked origin/main) and changeset/
 (overlaid and committed as the branch under review), wires this repo's own
-commands/agents in as project-level Claude Code config, runs `/gate-audit`
+commands/agents in as project-level Claude Code config, runs `/review`
 headless via the `claude` CLI, and checks the resulting report's verdict
 token and finding categories against the fixture's expected.json.
 
@@ -95,7 +95,7 @@ def extract_section(text: str, heading: str) -> str | None:
 def count_findings(section: str | None) -> int:
     """Count findings in a section body, across both shapes reports use.
 
-    `/gate-audit` emits one `###` subheading per finding with prose beneath it;
+    `/review` emits one `###` subheading per finding with prose beneath it;
     shorter reports use a flat bullet list. Count subheadings when any are
     present — bullets under a subheading are that finding's supporting detail,
     not separate findings — and fall back to bullets otherwise. Counting only
@@ -115,7 +115,7 @@ def count_findings(section: str | None) -> int:
 def extract_verdict(text: str) -> str | None:
     """Find the assigned verdict token, preferring the bolded one.
 
-    gate-audit.md's own rubric text lists all three tokens, and surrounding
+    commands/review.md's own rubric text lists all three tokens, and surrounding
     prose can mention a token in passing (e.g. "not safe to PASS"), so a
     naive substring search is unreliable. The agent's actual verdict is
     bolded (`**FIX AND RE-REVIEW**`); fall back to the first plain occurrence
@@ -274,7 +274,7 @@ def _wire_plugin_config(workdir: Path, source_root: Path = REPO_ROOT) -> None:
 def run_claude_headless(
     cwd: Path, timeout_seconds: int = 900, plugin_root: Path = REPO_ROOT
 ) -> str:
-    """Invoke `/gate-audit` headless and return the report text."""
+    """Invoke `/review` headless and return the report text."""
     text, _cost = run_claude_headless_json(cwd, timeout_seconds, plugin_root)
     return text
 
@@ -282,7 +282,7 @@ def run_claude_headless(
 def run_claude_headless_json(
     cwd: Path, timeout_seconds: int = 900, plugin_root: Path = REPO_ROOT
 ) -> tuple[str, float | None]:
-    """Invoke `/gate-audit` headless; return (report text, cost in USD if reported).
+    """Invoke `/review` headless; return (report text, cost in USD if reported).
 
     ``plugin_root`` becomes ``CLAUDE_PLUGIN_ROOT``, which is what the fan-out
     command resolves ``reference/`` against when it injects the shared prompt
@@ -300,7 +300,7 @@ def run_claude_headless_json(
     command = [
         "claude",
         "-p",
-        "/gate-audit",
+        "/review",
         "--dangerously-skip-permissions",
         "--output-format",
         "json",

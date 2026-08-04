@@ -1,6 +1,6 @@
 ---
 name: ux-reviewer
-description: Reviews a UI changeset for user experience quality — layout, hierarchy, flows, interaction patterns, visual consistency, and responsive behavior. Diff-scoped and gate-invoked (/gate-audit after building a feature) — not a periodic frontend review.
+description: Reviews a UI changeset for user experience quality — layout, hierarchy, flows, interaction patterns, visual consistency, and responsive behavior. Diff-scoped and gate-invoked (/review after building a feature) — not a periodic frontend review.
 tools: Read, Glob, Grep, Bash
 model: opus
 effort: medium
@@ -75,7 +75,7 @@ This agent's headline limitation: this is a static source review with no rendere
 
 ## What you do NOT review
 
-- Accessibility (WCAG, ARIA, keyboard nav) — the web-design-guidelines accessibility check (auditor 8 in `/gate-audit`) handles this
+- Accessibility (WCAG, ARIA, keyboard nav) — the web-design-guidelines accessibility check (auditor 8 in `/review`) handles this
 - Frontend code quality (component structure, state management) — frontend-reviewer handles this
 - Security — security-auditor handles this
 - Backend logic — out of scope entirely

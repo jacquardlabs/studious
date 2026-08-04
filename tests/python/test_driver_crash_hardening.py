@@ -10,7 +10,7 @@ including every sibling story still in flight. Separately, a finale gate
 retry token (`FIX AND RE-AUDIT` / `FIX AND RE-CHECK`) simply fell through
 `finaleGate()`'s loop and was folded only into the `finale.audit` /
 `finale.acceptance` fields — never surfaced in `needsYou`, the one field
-`commands/work-through.md`'s "Needs you" render loop specifically calls out,
+`reference/epic-orchestration.md`'s "Needs you" render loop specifically calls out,
 so a stalled finale ended a run reading as an unexplained "not ready".
 
 `workflows/epic-driver.js` is not a conventionally importable module — see
@@ -296,7 +296,7 @@ def _run_driver(
     # The driver no longer derives worktree paths (#166): bin/gate-ledger's
     # worktree_path() owns the layout, and the driver — which has no exec access
     # to ask for one — is handed the answer as args.worktrees. This harness plays
-    # commands/work-through.md's part, so it supplies the same map
+    # reference/epic-orchestration.md's part, so it supplies the same map
     # `gate-ledger worktree-path --slug <slug> --json` would.
     _wt = f"/repo/.studious/worktrees/{epic.get('slug', '')}"
     # Every fixture in this file and its importers predates the canary (#268) and

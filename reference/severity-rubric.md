@@ -1,9 +1,9 @@
 # Severity rubric — canonical tiers and per-auditor mapping
 
-Canonical source for the three-tier severity ladder used by `/gate-audit` and the label→tier
-mapping that glues the auditors' five different severity vocabularies to it. `commands/gate-audit.md`
+Canonical source for the three-tier severity ladder used by `/review` and the label→tier
+mapping that glues the auditors' five different severity vocabularies to it. `commands/review.md`
 cites this file instead of embedding the mapping table. The periodic review family
-(`commands/deep-review.md`, `agents/review-*.md`) already emits directly in this vocabulary
+(`commands/retro.md`, `agents/review-*.md`) already emits directly in this vocabulary
 and needs no mapping.
 
 ## The three tiers

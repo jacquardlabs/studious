@@ -1,6 +1,6 @@
 """Regression tests for delta-scoped re-audit, mechanism 1 (issue #130).
 
-Before this story, every FIX AND RE-AUDIT retry — on `commands/gate-audit.md`'s
+Before this story, every FIX AND RE-AUDIT retry — on `commands/review.md`'s
 standalone surface and on `workflows/epic-driver.js`'s epic-driven surface alike —
 unconditionally re-dispatched the full, fixed lane roster, even when only one or two
 lanes had actually blocked. This story narrows a retry's dispatch to the previously-
@@ -37,7 +37,7 @@ from test_driver_crash_hardening import (
     _run_node,
 )
 
-GATE_AUDIT_MD = REPO_ROOT / "commands" / "gate-audit.md"
+GATE_AUDIT_MD = REPO_ROOT / "commands" / "review.md"
 AUDITORS_JS = json.dumps([f"studious:{n}" for n in AUDITOR_SHORT_NAMES])
 
 
@@ -236,7 +236,7 @@ def test_gate_result_schema_gains_an_optional_blocking_lanes_field() -> None:
 
 
 def test_gate_audit_md_and_epic_driver_agree_on_the_ten_lane_roster() -> None:
-    """The 10-lane roster commands/gate-audit.md's re-audit-scope step names must
+    """The 10-lane roster commands/review.md's re-audit-scope step names must
     match workflows/epic-driver.js's AUDITORS exactly — a future auditor added to
     one and not the other would let the two surfaces silently narrow differently,
     exactly the drift acceptance criterion 5 forbids."""
@@ -252,15 +252,15 @@ def test_gate_audit_md_and_epic_driver_agree_on_the_ten_lane_roster() -> None:
 
     gate_audit_text = GATE_AUDIT_MD.read_text()
     # Since the episode-door story (#289, Task 4) the narrowing roster lives in
-    # gate-audit.md's episode step (which also tracks a twelfth lane,
+    # commands/review.md's episode step (which also tracks a twelfth lane,
     # product-reviewer, that the driver doesn't dispatch — the driver fails
     # closed to a full round on any entry outside its own eleven).
     start = gate_audit_text.index("## Open or re-enter the episode")
-    end = gate_audit_text.index("## Launch all auditors")
+    end = gate_audit_text.index("## Launch the lane profile")
     scope_section = gate_audit_text[start:end]
     missing = [lane for lane in driver_lanes if lane not in scope_section]
     assert missing == [], (
-        f"commands/gate-audit.md's re-audit-scope roster is missing {missing} — "
+        f"commands/review.md's re-audit-scope roster is missing {missing} — "
         "drifted from workflows/epic-driver.js's AUDITORS"
     )
 

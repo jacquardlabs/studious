@@ -20,7 +20,7 @@ on it) does not -- and that the derivation never consults which task is
 Also characterizes the derivation's own stated, provisional failure mode
 (epic pre-mortem risk #1): a `Rests on:` line that describes its
 dependency without literally naming the task heading is a false negative,
-by design, until `/plan` (M3) replaces this text-matching heuristic with a
+by design, until `/build` (M3) replaces this text-matching heuristic with a
 real spine map (see the design doc's "This heuristic is explicitly
 provisional").
 

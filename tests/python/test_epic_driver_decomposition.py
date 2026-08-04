@@ -1,7 +1,7 @@
 """Regression tests for the epic-driver-decomposition story (issues #169, #170).
 
 `workflows/epic-driver.js`'s `acceptanceRound` reached ~235 lines and 4-level
-nesting across two `/gate-audit` rounds on PR #168 — flagged non-blocking the
+nesting across two `/review` rounds on PR #168 — flagged non-blocking the
 first round, re-flagged "treat as High" the second, because both intervening fix
 commits landed as *more branching inside the same function* rather than
 extraction. It decides which lane certifies `SHIP`, so complexity there compounds

@@ -2,7 +2,7 @@
 splitting surfaces (story plan-lint-build-boundary-integration-test, issue
 #66; epic pre-dogfood-hardening): `scripts/plan-lint`'s own
 `split_tasks()`, `skills/build/SKILL.md` Step 1.4's boundary prose, and
-`skills/plan/SKILL.md` Step 6's `--split-on` pattern each separately claim
+`reference/planning-contract.md` Step 6's `--split-on` pattern each separately claim
 to agree on where a `### Task N` block ends -- nothing before this story
 checked that mechanically, against the existing committed fixtures.
 
@@ -42,11 +42,11 @@ from _task_split_boundary import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = REPO_ROOT / "tests" / "jig" / "fixtures" / "plan-lint"
 BUILD_SKILL_MD = REPO_ROOT / "skills" / "build" / "SKILL.md"
-PLAN_SKILL_MD = REPO_ROOT / "skills" / "plan" / "SKILL.md"
+PLAN_SKILL_MD = REPO_ROOT / "reference" / "planning-contract.md"
 
 FIXTURE_NAMES = ("clean-plan.md", "broken-plan.md")
 
-# The doc's own literal --split-on value (skills/plan/SKILL.md Step 6) --
+# The doc's own literal --split-on value (reference/planning-contract.md Step 6) --
 # used only to locate it for the mutation demonstration below, not to
 # re-assert what the derivation should produce (that's
 # test_plan_step_6_split_on_pattern_matches_documented_flag_value's job).

@@ -76,7 +76,7 @@ follow-up instead of building it now. The loop has no way to amend a plan
 under its own pressure, by construction: a block that turns out to be
 wrong gets a `REPLAN` suffix from `scripts/status-flip` and pauses the
 session for a human to revise by hand (`skills/build/SKILL.md`'s Failure
-routine; `skills/coach/SKILL.md` routes the same state to a manual step).
+routine; `commands/next.md` routes the same state to a manual step).
 Widening the task in place is that pause, skipped.
 
 This isn't "don't over-engineer" as a vague instinct — it's "match the

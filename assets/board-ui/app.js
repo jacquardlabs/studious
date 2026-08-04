@@ -213,8 +213,8 @@ function latestVerdict(storySlug, gate, events) {
 // itself proof design's work landed. The build phase's own `work-log --step
 // build --outcome DONE --phase <next>` call is NOT the only call site that
 // appends a `step`-kind event with `step === 'build'`, though: a human
-// recovering a parked story via `/work-on` (a documented first-class path,
-// commands/work-on.md) logs `work-log --step build --outcome HANDED-OFF`
+// recovering a parked story via `/next` (a documented first-class path,
+// commands/next.md) logs `work-log --step build --outcome HANDED-OFF`
 // before any code is written, the same story-armed instant a build agent
 // would (audit finding, board-ui epic: without the outcome guard below, that
 // HANDED-OFF step flips the BLD lamp to done before the takeover build even
@@ -407,7 +407,7 @@ function resolveResetRetryGate(story, maxFixCycles) {
   return null;
 }
 
-// The copy-able resolution command — commands/work-through.md's own
+// The copy-able resolution command — reference/epic-orchestration.md's own
 // "Un-park" recipe, pre-filled with the epic and story slugs; the human's
 // own resolution clause stays an editable placeholder (the tool never
 // invents *why* it's resolved). `--reset-retry <gate>` is appended only

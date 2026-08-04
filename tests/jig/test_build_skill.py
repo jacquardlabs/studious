@@ -63,7 +63,7 @@ against the same body the Foreman session actually reads:
     `CLEAR` proceeds to step 2.7 and captures an `inspector:report`
     evidence artifact; `DEFECT` enters the Failure routine under its own
     `"inspector"` pseudo-item-ID; `CONCERN` proceeds to `PASS` while
-    naming a `/gate-audit` lane for each lens (epic pre-mortem risk #6/#7).
+    naming a `/review` lane for each lens (epic pre-mortem risk #6/#7).
 14. A second `DEFECT` on the same item ID is bounded -- exactly one more
     independent Inspector recheck, never open-ended re-dispatch -- before
     the Foreman's own REPLAN-vs-ESCALATE diagnosis (epic pre-mortem risk
@@ -279,7 +279,7 @@ class TestBuildSkillBody(unittest.TestCase):
         )
 
     def test_dispatch_model_names_unavailable_case_beside_override_and_inherited(self) -> None:
-        # Task 3 (issue #34 follow-up, /gate-acceptance SHOULD FIX): the
+        # Task 3 (issue #34 follow-up, /review --delivery SHOULD FIX): the
         # design's own documented Failure path names
         # a third dispatch-model case -- when the model genuinely can't be
         # determined at all, the Foreman states it plainly as `unavailable`,
@@ -575,9 +575,9 @@ class TestBuildSkillBody(unittest.TestCase):
 
     def test_concern_verdict_is_non_blocking_and_names_a_gate_audit_lane(self) -> None:
         # Epic pre-mortem risk #6/#7: named inline (not bare), and
-        # self-describing enough that a later /gate-audit pass can't miss
+        # self-describing enough that a later /review pass can't miss
         # it even without out-of-band routing.
-        self.assertPhraseIn("non-blocking, forwarded to `/gate-audit`")
+        self.assertPhraseIn("non-blocking, forwarded to `/review`")
         self.assertPhraseIn(
             "State inline which lens it concerns and the recommended lane below"
         )
@@ -608,13 +608,13 @@ class TestBuildSkillBody(unittest.TestCase):
         self.assertPhraseIn("one status that isn't terminal")
 
     def test_built_hands_off_to_gate_audit_unconditionally(self) -> None:
-        # Was "If studious is installed, tell the developer to run /gate-audit
+        # Was "If studious is installed, tell the developer to run /review
         # next; otherwise report the branch as ready for review directly"
-        # (studious #150). /gate-audit ships in this plugin now, so the
+        # (studious #150). /review ships in this plugin now, so the
         # otherwise-branch is unreachable-but-live: a session that probes for a
         # separate studious plugin, fails to find it, and takes the fallback
         # terminates without ever naming the audit gate.
-        self.assertPhraseIn("tell the developer to run `/gate-audit` next")
+        self.assertPhraseIn("tell the developer to run `/review` next")
         self.assertPhraseIn("unconditionally")
 
     def test_trust_boundary_is_stated_explicitly(self) -> None:

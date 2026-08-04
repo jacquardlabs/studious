@@ -58,7 +58,7 @@ PLUGIN_NAME = re.compile(r"^[a-z0-9-]+$")
 
 # The five user-invoked skill stubs this story's tests validate frontmatter
 # and stub-content shape for.
-EXPECTED_SKILLS = ("design", "plan", "build", "finish", "coach")
+EXPECTED_SKILLS = ("shape", "build", "ship")
 
 # Known model-invoked skill directories that also legitimately live under
 # top-level skills/ — each has its own dedicated acceptance test module
@@ -82,7 +82,7 @@ ALL_KNOWN_SKILL_DIRS = set(EXPECTED_SKILLS) | set(EXPECTED_MODEL_INVOKED_SKILLS)
 
 class TestPluginManifest(unittest.TestCase):
     def test_declares_the_viva_dependency(self) -> None:
-        # /plan and /design stop dead without viva. It went undeclared the whole
+        # /build and /shape stop dead without viva. It went undeclared the whole
         # time they shipped from jig's own repo; now that they are studious skills,
         # the dependency belongs on studious's manifest.
         manifest = json.loads(PLUGIN_MANIFEST.read_text(encoding="utf-8"))

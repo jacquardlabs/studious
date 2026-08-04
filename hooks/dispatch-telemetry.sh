@@ -22,7 +22,7 @@
 # exits silently when subagent_type is absent or empty, so a wrong assumption
 # here degrades to zero telemetry rather than to wrong telemetry.
 #
-# Deliberately NO armed-branch check, unlike evidence-capture.sh: /deep-review
+# Deliberately NO armed-branch check, unlike evidence-capture.sh: /retro
 # runs on main against no story with no work file, and an armed check would
 # silence half of what this store exists to record. The roster table below is
 # the whole filter — a dispatch of a named Studious reviewer is itself the
@@ -81,10 +81,10 @@ role="${subagent#studious:}"   # the agent's own `name`, never the qualified dis
 # ORDER IS LOAD-BEARING: product-reviewer, premortem-auditor, and code-auditor all
 # match the *-reviewer/*-auditor pattern, so both exception lists must be tested
 # before it, and review-outcomes matches review-* but is dispatched by its own
-# /review-outcomes command, which runs OUTSIDE the /deep-review sweep — its case
+# /retro outcomes mode, which runs OUTSIDE the full /retro sweep — its case
 # branch must precede that pattern. The one genuine ambiguity is recorded as an
-# ambiguity, not guessed — code-auditor serves both /gate-audit's lane 2 and
-# /deep-review's idiom feedback step, and the hook cannot see which command
+# ambiguity, not guessed — code-auditor serves both /review's lane 2 and
+# /retro's idiom feedback step, and the hook cannot see which command
 # dispatched it, so its lines carry an empty `skill`
 # (reference/telemetry-format.md says how a joiner resolves them).
 [ -f "${CLAUDE_PLUGIN_ROOT}/agents/${role}.md" ] || exit 0

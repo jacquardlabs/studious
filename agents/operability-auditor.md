@@ -1,6 +1,6 @@
 ---
 name: operability-auditor
-description: Operability auditor. Reviews a changeset for production failure signal, resilience, and 12-factor runtime hygiene. Diff-scoped and gate-invoked (/gate-audit); skipped when the changeset touches no runtime surface.
+description: Operability auditor. Reviews a changeset for production failure signal, resilience, and 12-factor runtime hygiene. Diff-scoped and gate-invoked (/review); skipped when the changeset touches no runtime surface.
 tools: Read, Grep, Glob, Bash
 model: opus
 effort: high
@@ -76,7 +76,7 @@ you keep correctness-under-retry.
 ### 5. Ops-commitment delivery
 If the design doc's Operational readiness section commits to working/failing signals
 or a rollout strategy, verify the changeset delivers them. (architecture-auditor
-verifies the migration/rollback slice; `/gate-acceptance` judges the whole branch
+verifies the migration/rollback slice; `/review --delivery` judges the whole branch
 above you.) No design doc, or no such commitments — note that in the residual line;
 it is never a finding by itself.
 

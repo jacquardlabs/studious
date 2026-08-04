@@ -6,7 +6,7 @@ the other: now that the build skills ship *inside* studious, none of them may
 condition a hand-off to a studious gate on studious being installed.
 
 The failure this catches is not cosmetic naming. A session running `/build`
-reads "if studious is installed, tell the developer to run `/gate-audit`",
+reads "if studious is installed, tell the developer to run `/review`",
 looks for a separate plugin named studious, does not find one (it is the
 host), takes the otherwise-branch, and terminates without ever naming the
 audit gate. The seam between the build loop and the gates — the whole point
@@ -30,7 +30,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # The skills whose hand-offs cross into studious's gates.
-HANDOFF_SKILLS = ("design", "plan", "build", "finish", "coach")
+HANDOFF_SKILLS = ("shape", "build", "ship")
 
 # Any phrasing that makes studious's presence a question the skill must answer.
 # The bare `studious installed` alternative matters: the first version of this
@@ -45,8 +45,8 @@ CONDITIONAL = re.compile(
 
 # The hand-off each skill owes its caller, and where it must appear.
 REQUIRED_HANDOFF = {
-    "design": "/gate-design-review",
-    "build": "/gate-audit",
+    "shape": "/review",
+    "build": "/review",
 }
 
 
@@ -69,7 +69,7 @@ class TestGatePresenceIsNotConditional(unittest.TestCase):
     def test_the_pattern_would_be_caught(self) -> None:
         """Guard the guard — a regex typo would make this vacuously true."""
         for phrasing in (
-            "If studious is installed, run /gate-audit.",
+            "If studious is installed, run /review.",
             "studious not installed; skipping the hand-off",
             "no design doc; studious absent",
             "hands off when studious is installed, degrading otherwise",

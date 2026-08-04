@@ -1,12 +1,12 @@
 """Regression tests for the audit-doc-split story (issue #159).
 
 Before this story, `workflows/epic-driver.js`'s `auditFanIn()` pointed its dispatched
-compiling agent at the entire 189-line `commands/gate-audit.md` to reach the ~48 lines
+compiling agent at the entire 189-line `commands/review.md` to reach the ~48 lines
 of post-audit compile rules it actually needed — paying for dispatch mechanics
 (shared-contract assembly, diff precompute, evidence-log resolution, re-audit-scope
 narrowing, the 13 numbered auditor role descriptions) it never uses. This story
 relocates those compile rules verbatim into `reference/audit-compilation.md`, points
-both `commands/gate-audit.md`'s own session and `auditFanIn()` at that one file, and
+both `commands/review.md`'s own session and `auditFanIn()` at that one file, and
 folds "routed out" in as a third named lane state alongside carry-forward and AGENT
 DIED — a vocabulary unification, not a judgment change.
 
@@ -22,7 +22,7 @@ from pathlib import Path
 
 from run_gate_audit_fixtures import REPO_ROOT
 
-GATE_AUDIT_MD = REPO_ROOT / "commands" / "gate-audit.md"
+GATE_AUDIT_MD = REPO_ROOT / "commands" / "review.md"
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 AUDIT_COMPILATION = REPO_ROOT / "reference" / "audit-compilation.md"
 
@@ -79,10 +79,10 @@ def test_reference_file_contains_the_extracted_rules() -> None:
 
 
 def test_gate_audit_md_points_to_the_new_file_and_does_not_restate_it() -> None:
-    """Acceptance criterion 2: gate-audit.md's own section is a pointer, not a copy."""
+    """Acceptance criterion 2: commands/review.md's own section is a pointer, not a copy."""
     text = GATE_AUDIT_MD.read_text()
-    start = text.index("## After all auditors return")
-    end = text.index("## Record the verdict")
+    start = text.index("## Compile")
+    end = text.index("\n## Delivery episode")
     section = text[start:end]
     assert "reference/audit-compilation.md" in section
     # The pointer names the file; it must not restate the substantive rule text that
@@ -94,7 +94,7 @@ def test_gate_audit_md_points_to_the_new_file_and_does_not_restate_it() -> None:
         "citation-integrity check only",
     ):
         assert restated not in section, (
-            f"gate-audit.md's pointer restates {restated!r} instead of only citing "
+            f"commands/review.md's pointer restates {restated!r} instead of only citing "
             "reference/audit-compilation.md"
         )
 
@@ -106,8 +106,8 @@ def test_epic_driver_points_to_the_new_file_not_gate_audit_md() -> None:
     i = text.index(anchor)
     opening = text[i : i + 400]
     assert "reference/audit-compilation.md" in opening
-    assert "Read commands/gate-audit.md" not in opening, (
-        "auditFanIn still points its compiling agent at commands/gate-audit.md "
+    assert "Read commands/review.md" not in opening, (
+        "auditFanIn still points its compiling agent at commands/review.md "
         "instead of reference/audit-compilation.md"
     )
 
@@ -153,7 +153,7 @@ def test_the_duplicate_copy_detector_actually_detects_a_duplicate(tmp_path: Path
 def test_routed_out_is_named_as_a_third_lane_state_alongside_the_other_two() -> None:
     """The acceptance criteria name carry-forward/routed-out/AGENT-DIED together as
     one set — confirm all three are named as distinct states in the new file, not
-    just two of the three (the pre-story gate-audit.md text named only two)."""
+    just two of the three (the pre-story commands/review.md text named only two)."""
     text = AUDIT_COMPILATION.read_text()
     carried_idx = text.index("Carried forward")
     died_idx = text.index("AGENT DIED")

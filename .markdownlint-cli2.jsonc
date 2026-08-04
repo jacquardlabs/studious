@@ -24,7 +24,7 @@
     "MD029": false  // ordered list prefix
   },
   "globs": ["commands/**/*.md", "agents/**/*.md", "skills/**/*.md", "reference/**/*.md", "*.md"],
-  // PLAN.md (when present) is `/plan`'s build-plan artifact, not authored prose — its
+  // PLAN.md (when present) is `/build`'s build-plan artifact, not authored prose — its
   // `### Task N` headings are load-bearing for the build toolchain (plan-lint, viva's
   // `--split-on`, `/build`'s parser) and deliberately skip an H2 level per the
   // documented PLAN.md shape. Same rationale as the docs/** exclusion below: a

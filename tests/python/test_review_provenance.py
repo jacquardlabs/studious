@@ -3,11 +3,11 @@
 Commit `980d523` absorbed jig and brought its 2026-07-17 deep-review sweep along
 verbatim — 8 reports written against `/Users/bryan/Projects/jig`, filed into the
 six `docs/studious/*-reviews/` directories and `docs/studious/reviews/metrics.jsonl`
-because those are the paths `/deep-review` writes to in whatever project it runs in.
+because those are the paths `/retro` writes to in whatever project it runs in.
 
 The paths are what makes this a defect rather than clutter. Every periodic reviewer
 is told to "compare against the most recent prior report" in its own directory, and
-`commands/deep-review.md:116` reads `metrics.jsonl` as the dashboard's join key. So
+`commands/retro.md:116` reads `metrics.jsonl` as the dashboard's join key. So
 the next sweep of *this* repo would trend studious against another codebase's
 numbers and call the delta a regression — a baseline forked at the join key, which
 no amount of reading the reports carefully would undo.
@@ -49,12 +49,12 @@ JIG_PRE_MERGE_REPORTS = (
 #: The date of jig's sweep, and so of the one `metrics.jsonl` row that moved with it.
 JIG_BASELINE_DATE = "2026-07-17"
 
-#: Scaffolded by `commands/studious-init.md:61-66`, so each keeps a `.gitkeep` and
+#: Scaffolded by `commands/setup.md:61-66`, so each keeps a `.gitkeep` and
 #: survives holding nothing. Two neighbours are deliberately absent from this list:
 #: `docs/studious/prompt-reviews/` is the seventh directory `studious-init` lists
 #: (line 67) but was never scaffolded in this repo, so there is no `.gitkeep` to
 #: preserve; and `docs/studious/reviews/` is created at write time by
-#: `commands/deep-review.md:119`, so it must not acquire one.
+#: `commands/retro.md:119`, so it must not acquire one.
 SCAFFOLDED_REVIEW_DIRS = (
     "architecture-reviews",
     "health-reviews",
@@ -117,7 +117,7 @@ def test_the_metrics_baseline_row_moved_rather_than_vanished() -> None:
 
 
 def test_studious_metrics_join_key_starts_unforked() -> None:
-    """`docs/studious/reviews/metrics.jsonl` does not exist yet — `/deep-review`
+    """`docs/studious/reviews/metrics.jsonl` does not exist yet — `/retro`
     creates it on this repo's first sweep. When it does, it must not open on jig's
     baseline."""
     metrics = STUDIOUS_DOCS / "reviews" / "metrics.jsonl"

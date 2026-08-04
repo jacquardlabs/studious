@@ -2,12 +2,12 @@
 
 `work-log --step build --outcome <X>` had five writers using two dialects and no
 validation. `workflows/epic-driver.js` wrote `DONE`; `skills/build/SKILL.md` and
-`reference/worker-contract.md` wrote `BUILT | PAUSED | ESCALATED`; `commands/work-on.md`
+`reference/worker-contract.md` wrote `BUILT | PAUSED | ESCALATED`; `commands/next.md`
 wrote its own `HANDED-OFF` and `SKIPPED` markers and then branched on exactly three
 tokens — none of them `DONE`.
 
 That was reachable, not theoretical. `epic-driver.js` records the story *branch* on the
-work file, and `/work-on` resolves a feature by branch, so running `/work-on` on an epic
+work file, and `/next` resolves a feature by branch, so running `/next` on an epic
 story branch read back `DONE` and fell through every case.
 
 `reference/worker-contract.md`'s "Status reporting" section is now the authority: it is
@@ -29,11 +29,11 @@ CONTRACT = REPO_ROOT / "reference" / "worker-contract.md"
 LEDGER = REPO_ROOT / "bin" / "gate-ledger"
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 BUILD_SKILL = REPO_ROOT / "skills" / "build" / "SKILL.md"
-WORK_ON = REPO_ROOT / "commands" / "work-on.md"
+WORK_ON = REPO_ROOT / "commands" / "next.md"
 DESIGN_MD = REPO_ROOT / "DESIGN.md"
 
-#: Reserved for `/work-on`'s own bookkeeping — a worker never writes these, but the
-#: ledger must accept them, since `/work-on` is a writer too.
+#: Reserved for `/next`'s own bookkeeping — a worker never writes these, but the
+#: ledger must accept them, since `/next` is a writer too.
 FLOW_MARKERS = ("HANDED-OFF", "SKIPPED")
 
 
@@ -84,16 +84,16 @@ def test_the_driver_reports_a_contract_status_not_its_own_dialect() -> None:
 
 
 def test_the_driver_names_the_in_box_route_first() -> None:
-    """#212: the epic path named Superpowers as the only executor while `/work-on`
-    named `/plan` + `/build` freely. Both are legitimate; the one that ships in the
+    """#212: the epic path named Superpowers as the only executor while `/next`
+    named `/build` + `/build` freely. Both are legitimate; the one that ships in the
     box should not be the one left out."""
     text = DRIVER.read_text(encoding="utf-8")
     build_prompt = re.search(r"const build = `(.*?)`\n", text, re.DOTALL)
     assert build_prompt, "epic-driver.js has no build worker prompt"
 
     prompt = build_prompt.group(1)
-    assert "/plan" in prompt and "/build" in prompt
-    assert prompt.index("/plan") < prompt.index("Superpowers")
+    assert "/build" in prompt and "plans and then builds" in prompt
+    assert prompt.index("/build") < prompt.index("Superpowers")
     assert "worker contract is normative" in prompt
 
 
@@ -109,11 +109,11 @@ def test_work_on_branches_on_every_token_it_can_be_handed() -> None:
     and — because records written before the ledger check exist — for anything else."""
     text = WORK_ON.read_text(encoding="utf-8")
     section = re.search(r"\*\*Executor-reported build status\*\*(.*?)\n\n", text, re.DOTALL)
-    assert section, "work-on.md has no 'Executor-reported build status' bullet"
+    assert section, "commands/next.md has no 'Executor-reported build status' bullet"
 
     bullet = section.group(1)
     for token in executor_statuses() + list(FLOW_MARKERS):
-        assert f"`{token}`" in bullet, f"{token} has no case in work-on.md's build read"
+        assert f"`{token}`" in bullet, f"{token} has no case in commands/next.md's build read"
     assert "never silently" in bullet, "an unrecognized token must be named, not swallowed"
 
 

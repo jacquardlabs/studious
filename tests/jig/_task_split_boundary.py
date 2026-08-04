@@ -14,10 +14,10 @@ The three surfaces:
    coarser-heading-exclusion sentence is still present), never executes
    or dispatches the skill; see `derive_build_step_1_4_boundary_regex` and
    `surface_2_build_ends`.
-3. `skills/plan/SKILL.md` Step 6's `--split-on` pattern -- read-only: this
+3. `reference/planning-contract.md` Step 6's `--split-on` pattern -- read-only: this
    module extracts the literal regex string from the documented
    invocation and applies it exactly as viva's own flag does (heading
-   title text, any depth), never executes `/plan` or viva; see
+   title text, any depth), never executes `/build` or viva; see
    `derive_plan_step_6_split_on_pattern` and `surface_3_plan_ends`.
 
 Not a test module -- nothing here is collected by `unittest discover`,
@@ -163,9 +163,9 @@ def surface_2_build_ends(text: str, boundary_regex: re.Pattern[str], starts: dic
 
 
 # ---------------------------------------------------------------------------
-# Surface 3: skills/plan/SKILL.md Step 6's --split-on pattern (read-only --
+# Surface 3: reference/planning-contract.md Step 6's --split-on pattern (read-only --
 # the literal regex string extracted from the documented invocation, never
-# executed via /plan or viva itself).
+# executed via /build or viva itself).
 # ---------------------------------------------------------------------------
 
 _STEP_6_SPLIT_ON_RE = re.compile(r"--split-on\s+'([^']+)'")
@@ -180,7 +180,7 @@ def derive_plan_step_6_split_on_pattern(plan_skill_md_text: str) -> re.Pattern[s
     match = _STEP_6_SPLIT_ON_RE.search(plan_skill_md_text)
     if match is None:
         raise AssertionError(
-            "skills/plan/SKILL.md Step 6 no longer names an explicit --split-on "
+            "reference/planning-contract.md Step 6 no longer names an explicit --split-on "
             "pattern in the documented invocation this derivation reads"
         )
     return re.compile(match.group(1))

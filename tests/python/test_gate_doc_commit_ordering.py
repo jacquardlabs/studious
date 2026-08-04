@@ -3,17 +3,17 @@
 `cmd_record` (`bin/gate-ledger`) stamps a verdict's sha from `git rev-parse --short
 HEAD` at the moment it runs; `cmd_status` later flags the verdict stale whenever the
 stored sha differs from current HEAD, however trivial the intervening commit. When a
-gate's own run writes a doc (the pre-mortem register `/gate-design-review` persists on
+gate's own run writes a doc (the pre-mortem register `/review` persists on
 PROCEED TO PLAN, or an emergent note/reconciliation doc an acceptance run produces) and
 commits it *after* `gate-ledger record` already ran, every later reader of that
-verdict — the PR-time hook, `/work-through`'s finale ready-check — sees it as stale
+verdict — the PR-time hook, `/next`'s finale ready-check — sees it as stale
 over a commit that changed nothing substantive (issue #99's observed incident: the
 finale acceptance dispatch committing its reconciliation notes after recording SHIP).
 
 The fix states one ordering rule — commit every file this gate's run wrote or
 modified before running `gate-ledger record` — explicitly in the three places that
-record a gate verdict on a doc-write-capable path: `commands/gate-design-review.md`,
-`commands/gate-acceptance.md`, and the finale acceptance dispatch in
+record a gate verdict on a doc-write-capable path: `commands/review.md`,
+`commands/review.md`, and the finale acceptance dispatch in
 `workflows/epic-driver.js`. No change to any gate's verdict vocabulary or decision
 logic — these tests lock the ordering statement, not the verdicts themselves.
 """
@@ -23,27 +23,27 @@ from __future__ import annotations
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-GATE_DESIGN_REVIEW = REPO_ROOT / "commands" / "gate-design-review.md"
-GATE_ACCEPTANCE = REPO_ROOT / "commands" / "gate-acceptance.md"
+GATE_DESIGN_REVIEW = REPO_ROOT / "commands" / "review.md"
+GATE_ACCEPTANCE = REPO_ROOT / "commands" / "review.md"
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 
 
 def _record_section(text: str) -> str:
     """Return the '## Record the verdict' section through end of file."""
-    return text[text.index("## Record the verdict"):]
+    return text[text.index("\n## Delivery episode"):]
 
 
 def test_gate_design_review_states_commit_before_record() -> None:
-    """gate-design-review.md's Record section states the ordering rule up front,
+    """commands/review.md's Record section states the ordering rule up front,
     ahead of the `gate-ledger record` invocation, and points at the Part 3 register."""
     text = GATE_DESIGN_REVIEW.read_text()
     section = _record_section(text)
 
-    assert "Before running `gate-ledger record`" in section, (
+    assert "Before running `gate-ledger episode-verdict`" in section, (
         "no explicit 'before running gate-ledger record' ordering statement"
     )
 
-    rule_pos = section.index("Before running `gate-ledger record`")
+    rule_pos = section.index("Before running `gate-ledger episode-verdict`")
     bash_pos = section.index("```bash")
     assert rule_pos < bash_pos, (
         "commit-before-record rule must precede the gate-ledger record invocation"
@@ -69,7 +69,7 @@ def test_gate_design_review_no_longer_defers_the_register_commit() -> None:
 
 
 def test_gate_acceptance_states_commit_before_record() -> None:
-    """gate-acceptance.md's Record section states the ordering rule up front, ahead
+    """commands/review.md's Record section states the ordering rule up front, ahead
     of the recording invocation — generic, since there is no prescribed write on
     this gate (issue #99's observed emergent-doc case). The gate records via
     `episode-verdict` since the delivery-episode rewrite (#289, Task 5); the
@@ -109,7 +109,7 @@ def test_verdict_vocab_unchanged() -> None:
 def test_driver_finale_acceptance_states_commit_before_record() -> None:
     """The finale acceptance dispatch in epic-driver.js carries its own literal
     commit-before-record instruction — the driver's own text is the last thing the
-    dispatched agent reads before acting, so referencing gate-acceptance.md's copy of
+    dispatched agent reads before acting, so referencing commands/review.md's copy of
     the rule isn't enough (per the design doc's rationale for this third location)."""
     source = DRIVER.read_text()
 

@@ -1,6 +1,6 @@
 ---
 name: frontend-reviewer
-description: Reviews a frontend changeset for component architecture, state management, performance, bundle size, and frontend-specific patterns. Diff-scoped and gate-invoked (/gate-audit) — not a periodic frontend review.
+description: Reviews a frontend changeset for component architecture, state management, performance, bundle size, and frontend-specific patterns. Diff-scoped and gate-invoked (/review) — not a periodic frontend review.
 tools: Read, Glob, Grep, Bash
 model: inherit
 effort: medium
@@ -77,6 +77,6 @@ This agent's addendum: no build or dev server was run; bundle sizes are estimate
 ## What you do NOT review
 
 - Visual design, layout, spacing, colors — ux-reviewer handles this
-- Accessibility, ARIA, keyboard navigation — the web-design-guidelines accessibility check (auditor 8 in `/gate-audit`) handles this
+- Accessibility, ARIA, keyboard navigation — the web-design-guidelines accessibility check (auditor 8 in `/review`) handles this
 - Backend code — out of scope
 - Product decisions — product-reviewer handles this
