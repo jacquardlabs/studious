@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v3.1.0 (2026-08-04)
+
+### Bug Fixes
+
+- The CONCERN forward and the table's evidence column ride the PR body
+  ([#307](https://github.com/jacquardlabs/studious/pull/307),
+  [`91d168a`](https://github.com/jacquardlabs/studious/commit/91d168a6e1c63998c55e75744472ff348e5593f7))
+
+### Features
+
+- Evidence never enters the repo — the PR body is the record
+  ([#307](https://github.com/jacquardlabs/studious/pull/307),
+  [`91d168a`](https://github.com/jacquardlabs/studious/commit/91d168a6e1c63998c55e75744472ff348e5593f7))
+
+
 ## v3.0.0 (2026-08-04)
 
 ### Bug Fixes
