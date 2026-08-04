@@ -115,8 +115,13 @@ found for item N" — never silently omitted, never fabricated.
 
 **Assembling the table.** One row per item: item text (from `PLAN.md`'s own
 numbered `Done means` line) → verification method (the item's own tier —
-`script` / `test-backed` / `probe`) → evidence link → pass (the item's own
-`status` from `verify:results`, transcribed, never re-judged).
+`script` / `test-backed` / `probe`) → evidence (the row's own inline
+`<details>` block below — never a repository link, since the store is local
+and a `docs/`-path link would 404 for every reader) → pass (the item's own
+`status` from `verify:results`, transcribed, never re-judged). A
+load-bearing task's Inspector report is one more captured text artifact:
+quote it in that task's `<details>` block too, verdict line first — it is
+the `CONCERN` forwarding path `/build` step 2.6 promises.
 
 Two evidence shapes, two treatments:
 

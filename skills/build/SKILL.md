@@ -412,13 +412,14 @@ For each task block, in order:
    **`CONCERN` — non-blocking, forwarded to `/review`.** State inline
    which lens it concerns and the recommended lane below, then proceed to
    step 2.7 exactly as `CLEAR` — the task still reaches `PASS`. Capture the
-   report via the exact same `evidence-capture` artifact call `CLEAR` uses;
-   because that evidence directory is already committed as part of step
-   2.7 (unchanged), the report is automatically part of the diff a human's
-   later `/review` run already reviews — no `gate-ledger` coupling, no
-   auto-invoked `/review`, no dependency on studious being installed at
-   all (graceful even standalone). The committed, self-describing file
-   itself *is* the forward.
+   report via the exact same `evidence-capture` artifact call `CLEAR` uses.
+   The forward rides the evidence table `/ship` assembles into the PR body:
+   a captured text artifact is quoted inline there, so the concern reaches
+   the human's later `/review` pass with the rest of the task's evidence —
+   no `gate-ledger` coupling, no auto-invoked `/review`, no dependency on
+   studious being installed at all (graceful even standalone). The
+   captured, self-describing report *is* the forward; it just travels in
+   the PR body now instead of the diff.
 
    | Lens | Lane | Why this lane |
    |---|---|---|
