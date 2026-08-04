@@ -20,6 +20,10 @@ loop that satisfies it ships in the box, and so does any other executor you pref
 hand, a dispatched agent, or [Superpowers](https://github.com/obra/superpowers). No judge
 knows or cares which one produced the branch, and CI enforces that.
 
+What moves through those doors is a **bet**: one thing you've decided is worth building,
+plus what you're willing to spend on it. Its scope may be a single story or a whole
+milestone — the doors don't change. [Full definition below](#bets).
+
 ## The seven doors
 
 | Door | What it's for | Stage it names |
@@ -47,6 +51,11 @@ exist, or where the flow enters and exits.
 **No door is mandatory, only default.** Skip `/bet` and you have no appetite and no decision
 record — everything else still runs, and position still derives from repo evidence. Use
 judgment about which checks the risk warrants; that judgment is yours.
+
+**Plain language works too.** "Should we build this?" routes to `/bet`. "Review this design"
+or "audit this branch" routes to `/review`. "What's next" or "keep going" routes to `/next`.
+Triggers are deliberately conservative, so you'll still reach for the doors directly most of
+the time.
 
 ## Quick start
 
@@ -80,7 +89,57 @@ Then stop reading and run one command:
 `/next` is the only door you have to remember. It reads where the work stands, names the
 next door, and runs it on your word.
 
-## How it works
+---
+
+*Everything below is reference. Come back to it when you want the mechanism.*
+
+## Bets
+
+A **bet** is what moves through the doors: one thing you've decided is worth building, plus
+what you're willing to spend on it. `/bet` opens it, `/ship` closes it, and every door
+between judges the same bet.
+
+- **Scope** — one story, a list of stories, or a whole milestone. This is what makes the
+  flow scale-invariant: scope changes how many stories a bet contains and how much runs
+  unattended, never which doors exist.
+- **Appetite** — a budget, not an estimate. Two numbers, both yours rather than a model's
+  guess: a **token ceiling**, and a cap on **open episodes** — how many stories may sit
+  awaiting your judgment at once. Token headroom is rarely what binds first; your review
+  bandwidth is. Sizing at milestone scale:
+  [`reference/epic-pricing.md`](reference/epic-pricing.md).
+- **A bet with no appetite is still a bet.** It runs unpriced; nothing refuses to proceed.
+
+### When a bet is missed
+
+**Spent the appetite.** Studious borrows Shape Up's vocabulary but not its circuit breaker:
+a spent appetite **pauses the run; it never kills the bet.** Where it stopped is what you
+inherit — a story stopped before its first dispatch is **held** (nothing spent, nothing on
+its branch); one stopped at a phase boundary or before a fix round is **parked** (work is
+already on the branch, and the last round's findings are what you resume from). Either way
+the run report names the story and the gate it stopped at, and `/next` resumes on fresh
+budget.
+
+Two guards bound the overshoot before you reach the ceiling. The **canary** dispatches the
+first story alone, so a bad plan costs one story instead of the whole fleet. The
+**zero-landed stop-loss** refuses to dispatch after two consecutive invocations that landed
+nothing — the one place Studious stops rather than pauses; overriding it is explicit, and
+recorded either way.
+
+Worth knowing before you set a tight number: **an appetite set too small doesn't fail
+loudly.** The work quietly scopes down instead, which reads as a weaker result rather than
+as a ceiling being hit. Setting one anyway is a legitimate choice — it's a choice to accept
+a degraded result, not a smaller one.
+
+**Didn't deliver.** The other way to miss is to spend the appetite and not deliver what the
+bet promised. That's `/review --delivery`, at the bet's exit — an episode you convene
+deliberately, because delivery is a boundary someone decides they've reached, never one
+inferred from a diff.
+
+**At story scale, you are the ceiling.** Held and parked belong to the milestone driver,
+and exist because dispatched stories run unattended. A one-story bet has nothing running
+unsupervised: `/bet` records the verdict, and the appetite is a number you hold yourself.
+
+## The flow
 
 ```
 /bet     →  scores the idea, ranks it against the backlog, sets the appetite
@@ -108,43 +167,6 @@ whole epic, shows you what it will cost, and stops for approval. Nothing runs be
 approve. Then dispatched agents drive the unattended stories in parallel worktrees, and hand
 back the ones a judge can't verify mechanically. Full contract:
 [`reference/epic-orchestration.md`](reference/epic-orchestration.md).
-
-### Episodes, not re-runs
-
-`/review` opens an **episode**: one bounded run of judgment on a branch, at one sha, with at
-most two rounds and exactly one terminal verdict. A fix re-enters the *same* episode,
-narrowed to the lanes that blocked — so you see `round 2 of 2, 3 findings open, 1 carried`
-instead of an unexplained re-run. Findings persist across rounds in a ledger, so a later
-round can't re-litigate what an earlier one settled. The round cap lives in code
-(`bin/gate-ledger`), never in a prompt.
-
-Bare `/review` picks its episode from repo state: a design doc with no built diff opens the
-design episode, a built diff opens the work episode. `--delivery` is always explicit, because
-delivery is a boundary someone decides they've reached, never one inferred from a diff. When
-the signals disagree, it stops and says so rather than guessing.
-
-Narrow it when the risk doesn't warrant the fan-out: `/review --lane security` or
-`/review --conformance` convenes one lane at one lane's price.
-
-### What the work episode checks
-
-Security, code quality, docs, architecture, and test adequacy always run, alongside a
-criteria-conformance review against the story's own stated acceptance criteria. Then, by what
-the changeset touches: UX, frontend, and accessibility on a web surface; infrastructure on
-IaC/container/CI files; operability on runtime code; dependencies on manifest or lockfile
-changes; prompts on agent/command/skill definitions. If the design episode recorded a
-pre-mortem register, a dedicated auditor checks each predicted failure mode against what
-shipped — REALIZED / NOT REALIZED / CAN'T VERIFY, evidence attached. Up to 13 lanes, each
-staying in its own.
-
-When you run `gh pr create`, a PR-time hook reads the recorded verdicts and names any that
-never ran, ran on an older commit, or didn't pass. It's a reminder, not a block.
-
-### Natural language works too
-
-"Should we build this?" routes to `/bet`. "Review this design" or "audit this branch" routes
-to `/review`. "What's next" or "keep going" routes to `/next`. Triggers are deliberately
-conservative, so you'll still reach for the doors directly most of the time.
 
 ## The build loop
 
@@ -175,12 +197,82 @@ reads a producer's private artifact. Its guarded surface is derived from
 silently. What a judge may rely on is `reference/evidence-format.md`, which any executor can
 satisfy.
 
+## Episodes, not re-runs
+
+`/review` opens an **episode**: one bounded run of judgment on a branch, at one sha, with at
+most two rounds and exactly one terminal verdict. A fix re-enters the *same* episode,
+narrowed to the lanes that blocked — so you see `round 2 of 2, 3 findings open, 1 carried`
+instead of an unexplained re-run. Findings persist across rounds in a ledger, so a later
+round can't re-litigate what an earlier one settled. The round cap lives in code
+(`bin/gate-ledger`), never in a prompt.
+
+Bare `/review` picks its episode from repo state: a design doc with no built diff opens the
+design episode, a built diff opens the work episode. `--delivery` is always explicit, because
+delivery is a boundary someone decides they've reached, never one inferred from a diff. When
+the signals disagree, it stops and says so rather than guessing.
+
+Narrow it when the risk doesn't warrant the fan-out: `/review --lane security` or
+`/review --conformance` convenes one lane at one lane's price.
+
+### What the work episode checks
+
+Security, code quality, docs, architecture, and test adequacy always run, alongside a
+criteria-conformance review against the story's own stated acceptance criteria. Then, by what
+the changeset touches: UX, frontend, and accessibility on a web surface; infrastructure on
+IaC/container/CI files; operability on runtime code; dependencies on manifest or lockfile
+changes; prompts on agent/command/skill definitions. If the design episode recorded a
+pre-mortem register, a dedicated auditor checks each predicted failure mode against what
+shipped — REALIZED / NOT REALIZED / CAN'T VERIFY, evidence attached. Up to 13 lanes, each
+staying in its own.
+
+When you run `gh pr create`, a PR-time hook reads the recorded verdicts and names any that
+never ran, ran on an older commit, or didn't pass. It's a reminder, not a block.
+
+## Where your state lives
+
+Two directories, one committed and one not. Nothing else is written on your behalf.
+
+| Path | Committed | What's in it |
+|---|---|---|
+| `.studious/` | No — gitignored | The per-branch gate ledger (verdicts, episode rounds, the findings ledger), `/next`'s per-feature work files, approved epic plans and their appetite, routing telemetry, and the verification evidence a hook captures while a story is armed |
+| `docs/studious/` | Yes | `/retro` review reports, pre-mortem registers, dated build reports, and the decision journal |
+
+`.studious/` is flow state: local, disposable, and never in the diff — which is why the flow
+survives a session ending but not a fresh clone. `bin/gate-ledger status` prints what's
+recorded for the current branch. `docs/studious/` is the durable record, with one deliberate
+exception: `docs/studious/decisions.jsonl` — every `/bet` verdict with its rationale and
+what would change the answer — is appended by the gate and committed by you, never
+auto-committed by any door.
+
+A third class is written and then deleted: the `/shape` design doc (`docs/design/<slug>.md`)
+and `PLAN.md` are gitignored, branch-local, and removed by `/ship` at closeout. They are
+working documents for one branch, not project records.
+
+## When something looks wrong
+
+Studious degrades quietly by design — a missing tool or an unregistered agent drops a lane
+without erroring. `/studious:doctor` is the read-only pass that surfaces it, in five checks:
+
+1. **Tooling** — `git`, `jq`, `gh`, `python3`, `viva`. Missing `jq` is the quiet one:
+   `gate-ledger record` no-ops, so no verdict and no flow position is ever written.
+2. **Plugin health** — whether every agent and skill Studious ships actually registered this
+   session. Malformed frontmatter drops a `/review` lane without an error.
+3. **Context docs** — populated, missing, or still the shipped template.
+4. **Flow-state hygiene** — how many active work files have piled up in `.studious/`. Past
+   ten, bare `/next` stops resuming one feature and starts asking you to pick from a list.
+5. **Retired door names** — greps your CLAUDE.md, README, and `.github/workflows/*.yml` for
+   doors that no longer exist, and prints the rewire as a diff.
+
+It fixes nothing, applies nothing, and records no verdict — recommend-only, same as every
+review.
+
 ## Keeping the project healthy
 
 Separate from the feature flow: `/retro` runs periodic reviews against main, not feature
-branches. Bare `/retro` dispatches all 7 review agents in parallel and compiles a master
+branches. Bare `/retro` dispatches the 7 health reviews in parallel and compiles a master
 summary — cross-referenced findings, a prioritized action plan, and proposed context-doc
-updates for your approval. Metrics are captured each run for trend tracking.
+updates for your approval. Metrics are captured each run for trend tracking. The last two
+rows below are modes, not reviews: they run only when you name them.
 
 | Area | What it checks | Cadence |
 |------|----------------|---------|
