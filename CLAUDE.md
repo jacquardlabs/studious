@@ -42,11 +42,6 @@ node --check workflows/epic-driver.js
 npx -y eslint@10.6.0 --report-unused-disable-directives workflows/
 bash tests/test_workflows_lint.sh
 
-# board-ui pure-logic tests (assets/board-ui/app.js's derivation functions;
-# DOM wiring is exercised live against a running bin/board-server instead)
-node --check assets/board-ui/app.js
-node --test tests/js/*.js
-
 # Build-script lint and tests (ruff pinned; stdlib unittest, not pytest)
 uv run --no-project --with ruff==0.16.0 ruff check scripts tests/jig
 uv run --no-project python3 -m unittest discover -s tests/jig -v

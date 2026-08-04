@@ -732,7 +732,6 @@ class DeliveryDoorTest(unittest.TestCase):
 
 RUN_GATE_AUDIT_FIXTURES_PY = REPO_ROOT / "scripts" / "run_gate_audit_fixtures.py"
 WORK_THROUGH_MD = REPO_ROOT / "reference" / "epic-orchestration.md"
-BOARD_SCHEMA_MD = REPO_ROOT / "reference" / "board-schema.md"
 EVENTS_FORMAT_MD = REPO_ROOT / "reference" / "events-format.md"
 EXTRACT_DESIGN_SYSTEM_MD = REPO_ROOT / "reference" / "design-system-extraction.md"
 REPO_CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
@@ -756,7 +755,6 @@ class RetryTokenSweepTest(unittest.TestCase):
             EPIC_DRIVER,
             RUN_GATE_AUDIT_FIXTURES_PY,
             WORK_THROUGH_MD,
-            BOARD_SCHEMA_MD,
             EVENTS_FORMAT_MD,
             EXTRACT_DESIGN_SYSTEM_MD,
             REPO_CLAUDE_MD,

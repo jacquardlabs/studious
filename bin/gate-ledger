@@ -855,7 +855,7 @@ cmd_episode_verdict() {
   [ "$rc" -eq 0 ] || return "$rc"
   # Dual-write the legacy per-gate record through cmd_record itself — not a
   # reimplementation of its jq — so `status`/`gate-get` readers (the PR-time
-  # hook, the epic driver, board-ui) see a record indistinguishable from one a
+  # hook, the epic driver) see a record indistinguishable from one a
   # gate command wrote directly, events append included. Same process, same
   # HEAD: the sha cmd_record stamps is the sha written just above.
   # --blocking-lanes passes through untouched (#289): the lane profile is
