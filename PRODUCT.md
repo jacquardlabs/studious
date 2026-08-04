@@ -136,26 +136,11 @@ The tracker owns individual features. PRODUCT.md owns strategic context only.
 **The roadmap lives in [milestones](https://github.com/jacquardlabs/studious/milestones), not here.** Restating it in this file is how it went stale
 before: the original A/M/X tiers were listed as the live roadmap long after every
 A-tier and M-tier issue had closed, and every gate reads this file as ground truth.
-**Milestone numbers carry delivery order** as of 2026-08-03: M1 runs first, M6 last,
-and M2 runs concurrently with M1. Each milestone's description states its position and
-why; don't restate the sequence here — that restatement is what went stale before.
-
-Any milestone reference dated before 2026-08-03 uses the old numbering:
-
-| Old | New | Milestone |
-|-----|-----|-----------|
-| M6 | **M1** | Gate & build cost |
-| M11 | **M2** | Correctness & bug tail |
-| M9 | **M3** | Contract & drift guards |
-| M12 | **M4** | Telemetry & outcome labels |
-| M8 | **M5** | Receipts & front door |
-| M5 | **M6** | Post-ship outcome loop (X-series) |
-| M10, M13 | — | retired 2026-08-03; they keep their historical numbers |
-
-**The M5/M6 swap is the trap.** Pre-renumber "M5" means the post-ship outcome loop,
-which is now M6; "M5" now means Receipts & front door. The 24 closed issues citing M5,
-`reference/epic-pricing.md`'s cost row, and `workflows/epic-driver.js:57` all predate
-the renumber and use the old numbers.
+**Milestone numbers carry delivery order** — M1 runs first. That is a convention for
+reading the tracker, not a roadmap: which milestones exist, what is in them, and what
+runs concurrently are the tracker's to answer, and each description states its own
+position and why. Numbering was reset on 2026-08-03, so a reference dated before then
+uses the old numbers; every current milestone names the one it was renumbered from.
 
 The one durable point: **X-tier is the strategic bet.** Spec traceability (#31), the
 post-ship outcome gate (#32), and the self-tuning corpus (#33) are what turn a set of
@@ -239,12 +224,8 @@ entry here is not a documentation nit — it is the discipline running on bad fu
 
 1. **Cost is unbudgeted and grows with the auditor roster, not the diff** (M1) — a
    gate's price scales O(auditors), so a one-line change pays for a full fan-out. Cost
-   is the UX for a tool a developer runs per feature. Re-pointed 2026-08-03: the
-   original citations (#130, #144, #142) have all shipped — delta-scoped re-audit,
-   priced epics, and appetite enforcement exist now. What remains is live in M1:
-   per-position effort tiering (#303), gen-5 over-verification (#302), the acceptance
-   altitude (#269), the driver's duplicate fan-out (#274), and the four unpinned
-   `model: inherit` agents (#136).
+   is the UX for a tool a developer runs per feature. The remedies are M1's contents;
+   the earlier citations (#130, #144, #142) all shipped without closing the problem.
 2. ~~**The merge unified the repo, not the flow** (retired M10) — two navigators answered
    "what's next" from two state stores neither read (#214), and #280 shipped a rule for
    choosing between them rather than collapsing them.~~ Resolved: the persona
@@ -261,9 +242,8 @@ entry here is not a documentation nit — it is the discipline running on bad fu
    may read, named a forbidden producer artifact at
    `scripts/check_gate_independence.py:85`; the thinner per-command JSONL
    (`.studious/evidence/<branch-slug>.jsonl`) is the sanctioned contract. Defensible,
-   but written down nowhere as a decision. Corrected 2026-08-03: v3.1.0 (#307) moved
-   the richer store out of the repo, so neither is committed now — that killed the
-   entry's old committed-vs-ephemeral framing, not the asymmetry itself.
+   but written down nowhere as a decision. Neither store is committed since v3.1.0
+   (#307); the asymmetry outlived that change.
 5. **Nothing closes the loop after ship** (M6, formerly M5) — the gates judge intent
    and execution, then stop. Whether a shipped feature worked is not read back into
    anything.
