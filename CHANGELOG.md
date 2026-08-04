@@ -2,6 +2,62 @@
 
 <!-- version list -->
 
+## v3.0.0 (2026-08-04)
+
+### Bug Fixes
+
+- Repair four defects the mechanical sweep created or hid
+  ([#306](https://github.com/jacquardlabs/studious/pull/306),
+  [`505df08`](https://github.com/jacquardlabs/studious/commit/505df08a5291ee7d11468118f3fd900bb2e57c4f))
+
+- Review-pass repairs — history, collisions, and one contradiction
+  ([#306](https://github.com/jacquardlabs/studious/pull/306),
+  [`505df08`](https://github.com/jacquardlabs/studious/commit/505df08a5291ee7d11468118f3fd900bb2e57c4f))
+
+### Documentation
+
+- Rewrite the context docs for the nine-door surface
+  ([#306](https://github.com/jacquardlabs/studious/pull/306),
+  [`505df08`](https://github.com/jacquardlabs/studious/commit/505df08a5291ee7d11468118f3fd900bb2e57c4f))
+
+### Features
+
+- /doctor detects retired door names, and the shim list catches up
+  ([#306](https://github.com/jacquardlabs/studious/pull/306),
+  [`505df08`](https://github.com/jacquardlabs/studious/commit/505df08a5291ee7d11468118f3fd900bb2e57c4f))
+
+- Collapse 18 doors to 9 — one navigator, one review door, charter-derived surface
+  ([#306](https://github.com/jacquardlabs/studious/pull/306),
+  [`505df08`](https://github.com/jacquardlabs/studious/commit/505df08a5291ee7d11468118f3fd900bb2e57c4f))
+
+- Collapse 18 doors to 9, derived from a persona charter
+  ([#306](https://github.com/jacquardlabs/studious/pull/306),
+  [`505df08`](https://github.com/jacquardlabs/studious/commit/505df08a5291ee7d11468118f3fd900bb2e57c4f))
+
+- Rewrite the README and reconcile the suite with the collapsed surface
+  ([#306](https://github.com/jacquardlabs/studious/pull/306),
+  [`505df08`](https://github.com/jacquardlabs/studious/commit/505df08a5291ee7d11468118f3fd900bb2e57c4f))
+
+### Testing
+
+- Reconcile the jig suite and lint the merged review door
+  ([#306](https://github.com/jacquardlabs/studious/pull/306),
+  [`505df08`](https://github.com/jacquardlabs/studious/commit/505df08a5291ee7d11468118f3fd900bb2e57c4f))
+
+- Track the door collapse through the suite
+  ([#306](https://github.com/jacquardlabs/studious/pull/306),
+  [`505df08`](https://github.com/jacquardlabs/studious/commit/505df08a5291ee7d11468118f3fd900bb2e57c4f))
+
+### Breaking Changes
+
+- Seventeen door names are removed with no alias shims. /work-on, /work-through, /coach,
+  /gate-should-we-build, /gate-design-review, /gate-audit, /gate-acceptance, /deep-review,
+  /backlog-hygiene, /backlog-priorities, /review-outcomes, /studious-init, /studious-doctor,
+  /handback, /design, /plan, and /finish no longer resolve. Their replacements are the nine doors in
+  reference/personas.md. /doctor reports any that survive in a consuming project's CLAUDE.md and
+  proposes the rewire.
+
+
 ## v2.30.1 (2026-08-03)
 
 ### Bug Fixes
