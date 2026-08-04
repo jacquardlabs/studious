@@ -2,10 +2,13 @@
 """jig's evidence-capture script (story build-scripts, issue #14).
 
 Writes a task's verification artifacts (from `verify` and/or
-`worktree-setup`) to `docs/jig/evidence/<date>-<task>-<branch-slug>/`,
-alongside a manifest recording a timestamp, the commit SHA the evidence was
-checked against, the branch it was captured on, and which script produced
-each artifact — the paper trail `/gate-audit` and a human read afterward.
+`worktree-setup`) to `.studious/build-evidence/<date>-<task>-<branch-slug>/`
+under the MAIN checkout (see `_gitutil.build_evidence_root` for the worktree
+anchoring), alongside a manifest recording a timestamp, the commit SHA the
+evidence was checked against, the branch it was captured on, and which script
+produced each artifact — the paper trail `/ship` assembles into the PR body,
+which is the durable record. The store is local and gitignored (`.studious/`);
+evidence never enters the repo.
 
 The branch slug is in the folder name because two independent branches
 building on the same day had no reason to invent different `--task` values,
@@ -159,6 +162,7 @@ from typing import NamedTuple
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _gitutil import (  # noqa: E402
     branch_slug,
+    build_evidence_root,
     current_branch,
     git_repo_root,
     last_commit_sha_and_epoch,
@@ -311,21 +315,21 @@ def list_branch_tasks(entries: list[tuple[Path, dict]], branch: str) -> list[tup
 
 
 def display_path(folder: Path, repo: Path) -> str:
-    """Repo-relative when the folder is inside the repo, absolute otherwise.
+    """Always absolute, deliberately.
 
-    A repo-relative path is what both callers need, and they need it in two
-    shapes: `evidence-freshness` resolves `--evidence` against the process's
-    own cwd and never joins its `--repo`, so its caller joins `<worktree>/`
-    onto this path first — unjoined, it exits 2 with "no manifest.json found"
-    — while `/finish`'s raw GitHub URL appends exactly this bare form with no
-    prefix to strip. `skills/ship/SKILL.md` states that asymmetry for the
-    personas; the one repair it rules out is closing it by changing what this
-    prints.
+    The printed path's one consumer is `evidence-freshness --evidence`, which
+    resolves relative paths against the process's own cwd — an ambiguity that
+    used to be managed by prose telling `/ship` to join `<worktree>/` onto a
+    repo-relative print, and that broke the moment cwd wasn't what the prose
+    assumed (exit 2, "no manifest.json found"). The other consumer of the
+    relative form — the PR body's raw-URL construction — died with the
+    committed store, so nothing wants relativity any more: an absolute path
+    means the same folder from every cwd, which is the whole job. `repo` stays
+    a parameter for signature stability at the call sites; it no longer shapes
+    the output.
     """
-    try:
-        return str(folder.resolve().relative_to(repo.resolve()))
-    except ValueError:
-        return str(folder)
+    del repo
+    return str(folder.resolve())
 
 
 def answer_column(row: Resolution, repo: Path) -> str:
@@ -420,7 +424,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         prog="evidence-capture",
         description=(
             "Write a task's verification artifacts + a freshness-stamped manifest to "
-            "docs/jig/evidence/<date>-<task>-<branch-slug>/."
+            "the main checkout's .studious/build-evidence/<date>-<task>-<branch-slug>/."
         ),
         epilog=usage_modes(),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -433,7 +437,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--evidence-root",
         default=None,
-        help="root directory evidence folders are created under (default: <repo>/docs/jig/evidence)",
+        help="root directory evidence folders are created under (default: the main checkout's .studious/build-evidence)",
     )
     parser.add_argument(
         "--artifact",
@@ -466,7 +470,7 @@ def parse_query_args(verb: str, argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--evidence-root",
         default=None,
-        help="root directory evidence folders live under (default: <repo>/docs/jig/evidence)",
+        help="root directory evidence folders live under (default: the main checkout's .studious/build-evidence)",
     )
     return parser.parse_args(argv)
 
@@ -479,7 +483,7 @@ def run_query(verb: str, argv: list[str]) -> int:
         print(f"error: '{args.repo}' is not inside a git repository", file=sys.stderr)
         return 2
 
-    evidence_root = Path(args.evidence_root) if args.evidence_root else repo / "docs" / "jig" / "evidence"
+    evidence_root = Path(args.evidence_root) if args.evidence_root else build_evidence_root(repo)
     entries = load_manifests(evidence_root)
 
     if verb == "list":
@@ -615,7 +619,7 @@ def run_capture(argv: list[str]) -> int:
 
     cleared = 0
     date = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    evidence_root = Path(args.evidence_root) if args.evidence_root else repo / "docs" / "jig" / "evidence"
+    evidence_root = Path(args.evidence_root) if args.evidence_root else build_evidence_root(repo)
     branch = current_branch(repo)
     # Field order keeps the existing <date>-<task> prefix byte-stable, at the
     # cost that a legacy name is now a prefix of a new one. Affordable only

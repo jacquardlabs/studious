@@ -28,18 +28,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 #: staleness test below fails once a prefix stops matching anything, so a resolved
 #: entry cannot quietly persist.
 #:
-#: `docs/jig/demonstrations/` — 21 files produced as the plan-skill story's required
-#: demonstration (issue #23) and deliberately preserved, unlike the design docs and
-#: `PLAN.md` removed in this same change, which were residue. Whether a required
-#: demonstration is genuinely disposable is a product call, not a cleanup: either
-#: `.gitignore:18` is wrong about them or they belong somewhere durable.
-#:
-#: Read the tree before draining it. It contains fixture repos that deliberately hold
-#: a `PLAN.md` and two `docs/design/*.md` files — the exact paths the rule below bans —
-#: because demonstrating `/build`'s behavior requires a project shaped like one. Those
-#: are inputs to a demonstration, not scaffolding that escaped cleanup, and deleting
-#: them on sight would break the demonstration rather than tidy it.
-ALLOWED_PREFIXES = ("docs/jig/demonstrations/",)
+#: Empty since the evidence-store move drained the last entry:
+#: `docs/jig/demonstrations/` held the plan-skill story's required demonstration
+#: (issue #23), preserved tracked-while-ignored while its disposability was an open
+#: product call. The call was made with the store move — process residue is
+#: disposable, and the demonstration's durable half (the build report) survives —
+#: so the 21 files were deleted and the entry drained, exactly the way this
+#: allowlist is designed to shrink.
+ALLOWED_PREFIXES: tuple[str, ...] = ()
 
 
 def tracked_but_ignored() -> list[str]:

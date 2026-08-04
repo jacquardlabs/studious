@@ -112,7 +112,7 @@ source, and a manual seed-tag step wedged between merges.
 guards from `reference/personas.md` rather than a hardcoded glob: the charter's
 `judge`-class command files, plus `agents/`, `workflows/`, `hooks/`, and `bin/`.
 Nothing on that surface may invoke a producer door or require a producer artifact
-(`PLAN.md`, `docs/jig/evidence/`) — the evidence contract a judge may rely on is
+(`PLAN.md`, the `.studious/build-evidence/` store) — the evidence contract a judge may rely on is
 `reference/evidence-format.md`, which any executor can satisfy. Outside that surface,
 `/next` routes to the producer doors freely; that is the product working.
 `reference/worker-contract.md` stays normative and `/build` is one implementation of it,

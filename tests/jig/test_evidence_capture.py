@@ -5,7 +5,7 @@ never the real jig repo, checking this story's acceptance criteria
 mechanically:
 
 1. Happy path: artifacts + a manifest.json land in
-   `docs/jig/evidence/<date>-<task>-<branch-slug>/`, stamped `>=` the last
+   `.studious/build-evidence/<date>-<task>-<branch-slug>/`, stamped `>=` the last
    code commit.
 2. An uncommitted working tree at capture time refuses rather than
    stamping a vacuous `now >= baseline-commit` timestamp
@@ -666,9 +666,13 @@ class TestEvidenceCaptureForceOverCommittedEvidence(unittest.TestCase):
     dirty tree.
 
     A scratch `--evidence-root` outside the repo never touches the index and
-    so cannot exercise this at all. This test captures into the repo's real
-    `docs/jig/evidence/`, commits it, re-captures with `--force`, and checks
-    that the resulting deletions commit to a clean tree.
+    so cannot exercise this at all. The shipped default store is gitignored in a
+    real consuming project, so no shipped caller commits evidence any more — but
+    the fixture repo carries no `.gitignore`, so committing the store remains
+    representable, and a project that force-tracks evidence (or overrides
+    `--evidence-root` to a tracked path) still meets exactly this shape. This
+    test captures into the default store, commits it, re-captures with
+    `--force`, and checks that the resulting deletions commit to a clean tree.
     """
 
     def test_force_deletions_over_committed_evidence_commit_to_a_clean_tree(self) -> None:
@@ -696,7 +700,7 @@ class TestEvidenceCaptureForceOverCommittedEvidence(unittest.TestCase):
             first.write_text("attempt A\n", encoding="utf-8")
             self.assertEqual(capture(first, "first", force=False).returncode, 0)
 
-            folder = repo / "docs" / "jig" / "evidence" / "2026-07-12-task-1-main"
+            folder = repo / ".studious" / "build-evidence" / "2026-07-12-task-1-main"
             self.assertTrue((folder / "first.txt").is_file())
             commit_all(repo, "capture task-1 evidence")
             self.assertEqual(git(["status", "--porcelain"], repo), "")
@@ -726,7 +730,7 @@ class TestEvidenceCaptureForceOverCommittedEvidence(unittest.TestCase):
             manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
             listed = {"manifest.json", *(art["path"] for art in manifest["artifacts"])}
             self.assertEqual({p.name for p in folder.iterdir()}, listed)
-            tracked = git(["ls-files", "docs/jig/evidence"], repo).split()
+            tracked = git(["ls-files", ".studious/build-evidence"], repo).split()
             self.assertEqual({Path(p).name for p in tracked}, listed)
 
 
@@ -837,10 +841,12 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
     """
 
     def _repo_and_root(self, tmp: str) -> tuple[Path, Path]:
-        repo = Path(tmp) / "repo"
+        # Pre-resolved so expected row strings match display_path's own
+        # `.resolve()`d output (macOS tempdirs live behind a /var symlink).
+        repo = Path(tmp).resolve() / "repo"
         repo.mkdir()
         init_repo(repo)
-        evidence_root = Path(tmp) / "evidence"
+        evidence_root = Path(tmp).resolve() / "evidence"
         evidence_root.mkdir()
         return repo, evidence_root
 
@@ -857,7 +863,7 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
 
             result = self._resolve(repo, root, "feat/alpha", "task-1")
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout.strip(), str(mine))
+            self.assertEqual(Path(result.stdout.strip()), mine.resolve())
 
     def test_the_newest_capture_wins_within_one_branch(self) -> None:
         """A --force re-capture overwrites in place, but a re-capture on a
@@ -875,7 +881,7 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
 
             result = self._resolve(repo, root, "feat/alpha", "task-1")
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout.strip(), str(newer))
+            self.assertEqual(Path(result.stdout.strip()), newer.resolve())
 
     def test_another_branchs_identically_tasked_folder_does_not_resolve(self) -> None:
         """#179's post-rebase shape: both folders in one tree, both recording
@@ -887,7 +893,7 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
 
             result = self._resolve(repo, root, "feat/alpha", "task-1")
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout.strip(), str(mine))
+            self.assertEqual(Path(result.stdout.strip()), mine.resolve())
 
     def test_a_unique_legacy_match_resolves(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -896,7 +902,7 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
 
             result = self._resolve(repo, root, "feat/alpha", "task-1")
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout.strip(), str(legacy))
+            self.assertEqual(Path(result.stdout.strip()), legacy.resolve())
 
     def test_a_unique_legacy_answer_carries_its_own_token(self) -> None:
         """The asymmetry this closes: *two* branch-less folders sharing a task
@@ -1048,7 +1054,7 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
 
             result = self._resolve(repo, root, "feat/alpha", "task-1")
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout.strip(), str(mine))
+            self.assertEqual(Path(result.stdout.strip()), mine.resolve())
 
     def test_a_missing_branch_is_a_usage_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1069,10 +1075,12 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
     """
 
     def _repo_and_root(self, tmp: str) -> tuple[Path, Path]:
-        repo = Path(tmp) / "repo"
+        # Pre-resolved so expected row strings match display_path's own
+        # `.resolve()`d output (macOS tempdirs live behind a /var symlink).
+        repo = Path(tmp).resolve() / "repo"
         repo.mkdir()
         init_repo(repo)
-        evidence_root = Path(tmp) / "evidence"
+        evidence_root = Path(tmp).resolve() / "evidence"
         evidence_root.mkdir()
         return repo, evidence_root
 
@@ -1297,20 +1305,27 @@ class TestResolvedPathComposesWithFreshness(unittest.TestCase):
             check=False,
         )
 
-    def test_resolve_prints_a_repo_relative_path_for_a_real_capture(self) -> None:
+    def test_resolve_prints_an_absolute_path_for_a_real_capture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo, branch = self._capture_into_the_repo(Path(tmp))
 
             resolved = run_script(["resolve", "--repo", str(repo), "--branch", branch, "--task", "task-1"])
             self.assertEqual(resolved.returncode, 0, resolved.stderr)
             printed = resolved.stdout.strip()
-            self.assertFalse(Path(printed).is_absolute(), f"expected a repo-relative path, got {printed!r}")
-            self.assertEqual(printed, f"docs/jig/evidence/2026-07-12-task-1-{branch}")
+            self.assertTrue(Path(printed).is_absolute(), "resolve prints absolute, always")
+            self.assertEqual(
+                Path(printed),
+                (repo / ".studious" / "build-evidence" / f"2026-07-12-task-1-{branch}").resolve(),
+            )
 
-    def test_the_printed_path_needs_the_repo_joined_before_freshness_reads_it(self) -> None:
-        """The regression `/ship`'s "passed through unchanged" prose caused:
-        run from anywhere but the worktree, the unjoined path exits 2 and
-        `/ship` stops before assembling a PR body."""
+    def test_the_printed_path_composes_with_freshness_from_any_cwd(self) -> None:
+        """The join dance is retired, and this pins its replacement. `resolve`
+        used to print repo-relative, `evidence-freshness` resolves `--evidence`
+        against the process cwd, and `/ship`'s prose had to bridge the two by
+        joining `<worktree>/` on — a bridge that collapsed (exit 2, "no
+        manifest.json found") whenever cwd wasn't what the prose assumed. An
+        absolute print means the same folder from every cwd, so the handoff is
+        verbatim: what `resolve` printed is what `--evidence` takes."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, branch = self._capture_into_the_repo(Path(tmp))
             elsewhere = Path(tmp) / "elsewhere"
@@ -1320,13 +1335,9 @@ class TestResolvedPathComposesWithFreshness(unittest.TestCase):
                 ["resolve", "--repo", str(repo), "--branch", branch, "--task", "task-1"]
             ).stdout.strip()
 
-            unjoined = self._freshness(printed, repo, cwd=elsewhere)
-            self.assertEqual(unjoined.returncode, 2, unjoined.stdout)
-            self.assertIn("no manifest.json found", unjoined.stderr)
-
-            joined = self._freshness(str(repo / printed), repo, cwd=elsewhere)
-            self.assertEqual(joined.returncode, 0, joined.stderr + joined.stdout)
-            self.assertIn("overall=PASS", joined.stdout)
+            verbatim = self._freshness(printed, repo, cwd=elsewhere)
+            self.assertEqual(verbatim.returncode, 0, verbatim.stderr + verbatim.stdout)
+            self.assertIn("overall=PASS", verbatim.stdout)
 
 
 class TestEvidenceCaptureDocstringCarriesTheRollbackCaveat(unittest.TestCase):
@@ -1404,7 +1415,67 @@ class TestEvidenceCaptureVerbDispatch(unittest.TestCase):
         folder *itself* being the write location."""
         result = run_script(["--help"])
         self.assertEqual(result.returncode, 0)
-        self.assertIn("docs/jig/evidence/<date>-<task>-<branch-slug>/", result.stdout)
+        self.assertIn(".studious/build-evidence/<date>-<task>-<branch-slug>/", result.stdout)
+
+
+
+class TestEvidenceStoreIsWorktreeShared(unittest.TestCase):
+    """The load-bearing property of the `.studious/build-evidence` move.
+
+    `/build` runs in a temporary linked worktree that is removed once its branch
+    merges; `/ship` runs later, in whatever checkout the user has. A store inside
+    the build worktree would vanish with it — the exact flow the #257 dogfood run
+    exercised, where evidence survived only because it was committed and merged.
+    With commits gone, worktree-sharing is what carries evidence across instead:
+    capture in the linked worktree must land in the MAIN checkout's store, and
+    resolve from the main checkout must find it, with no worktree left on disk.
+    """
+
+    def test_capture_in_a_linked_worktree_lands_in_the_main_store(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            main = Path(tmp) / "main"
+            main.mkdir()
+            init_repo(main)
+
+            worktree = Path(tmp) / "wt"
+            git(["worktree", "add", "-b", "build/story-1", str(worktree)], main)
+
+            # The task's own work, committed in the worktree — capture requires a
+            # clean tree whose last commit is the work being evidenced.
+            (worktree / "change.txt").write_text("the task's work\n", encoding="utf-8")
+            commit_all(worktree, "task work")
+            time.sleep(0.05)
+
+            artifact = Path(tmp) / "results.json"
+            artifact.write_text('{"overall": "PASS"}\n', encoding="utf-8")
+            result = run_script(
+                ["--task", "task-1", "--repo", str(worktree), "--date", "2026-08-03",
+                 "--artifact", f"verify:results={artifact}"]
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            folder = main / ".studious" / "build-evidence" / "2026-08-03-task-1-build-story-1"
+            self.assertTrue((folder / "manifest.json").is_file(),
+                            "capture in a linked worktree must write the MAIN checkout's store")
+            self.assertFalse((worktree / ".studious").exists(),
+                             "nothing may land inside the disposable worktree")
+            # The store never dirties the worktree — no evidence commit exists to make.
+            self.assertEqual(git(["status", "--porcelain"], worktree), "")
+
+            # Merge the branch, remove the worktree — the post-/build state /ship meets.
+            git(["merge", "-q", "build/story-1"], main)
+            git(["worktree", "remove", str(worktree)], main)
+
+            resolved = run_script(
+                ["resolve", "--repo", str(main), "--branch", "build/story-1", "--task", "task-1"]
+            )
+            self.assertEqual(resolved.returncode, 0, resolved.stderr)
+            printed = resolved.stdout.strip()
+            self.assertEqual(Path(printed).resolve(), folder.resolve(),
+                             "resolve from the main checkout must find the worktree's capture")
+            self.assertTrue(Path(printed).is_absolute(),
+                            "the printed path is absolute — /ship passes it verbatim to evidence-freshness")
+
 
 
 if __name__ == "__main__":

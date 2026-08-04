@@ -71,6 +71,26 @@ def test_catches_a_gate_requiring_a_build_artifact(tmp_path: Path, monkeypatch) 
     assert "reference/evidence-format.md" in problems[0]
 
 
+def test_catches_a_gate_reading_the_evidence_store_at_either_location(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The store moved from committed `docs/jig/evidence/` to the local
+    `.studious/build-evidence/`; both stay banned — the retired path so prose
+    can't quietly reintroduce it, the live one because a judge reading a
+    producer's private store is the same dependency at a new address."""
+    agents = tmp_path / "agents"
+    agents.mkdir()
+    (agents / "a.md").write_text(
+        "Check .studious/build-evidence for the task's folder.\n"
+        "Or fall back to docs/jig/evidence like the old flow did.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(gi, "REPO", tmp_path)
+    problems = gi.violations()
+    assert len(problems) == 2
+    assert all("reference/evidence-format.md" in p for p in problems)
+
+
 def test_every_producer_door_is_actually_guarded(tmp_path: Path, monkeypatch) -> None:
     agents = tmp_path / "agents"
     agents.mkdir()

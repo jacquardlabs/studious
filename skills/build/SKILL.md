@@ -412,13 +412,14 @@ For each task block, in order:
    **`CONCERN` — non-blocking, forwarded to `/review`.** State inline
    which lens it concerns and the recommended lane below, then proceed to
    step 2.7 exactly as `CLEAR` — the task still reaches `PASS`. Capture the
-   report via the exact same `evidence-capture` artifact call `CLEAR` uses;
-   because that evidence directory is already committed as part of step
-   2.7 (unchanged), the report is automatically part of the diff a human's
-   later `/review` run already reviews — no `gate-ledger` coupling, no
-   auto-invoked `/review`, no dependency on studious being installed at
-   all (graceful even standalone). The committed, self-describing file
-   itself *is* the forward.
+   report via the exact same `evidence-capture` artifact call `CLEAR` uses.
+   The forward rides the evidence table `/ship` assembles into the PR body:
+   a captured text artifact is quoted inline there, so the concern reaches
+   the human's later `/review` pass with the rest of the task's evidence —
+   no `gate-ledger` coupling, no auto-invoked `/review`, no dependency on
+   studious being installed at all (graceful even standalone). The
+   captured, self-describing report *is* the forward; it just travels in
+   the PR body now instead of the diff.
 
    | Lens | Lane | Why this lane |
    |---|---|---|
@@ -478,13 +479,16 @@ For each task block, in order:
      committed change, so `evidence-capture`'s clean-tree check has a real,
      clean tree to check (issue #45) instead of refusing before task 1 ever
      completes.
-   - **Commit the evidence directory `evidence-capture` just wrote** — a
-     plain `git add`/`git commit` of exactly that dated folder, distinct
-     from `status-flip`'s own commit below. `evidence-capture` writes
-     files but never commits them; skip this and the working tree stays
-     dirty, which makes the *next* task's `evidence-capture` call refuse
-     against it (it requires a clean tree — see its own freshness rule).
-     Do this before calling `status-flip`, not after.
+   - **No evidence commit exists any more, deliberately.** `evidence-capture`
+     writes to the main checkout's gitignored `.studious/build-evidence/` —
+     outside this worktree's tracked tree entirely — so the capture leaves
+     the working tree exactly as clean as it found it, the next task's
+     clean-tree check has nothing to refuse against, and the PR that
+     eventually opens carries no evidence files and no capture commits.
+     The PR body's assembled table (`/ship` Step 1) is the durable record.
+     Do not `git add` the evidence folder to "preserve" it — committing a
+     gitignored store back into the diff is the review noise this design
+     removed.
    - Call `scripts/status-flip --plan <path> --task <label> --results <scratch-path>/results.json`,
      the same scratch-path file from step 5 — `status-flip` only reads it,
      never requires it to live in the worktree either.

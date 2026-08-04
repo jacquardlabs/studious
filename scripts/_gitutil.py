@@ -97,6 +97,40 @@ def git_repo_root(path: Path) -> Path | None:
     return Path(result.stdout.strip())
 
 
+def build_evidence_root(repo: Path) -> Path:
+    """The default evidence store: `<main checkout>/.studious/build-evidence`.
+
+    Anchored to the MAIN checkout, not `repo` itself, for the same reason
+    `bin/gate-ledger`'s stores are: `/build` runs in a temporary linked worktree
+    that is removed after its branch merges, and `/ship` runs later, wherever the
+    user is. A store inside the build worktree would vanish with it. Resolved via
+    the common git dir — in a linked worktree `--git-common-dir` names the main
+    repo's `.git`, whose parent is the main working tree; in an ordinary checkout
+    it names `<root>/.git`, so the parent is the same root `git_repo_root` finds.
+
+    `.studious/` is gitignored (`bin/gate-ledger`'s `ensure_gitignore()` keeps it
+    that way in consuming projects), so evidence never enters the repo — the PR
+    body's assembled table is the durable record. `build-evidence/` is a sibling
+    of the hook log's `evidence/` (reference/evidence-format.md), deliberately
+    not the same directory: one holds per-branch JSONL append logs, the other
+    per-task artifact folders, and a shared root would make each store's readers
+    scan the other's files.
+
+    Falls back to `<repo>/.studious/build-evidence` if the common dir can't be
+    resolved — same degradation direction as gate-ledger's own root fallback.
+    """
+    try:
+        result = run(["git", "rev-parse", "--git-common-dir"], cwd=repo)
+    except OSError:
+        result = None
+    if result is not None and result.returncode == 0 and result.stdout.strip():
+        common = Path(result.stdout.strip())
+        if not common.is_absolute():
+            common = repo / common
+        return common.resolve().parent / ".studious" / "build-evidence"
+    return repo / ".studious" / "build-evidence"
+
+
 def working_tree_status(repo: Path) -> str:
     """Return `git status --porcelain` output for `repo` (empty string = clean)."""
     return run(["git", "-C", str(repo), "status", "--porcelain"]).stdout

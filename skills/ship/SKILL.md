@@ -50,8 +50,12 @@ this feature's — an evidence table assembled, plausibly, off the wrong branch.
 
 For each task in `PLAN.md` (now fully status-flipped), read its `Done
 means` items and the evidence folder `/build`'s own `evidence-capture` call
-wrote for it. **Ask the script which folder that is — never rebuild the path
-from its shape**: capture writes `docs/jig/evidence/<date>-<task>-<branch-slug>/`, so a path rebuilt to the pre-#258 shape `docs/jig/evidence/<date>-<task>/` matches nothing. <!-- evidence-grammar: counterexample -->
+wrote for it. The store is local and gitignored — the main checkout's
+`.studious/build-evidence/`, worktree-shared so evidence written in a since-removed
+build worktree is still here — and it never enters the repo: the table this step
+assembles into the PR body is the durable record. **Ask the script which folder that
+is — never rebuild the path from its shape**:
+capture writes `.studious/build-evidence/<date>-<task>-<branch-slug>/`, so a path rebuilt to the pre-#258 shape `.studious/build-evidence/<date>-<task>/` matches nothing. <!-- evidence-grammar: counterexample -->
 
 ```
 scripts/evidence-capture resolve --repo <worktree> --branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" --task <task id>
@@ -63,7 +67,8 @@ capture stamped the manifest using `rev-parse --abbrev-ref HEAD`
 on a detached checkout the reader and the writer still name the branch the same
 thing — where `--show-current` prints an empty string that matches no manifest.
 
-It prints one folder path, repo-relative, on exit 0. That folder carries a
+It prints one folder path — absolute, since the store lives outside the tracked
+tree — on exit 0. That folder carries a
 `manifest.json` (`commit_sha`, `commit_timestamp`, `branch`, one entry per
 captured artifact) and the captured artifacts themselves — including the task's
 `verify:results` artifact, whose own JSON carries each item's `id`, `kind`,
@@ -71,18 +76,12 @@ captured artifact) and the captured artifacts themselves — including the task'
 to promote: say so on the row and never invent a link.
 
 **Freshness hold — run this before promoting anything.** Call
-`scripts/evidence-freshness --repo <worktree> --evidence <worktree>/<folder>`
+`scripts/evidence-freshness --repo <worktree> --evidence <folder>`
 once per evidence folder involved — each `<folder>` being a path `resolve`
-printed above, **joined onto `<worktree>/`** (repeat `--evidence` per folder,
-or one call covering all of them). The join is required and deliberately
-asymmetric with the other use of that same printed path below:
-`evidence-freshness` resolves `--evidence` against the process's own cwd and
-never joins its `--repo`, and no script in this repo may assume cwd is the
-worktree — so an unjoined path exits 2 with `no manifest.json found in
-'<path>'` and stops `/ship` before it assembles anything. The raw-URL
-construction in the image-evidence bullet below wants the bare repo-relative
-form instead, because that path is what the URL appends. Do not unify the
-two, and do not "fix" this by changing what `resolve` prints.
+printed above, passed **verbatim** (repeat `--evidence` per folder, or one
+call covering all of them). The printed path is absolute, so no join against
+`<worktree>` is needed or wanted — `evidence-freshness` resolves `--evidence`
+against the process's own cwd, which an absolute path ignores.
 `evidence-freshness` re-validates each folder against its own recorded
 `manifest.json` — never against the branch's current `HEAD`.
 Re-deriving freshness against current `HEAD` reproduces issue #44's bug
@@ -116,8 +115,13 @@ found for item N" — never silently omitted, never fabricated.
 
 **Assembling the table.** One row per item: item text (from `PLAN.md`'s own
 numbered `Done means` line) → verification method (the item's own tier —
-`script` / `test-backed` / `probe`) → evidence link → pass (the item's own
-`status` from `verify:results`, transcribed, never re-judged).
+`script` / `test-backed` / `probe`) → evidence (the row's own inline
+`<details>` block below — never a repository link, since the store is local
+and a `docs/`-path link would 404 for every reader) → pass (the item's own
+`status` from `verify:results`, transcribed, never re-judged). A
+load-bearing task's Inspector report is one more captured text artifact:
+quote it in that task's `<details>` block too, verdict line first — it is
+the `CONCERN` forwarding path `/build` step 2.6 promises.
 
 Two evidence shapes, two treatments:
 
@@ -129,17 +133,14 @@ Two evidence shapes, two treatments:
 - **Image evidence** (a `probe` item whose artifact is a screenshot or
   other binary) stays exactly where `evidence-capture` already put it —
   `<the folder resolve printed>/<label>.<ext>`, that path verbatim and
-  never one rebuilt by hand — and is referenced by
-  its raw URL: `https://raw.githubusercontent.com/<owner>/<repo>/<sha>/<path>`,
-  because `gh` cannot upload an image into a PR body. Resolve `<owner>/<repo>`
-  from the repo's own `origin` remote. Anchor `<sha>` to the commit current
-  at the moment this step assembles the table (`git -C <worktree> rev-parse
-  HEAD` — the same explicit `<worktree>` every other command in this step
-  takes) — a real, immutable commit SHA, never the branch name, which
-  floats and disappears once the branch is deleted. A squash-merged-then-
-  deleted branch can eventually make that raw URL a GC candidate — a known,
-  accepted trade-off of keeping evidence in place; don't try to close that
-  gap here.
+  never one rebuilt by hand. A local, gitignored store has no commit for a
+  raw URL to anchor to, so the table names the local path and says so:
+  `image evidence at <path> (local store — attach to the PR if a reviewer
+  needs it)`. Attaching is the human's drag-drop onto the PR body, the one
+  image-upload path GitHub actually offers; never fabricate a URL for a
+  file no remote holds, and never force-commit the artifact to mint one —
+  the local-only trade-off is deliberate, the same class of accepted gap
+  as the old raw-URL scheme's GC-after-branch-delete window.
 
 ## Step 2 — cctx footer
 
@@ -226,29 +227,36 @@ diff in by hand, or runs it through their own separate process. This is the
 same propose-only posture studious's own `/retro` reviewers already
 take toward these same three context docs.
 
-## Step 5 — Dated build report
+## Step 5 — Dated build report (only when no PR body will exist)
 
-Assemble a durable copy of what Steps 1–4 produced — the evidence table,
-the cctx footer (or its "not installed" note), which follow-ups were filed
-(with their new issue numbers) and which were skipped, and the proposed
-decision patches verbatim — into a single markdown file, then call
+**This step is conditional on Step 6's verdict, so resolve that first when the
+answer is already known, or come back to this step after Step 6 names it.** On
+the `PR` verdict, skip this step entirely: the PR body carries everything Steps
+1–4 produced, and a committed copy of the same content is the review noise this
+conditionality exists to remove — one record, in the place a reviewer reads.
+
+On `MERGE`, `KEEP`, or `DISCARD` — verdicts with no PR body — the report IS the
+durable record. Assemble what Steps 1–4 produced — the evidence table, the cctx
+footer (or its "not installed" note), which follow-ups were filed (with their
+new issue numbers) and which were skipped, and the proposed decision patches
+verbatim — into a single markdown file, then call
 `scripts/build-report --repo <worktree> --slug <story-slug> --content
 <path>` (optionally `--date`; defaults to today, UTC). This writes
 `docs/jig/reports/YYYY-MM-DD-<story-slug>-build-report.md` — same class and
-naming shape as studious's own dated review reports
-(`docs/studious/<kind>-reviews/YYYY-MM-DD-<kind>-review.md`), reusing an
-established convention rather than inventing a new report shape.
-`build-report` only performs the mechanical write; it never drafts,
-summarizes, or judges the content itself — that assembly is this step's own
-job, not the script's.
+naming shape as studious's own dated review reports. `build-report` only
+performs the mechanical write; it never drafts, summarizes, or judges the
+content itself — that assembly is this step's own job, not the script's.
 
 `build-report` does not commit its own write. Commit the new report file
 yourself, as its own commit, distinct from Step 6's cleanup commit below —
-same "scripts write, the session commits" division `evidence-capture`
-already established for `/build`.
+same "scripts write, the session commits" division this pipeline uses
+throughout.
 
-`docs/jig/evidence/` and `docs/jig/reports/` are never touched by Step 6's
-cleanup — both are kept post-merge; the files are small.
+Evidence needs no handling either way: the store is local and gitignored
+(`.studious/build-evidence/`), never committed, so there is nothing for Step
+6's cleanup to touch — the folders simply stay on the user's disk. Reports,
+when written, are kept post-merge; they are the only surviving copy for the
+three PR-less verdicts.
 
 ## Step 6 — Verdict + cleanup
 

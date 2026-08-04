@@ -309,13 +309,20 @@ class TestBuildSkillBody(unittest.TestCase):
         self.assertPhraseIn("Exit code 2 from `verify` is not a task FAIL")
         self.assertPhraseIn("does **not** count against the Failure routine's two-failure budget")
 
-    def test_evidence_directory_is_committed_before_status_flip(self) -> None:
-        # A real smoke-test run surfaced this gap: evidence-capture writes
-        # files but never commits them, so the *next* task's
-        # evidence-capture call refuses against the resulting dirty tree
-        # unless the Foreman commits the evidence directory itself first.
-        self.assertPhraseIn("Commit the evidence directory `evidence-capture` just wrote")
-        self.assertPhraseIn("Do this before calling `status-flip`, not after")
+    def test_no_evidence_commit_and_the_absence_is_stated(self) -> None:
+        # The store moved to the main checkout's gitignored .studious/build-evidence,
+        # so the old commit-the-evidence-dir step (a real smoke-test gap in its day:
+        # uncommitted evidence dirtied the tree and the next capture refused) has no
+        # tree to dirty. The skill must say the step is gone deliberately — a Foreman
+        # remembering the old flow would otherwise re-add the commit "to be safe" and
+        # put evidence back in the diff.
+        self.assertPhraseIn("No evidence commit exists any more, deliberately.")
+        self.assertPhraseIn("outside this worktree's tracked tree entirely")
+        self.assertPhraseIn('Do not `git add` the evidence folder to "preserve" it')
+        self.assertNotIn(
+            "Commit the evidence directory",
+            self.flat_body if hasattr(self, "flat_body") else self.body,
+        )
 
     def test_status_flip_pass_path_derives_token_from_results_only(self) -> None:
         self.assertPhraseIn("`status-flip` derives the `PASS` token itself from")
