@@ -20,7 +20,7 @@ findings kinds. There is still no general `events-list`/`events-get`, and
 `/next`'s own reconcile step is unchanged: reconciliation continues to trust
 the existing snapshot stores (`.studious/gates/`, `.studious/work/`,
 `.studious/epics/<slug>.json`, plus `.studious/evidence/`) exactly as before.
-`board-server` remains the intended reader of the transition kinds.
+The trail's readers today are `scripts/saves-ledger.py` (`/retro outcomes`) and any future operator surface — jacquardlabs/control-room's T1 names this taxonomy as its input. The board renderer that originally motivated the trail was removed as unused; the recorder outlived its first viewer by design.
 
 The two classes differ in exactly one way that matters, and it is a failure contract,
 not a schema:
@@ -206,6 +206,5 @@ equivalent per-*epic* rule, and this store adds none — an epic's events file, 
 - `workflows/epic-driver.js` — the findings ledger's writer (its story-level audit and
   acceptance compile prompts record findings and attestations) and its reader (the
   finale's closure lane and its attestation-based carry-forward).
-- Any future `board-server`/board-reading story that adds a read verb or reads the
-  transition kinds directly should update this doc's Scope section, not silently
-  extend it.
+- Any future reader of the transition kinds — a control-room stream adapter, a new
+  read verb — should update this doc's Scope section, not silently extend it.

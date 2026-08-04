@@ -10,14 +10,14 @@
 | Surface | Framework / tech | Entry point |
 |---------|------------------|-------------|
 | `plugin` | Claude Code plugin — Markdown commands, agents, skills + one hook | `.claude-plugin/plugin.json`; `commands/`, `agents/`, `skills/`, `hooks/` |
-| `board-ui` | Local, read-only web board over one epic's `/next` state — stdlib-only Python HTTP+SSE server, one self-contained HTML/CSS/JS document, no build step, no external requests | `bin/board-server EPIC_SLUG [--open]`; `assets/board-ui/` |
 
-Studious's primary surface is a Claude Code plugin: no build step, no runtime app, output
-is GitHub-flavored markdown that Claude Code renders in the terminal. `board-ui` is a
-narrow, opt-in exception — a local dev instrument (`GET /state`, `GET /events`, `GET /`;
-`reference/board-schema.md`) for watching one `/next` epic run live. It binds to
-`127.0.0.1` only, has no write endpoint, and reads only the same `.studious/epics/`
-files `gate-ledger` already writes durably — it does not turn Studious into a service.
+Studious's one surface is a Claude Code plugin: no build step, no runtime app, output
+is GitHub-flavored markdown that Claude Code renders in the terminal. A local web board
+(`board-ui`) briefly existed as a second surface and was removed unused; the epic
+transition trail it rendered (`.studious/epics/`, `reference/events-format.md`) remains
+the durable record, and a fleet-level operator surface is
+[jacquardlabs/control-room](https://github.com/jacquardlabs/control-room)'s charter,
+not this repo's.
 
 ## Semantic palette
 
