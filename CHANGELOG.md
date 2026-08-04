@@ -2,6 +2,29 @@
 
 <!-- version list -->
 
+## v3.2.0 (2026-08-04)
+
+### Bug Fixes
+
+- The CONCERN forward and the table's evidence column ride the PR body
+  ([#308](https://github.com/jacquardlabs/studious/pull/308),
+  [`0b79fef`](https://github.com/jacquardlabs/studious/commit/0b79fefc85cb1bb5634d21030a6c4329c6ea7c05))
+
+### Features
+
+- Evidence never enters the repo — the PR body is the record
+  ([#308](https://github.com/jacquardlabs/studious/pull/308),
+  [`0b79fef`](https://github.com/jacquardlabs/studious/commit/0b79fefc85cb1bb5634d21030a6c4329c6ea7c05))
+
+- Remove the board viewer — the recorder stays, control-room is the operator seat
+  ([#308](https://github.com/jacquardlabs/studious/pull/308),
+  [`0b79fef`](https://github.com/jacquardlabs/studious/commit/0b79fefc85cb1bb5634d21030a6c4329c6ea7c05))
+
+- Remove the board viewer — the recorder stays, control-room is the seat
+  ([#308](https://github.com/jacquardlabs/studious/pull/308),
+  [`0b79fef`](https://github.com/jacquardlabs/studious/commit/0b79fefc85cb1bb5634d21030a6c4329c6ea7c05))
+
+
 ## v3.1.0 (2026-08-04)
 
 ### Bug Fixes
