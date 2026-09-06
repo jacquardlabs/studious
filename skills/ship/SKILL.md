@@ -256,7 +256,7 @@ End this step by printing the proposed diff blocks. Do not call `Edit`,
 `DESIGN.md`, or `CLAUDE.md` in this step, under any branch of this flow, even
 after an explicit "yes." Propose; never apply — the human copies the diff in
 by hand or runs it through their own process. Same propose-only posture
-studious's `/retro` reviewers already take toward these three docs.
+studious's `/health` lanes already take toward these three docs.
 
 ## Step 5 — Dated build report (only when no PR body will exist)
 

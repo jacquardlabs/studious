@@ -34,7 +34,8 @@ milestone — the doors don't change. [Full definition below](#bets).
 | `/review` | Judge it — design, work, or delivery | review column · sprint review |
 | `/ship` | Deliver and close out | done · increment · small releases |
 | `/next [anything]` | The standup question, at any scale | standup · pull · hill chart |
-| `/retro [area]` | The periodic look-back | retrospective · kaizen · cool-down |
+| `/health [area]` | The periodic inspection | health check · standing review |
+| `/retro outcomes` | The periodic look-back | retrospective · kaizen · cool-down |
 
 Plus two you'll run rarely: `/setup` (first-time scaffolding) and `/studious:doctor`
 (install diagnostics — namespaced, because Claude Code ships its own `/doctor`).
@@ -249,7 +250,7 @@ Two directories, one committed and one not. Nothing else is written on your beha
 | Path | Committed | What's in it |
 |---|---|---|
 | `.studious/` | No — gitignored | The per-branch gate ledger (verdicts, episode rounds, the findings ledger), `/next`'s per-feature work files, approved epic plans and their appetite, routing telemetry, and the verification evidence a hook captures while a story is armed |
-| `docs/studious/` | Yes | `/retro` review reports, pre-mortem registers, dated build reports, and the decision journal |
+| `docs/studious/` | Yes | `/health` and `/retro` review reports, pre-mortem registers, dated build reports, and the decision journal |
 
 `.studious/` is flow state: local, disposable, and never in the diff — which is why the flow
 survives a session ending but not a fresh clone. `bin/gate-ledger status` prints what's
@@ -282,22 +283,24 @@ review.
 
 ## Keeping the project healthy
 
-Separate from the feature flow: `/retro` runs periodic reviews against main, not feature
-branches. Bare `/retro` dispatches the 7 health reviews in parallel and compiles a master
-summary — cross-referenced findings, a prioritized action plan, and proposed context-doc
-updates for your approval. Metrics are captured each run for trend tracking. The last two
-rows below are modes, not reviews: they run only when you name them.
+Separate from the feature flow, two doors run against main, not feature branches.
+`/health` inspects what the project *is*: bare `/health` dispatches gauntlet's 7 posture
+judges in parallel and compiles a master summary — cross-referenced findings, a
+prioritized action plan, and proposed context-doc updates for your approval. `/retro`
+looks back at how the cycle went; today it carries `outcomes`. Trend lives in your issue
+tracker, not in a report store — every run reports a baseline. The last two rows below are
+modes, not lanes: they run only when you name them.
 
 | Area | What it checks | Cadence |
 |------|----------------|---------|
-| `/retro codebase` | Architecture coherence, tech debt, dependencies, test gaps | Weekly or pre-milestone |
-| `/retro interface` | Cross-surface consistency, design drift, accessibility, interface code | Monthly or post-UI work |
-| `/retro architecture` | Module boundaries, complexity, evolution readiness | Quarterly |
-| `/retro product` | PRODUCT.md accuracy, persona drift, scope creep | Monthly |
-| `/retro security` | Whole-repo vulnerability posture, secrets in history, config posture | Monthly |
-| `/retro readme` | Stale claims, broken commands, voice drift | After a release |
-| `/retro prompts` | Trigger coverage, contract alignment, duplication, injection posture | Monthly |
-| `/retro backlog` | Open issues that are resolved, obsolete, or duplicated | After a review cycle |
+| `/health codebase` | Structural drift, debt, dead code, dependencies, test health | Weekly or pre-milestone |
+| `/health interface` | Cross-surface consistency, design drift, accessibility, interface code | Monthly or post-UI work |
+| `/health architecture` | Module boundaries, complexity, evolution readiness | Quarterly |
+| `/health product` | PRODUCT.md accuracy, persona drift, scope creep | Monthly |
+| `/health security` | Whole-repo vulnerability posture, secrets in history, config posture | Monthly |
+| `/health readme` | User-facing docs: stale claims, broken commands, voice drift | After a release |
+| `/health prompts` | Trigger coverage, contract alignment, duplication, injection posture | Monthly |
+| `/health backlog` | Open issues that are resolved, obsolete, or duplicated | After a review cycle |
 | `/retro outcomes` | Shipped merges graded against the fixes and reverts that followed | Quarterly |
 
 Every mode is recommend-only. It writes reports; it never writes code, closes an issue, or
@@ -310,9 +313,9 @@ Refresh one on its own with `/setup extract-product` or `/setup extract-design`.
 
 | Document | What it holds | Updated by |
 |----------|---------------|------------|
-| PRODUCT.md | Personas, principles, known problems, "not building" list | You + `/retro product` |
-| DESIGN.md | Interface conventions per surface — web UI, CLI, TUI, API, or report | You + `/retro interface` |
-| CLAUDE.md | Technical conventions, workflow reference | You + `/retro architecture` |
+| PRODUCT.md | Personas, principles, known problems, "not building" list | You + `/health product` |
+| DESIGN.md | Interface conventions per surface — web UI, CLI, TUI, API, or report | You + `/health interface` |
+| CLAUDE.md | Technical conventions, workflow reference | You + `/health architecture` |
 
 Reviews propose updates to these docs. They never apply them. If a doc goes stale, the
 reviews tell you. That's the point.
@@ -345,7 +348,7 @@ skips diffs over 40 changed files to bound the fan-out's cost.
   and tested, not a format convention.
 - [Superpowers](https://github.com/obra/superpowers) — an optional alternative to the
   built-in build loop. Any executor satisfying `reference/worker-contract.md` works.
-- GitHub Issues — `/bet` and `/retro backlog` read your tracker via the `gh` CLI.
+- GitHub Issues — `/bet` and `/health backlog` read your tracker via the `gh` CLI.
 
 ## Contributing
 

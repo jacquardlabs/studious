@@ -57,7 +57,7 @@ Evidence:
   after you build it"; periodic reviews "run against main, not feature branches"; a
   `PreToolUse` hook fires on `gh pr create` (`hooks/gate-reminder.sh`).
 - The backlog commands operate on GitHub Issues via the `gh` CLI
-  (`/bet`, `/retro`), so the user works in a GitHub repo.
+  (`/bet`, `/health backlog`), so the user works in a GitHub repo.
 - The whole system reads three context docs (PRODUCT.md, DESIGN.md, CLAUDE.md) the
   user maintains — a user who values durable, shared context over per-prompt
   re-explanation.
@@ -169,9 +169,9 @@ Traced from the commands and the README's two-rhythm description.
    walks that sequence one piece per invocation and never auto-advances. Each episode
    catches a specific failure; the user narrows or skips what the risk doesn't warrant.
 
-3. **Per-project health loop** — `/retro` dispatches the periodic review agents against main
-   in parallel, compiles a cross-referenced master summary with a prioritized action
-   plan, and proposes (never applies) updates to the context docs. `/retro backlog`
+3. **Per-project health loop** — `/health` dispatches gauntlet's posture judges against
+   main in parallel, compiles a cross-referenced master summary with a prioritized action
+   plan, and proposes (never applies) updates to the context docs. `/health backlog`
    then flags resolved/obsolete/duplicated issues against the cycle's fixes, and
    `/retro outcomes` grades what shipped against the fixes that followed.
 

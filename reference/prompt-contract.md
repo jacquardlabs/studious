@@ -1,7 +1,8 @@
 # Prompt contract — shared posture, scope, output, closer, and style
 
-Canonical source for the five blocks the fan-out doors (`commands/review.md`,
-`commands/retro.md`) read once and inject verbatim into every agent they dispatch.
+Canonical source for the five blocks the fan-out sites (`commands/review.md`,
+`reference/outcome-review-contract.md`) read once and inject verbatim into every agent
+they dispatch.
 
 The audit/review agents (`agents/*-auditor.md`, `agents/*-reviewer.md`,
 `agents/review-*.md`) get the five blocks inline in their dispatch prompt instead of

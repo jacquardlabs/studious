@@ -2,8 +2,8 @@
 
 Canonical three-tier severity ladder for `/review`, plus the label→tier mapping from each
 auditor's own vocabulary. `commands/review.md` cites this file instead of embedding the
-mapping table. The periodic review family (`commands/retro.md`, `agents/review-*.md`)
-already emits directly in this vocabulary and needs no mapping.
+mapping table. The periodic review family (`agents/review-*.md`) already emits directly
+in this vocabulary and needs no mapping.
 
 ## The three tiers
 
