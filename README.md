@@ -77,7 +77,9 @@ Then, in any project:
 
 This creates your context documents — PRODUCT.md and DESIGN.md, extracted from the codebase
 as it actually is — scaffolds the `docs/studious/` report directories, and wires the
-workflow into CLAUDE.md. Review PRODUCT.md first: the extraction is evidence-based, but your
+workflow into CLAUDE.md. If [exorcist](https://github.com/jacquardlabs/exorcist) is
+installed, it also offers to install the ward, so every executor builds under the same
+simplification rules the judges hold it to. Review PRODUCT.md first: the extraction is evidence-based, but your
 product principles and your "not building" list need your voice.
 
 Then stop reading and run one command:

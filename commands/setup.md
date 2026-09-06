@@ -165,6 +165,30 @@ Language conventions `code-auditor` enforces at `/review`. Document the rules an
 
 When writing the **Code conventions** block, detect the project's primary language(s) from the codebase and pre-fill sensible defaults plus the matching idiom linter — Ruff for Python, ESLint/Biome for JS/TS, golangci-lint for Go, Clippy for Rust, RuboCop for Ruby — then flag it for the user to refine.
 
+## Step 6b — Propose the exorcist ward
+
+[exorcist](https://github.com/jacquardlabs/exorcist)'s ward is a standing simplification
+stance — smallest change that satisfies the request, search before writing, no abstraction
+below two call sites, fix where a value enters — imported into CLAUDE.md as one `@` line.
+Every `/build` executor and every dispatched worker reads CLAUDE.md
+(`reference/worker-contract.md`, "Project conventions"), so the ward governs production
+from the first task with no further wiring, and `code-auditor` defers to CLAUDE.md
+conventions at `/review`, so the judge holds the same rules.
+
+Check whether exorcist is installed the way `/studious:doctor` checks for viva: look for
+`exorcist:ward` in this session's registered skill listing — never a file path.
+
+- **Not installed:** one line — "exorcist not installed — ward skipped; install with
+  `/plugin install exorcist@jacquardlabs-marketplace`, then run `/exorcist:ward`." — and
+  move to Step 7. Never an error, never a Critical: the ward is optional.
+- **Installed, CLAUDE.md already imports `@.claude/ward.md`:** note "ward already present"
+  and move on.
+- **Installed, not yet imported:** propose it — name the two writes (`.claude/ward.md`
+  copied from the plugin; a `## Ward` section with `@.claude/ward.md` appended to
+  CLAUDE.md) and the one-line why above — and run `/exorcist:ward` on the user's word in
+  this same invocation, the same propose-then-write posture as Step 5b. Declined: note the
+  choice; don't relitigate it.
+
 ## Step 7 — Summary
 
 Report what was created, what was populated, and what the user should review:
@@ -173,6 +197,7 @@ Report what was created, what was populated, and what the user should review:
 - README.md — created from scratch, or skipped because one already exists
 - CLAUDE.md — sections added
 - Review directories created
+- Ward — installed, already present, declined, or exorcist not installed
 
 Note that the plugin's PR-time gate reminder is already active (it ships with Studious as a `PreToolUse` hook — no per-project wiring needed) and fires a non-blocking confirmation when you run `gh pr create`. When `/review` and `/review --delivery` have recorded verdicts to the branch's ledger, the reminder names the specific gates that never ran, ran on a stale commit, or didn't pass.
 
