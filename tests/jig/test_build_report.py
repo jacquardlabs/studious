@@ -3,7 +3,7 @@
 Checks this story's acceptance criteria mechanically
 (the finish-skill story, Step 5):
 
-1. Happy path: writes `docs/jig/reports/YYYY-MM-DD-<slug>-build-report.md`
+1. Happy path: writes `docs/studious/build-reports/YYYY-MM-DD-<slug>-build-report.md`
    with the caller-supplied content copied in verbatim -- this script is a
    mechanical write, never a summarizer or judge of that content.
 2. `--date` defaults to today (UTC) when omitted.
@@ -40,7 +40,7 @@ class TestBuildReportHappyPath(unittest.TestCase):
             repo.mkdir()
             content = Path(tmp) / "body.md"
             content.write_text("# Build report\n\nSome assembled content.\n", encoding="utf-8")
-            reports_root = repo / "docs" / "jig" / "reports"
+            reports_root = repo / "docs" / "studious" / "build-reports"
 
             result = run_script(
                 ["--repo", str(repo), "--slug", "finish-skill", "--date", "2026-07-12", "--content", str(content)]
@@ -63,7 +63,7 @@ class TestBuildReportHappyPath(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             today = datetime.now(UTC).strftime("%Y-%m-%d")
-            expected = repo / "docs" / "jig" / "reports" / f"{today}-finish-skill-build-report.md"
+            expected = repo / "docs" / "studious" / "build-reports" / f"{today}-finish-skill-build-report.md"
             self.assertTrue(expected.is_file())
 
 
@@ -86,7 +86,7 @@ class TestBuildReportCollision(unittest.TestCase):
 
             third = run_script([*args, "--force"])
             self.assertEqual(third.returncode, 0, third.stderr)
-            report_path = repo / "docs" / "jig" / "reports" / "2026-07-12-finish-skill-build-report.md"
+            report_path = repo / "docs" / "studious" / "build-reports" / "2026-07-12-finish-skill-build-report.md"
             self.assertEqual(report_path.read_text(encoding="utf-8"), "second version\n")
 
 

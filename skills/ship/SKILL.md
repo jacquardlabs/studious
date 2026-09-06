@@ -300,8 +300,8 @@ new issue numbers) and which were skipped, and the proposed decision patches
 verbatim — into a single markdown file, then call
 `scripts/build-report --repo <worktree> --slug <story-slug> --content
 <path>` (optionally `--date`; defaults to today, UTC). This writes
-`docs/jig/reports/YYYY-MM-DD-<story-slug>-build-report.md` — same class and
-naming shape as studious's own dated review reports. `build-report` only
+`docs/studious/build-reports/YYYY-MM-DD-<story-slug>-build-report.md` — same
+class and naming shape as studious's own dated review reports. `build-report` only
 performs the mechanical write; it never drafts, summarizes, or judges the
 content itself — that assembly is this step's own job, not the script's.
 
@@ -335,7 +335,7 @@ default.
 
 Every verdict shares the same cleanup step *before* whichever git action
 happens: remove `docs/design/<story-slug>.md` and `PLAN.md` (and any
-scratch `docs/jig/demonstrations/` narrative, if used). A project that
+scratch `docs/design/demonstrations/` narrative, if used). A project that
 gitignores them the way this plugin does has nothing to commit — delete
 them from the worktree and say so. A project that tracks them needs a
 `git rm` commit whose message notes the promoted-elsewhere destination.
