@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v3.3.1 (2026-09-06)
+
+### Bug Fixes
+
+- Build-script exit-code gaps blocking clean unattended evidence (#208, #242)
+  ([#321](https://github.com/jacquardlabs/studious/pull/321),
+  [`ab5114f`](https://github.com/jacquardlabs/studious/commit/ab5114f78f80dc8b9f3d3bdfeb1314976e1582e5))
+
+- Verify resolves a cited test file to a runnable command instead of exit 126
+  ([#321](https://github.com/jacquardlabs/studious/pull/321),
+  [`ab5114f`](https://github.com/jacquardlabs/studious/commit/ab5114f78f80dc8b9f3d3bdfeb1314976e1582e5))
+
+### Documentation
+
+- Route evidence-capture's exit-2 refusal in /build, never a restated rm -rf
+  ([#321](https://github.com/jacquardlabs/studious/pull/321),
+  [`ab5114f`](https://github.com/jacquardlabs/studious/commit/ab5114f78f80dc8b9f3d3bdfeb1314976e1582e5))
+
+
 ## v3.3.0 (2026-09-06)
 
 ### Documentation
