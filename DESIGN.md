@@ -72,9 +72,10 @@ one you mean whenever both could be read — tracked as #174.
 ### Severity tiers
 
 Findings across audits and reviews sort into three tiers, named consistently everywhere:
-`Critical` · `Important` · `Track`. The canonical ladder and the per-auditor label→tier
-mapping (e.g. `VISUAL BUG`, `BUG`, `PERFORMANCE`, `CLEANUP`, `SUGGESTION`, `INCONSISTENCY`,
-`IMPROVEMENT`) live in `reference/severity-rubric.md`, cited by `commands/review.md`
+`Critical` · `Important` · `Track`. The judge lanes are gauntlet's and emit these tiers
+directly (its findings contract §5, #334); the canonical ladder, the one label→tier row
+studious still maps (the `web-design-guidelines` a11y path), and the pointer to gauntlet's
+per-judge anchors live in `reference/severity-rubric.md`, cited by `commands/review.md`
 rather than restated there. `deep-review` and the `review-*` agents already emit directly
 in this vocabulary and need no mapping.
 
@@ -161,8 +162,7 @@ documents the policy for the interface surface, it does not restate the per-agen
 
 1. ~~**Third severity tier is named two ways** — `Minor` in `gate-audit`, `Track` in
    `deep-review` and the review agents. Same concept, two labels.~~ Resolved: unified on
-   `Track` everywhere; the canonical ladder and per-auditor mapping now live in
-   `reference/severity-rubric.md`.
+   `Track` everywhere; the canonical ladder now lives in `reference/severity-rubric.md`.
 2. **No shared source for gate verdict vocabularies** — partially addressed: the canonical
    listing now lives in `reference/gate-vocabulary.md`, and `/next` cites it rather than
    restating token definitions. The three skill shims still restate their gate's tokens
