@@ -2,9 +2,9 @@
 
 Canonical source for how a round of returned auditor reports becomes one compiled audit report and verdict. Two callers apply these rules: `/review`'s own session (dispatches auditors and compiles in the same context) and `workflows/epic-driver.js`'s `auditFanIn()` (dispatches a fresh agent to compile reports it never saw generated). `commands/review.md` and `workflows/epic-driver.js` both cite this file instead of restating it.
 
-## Map severity before compiling
+## Tiers arrive canonical
 
-The auditors don't share a severity vocabulary — map each one's labels into the report's three tiers before compiling, per the canonical ladder and per-auditor mapping in `reference/severity-rubric.md`; consult it, don't restate it.
+Every judge lane returns a findings document whose `tier` is already `critical`, `important`, or `track` (gauntlet's `docs/findings-contract.md` §5), and gauntlet's `scripts/report.py` applies anchor-or-demote and taste-caps-at-track at ingest, naming each change it made — nothing is mapped here. The one lane outside that path is `/review`'s inline `web-design-guidelines` run (lane 8, skill installed), whose labels map through the a11y row in `reference/severity-rubric.md`. `auditFanIn()`'s roster is still the local `agents/` until #334 S2 — their labels and anchors go through that file's "Local roster" tables, per the driver's own `epicLedgerInstruction`. Either way, consult it, don't restate it.
 
 ## Four lane states
 
@@ -16,7 +16,7 @@ When this round was narrowed, every narrowing-tracked lane **not** in `.gates.au
 
 ### AGENT DIED
 
-A lane that *was* dispatched this round but returned no report is `AGENT DIED — no report; this lane is UNAUDITED`, and per the existing rule can never certify a PASS. Distinct from carried forward: misreading a died lane as carried forward launders a genuine gap into an unearned PASS; misreading a carried-forward lane as died forces needless re-auditing of a lane already cleared.
+A lane that *was* dispatched this round but left no findings document — or left one `report.py` rejected (unparseable after its one fence-unwrap, or failing the contract's validation) — is `AGENT DIED — no report; this lane is UNAUDITED`, and per the existing rule can never certify a PASS. An empty `findings` list beside a `coverage` line is a **clean lane, never died**: the contract requires `coverage` precisely so an empty list is distinguishable from a shallow run. Distinct from carried forward: misreading a died lane as carried forward launders a genuine gap into an unearned PASS; misreading a carried-forward lane as died forces needless re-auditing of a lane already cleared.
 
 ### Routed out
 
@@ -36,21 +36,23 @@ Confirm each citation against **the changeset diff established for this audit ro
 
 What "confirm" means differs by claim type:
 
-- **Code-content claims** — security-auditor, code-auditor, architecture-auditor, and frontend-reviewer's `BUG` findings assert something about what the code does or doesn't do at a cited file:line. Open the diff at that citation and check whether it supports the claim.
-- **Non-code claims** — ux-reviewer's `VISUAL BUG`, web-design-guidelines' and accessibility-auditor's blocking a11y failures, premortem-auditor's `BLOCKER (REALIZED)`, and product-reviewer's criteria-conformance `BLOCKER` cite a rendered surface, an accessibility property, a register item, or a stated acceptance criterion, not code content directly. You are pixel-blind: no browser, no accessibility tooling, so you can't re-render a page, measure contrast, or re-adjudicate whether a failure mode materialized. Confirm means the cited artifact resolves in the diff — the named component/markup/style rule is present and touched, or the register item's cited file:line evidence exists — and the finding is coherent against what the diff shows. It never means re-verifying the pixels, contrast ratio, or the register author's judgment call; that stays owned by the auditor that raised it.
+What a claim is follows from the shape of its `locus`, not from which lane raised it:
+
+- **Code-content claims** — `locus` carries `path` (and usually `line`): the finding asserts something about what the code does or doesn't do at that citation. Open the diff at that citation and check whether it supports the claim.
+- **Non-code claims** — `locus` carries `section` or `cell`, or the finding cites a rendered surface, an accessibility property, a register item, or a stated acceptance criterion rather than code content directly (the inline web-design-guidelines run's blocking a11y failures land here too). You are pixel-blind: no browser, no accessibility tooling, so you can't re-render a page, measure contrast, or re-adjudicate whether a failure mode materialized. Confirm means the cited artifact resolves in the diff — the named component/markup/style rule is present and touched, or the register item's cited evidence exists — and the finding is coherent against what the diff shows. It never means re-verifying the pixels, contrast ratio, or the register author's judgment call; that stays owned by the judge that raised it.
 
 Resolve each cited Critical to exactly one outcome:
 
 - **Confirmed** — the citation resolves against the diff (code-content: the code or its documented removal matches the claim; non-code: the cited artifact or register item resolves and the finding is coherent against it). Stays Critical.
-- **Downgraded** (code-content claims only — a `VISUAL BUG` or blocking a11y failure resolves only to Confirmed or Dropped, since downgrading needs rendering/tooling judgment you don't have) — the citation resolves to something real in the diff, but the diff supports a lower severity than claimed (e.g. a permission check was narrowed, not deleted). Moves to whichever tier (Important or Track) its actual severity warrants. Citation-integrity check only — downgrade because the diff doesn't back the claimed severity, never because it would score lower on your own taste, and never as a rewrite of the auditor's judgment.
+- **Downgraded** (code-content claims only — a non-code claim resolves only to Confirmed or Dropped, since downgrading needs rendering/tooling judgment you don't have) — the citation resolves to something real in the diff, but the diff supports a lower severity than claimed (e.g. a permission check was narrowed, not deleted). Moves to whichever tier (Important or Track) its actual severity warrants. Citation-integrity check only — downgrade because the diff doesn't back the claimed severity, never because it would score lower on your own taste, and never as a rewrite of the auditor's judgment.
 - **Dropped** — the citation doesn't resolve against the diff: wrong file, wrong line, a claim the diff doesn't support, or (non-code) a named component/style rule/register item not in the diff. Removed from the report entirely. Name every drop in the Summary section — auditor, claim, why it didn't confirm — so the reader sees a finding was filtered, not silently missing.
 
-Only a Critical that survives this challenge as Confirmed can drive **FIX AND RE-REVIEW** below. If every cited Critical is downgraded or dropped, the verdict reflects whatever remains in Important/Track, which does not by itself block a **PASS**. Applies to Critical findings only — Important and Track are reported as returned, unchallenged.
+Only a Critical that survives this challenge as Confirmed can drive **FIX AND RE-REVIEW** below. If every cited Critical is downgraded or dropped, the verdict reflects whatever remains in Important/Track, which does not by itself block a **PASS**. Applies to Critical findings only — Important and Track are reported as returned, unchallenged. This challenge runs on top of `report.py`'s ingest rules, not instead of them: ingest checks that an anchor is present (and, on a document, quoted); this step checks that the anchor is true against the diff.
 
 Then compile a unified audit report:
 
 ### Summary
-One line per lane dispatched this round: agent name, number of findings by severity, pass/fail. Also list any Critical finding downgraded or dropped by the challenge step above — one line each, naming the auditor, the claim, and why it didn't confirm. State plainly whether this round was narrowed or full and why — a first-ever round; a narrowed retry, naming how many tracked lanes ran and the sha it narrowed from; or a full retry, naming which of the narrowing conditions failed. When narrowed, list every carried-forward lane's PASS-status line from "Carried forward" above — a reader must see the quiet lanes weren't silently dropped, only not re-dispatched in full.
+One line per lane dispatched this round: judge name, number of findings by severity, pass/fail. Also list any Critical finding downgraded or dropped by the challenge step above — one line each, naming the auditor, the claim, and why it didn't confirm. State plainly whether this round was narrowed or full and why — a first-ever round; a narrowed retry, naming how many tracked lanes ran and the sha it narrowed from; or a full retry, naming which of the narrowing conditions failed. When narrowed, list every carried-forward lane's PASS-status line from "Carried forward" above — a reader must see the quiet lanes weren't silently dropped, only not re-dispatched in full.
 
 ### Critical findings (blocks merge)
 All findings confirmed critical by the challenge step above, grouped by file. If multiple auditors flag the same file, consolidate their findings together.

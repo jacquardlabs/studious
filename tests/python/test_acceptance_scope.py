@@ -1,9 +1,11 @@
 """Structural regression tests for the acceptance-scope story (issue #89).
 
-`commands/review.md` dispatched @agent-product-reviewer with no diff or design-doc
-path; the reviewer has no Bash, so it couldn't resolve either itself. The fix adds
-a Part 0 that resolves both up front and hands them, plus PRODUCT.md, into the
-dispatch. These tests lock that resolution without a live model.
+`commands/review.md` dispatched the product reviewer with no diff or design-doc
+path; the reviewer then had no Bash, so it couldn't resolve either itself. The fix
+added a Part 0 that resolves both up front and hands them, plus PRODUCT.md, into the
+dispatch. The lane is `gauntlet:product-reviewer` since #334 S1 (it has Bash now), but
+one resolved scope for every Part is still what keeps "this branch" one diff, so the
+pins stay. These tests lock that resolution without a live model.
 """
 
 from __future__ import annotations
@@ -22,14 +24,14 @@ def _text() -> str:
 
 
 def test_part_0_establishes_scope_before_dispatch() -> None:
-    """Part 0 precedes the Part 1 dispatch, and the shared-contract assembly step still exists."""
+    """Part 0 precedes the Part 1 dispatch, and the shared invocation-build step still exists."""
     text = _text()
     assert "## Part 0" in text, "the delivery episode has no Part 0 scope section"
     assert text.index("## Part 0") < text.index("## Part 1"), (
         "Part 0 must precede the Part 1 dispatch"
     )
-    assert "## Assemble the shared contract" in GATE_ACCEPTANCE.read_text(), (
-        "the shared-contract assembly step is gone entirely"
+    assert "## Build the invocations" in GATE_ACCEPTANCE.read_text(), (
+        "the shared invocation-build step is gone entirely"
     )
 
 
@@ -54,7 +56,7 @@ def test_dispatch_passes_explicit_scope_to_product_reviewer() -> None:
     """The product-review dispatch names the changeset, the doc, and PRODUCT.md."""
     text = _text()
     part1 = text[text.index("## Part 1"):text.index("## Part 2")]
-    assert "@agent-product-reviewer" in part1, "Part 1 does not dispatch the product-reviewer"
+    assert "gauntlet:product-reviewer" in part1, "Part 1 does not dispatch gauntlet's product-reviewer"
     assert "PRODUCT.md" in part1, "Part 1 dispatch does not name PRODUCT.md"
     assert "design-doc path" in part1, "Part 1 dispatch does not name the resolved design-doc path"
     assert "changeset file list" in part1, "Part 1 dispatch does not name the changeset file list"

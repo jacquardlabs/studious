@@ -59,10 +59,9 @@ BARE_CITATION_RE = re.compile(r"(?<!\$\{CLAUDE_PLUGIN_ROOT\}/)reference/prompt-c
 
 # The fan-out sites that dispatch contract agents and therefore own contract assembly.
 # `/retro`'s one remaining dispatch (`outcomes`) is stamped by the contract it follows,
-# not by the command file. `/health` is absent on purpose: gauntlet's judges inline
-# their own posture, so it stamps nothing (#334 S3).
+# not by the command file. `/health` and `/review` are absent on purpose: gauntlet's
+# judges inline their own posture, so neither stamps anything (#334 S3, S1).
 FANOUT_SITES = (
-    "commands/review.md",
     "reference/outcome-review-contract.md",
 )
 

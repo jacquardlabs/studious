@@ -37,12 +37,12 @@ def test_precompute_step_names_a_size_threshold() -> None:
 def test_precompute_step_stamps_under_a_named_heading() -> None:
     section = _precompute_section()
     assert "Precomputed changeset diff" in section, "precompute step doesn't name the heading auditors will see"
-    assert "Shared contract" in section, "precompute step doesn't say the diff rides alongside the Shared contract block"
+    assert "beside the invocation" in section, "precompute step doesn't say the diff rides beside the invocation, never inside it"
 
 
 def test_precompute_step_covers_full_changeset_auditors_only() -> None:
     section = _precompute_section()
-    assert re.search(r"1[–-]7 and 9[–-]12", section), (
+    assert re.search(r"1[–-]7, 9[–-]12, and 14", section), (
         "precompute step doesn't name which auditors receive the stamped diff"
     )
     # fix-delta cross-lane pass removed by #289 Task 4 (findings ledger's regression
@@ -50,14 +50,10 @@ def test_precompute_step_covers_full_changeset_auditors_only() -> None:
     assert not re.search(r"fix-delta", section, re.IGNORECASE), (
         "precompute step mentions the retired fix-delta cross-lane pass"
     )
-    # Lane 14 (criteria-conformance) excluded: its agent has no Bash, so the
-    # git-diff fallback is unusable for it.
-    assert re.search(r"criteria-conformance", section), (
-        "precompute step doesn't say why the criteria-conformance lane is excluded"
-    )
-    assert re.search(r"exclude", section, re.IGNORECASE), (
-        "precompute step doesn't explicitly exclude the criteria-conformance lane "
-        "from the stamped diff"
+    # Lane 14 used to be excluded because the local product-reviewer had no Bash;
+    # gauntlet's has, so the exclusion (and its reason) must stay gone (#334 S1).
+    assert not re.search(r"no Bash", section), (
+        "precompute step still carries the retired no-Bash exclusion for lane 14"
     )
 
 

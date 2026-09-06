@@ -1,7 +1,9 @@
 # Prompt contract — shared posture, scope, output, closer, and style
 
-Canonical source for the five blocks the fan-out sites (`commands/review.md`,
-`reference/outcome-review-contract.md`) read once and inject verbatim into every agent
+> `/review` no longer stamps this file (#334 S1 — its lanes are gauntlet judges, whose posture is inlined in each judge). `reference/outcome-review-contract.md` still injects it for the `/retro outcomes` dispatch, and `workflows/epic-driver.js` does until S2 lands.
+
+Canonical source for the five blocks the fan-out sites (`reference/outcome-review-contract.md`,
+and `commands/review.md` until #334 S1) read once and inject verbatim into every agent
 they dispatch.
 
 The audit/review agents (`agents/*-auditor.md`, `agents/*-reviewer.md`,
