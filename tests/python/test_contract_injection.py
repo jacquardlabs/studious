@@ -58,8 +58,9 @@ ANCHORED = "${CLAUDE_PLUGIN_ROOT}/" + CONTRACT
 BARE_CITATION_RE = re.compile(r"(?<!\$\{CLAUDE_PLUGIN_ROOT\}/)reference/prompt-contract\.md")
 
 # The commands that fan out to contract agents and therefore own contract assembly.
+# `review.md` left this tuple at #334 S1: its lanes are gauntlet judges, whose posture
+# is inlined in each judge file, so it stamps nothing; `retro.md` follows at S3.
 FANOUT_COMMANDS = (
-    "review.md",
     "retro.md",
 )
 

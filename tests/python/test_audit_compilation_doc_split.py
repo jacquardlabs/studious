@@ -20,7 +20,8 @@ AUDIT_COMPILATION = REPO_ROOT / "reference" / "audit-compilation.md"
 
 # A line lifted verbatim from the moved section; a second occurrence anywhere means
 # the rules were copied rather than relocated.
-DISTINCTIVE_MOVED_LINE = "map each one's labels into the report's three tiers"
+# (Was the severity-mapping sentence until #334 S1 retired label mapping.)
+DISTINCTIVE_MOVED_LINE = "Every auditor lane lands in exactly one of four states before compiling"
 
 # `check_references.py` only scans the first four of these — never `workflows/`, where
 # a drifted copy would actually live (premortem 2026-07-21-audit-doc-split-design.md

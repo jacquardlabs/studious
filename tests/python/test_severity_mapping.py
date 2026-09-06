@@ -1,9 +1,9 @@
-"""Regression tests for the ux-reviewer IMPROVEMENT -> tier fix (issue #91).
+"""Pins for `reference/severity-rubric.md` after fleet migration (#334 S1).
 
-`reference/severity-rubric.md` (canonical) and `agents/ux-reviewer.md` (restated for
-standalone runs outside `/review`) must agree: IMPROVEMENT matches the rubric's
-definition of Track, not Important, while INCONSISTENCY is a checkable DESIGN.md
-violation and stays Important in both.
+The judge lanes are gauntlet's and emit the three tiers directly, so the per-auditor
+label→tier table died. Exactly one mapped vocabulary survives: the `web-design-guidelines`
+skill's, on `/review`'s inline lane-8 path, which returns no findings document. These
+tests pin that row — and that no other row came back.
 """
 
 from __future__ import annotations
@@ -13,77 +13,51 @@ import re
 from run_gate_audit_fixtures import REPO_ROOT
 
 RUBRIC = REPO_ROOT / "reference" / "severity-rubric.md"
-UX_REVIEWER = REPO_ROOT / "agents" / "ux-reviewer.md"
+A11Y_ROW_RE = re.compile(r"^\|\s*web-design-guidelines \(a11y\)\s*\|.*$", re.MULTILINE)
 
 
-def _rubric_ux_reviewer_row() -> str:
+def _rows() -> list[list[str]]:
+    """Every table row's cells (first cell = lane name), header and rule rows excluded."""
+    rows = []
+    for line in RUBRIC.read_text().splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if cells[0] in {"Lane", "Auditor"} or set(cells[0]) <= {"-"}:
+            continue
+        rows.append(cells)
+    return rows
+
+
+def test_a11y_row_survives_with_its_tiers() -> None:
+    matches = A11Y_ROW_RE.findall(RUBRIC.read_text())
+    assert len(matches) == 2, (
+        f"expected the a11y row once in the label→tier table and once in the anchors "
+        f"table; found {len(matches)}"
+    )
+    cells = [cell.strip() for cell in matches[0].strip("|").split("|")]
+    # Lane | Critical | Important | Track
+    assert "blocking a11y failures" in cells[1]
+    assert "other a11y gaps" in cells[2]
+    assert "polish" in cells[3]
+
+
+def test_a11y_anchor_row_names_the_guideline_and_the_flow() -> None:
+    anchor = A11Y_ROW_RE.findall(RUBRIC.read_text())[1]
+    assert "named guideline" in anchor and "core flow" in anchor
+
+
+def test_no_per_auditor_mapping_row_remains() -> None:
+    """Judges emit tiers; a studious-side row per judge is the name-mapping drift #255
+    bans. Only the inline a11y lane, which emits no findings document, is mapped."""
+    lanes = {row[0] for row in _rows()}
+    assert lanes == {"web-design-guidelines (a11y)"}, (
+        f"severity-rubric.md maps lanes other than the inline a11y path: {sorted(lanes)}"
+    )
+
+
+def test_three_tiers_and_no_fourth() -> None:
     text = RUBRIC.read_text()
-    match = re.search(r"^\|\s*ux-reviewer\s*\|.*$", text, re.MULTILINE)
-    assert match, "severity-rubric.md has no ux-reviewer row"
-    return match.group(0)
-
-
-def _ux_reviewer_output_lines() -> str:
-    text = UX_REVIEWER.read_text()
-    match = re.search(
-        r"Severity labels and their mapped tiers:\n\n(.*?)\n\nThis agent",
-        text,
-        re.DOTALL,
-    )
-    assert match, "ux-reviewer.md has no 'Severity labels and their mapped tiers' block"
-    return match.group(1)
-
-
-def test_rubric_ux_reviewer_row_maps_improvement_to_track() -> None:
-    row = _rubric_ux_reviewer_row()
-    cells = [cell.strip() for cell in row.strip("|").split("|")]
-    # Auditor | Critical | Important | Track
-    assert cells[0] == "ux-reviewer"
-    assert "IMPROVEMENT" not in cells[2], (
-        f"severity-rubric.md still maps IMPROVEMENT into the Important cell: {row!r}"
-    )
-    assert "IMPROVEMENT" in cells[3], (
-        f"severity-rubric.md does not map IMPROVEMENT into the Track cell: {row!r}"
-    )
-
-
-def test_rubric_ux_reviewer_row_keeps_inconsistency_important() -> None:
-    row = _rubric_ux_reviewer_row()
-    cells = [cell.strip() for cell in row.strip("|").split("|")]
-    assert "INCONSISTENCY" in cells[2], (
-        f"severity-rubric.md no longer maps INCONSISTENCY to Important: {row!r}"
-    )
-
-
-def test_ux_reviewer_agent_maps_improvement_to_track() -> None:
-    block = _ux_reviewer_output_lines()
-    match = re.search(r"^- \*\*IMPROVEMENT → (\w+)\*\*", block, re.MULTILINE)
-    assert match, f"ux-reviewer.md has no IMPROVEMENT mapping line: {block!r}"
-    assert match.group(1) == "Track", (
-        f"ux-reviewer.md still maps IMPROVEMENT to {match.group(1)!r}, not Track"
-    )
-
-
-def test_ux_reviewer_agent_keeps_inconsistency_important() -> None:
-    block = _ux_reviewer_output_lines()
-    match = re.search(r"^- \*\*INCONSISTENCY → (\w+)\*\*", block, re.MULTILINE)
-    assert match, f"ux-reviewer.md has no INCONSISTENCY mapping line: {block!r}"
-    assert match.group(1) == "Important", (
-        f"ux-reviewer.md no longer maps INCONSISTENCY to Important: {match.group(1)!r}"
-    )
-
-
-def test_rubric_and_agent_agree_on_improvement_tier() -> None:
-    """The two load-bearing sites must never disagree at runtime."""
-    row = _rubric_ux_reviewer_row()
-    rubric_tier = "Track" if "IMPROVEMENT" in row.split("|")[4] else "Important"
-
-    block = _ux_reviewer_output_lines()
-    match = re.search(r"^- \*\*IMPROVEMENT → (\w+)\*\*", block, re.MULTILINE)
-    assert match
-    agent_tier = match.group(1)
-
-    assert rubric_tier == agent_tier == "Track", (
-        f"severity-rubric.md and ux-reviewer.md disagree on IMPROVEMENT's tier: "
-        f"rubric={rubric_tier!r} agent={agent_tier!r}"
-    )
+    for tier in ("**Critical**", "**Important**", "**Track**"):
+        assert tier in text
+    assert "Never introduce a fourth tier" in text

@@ -496,22 +496,26 @@ class GateAuditDoorTest(unittest.TestCase):
 
     # --- #293: a Critical is anchored to the rubric, never to its own label ---
 
-    def test_rubric_carries_an_anchors_table_with_the_downgrade_rule(self) -> None:
-        """`reference/severity-rubric.md` names, per lane, the objective fact
-        a Critical must cite, and what happens to one that cites nothing —
-        closing the LLM severity self-rating hole."""
+    def test_rubric_points_at_the_charter_anchors_with_the_downgrade_rule(self) -> None:
+        """`reference/severity-rubric.md` says where the objective fact a
+        Critical must cite is named — gauntlet's charter, per judge, since
+        #334 S1 — and what happens to one that cites nothing, closing the
+        LLM severity self-rating hole. The one anchor studious still states
+        itself is the inline a11y lane's."""
         rubric = (REPO_ROOT / "reference" / "severity-rubric.md").read_text(encoding="utf-8")
         self.assertIn("## Objective anchors", rubric)
         anchors = rubric[rubric.index("## Objective anchors"):]
         self.assertIn("is recorded Important", anchors)
-        for lane in (
-            "security-auditor", "code-auditor", "test-auditor",
-            "architecture-auditor", "premortem-auditor", "product-reviewer",
-        ):
-            self.assertRegex(
-                anchors, rf"(?m)^\| {lane}[^|]*\|[^|]+\|",
-                f"{lane} has no anchor row — a lane with no anchor cannot have "
-                "its Criticals checked against one",
+        self.assertIn("charter", anchors)
+        self.assertRegex(
+            anchors, r"(?m)^\| web-design-guidelines \(a11y\)[^|]*\|[^|]+\|",
+            "the inline a11y lane has no anchor row — the one lane that returns no "
+            "findings document cannot have its Criticals checked against gauntlet's charter",
+        )
+        for lane in ("security-auditor", "code-auditor", "product-reviewer"):
+            self.assertNotRegex(
+                anchors, rf"(?m)^\| {lane}",
+                f"{lane} has an anchor row here — gauntlet's charter owns it (#255 drift)",
             )
 
     def test_door_requires_the_anchor_and_downgrades_an_unanchored_critical(self) -> None:
@@ -528,11 +532,13 @@ class GateAuditDoorTest(unittest.TestCase):
 
     def test_criteria_conformance_lane_dispatches_product_reviewer(self) -> None:
         self.assertIn("criteria-conformance", self.door)
-        self.assertIn("@agent-product-reviewer", self.door)
+        self.assertIn("gauntlet:product-reviewer", self.door)
+        start = self.door.index("### Criteria conformance")
+        lane = self.door[start:self.door.index("### Compile", start)]
         self.assertIn(
-            "When reviewing an IMPLEMENTATION", self.door,
-            "the criteria lane must name product-reviewer's implementation "
-            "(acceptance) mode, not its design-review mode",
+            "`acceptance` mount", lane,
+            "the criteria lane must name product-reviewer's acceptance mount, "
+            "not its intake (design-review) mount",
         )
 
     def test_criteria_lane_is_narrowing_tracked(self) -> None:
@@ -542,13 +548,13 @@ class GateAuditDoorTest(unittest.TestCase):
         end = self.door.index("## Launch the lane profile")
         self.assertIn("product-reviewer", self.door[start:end])
 
-    def test_criteria_lane_has_a_severity_rubric_row(self) -> None:
+    def test_criteria_lane_tiers_arrive_canonical(self) -> None:
+        """Since #334 S1 the product lane emits the three tiers itself; a
+        label→tier row for it here would be the name-mapping drift #255 bans."""
         rubric = (REPO_ROOT / "reference" / "severity-rubric.md").read_text(encoding="utf-8")
-        self.assertRegex(
-            rubric, r"(?m)^\| product-reviewer[^|]*\| BLOCKER \| SHOULD FIX \| MINOR, OBSERVATION \|",
-            "reference/severity-rubric.md has no product-reviewer row — the "
-            "compile step cannot tier the criteria lane's findings without one",
-        )
+        self.assertNotRegex(rubric, r"(?m)^\| product-reviewer")
+        self.assertNotIn("BLOCKER", rubric)
+        self.assertIn("tiers arrive canonical", self.door)
 
     # --- vocabulary conformance (#289, Task 3): one retry token ---
 
