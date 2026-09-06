@@ -623,9 +623,9 @@ with the build proceeding to its verdict.
      exorcise's `@{upstream}...HEAD` scope is exactly this build, and unset
      it after (`git branch --unset-upstream`). Run `/exorcist:exorcise`
      with the intent above as its argument, in this worktree. Edit the
-     working tree only: never commit, never `git checkout --`, `git reset`,
-     or `git diff` for your own report. Return the report exorcise prints,
-     verbatim, and nothing else."*
+     working tree only: never commit, never `git checkout --` or `git
+     reset`. Return the report exorcise prints, verbatim, and nothing else —
+     not a review of your own."*
 
    Nothing else goes into the prompt — not `PLAN.md` in full, not any task's
    history, not this session's own conversation. The subagent runs
