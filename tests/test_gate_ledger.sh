@@ -2641,6 +2641,18 @@ check "the refused token left the recorded one untouched" "delivery-boundary" \
 check "the altitude rides through epic-reconcile to the driver" "delivery-boundary" \
   "$(cd "$dh" && "$LEDGER" epic-reconcile --slug altitude | jq -r '.epic.acceptanceAltitude')"
 
+# --- epic-story-set --merge-class (#312, decided at plan approval) ---
+( cd "$dh" && "$LEDGER" epic-story-set --epic altitude --slug s1 --title S1 ) >/dev/null
+check "a story with no recorded merge class carries none" "null" \
+  "$(jq -r '.stories.s1.mergeClass // "null"' "$dh/.studious/epics/altitude.json")"
+( cd "$dh" && "$LEDGER" epic-story-set --epic altitude --slug s1 --merge-class never-unattended ) >/dev/null
+check "--merge-class records the token" "never-unattended" \
+  "$(jq -r '.stories.s1.mergeClass' "$dh/.studious/epics/altitude.json")"
+check "an unrecognized merge-class token is refused before any write" "2" \
+  "$(cd "$dh" && "$LEDGER" epic-story-set --epic altitude --slug s1 --merge-class sometimes >/dev/null 2>&1; echo $?)"
+check "the refused token left the recorded one untouched" "never-unattended" \
+  "$(jq -r '.stories.s1.mergeClass' "$dh/.studious/epics/altitude.json")"
+
 # --- assignment-in-ledger (#295): work-assign ---
 di=$(sandbox)
 ( cd "$di" && "$LEDGER" work-assign --slug "asg-epic--s1" --phase design \
