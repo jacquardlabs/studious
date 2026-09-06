@@ -15,9 +15,10 @@ Run each check and classify the result:
 - **`jq` present** — run `command -v jq`. If it fails: **Critical** — "jq missing: `gate-ledger record` silently no-ops (see `bin/gate-ledger`'s own comment: 'Degrades silently when git or jq is unavailable') — no gate verdict, and no `/next` flow position, will ever be recorded."
 - **`gh` authenticated** — run `gh auth status`. If `gh` itself is missing, or the command exits non-zero: **Important** — "gh missing or unauthenticated: `/bet`, `/retro`, and the PR-time gate reminder's context all depend on it."
 - **`python3` present** — run `command -v python3`. If it fails: **Critical** — "python3 missing: every build script (`plan-lint`, `design-lint`, `verify`, `status-flip`, `evidence-capture`, `evidence-freshness`, `build-report`, `worktree-setup`) is a Python CLI, so `/build` cannot lint a plan and `/build` cannot verify a single task — it would report success off nothing but the executor's own claim."
-- **`viva` available** — the plugin manifest's only declared dependency. Check the way `skills/shape/SKILL.md` already reasons about it: look for the `viva` skill in this session's registered skill listing. If absent: **Critical** — "viva missing: `/shape` and `/build` both end in a human sign-off round they cannot run, so neither completes."
+- **`viva` available** — a declared dependency of the plugin manifest. Check the way `skills/shape/SKILL.md` already reasons about it: look for the `viva` skill in this session's registered skill listing. If absent: **Critical** — "viva missing: `/shape` and `/build` both end in a human sign-off round they cannot run, so neither completes."
+- **`gauntlet` available** — the manifest's other declared dependency. Same check: look for the `gauntlet:review` skill in this session's registered skill listing. If absent: **Critical** — "gauntlet missing: every `/health` lane dispatches a `gauntlet:*` posture judge (`commands/health.md`'s area table), so the sweep and every single-area run fail at dispatch and produce no report."
 
-Report each check as **OK** when it succeeds. The first three are gate-side tools, the last two build-side.
+Report each check as **OK** when it succeeds. The first three are gate-side tools, the last three build- and inspection-side.
 
 ## 2. Plugin health
 

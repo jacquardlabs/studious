@@ -67,8 +67,9 @@ Via the Jacquard Labs marketplace:
 /plugin install studious@jacquardlabs-marketplace
 ```
 
-That also installs [viva](https://github.com/jacquardlabs/viva), a declared dependency:
-`/shape` and `/build` drive it for their human sign-off rounds.
+That also installs the two declared dependencies: [viva](https://github.com/jacquardlabs/viva),
+which `/shape` and `/build` drive for their human sign-off rounds, and
+[gauntlet](https://github.com/jacquardlabs/gauntlet), whose posture judges `/health` dispatches.
 
 Then, in any project:
 
@@ -268,7 +269,7 @@ working documents for one branch, not project records.
 Studious degrades quietly by design — a missing tool or an unregistered agent drops a lane
 without erroring. `/studious:doctor` is the read-only pass that surfaces it, in five checks:
 
-1. **Tooling** — `git`, `jq`, `gh`, `python3`, `viva`. Missing `jq` is the quiet one:
+1. **Tooling** — `git`, `jq`, `gh`, `python3`, `viva`, `gauntlet`. Missing `jq` is the quiet one:
    `gate-ledger record` no-ops, so no verdict and no flow position is ever written.
 2. **Plugin health** — whether every agent and skill Studious ships actually registered this
    session. Malformed frontmatter drops a `/review` lane without an error.
@@ -346,6 +347,9 @@ skips diffs over 40 changed files to bound the fan-out's cost.
   automatically. `/shape` and `/build` drive it for their sign-off rounds, through viva's
   published headless contract. It stays a separate repo because that contract is versioned
   and tested, not a format convention.
+- [gauntlet](https://github.com/jacquardlabs/gauntlet) — a declared dependency, installed
+  automatically. `/health` dispatches its seven posture judges and renders their findings
+  through gauntlet's published findings contract — separate under the same criterion.
 - [Superpowers](https://github.com/obra/superpowers) — an optional alternative to the
   built-in build loop. Any executor satisfying `reference/worker-contract.md` works.
 - GitHub Issues — `/bet` and `/health backlog` read your tracker via the `gh` CLI.

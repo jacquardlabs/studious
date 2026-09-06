@@ -95,8 +95,8 @@ Decision records: `docs/initiative-altitude.md` (2026-07-07) — the brigade rep
 jig was absorbed into this plugin (#150), not added beside it. `/shape`, `/build`,
 `/build`, `/ship`, and `/next` are `skills/` here like any other; their Python lives
 in `scripts/`, their unittest suite in `tests/jig/`. One manifest, one version line, one
-install. The manifest declares `dependencies: ["viva"]` — `/build` and `/shape` stop dead
-without it.
+install. The manifest declares `dependencies: ["viva", "gauntlet"]` — `/build` and `/shape`
+stop dead without viva; `/health` dispatches nothing without gauntlet.
 
 Two plugins was considered and rejected: separate installability served an audience of
 zero while costing two version lines, two release paths, a `git-subdir` marketplace

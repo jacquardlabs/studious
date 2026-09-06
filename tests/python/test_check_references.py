@@ -147,6 +147,23 @@ def test_a_declared_dependencys_skill_is_not_a_broken_reference() -> None:
     assert "web-design-guidelines" in EXTERNAL_SKILLS
 
 
+def test_every_namespaced_judge_health_dispatches_is_a_declared_dependency() -> None:
+    """`/health` dispatches `gauntlet:<judge>` subagents that ship in another plugin.
+    A `subagent_type` prefix the manifest does not declare is a lane that fails at
+    dispatch on a fresh install, and `check_references.py` cannot see it (its regexes
+    match the `@agent-` form only). Derived from the area table and the manifest, so
+    the assertion moves with both."""
+    import re
+
+    from check_references import REPO, _declared_dependencies
+
+    table_cells = re.findall(r"\| `([a-z0-9-]+):([a-z0-9-]+)` \|", (REPO / "commands" / "health.md").read_text(encoding="utf-8"))
+    assert table_cells, "commands/health.md's area table names no namespaced judge"
+    allowed = {"studious"} | _declared_dependencies()
+    undeclared = sorted({prefix for prefix, _ in table_cells} - allowed)
+    assert not undeclared, f"/health dispatches {undeclared} but plugin.json does not declare them"
+
+
 def test_an_undeclared_external_skill_is_still_broken(tmp_path: Path) -> None:
     """The exemption is scoped to declared dependencies — a typo or an undeclared
     plugin's skill must still fail."""

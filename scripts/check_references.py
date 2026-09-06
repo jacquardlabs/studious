@@ -76,7 +76,7 @@ def _declared_dependencies() -> set[str]:
 # Skills referenced by name but legitimately shipped elsewhere, not in this repo.
 # `web-design-guidelines` ships with Claude Code itself; the rest come from the
 # manifest's declared dependencies (`viva`, which /shape, /build, and the doctor's
-# tooling check all name).
+# tooling check all name; `gauntlet`, whose posture judges /health dispatches).
 EXTERNAL_SKILLS = {"web-design-guidelines"} | _declared_dependencies()
 
 
