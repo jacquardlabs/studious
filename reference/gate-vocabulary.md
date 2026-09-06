@@ -86,5 +86,9 @@ Update this table first when a gate's tokens change, then update these consumers
   reacts to every token to decide the next phase.
 - `reference/epic-orchestration.md`'s driver — advances on proceed tokens, bounds retries on
   fix-and-retry tokens, and parks the story on stop/rethink tokens.
+- `skills/shape/SKILL.md`'s Step 7 — convenes the design episode itself and reports its
+  own verdict alongside the design gate's three tokens verbatim.
+- `skills/build/SKILL.md`'s Step 4 — convenes the work episode itself and reports its own
+  verdict alongside the audit gate's three tokens verbatim.
 - `DESIGN.md`'s "Gate verdict vocabularies" table — documents this same mapping for readers of
   the interface contract; keep it a mirror of this file, not an independent listing.

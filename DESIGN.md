@@ -37,8 +37,8 @@ language and must report the same tokens.
 | Episode | Command | Verdict tokens (canonical) | Source of truth | Consumers |
 |---------|---------|----------------------------|-----------------|-----------|
 | bet | `gate-should-we-build` | `BUILD` · `BUILD SMALLER` · `DEFER` · `DON'T BUILD` | `commands/bet.md` | `/next` |
-| design | `gate-design-review` | `PROCEED TO PLAN` · `REVISE` · `RETHINK` | `commands/review.md` | `/next` |
-| work | `gate-audit` | `PASS` · `FIX AND RE-REVIEW` · `NEEDS DISCUSSION` | `commands/review.md` | `/next` |
+| design | `gate-design-review` | `PROCEED TO PLAN` · `REVISE` · `RETHINK` | `commands/review.md` | `/next` · `/shape` (convenes) |
+| work | `gate-audit` | `PASS` · `FIX AND RE-REVIEW` · `NEEDS DISCUSSION` | `commands/review.md` | `/next` · `/build` (convenes) |
 | delivery | `gate-acceptance` | `SHIP` · `FIX AND RE-REVIEW` · `HOLD` | `commands/review.md` | `/next` |
 
 Each vocabulary is three or four tokens: one "proceed," one "fix and retry," and (most)
