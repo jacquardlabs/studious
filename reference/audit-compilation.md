@@ -4,7 +4,7 @@ Canonical source for how a round of returned auditor reports becomes one compile
 
 ## Tiers arrive canonical
 
-Every judge lane returns a findings document whose `tier` is already `critical`, `important`, or `track` (gauntlet's `docs/findings-contract.md` §5), and gauntlet's `scripts/report.py` applies anchor-or-demote and taste-caps-at-track at ingest, naming each change it made — nothing is mapped here. The one lane outside that path is `/review`'s inline `web-design-guidelines` run (lane 8, skill installed), whose labels map through the a11y row in `reference/severity-rubric.md`; consult it, don't restate it.
+Every judge lane returns a findings document whose `tier` is already `critical`, `important`, or `track` (gauntlet's `docs/findings-contract.md` §5), and gauntlet's `scripts/report.py` applies anchor-or-demote and taste-caps-at-track at ingest, naming each change it made — nothing is mapped here. The one lane outside that path is `/review`'s inline `web-design-guidelines` run (lane 8, skill installed), whose labels map through the a11y row in `reference/severity-rubric.md`. `auditFanIn()`'s roster is still the local `agents/` until #334 S2 — their labels and anchors go through that file's "Local roster" tables, per the driver's own `epicLedgerInstruction`. Either way, consult it, don't restate it.
 
 ## Four lane states
 

@@ -504,7 +504,9 @@ class GateAuditDoorTest(unittest.TestCase):
         itself is the inline a11y lane's."""
         rubric = (REPO_ROOT / "reference" / "severity-rubric.md").read_text(encoding="utf-8")
         self.assertIn("## Objective anchors", rubric)
-        anchors = rubric[rubric.index("## Objective anchors"):]
+        # The trailing "Local roster" section is the epic driver's, not /review's
+        # (test_severity_mapping.py pins it); the charter pointer governs everything before it.
+        anchors = rubric[rubric.index("## Objective anchors"):rubric.index("## Local roster")]
         self.assertIn("is recorded Important", anchors)
         self.assertIn("charter", anchors)
         self.assertRegex(
@@ -552,8 +554,9 @@ class GateAuditDoorTest(unittest.TestCase):
         """Since #334 S1 the product lane emits the three tiers itself; a
         label→tier row for it here would be the name-mapping drift #255 bans."""
         rubric = (REPO_ROOT / "reference" / "severity-rubric.md").read_text(encoding="utf-8")
-        self.assertNotRegex(rubric, r"(?m)^\| product-reviewer")
-        self.assertNotIn("BLOCKER", rubric)
+        review_prefix = rubric[:rubric.index("## Local roster")]
+        self.assertNotRegex(review_prefix, r"(?m)^\| product-reviewer")
+        self.assertNotIn("BLOCKER", review_prefix)
         self.assertIn("tiers arrive canonical", self.door)
 
     # --- vocabulary conformance (#289, Task 3): one retry token ---

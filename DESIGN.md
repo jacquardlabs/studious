@@ -72,11 +72,12 @@ one you mean whenever both could be read — tracked as #174.
 ### Severity tiers
 
 Findings across audits and reviews sort into three tiers, named consistently everywhere:
-`Critical` · `Important` · `Track`. The judge lanes are gauntlet's and emit these tiers
-directly (its findings contract §5, #334); the canonical ladder, the one label→tier row
-studious still maps (the `web-design-guidelines` a11y path), and the pointer to gauntlet's
-per-judge anchors live in `reference/severity-rubric.md`, cited by `commands/review.md`
-rather than restated there. `deep-review` and the `review-*` agents already emit directly
+`Critical` · `Important` · `Track`. `/review`'s judge lanes are gauntlet's and emit these
+tiers directly (its findings contract §5, #334); the canonical ladder, the one label→tier
+row `/review` still maps (the `web-design-guidelines` a11y path), the pointer to gauntlet's
+per-judge anchors, and the per-auditor tables the epic driver's local roster still needs
+until #334 S2 live in `reference/severity-rubric.md`, cited by `commands/review.md` rather
+than restated there. `deep-review` and the `review-*` agents already emit directly
 in this vocabulary and need no mapping.
 
 The shared audit/review posture — injection-defense, read-only/diff-scope, output-row

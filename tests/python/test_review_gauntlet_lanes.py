@@ -73,6 +73,19 @@ def test_design_and_delivery_verdicts_read_tier_and_dimension() -> None:
     assert "BLOCKER" not in delivery and "SHOULD FIX" not in delivery
 
 
+def test_round_two_ledger_instruction_speaks_the_findings_document() -> None:
+    """A judge's whole reply is one findings document (contract §4), so the round-2
+    instruction cannot ask for a per-line verdict or an OBSERVATION: still-standing lines
+    return as findings, resolved ones are named in `coverage`, and a suppressed finding that
+    changed comes back at `track` — each carrying the fingerprint the ledger step matches on."""
+    text = _door()
+    block = text[text.index("Findings ledger for this episode"):text.index("The delivery episode records")]
+    assert "OBSERVATION" not in block and "still stands" not in block
+    assert "`coverage`" in block and "`track`" in block and "fingerprint token" in block
+    ledger = text[text.index("On round 2, update round 1's records"):text.index("- fixed — re-record")]
+    assert "`coverage`" in ledger, "the ledger step does not say how closed vs open is read off the document"
+
+
 def test_no_bash_workarounds_are_gone() -> None:
     assert "no Bash" not in _door(), "a product-reviewer no-Bash workaround survived; gauntlet's judge has Bash"
 
