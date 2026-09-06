@@ -549,6 +549,18 @@ def test_merge_throw_parks_that_story_blocked_and_sibling_lands() -> None:
     assert result["total"] == 2
 
 
+def _one_story_acceptance_epic() -> dict:
+    return {
+        "slug": "epx",
+        "title": "Test epic",
+        "goal": "prove the acceptance fan-out",
+        "concurrency": 1,
+        "stories": {
+            "a": {"title": "Story A", "criteria": "a criteria", "gates": ["acceptance"]},
+        },
+    }
+
+
 def _one_story_epic_ready_for_finale() -> dict:
     return {
         "slug": "epx",

@@ -10,7 +10,9 @@ that procedure and is never imported by any script or skill -- it exists
 only so a test can demonstrate, mechanically, that the *algorithm the
 prose describes* is well-defined and produces the right partition for a
 plan shaped like the story's own required demonstration (one task another
-task's `Rests on:` line names, one leaf).
+task's `Rests on:` line names, one leaf). Task splitting itself (post-#206)
+is shared with `scripts/plan-lint` via `_planparse`, not independently
+derived here -- only the load-bearing rule is this module's own.
 
 Not a test module -- nothing here is collected by `unittest discover`,
 matching the `_vocabulary.py` / `_tempgit.py` "shared, not itself
@@ -64,14 +66,6 @@ def _load_planparse():
 _planparse = _load_planparse()
 
 
-def _task_blocks(plan_text: str) -> list[tuple[str, str, str]]:
-    """Split `plan_text` into `(label, title, block_text)` triples, one per
-    task heading, in document order -- the shared grammar's split, so this
-    reference and `plan-lint` cannot disagree on where a task begins, what
-    counts as one, or where it ends."""
-    return _planparse.split_tasks_with_titles(plan_text)
-
-
 def _is_number_match(rests_on_text: str, label: str) -> bool:
     """Step 1.5's first alternative: the `Rests on:` line names the
     dependency by its heading number, e.g. the literal text "Task 2"."""
@@ -98,7 +92,10 @@ def derive_load_bearing_set(plan_text: str) -> frozenset[str]:
     match paths, either of which is sufficient. A task never contributes
     its own label to its own load-bearing status -- only another task's
     `Rests on:` line counts."""
-    blocks = _task_blocks(plan_text)
+    # Task splitting is shared with plan-lint, not independently derived: this
+    # reference and plan-lint cannot disagree on where a task begins, what
+    # counts as one, or where it ends.
+    blocks = _planparse.split_tasks_with_titles(plan_text)
     title_counts = Counter(title.casefold() for _, title, _ in blocks if title)
     load_bearing: set[str] = set()
     for label, _title, block in blocks:

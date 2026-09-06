@@ -45,10 +45,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import main_checkout_root as repo_root
 
 #: Verdict tokens per `reference/gate-vocabulary.md`. A save is `gate-confirmed`
 #: when a fix-and-retry token was recorded at or after the finding was raised and
@@ -79,36 +81,6 @@ class Save:
     @property
     def gate_confirmed(self) -> bool:
         return bool(self.retry_verdict and self.proceed_verdict)
-
-
-def git_output(start: Path, *args: str) -> str:
-    """One `git -C <start> ...` invocation's stdout, empty on any failure."""
-    try:
-        out = subprocess.run(
-            ["git", "-C", str(start), *args], capture_output=True, text=True, check=False
-        )
-    except OSError:
-        return ""
-    return out.stdout.strip() if out.returncode == 0 else ""
-
-
-def repo_root(start: Path) -> Path:
-    """The MAIN working tree containing `start`, or `start` itself outside a repo.
-
-    Mirrors `bin/gate-ledger`'s own `repo_root()`, which is the store's owner:
-    it resolves `--git-common-dir`, not `--show-toplevel`, so an agent running in
-    a linked worktree reads the one `.studious/` every store is anchored to. A
-    `--show-toplevel` here would render `0 save(s)` from inside a story worktree —
-    silently, in exactly the run that produces the most saves.
-    """
-    common = git_output(start, "rev-parse", "--git-common-dir")
-    if not common:
-        return start
-    resolved = (start / common).resolve() if not Path(common).is_absolute() else Path(common)
-    if resolved.name == ".git":
-        return resolved.parent
-    toplevel = git_output(start, "rev-parse", "--show-toplevel")
-    return Path(toplevel) if toplevel else start
 
 
 def read_records(path: Path) -> list[dict]:

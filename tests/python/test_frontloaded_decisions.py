@@ -21,29 +21,12 @@ import json
 import subprocess
 from pathlib import Path
 
+from test_driver_crash_hardening import _extract_function
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 WORK_THROUGH = REPO_ROOT / "reference" / "epic-orchestration.md"
 DESIGN_SKILL = REPO_ROOT / "skills" / "shape" / "SKILL.md"
-
-
-def _extract_function(source: str, name: str) -> str:
-    """Extract a top-level ``function <name>(...) { ... }`` declaration verbatim."""
-    marker = f"function {name}("
-    start = source.index(marker)
-    brace_open = source.index("{", start)
-    depth = 0
-    i = brace_open
-    while True:
-        ch = source[i]
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                break
-        i += 1
-    return source[start : i + 1]
 
 
 def _run_ctx(story_fields: dict) -> str:

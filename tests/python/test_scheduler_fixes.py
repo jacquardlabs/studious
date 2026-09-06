@@ -32,8 +32,9 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 from pathlib import Path
+
+from test_driver_crash_hardening import _extract_function, _run_node
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
@@ -61,38 +62,6 @@ EPIC_STORY_SET_BARE_SLUG_COUNT = 4
 # parkedThisRun push for a story whose dep names no story in the plan
 # (UNKNOWN DEP) — bumping this from 9 to 11.
 DISPLAY_WORK_SLUG_COUNT = 11
-
-
-def _extract_function(source: str, name: str) -> str:
-    """Extract a top-level ``function <name>(...) { ... }`` declaration verbatim.
-
-    Balanced-brace scan from the function's own opening brace. Every ``${...}``
-    interpolation inside the driver's template literals is individually balanced
-    (a bare identifier, never a literal ``{``/``}``), so counting braces
-    character-by-character finds the true closing brace correctly. Mirrors
-    `test_contract_injection.py`'s helper of the same name and behavior.
-    """
-    marker = f"function {name}("
-    start = source.index(marker)
-    brace_open = source.index("{", start)
-    depth = 0
-    i = brace_open
-    while True:
-        ch = source[i]
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                break
-        i += 1
-    return source[start : i + 1]
-
-
-def _run_node(script: str) -> dict:
-    proc = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30)
-    assert proc.returncode == 0, f"node probe crashed: {proc.stderr}"
-    return json.loads(proc.stdout)
 
 
 def _work_slug_probe(epic_slug: str, story: str) -> str:

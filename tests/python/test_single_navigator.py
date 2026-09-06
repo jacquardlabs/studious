@@ -28,9 +28,10 @@ import re
 import subprocess
 from pathlib import Path
 
+import check_gate_independence as gi
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-CHARTER = REPO_ROOT / "reference" / "personas.md"
 NEXT = REPO_ROOT / "commands" / "next.md"
 EPIC = REPO_ROOT / "reference" / "epic-orchestration.md"
 README = REPO_ROOT / "README.md"
@@ -42,22 +43,14 @@ SKILLS = REPO_ROOT / "skills"
 RETIRED = ("work-on.md", "work-through.md", "coach.md")
 RETIRED_SKILLS = ("coach", "continue-feature-work", "run-the-milestone")
 
-#: One row of the charter's Doors table.
-DOOR_ROW = re.compile(
-    r"^\|\s*`/(?P<door>[a-z][a-z-]*)`\s*\|[^|]*\|\s*(?P<cls>\w+)\s*\|", re.MULTILINE
-)
-
-
-def doors() -> list[tuple[str, str]]:
-    rows = DOOR_ROW.findall(CHARTER.read_text(encoding="utf-8"))
-    assert rows, "reference/personas.md parsed to zero doors"
-    return rows
+def doors() -> list[dict]:
+    return gi.doors()
 
 
 def test_the_charter_declares_exactly_one_navigator() -> None:
     """The charter is the authority the CI check and the docs both derive from. Two
     navigator rows here would mean the collapse never happened."""
-    navigators = [door for door, cls in doors() if cls == "navigator"]
+    navigators = [d["door"] for d in doors() if d["cls"] == "navigator"]
     assert navigators == ["next"], f"expected exactly one navigator door, got {navigators}"
 
 
@@ -133,3 +126,22 @@ def test_the_readme_sends_a_reader_to_one_door() -> None:
     assert "`/next` is the only door you have to remember" in text
     for name in ("/work-on", "/work-through", "/coach"):
         assert name not in text, f"README still names the retired door {name}"
+
+
+#: Shipped executables that talk about the driver's own error paths in prose —
+#: worth a retired-door check too, not just the README a person reads. Found by
+#: /exorcist:seance G-20: workflows/epic-driver.js named `/work-through` in a
+#: thrown error message years after the collapse.
+OTHER_SHIPPED_PROSE = (
+    REPO_ROOT / "workflows" / "epic-driver.js",
+    REPO_ROOT / "scripts" / "build-report",
+    REPO_ROOT / "scripts" / "evidence-capture",
+    REPO_ROOT / "scripts" / "evidence-freshness",
+)
+
+
+def test_no_other_shipped_prose_names_a_retired_navigator() -> None:
+    for path in OTHER_SHIPPED_PROSE:
+        text = path.read_text(encoding="utf-8")
+        for name in ("/work-on", "/work-through", "/coach"):
+            assert name not in text, f"{path.relative_to(REPO_ROOT)} still names the retired door {name}"

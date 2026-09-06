@@ -25,6 +25,9 @@ import sys
 import tempfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import run as _gitutil_run
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures"
 
@@ -209,10 +212,7 @@ def _copy_tree_overlay(src: Path, dst: Path) -> None:
 
 
 def _run_git(repo: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", *args], cwd=repo, capture_output=True, text=True, check=True
-    )
-    return result.stdout.strip()
+    return _gitutil_run(["git", *args], cwd=repo, check=True).stdout.strip()
 
 
 def setup_fixture_repo(
@@ -372,12 +372,6 @@ def main(argv: list[str] | None = None) -> int:
         help="Fixture directory name to run (repeatable). Default: all fixtures.",
     )
     parser.add_argument(
-        "--skip-claude",
-        action="store_true",
-        help="Build each fixture repo and print its diff without invoking claude. "
-        "Useful for verifying fixture git setup locally without a live model.",
-    )
-    parser.add_argument(
         "--artifacts-dir",
         type=Path,
         default=None,
@@ -401,13 +395,6 @@ def main(argv: list[str] | None = None) -> int:
 
         with tempfile.TemporaryDirectory(prefix=f"gate-audit-fixture-{name}-") as tmp:
             repo = setup_fixture_repo(fixture_dir, Path(tmp))
-
-            if args.skip_claude:
-                diff = _run_git(repo, "diff", "origin/main...changeset")
-                print(f"=== {name}: changeset diff vs faked origin/main ===")
-                print(diff)
-                continue
-
             report_text = run_claude_headless(repo)
 
         if args.artifacts_dir:
@@ -425,8 +412,6 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"PASS {name} (verdict={parsed.verdict})")
 
-    if args.skip_claude:
-        return 0
     return 0 if overall_ok else 1
 
 

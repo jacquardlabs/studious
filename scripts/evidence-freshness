@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """jig's evidence-freshness script (story finish-skill, issue #20).
 
-`/finish`'s Step 1 freshness hold: re-validates each already-captured
+`/ship`'s Step 1 freshness hold: re-validates each already-captured
 evidence folder (`.studious/build-evidence/<date>-<task>-<branch-slug>/`, written
 by `evidence-capture` during `/build`) against its own recorded
 `manifest.json` -- never against the branch's current `HEAD`, which would
@@ -21,9 +21,9 @@ Two checks per folder, both floored on the manifest's own `commit_sha` /
    -- catches an artifact silently touched or replaced after capture (a
    stale copy-forward from a later, unrelated attempt).
 
-A folder that fails either check FAILs by name and reason; `/finish` is
+A folder that fails either check FAILs by name and reason; `/ship` is
 expected to stop before assembling a PR body rather than promote stale
-evidence -- this script only reports, it never decides what `/finish` does
+evidence -- this script only reports, it never decides what `/ship` does
 next.
 
 Exit codes: 0 every folder passes the hold. 1 at least one folder failed

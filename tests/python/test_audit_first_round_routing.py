@@ -20,7 +20,6 @@ scheduler-level behavior is proven by running the real, unmodified driver source
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from test_driver_crash_hardening import (
     AUDITOR_SHORT_NAMES,
@@ -35,6 +34,13 @@ from test_epic_driver_decomposition import _extract_async_function
 
 GATE_AUDIT_MD = REPO_ROOT / "commands" / "review.md"
 ROUTING_SIGNALS_MD = REPO_ROOT / "reference" / "audit-routing-signals.md"
+
+#: The 6 auditors that dispatch on every round regardless of routing (the
+#: ones AUDITOR_SHORT_NAMES's 11 minus the 5 file-pattern-routed lanes).
+ALWAYS_RUN_AUDITORS = [
+    "security-auditor", "code-auditor", "doc-auditor", "architecture-auditor",
+    "test-auditor", "operability-auditor",
+]
 
 
 # ---------- Task 1: canonical reference file ----------
@@ -735,7 +741,7 @@ def test_backend_only_changeset_routes_out_infra_frontend_dependency_and_prompt_
         "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
         "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
     }
-    always_run = ["security-auditor", "code-auditor", "doc-auditor", "architecture-auditor", "test-auditor", "operability-auditor"]
+    always_run = ALWAYS_RUN_AUDITORS
     routed_out_names = ["infra-auditor", "ux-reviewer", "frontend-reviewer", "dependency-auditor", "prompt-auditor"]
     rules = [
         {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False, "depMatch": False, "promptMatch": False})}},
@@ -760,7 +766,7 @@ def test_routed_out_lanes_appear_in_the_compile_prompt_with_plain_reasons() -> N
         "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
         "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
     }
-    always_run = ["security-auditor", "code-auditor", "doc-auditor", "architecture-auditor", "test-auditor", "operability-auditor"]
+    always_run = ALWAYS_RUN_AUDITORS
     rules = [
         {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": json.dumps({"infraMatch": False, "frontendMatch": False, "depMatch": False, "promptMatch": False})}},
         *[{"match": rf"^audit:{name}:{story}$", "result": {"findings": "clean"}} for name in always_run],
@@ -1137,7 +1143,7 @@ def test_retry_narrowing_operates_within_the_routed_roster_never_a_routed_out_la
         "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
         "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
     }
-    always_run = ["security-auditor", "code-auditor", "doc-auditor", "architecture-auditor", "test-auditor", "operability-auditor"]
+    always_run = ALWAYS_RUN_AUDITORS
     blocking_result = {
         "verdict": "FIX AND RE-REVIEW", "sha": "s1", "summary": "security found a critical",
         "blockingLanes": ["security-auditor"],
@@ -1187,7 +1193,7 @@ def test_routing_scope_recomputes_each_round_not_cached_across_the_retry_loop() 
         "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
         "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
     }
-    always_run = ["security-auditor", "code-auditor", "doc-auditor", "architecture-auditor", "test-auditor", "operability-auditor"]
+    always_run = ALWAYS_RUN_AUDITORS
     blocking_result = {
         "verdict": "FIX AND RE-REVIEW", "sha": "s1", "summary": "security found a critical",
         "blockingLanes": ["security-auditor"],
@@ -1214,7 +1220,7 @@ def test_finale_routing_mirrors_the_story_level_mechanism() -> None:
         "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
         "stories": {"a": {"title": "A", "criteria": "c", "gates": ["acceptance"]}},
     }
-    always_run = ["security-auditor", "code-auditor", "doc-auditor", "architecture-auditor", "test-auditor", "operability-auditor"]
+    always_run = ALWAYS_RUN_AUDITORS
     rules = [
         {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
         # a.py names no premortem register, so the Task 3 fallback lookup

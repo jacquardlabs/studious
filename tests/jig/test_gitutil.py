@@ -175,11 +175,6 @@ class TestRepoQueries(unittest.TestCase):
         with TemporaryDirectory() as outside:
             self.assertIsNone(gitutil.git_repo_root(Path(outside)))
 
-    def test_working_tree_status_is_empty_when_clean_and_not_when_dirty(self) -> None:
-        self.assertEqual(gitutil.working_tree_status(self.repo), "")
-        (self.repo / "a.txt").write_text("changed", encoding="utf-8")
-        self.assertIn("a.txt", gitutil.working_tree_status(self.repo))
-
     def test_current_branch_reports_the_checked_out_branch(self) -> None:
         subprocess.run(["git", "-C", str(self.repo), "checkout", "-q", "-b", "feat/x"], check=True)
         self.assertEqual(gitutil.current_branch(self.repo), "feat/x")

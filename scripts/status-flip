@@ -40,18 +40,15 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _gitutil import git_repo_root, run  # noqa: E402
+from _planparse import STATUS_FLIP_SUFFIX_RE, TASK_HEADING_RE  # noqa: E402
 
 TERMINAL_STATUSES = frozenset({"PASS", "ESCALATE"})
 RESUMABLE_STATUSES = frozenset({"REPLAN"})
-ALL_STATUSES = TERMINAL_STATUSES | RESUMABLE_STATUSES
-
-SUFFIX_RE = re.compile(r"\s*\[(PASS|REPLAN|ESCALATE)\]\s*$")
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -130,8 +127,7 @@ def find_heading(plan_text: str, task: str) -> tuple[str | None, int, int, str]:
 
     Returns (heading_line_or_None, start_offset, end_offset, error_message).
     """
-    pattern = re.compile(rf"^### Task {re.escape(task)}\b.*$", re.MULTILINE)
-    matches = list(pattern.finditer(plan_text))
+    matches = [m for m in TASK_HEADING_RE.finditer(plan_text) if m.group(1) == task]
     if not matches:
         return None, -1, -1, f"no '### Task {task}' heading found in the plan file"
     if len(matches) > 1:
@@ -159,8 +155,11 @@ def main(argv: list[str]) -> int:
         print(f"error: {error}", file=sys.stderr)
         return 2
 
-    existing_suffix_match = SUFFIX_RE.search(heading)
-    existing_status = existing_suffix_match.group(1) if existing_suffix_match else None
+    existing_suffix_match = STATUS_FLIP_SUFFIX_RE.search(heading)
+    existing_status = None
+    if existing_suffix_match:
+        matched = existing_suffix_match.group(0)
+        existing_status = next((s for s in ("PASS", "REPLAN", "ESCALATE") if s in matched), None)
     if existing_status in TERMINAL_STATUSES:
         print(
             f"error: task '{args.task}' is already flipped to {existing_status}, which flips "
@@ -174,7 +173,7 @@ def main(argv: list[str]) -> int:
         print(f"error: could not resolve a git repository for '{plan_path}'", file=sys.stderr)
         return 2
 
-    heading_without_suffix = SUFFIX_RE.sub("", heading)
+    heading_without_suffix = STATUS_FLIP_SUFFIX_RE.sub("", heading)
     new_heading = f"{heading_without_suffix} [{new_status}]"
     new_plan_text = plan_text[:start] + new_heading + plan_text[end:]
     plan_path.write_text(new_plan_text, encoding="utf-8")

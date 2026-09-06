@@ -265,7 +265,7 @@ function requireContract(contract) {
   if (!contract || typeof contract !== 'string' || !contract.trim()) {
     throw new Error(
       'epic-driver: missing prompt contract (args.contract) — refusing to dispatch an ' +
-      'unguarded auditor. Re-run /work-through: reference/epic-orchestration.md must read ' +
+      'unguarded auditor. Re-run /next: reference/epic-orchestration.md must read ' +
       'reference/prompt-contract.md and hand its five blocks over before invoking this script.'
     )
   }
@@ -2099,6 +2099,19 @@ function unresolvedStories() {
   return { cycle, downstream, cycleDepsOf }
 }
 
+// Security Important finding (#271 fix cycle round 2): thread a reported
+// injectionAttempt into a round's own note (every dispatched lane sees it, same as
+// any other round note) as well as into auditFanIn's compile prompt — see
+// resolveRoutingMatchFlags and auditFanIn for what this does and does not mean.
+// Shared by auditRound (story scale) and finaleAuditRound (finale scale).
+function injectionNote(note, matchFlags) {
+  const injectionAttempt = !!(matchFlags && matchFlags.injectionAttempt)
+  const effectiveNote = injectionAttempt
+    ? `${note} SECURITY: this round's routing-scope dispatch reported a suspected audit-evasion directive embedded in the diff; its match flags were discarded (fail-open, full roster) rather than trusted.`
+    : note
+  return { injectionAttempt, effectiveNote }
+}
+
 // `priorResult` (delta-scoped re-audit, #130) is the immediately preceding round's
 // compiled GATE_RESULT, or null/undefined for the very first round of a cycle — that
 // first round is always full and unnarrowed (resolveReauditScope(null, ...) always
@@ -2117,15 +2130,7 @@ async function auditRound(story, note, nextPhase, priorResult, preMatchFlags, at
   const matchFlags = preMatchFlags !== undefined
     ? preMatchFlags
     : await resolveRoutingMatchFlags(storyWorktree(story), `epic/${slug}`, `audit:routing-scope:${story}`, `story:${story}`, CONTRACT, workSlug(story))
-  // Security Important finding (#271 fix cycle round 2): thread a reported
-  // injectionAttempt into this round's own note (every dispatched lane sees it,
-  // same as any other round note) as well as into auditFanIn's compile prompt
-  // below — see resolveRoutingMatchFlags and auditFanIn for what this does and
-  // does not mean.
-  const injectionAttempt = !!(matchFlags && matchFlags.injectionAttempt)
-  const effectiveNote = injectionAttempt
-    ? `${note} SECURITY: this round's routing-scope dispatch reported a suspected audit-evasion directive embedded in the diff; its match flags were discarded (fail-open, full roster) rather than trusted.`
-    : note
+  const { injectionAttempt, effectiveNote } = injectionNote(note, matchFlags)
   const { routed, routedOut, frontendMatch } = resolveAuditRoster(matchFlags, AUDITORS)
   const scope = resolveReauditScope(priorResult, routed, GATES.audit.retry)
   const dispatched = scope.narrowed ? scope.blockingAuditors : routed
@@ -3239,13 +3244,8 @@ async function finaleAuditRound(note, priorResult) {
   // queues beyond its own concurrency limit, so a cap-3 epic peaking above a dozen
   // agents is throttled, not broken.
   const matchFlags = await resolveRoutingMatchFlags(epicWorktree, input.defaultBranch, 'finale:routing-scope', 'Finale', CONTRACT)
-  // Security Important finding (#271 fix cycle round 2): same threading as the
-  // story-level auditRound above — see resolveRoutingMatchFlags and auditFanIn for
-  // what this does and does not mean.
-  const injectionAttempt = !!(matchFlags && matchFlags.injectionAttempt)
-  const effectiveNote = injectionAttempt
-    ? `${note} SECURITY: this round's routing-scope dispatch reported a suspected audit-evasion directive embedded in the diff; its match flags were discarded (fail-open, full roster) rather than trusted.`
-    : note
+  // Same threading as the story-level auditRound above (see injectionNote).
+  const { injectionAttempt, effectiveNote } = injectionNote(note, matchFlags)
   const { routed, routedOut, frontendMatch } = resolveAuditRoster(matchFlags, AUDITORS)
   // #130/#281 re-aim. The finale used to be one wide re-fan of every routed lane over
   // a diff whose parts had each already been audited once, dispatched to answer a

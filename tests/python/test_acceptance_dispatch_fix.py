@@ -43,20 +43,9 @@ from test_driver_crash_hardening import (
     DRIVER,
     FINALE_AUDITORS_PASS,
     _extract_function,
+    _one_story_acceptance_epic,
     _run_driver,
 )
-
-
-def _one_story_acceptance_epic() -> dict:
-    return {
-        "slug": "epx",
-        "title": "Test epic",
-        "goal": "prove the premortem dispatch fix",
-        "concurrency": 1,
-        "stories": {
-            "a": {"title": "Story A", "criteria": "a criteria", "gates": ["acceptance"]},
-        },
-    }
 
 
 def _scope_with_files(files: list[str]) -> dict:

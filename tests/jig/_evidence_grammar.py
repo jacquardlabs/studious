@@ -12,7 +12,7 @@ findings against the coach-evidence-path story).
 Why source text rather than an import: the grammar lives in
 `target_dir = evidence_root / f"{date}-{args.task}-{branch_slug(branch)}"`, a
 local inside `main()`. There is no callable to invoke and no module constant
-to read, so `_load_bearing_cross_surface.py`'s "execute the real function"
+to read, so `test_load_bearing_cross_surface.py`'s "execute the real function"
 approach does not apply here; this module follows `_vocabulary.py` instead,
 which derives from a source of truth by pattern rather than by call.
 

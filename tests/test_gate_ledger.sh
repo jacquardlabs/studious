@@ -939,7 +939,7 @@ check "evidence-list --dedupe keeps the last-appended record's predicate.result 
 check "evidence-list --dedupe still includes a once-only command exactly once" \
   "1" "$(printf '%s' "$dedup27" | jq -r 'select(.command == "npm test") | .command' | wc -l | tr -d ' ')"
 
-# --dedupe on another branch still resolves through the same evidence_dir()/
+# --dedupe on another branch still resolves through the same store_dir(evidence)/
 # branch_slug() anchoring the plain --branch read already relies on (line ~618).
 ( cd "$d27" && git checkout -q -b feat/other )
 out27other=$(cd "$d27" && "$LEDGER" evidence-list --dedupe --branch feat/foo)
