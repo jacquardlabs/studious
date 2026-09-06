@@ -218,7 +218,9 @@ may appear anywhere in the block. No `Risk:` line means `LOW` — see Cadence.
    own original evidence folder: `evidence-capture` always stamps against
    current `HEAD`, so reusing the task's own original evidence folder
    would misdate the retroactive inspection against a later, unrelated
-   commit made after that task's own `PASS`.
+   commit made after that task's own `PASS`. This call shares step 7's
+   exit-code-2 refusal on a resumed session — route it exactly the same
+   way (step 7, below), never a restated copy of that routing here.
 
 ## Step 2 — Per task, in spine order
 
@@ -479,6 +481,36 @@ For each task block, in order:
      committed change, so `evidence-capture`'s clean-tree check has a real,
      clean tree to check (issue #45) instead of refusing before task 1 ever
      completes.
+
+     **Exit code 2, "evidence directory already exists": not a task FAIL,
+     same as `verify`'s own exit 2 above — a usage error, and it never
+     counts against the Failure routine's two-failure budget** (issue
+     #242). It fires on a `/build` re-invoked after a PAUSE for a task
+     whose evidence this session (or an earlier one) already captured.
+     Distinguish two causes mechanically, never by re-running the capture
+     and hoping:
+     - Run `scripts/evidence-capture resolve --branch <branch> --task
+       <id>` and read the resolved folder's `manifest.json` `commit_sha`
+       field. **If it equals this task's own just-verified commit
+       (`verify`'s `results.json` sha, or the executor's returned SHA):**
+       the prior capture already answers for this exact commit — **skip
+       this call entirely** and proceed straight to `status-flip` below.
+       This is the ordinary resumed-session case, not a problem to fix.
+     - **If it names an earlier commit, or `resolve` itself finds no
+       match:** the existing folder is genuinely stale or foreign to this
+       attempt — re-run the exact same `evidence-capture` call with
+       `--force` added, once. If that second call also fails, stop and
+       report **PAUSED**, naming "evidence-capture usage error persisted
+       after retry" — the same recovery shape step 5 already uses for a
+       `verify` usage error, never a fresh dispatch and never the
+       Failure routine, which is for a check *result*, not a bookkeeping
+       refusal.
+
+     Keep the recovery instruction in exactly one home: this bullet routes
+     the decision, the script's own refusal message
+     (`scripts/evidence-capture`) still names the mechanical fix
+     (`--force`, or remove the directory) — never restate that fix's
+     wording here, only when to reach for it.
    - **No evidence commit exists any more, deliberately.** `evidence-capture`
      writes to the main checkout's gitignored `.studious/build-evidence/` —
      outside this worktree's tracked tree entirely — so the capture leaves

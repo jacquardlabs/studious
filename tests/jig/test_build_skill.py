@@ -698,6 +698,50 @@ class TestBuildSkillBody(unittest.TestCase):
         self.assertPhraseIn("a real bug the project's own M0 dogfood surfaced")
         self.assertPhraseIn("read for meaning and don't reproduce it")
 
+    def test_evidence_capture_exit_2_is_routed_never_a_task_fail(self) -> None:
+        # #242: exit code 2 from evidence-capture ("evidence directory
+        # already exists") had no documented recovery in step 2.7 -- a
+        # /build re-invoked after a PAUSE walked straight into it with no
+        # branch to follow. Same non-FAIL-budget treatment as verify's own
+        # exit 2 above it.
+        self.assertPhraseIn(
+            "not a task FAIL, same as `verify`'s own exit 2 above — a usage error, "
+            "and it never counts against the Failure routine's two-failure budget"
+        )
+
+    def test_evidence_capture_exit_2_names_all_three_routes(self) -> None:
+        # The issue's own framing: skip / Failure-routine / escalate --
+        # one of the three, not a restatement of the script's rm -rf hint.
+        self.assertPhraseIn("skip this call entirely")
+        self.assertPhraseIn("re-run the exact same")
+        self.assertPhraseIn("evidence-capture` call with")
+        self.assertPhraseIn("--force")
+        self.assertPhraseIn("report **PAUSED**")
+        self.assertPhraseIn('naming "evidence-capture usage error persisted after retry"')
+        self.assertPhraseIn("never a fresh dispatch and never the Failure routine")
+
+    def test_evidence_capture_exit_2_distinguishes_idempotent_from_stale(self) -> None:
+        # The mechanical distinction that makes this a routing decision
+        # rather than a guess: read the resolved folder's manifest sha
+        # back and compare it to the commit that was just verified.
+        self.assertPhraseIn("evidence-capture resolve --branch")
+        self.assertPhraseIn("manifest.json")
+        self.assertPhraseIn("commit_sha")
+
+    def test_the_recovery_instruction_lives_in_one_home(self) -> None:
+        # The script's own refusal message still names the mechanical fix
+        # (--force / remove the directory); step 2.7 must route the
+        # decision, never restate that script's wording.
+        self.assertPhraseIn("Keep the recovery instruction in exactly one home")
+        self.assertPhraseIn("never restate that fix's")
+
+    def test_step_1_5_retroactive_capture_points_at_the_same_routing(self) -> None:
+        # #242's second half: the retroactive catch-up capture shares the
+        # exact same refusal and must not carry its own separate copy of
+        # the routing rule.
+        self.assertPhraseIn("This call shares step 7's")
+        self.assertPhraseIn("never a restated copy of that routing here")
+
 
 if __name__ == "__main__":
     import sys
