@@ -253,6 +253,13 @@ staying in its own.
 When you run `gh pr create`, a PR-time hook reads the recorded verdicts and names any that
 never ran, ran on an older commit, or didn't pass. It's a reminder, not a block.
 
+A SessionStart hook runs the other direction: on a fresh session or a resumed one (never on
+`/clear`, `/compact`, or a fork — those aren't "arriving new to this project"), it checks the
+gate ledger and, if a feature or epic is in flight, surfaces a one-to-three-line heads-up —
+counts and the most-recently-updated item, never the full list — so the session opens already
+knowing what `/next` would resume. Silent otherwise, same degrade-quietly posture as every
+other hook here.
+
 ## Where your state lives
 
 Two directories, one committed and one not, plus `docs/exorcist/` when you run
