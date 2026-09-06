@@ -36,6 +36,17 @@ rejected at intake — never approved by default, never inferred.
 stop with the closing block below, even when the result is a clean pass and the next step is
 obvious. The user advances the flow; you never do.
 
+**One deliberate exception, inside a piece rather than between pieces.** Pieces 2 (design)
+and 3 (build) each used to be two pieces — a handoff, then a separate `/review` this door
+ran once the handoff's output existed — and each pair required its own confirmation to
+cross. `/shape` and `/build` now convene their own review episode at exit
+(`reference/personas.md`, "producer... may *convene* a judge"), so that boundary is no
+longer a separate door invocation for this door to stop between: running `/shape` or
+`/build` now means reading back its own verdict *and* the episode it convened, in one
+report, from one piece. This door still stops with the closing block after every piece in
+the table below, on every verdict, clean or not — that principle is unchanged. What
+changed is only what a "piece" now spans.
+
 **When recorded state and the repo disagree, stop and name the disagreement.** Do not guess
 or quietly pick one. Evidence usually wins (see below), but a contradiction the evidence
 rules can't settle is a question for the user.
@@ -45,18 +56,20 @@ rules can't settle is a question for the user.
 | # | Piece | Door | Done when |
 |---|-------|------|-----------|
 | 1 | bet | `/bet` | verdict recorded (**BUILD** / **BUILD SMALLER** continue) |
-| 2 | shape | handoff | a design doc exists satisfying `reference/design-doc-contract.md` |
-| 3 | design review | `/review` | **PROCEED TO PLAN** |
-| 4 | build | handoff | implementation commits exist on the feature branch |
-| 5 | work review | `/review` | **PASS** closes the work episode |
-| 6 | delivery review | `/review --delivery` | **SHIP** closes the delivery episode |
-| 7 | ship | handoff | branch closed out: scaffolding removed, evidence assembled, PR opened or work merged/parked |
+| 2 | design | `/shape` (convenes `/review`) | **PROCEED TO PLAN** closes the design episode |
+| 3 | build | `/build` (convenes `/review`) | **PASS** closes the work episode |
+| 4 | delivery review | `/review --delivery` | **SHIP** closes the delivery episode |
+| 5 | ship | handoff | branch closed out: scaffolding removed, evidence assembled, PR opened or work merged/parked |
 
-Pieces 2, 4, and 7 are handoffs — the two steps Studious doesn't own (writing the design,
-writing the code) plus closeout. The route is the user's pick; no episode cares which route
-produced the branch.
+Piece 5 is a pure handoff — closeout, the one step with no judge behind it. Pieces 2 and 3
+hand off writing (the design, the code) exactly as before, but no longer hand off judging
+it separately: `/shape` and `/build` convene their own episode when they're the route
+used (see the exception above). Either route is still the user's pick — a hand-written
+spec, or Superpowers' brainstorming/planning (or plan/execute) workflow, reaches the same
+episode through this door running `/review` directly instead, exactly as this door always
+has; no episode cares which route produced the branch.
 
-After piece 7 the flow is `done`. Never open the PR yourself: the PR is the user's
+After piece 5 the flow is `done`. Never open the PR yourself: the PR is the user's
 (`gh pr create` — the PR-time hook reads the same ledger). This is a story-scale rule.
 At epic scale the finale itself opens the epic's PR, once, after its gates pass
 (`reference/epic-orchestration.md`, "Epic finale") — that is not this door acting; see
@@ -116,8 +129,8 @@ anything, and correct the file when they disagree — evidence wins:
   the fix commits its findings produce, never re-arms the work episode: that episode's `PASS`
   stands. Where those fixes get judged is `/review`'s own routing call — a targeted fix
   re-enters the delivery episode's re-review round, and a story-scale fix goes through a fresh
-  work episode first, an episode `/review` opens, never a phase bounce back to piece 5 from
-  here. The only other backward route is the user explicitly asking for one. (The PR-time
+  work episode first, an episode `/build` or `/review` opens, never a phase bounce back to
+  piece 3 from here. The only other backward route is the user explicitly asking for one. (The PR-time
   reminder still compares recorded shas to HEAD and may nag after post-verdict commits; it is
   non-blocking by design.)
 - **Design doc** — the `designDoc` path in the work file, else discover a candidate the way
@@ -165,40 +178,45 @@ Run `/bet` with the work as its argument, then set the next phase by verdict:
 gate-ledger work-log --slug "<slug>" --step decide --outcome "<verdict>" --phase "<next phase>"
 ```
 
-### 2 · shape — handoff
+### 2 · design
 
 This door doesn't author the design doc — the contract is normative
 (`reference/design-doc-contract.md`), the route to satisfying it is the user's pick.
 Deliberately, so this stays true even though `/shape` ships in this same plugin: an episode
 must reach the same verdict regardless of who produced the branch
 (`reference/worker-contract.md`), and `scripts/check_gate_independence.py` enforces it in CI.
-Set them up, then stop:
 
-- Hand over the bet's verdict, the (possibly scoped-down) title, and the contract's required
-  sections; point at `templates/design-doc.md` as the scaffold.
-- Name `/shape` as the route that ships with this plugin — batch interview → drafted doc →
-  viva sign-off — which produces a doc satisfying the contract.
-- If Superpowers is installed, its brainstorming and planning workflow produces a satisfying
-  doc too. So does any hand-written spec.
-- Do not draft the doc yourself. It may well get written right here in the session — that work
-  belongs to the user and their workflow, not to this door.
+- **Route is `/shape`:** run it, handing over the bet's verdict, the (possibly scoped-down)
+  title, the contract's required sections (point at `templates/design-doc.md` as the
+  scaffold), and the source issue if any. `/shape` inventories, interviews, drafts, gets
+  viva sign-off section by section, then convenes `/review`'s design episode itself and
+  reports its own verdict (`DESIGNED` / `NEEDS RESEARCH` / `REVISED`) plus the convened
+  episode's own (`PROCEED TO PLAN` / `REVISE` / `RETHINK`) in one message — read both.
+- **Any other route:** a hand-written spec, or Superpowers' brainstorming/planning
+  workflow, produces a doc satisfying the contract too — do not draft it yourself, that
+  work belongs to the user and their workflow. No producer exists on this route to convene
+  the episode, so once such a doc exists on the branch with no `design-review` verdict
+  recorded yet, this door runs `/review` against it directly — with a design doc and no
+  built diff, bare `/review` opens the design episode — exactly as it always has.
 
-Log the handoff: `work-log --step design --outcome HANDED-OFF` (phase stays `design`; the
-evidence check advances the flow once the doc exists).
+Then, from whichever ran:
 
-### 3 · design review
+- **No doc yet, or `/shape` reports `NEEDS RESEARCH`** → phase stays `design`; a fork needs
+  a human answer before anything is drafted.
+- **PROCEED TO PLAN** → phase `build`.
+- **REVISE** — surviving `/shape`'s own one internal redraft-and-reconvene, or a bare
+  `/review`'s first `REVISE` — → phase stays `design-review`; the next piece is
+  addressing the listed changes (via whichever route produced the doc), after which it
+  re-runs, amending the pre-mortem register in place rather than regenerating it (the
+  design episode records via `record`, outside the ledger's round-cap verbs — `/review`'s
+  own exception section explains why; `/shape` cites the same exception for its own
+  internal round).
+- **RETHINK** → phase `design`; back to the doc with the reasoning.
 
-Run `/review` against the recorded doc — with a design doc and no built diff, bare `/review`
-opens the design episode. Then:
-
-- **PROCEED TO PLAN** → phase `build`
-- **REVISE** → phase stays `design-review`; the next piece is addressing the listed changes,
-  after which `/review` re-runs against the revised doc, amending the pre-mortem register in
-  place rather than regenerating it (the design episode records via `record`, outside the
-  ledger's round-cap verbs — `/review`'s own exception section explains why)
-- **RETHINK** → phase `design`; back to the doc with the reasoning
-
-Log with `work-log --step design-review --outcome "<verdict>" --phase "<phase>"`.
+Log with `work-log --step design --outcome "<verdict>" --phase "<phase>"` — the verdict
+logged is the episode's own token (`PROCEED TO PLAN` / `REVISE` / `RETHINK`,
+`reference/gate-vocabulary.md`'s spelling for this gate); `/shape`'s own
+`DESIGNED`/`NEEDS RESEARCH`/`REVISED` rides in the report prose, not this field.
 
 **The review model at this scale (#210):** a design doc here gets a human sign-off — viva
 inside `/shape`, or whatever your route's equivalent is — *and* the design episode, because a
@@ -206,41 +224,49 @@ human signs off where an episode cannot verify mechanically. That is the same ru
 prompt-prose and idea-shaped stories supervised rather than dispatched
 (`reference/epic-plan-contract.md`, "Story class").
 
-### 4 · build — handoff
+### 3 · build
 
-The flow hands off rather than builds. Hand over the working context, then stop:
+- **Route is `/build`:** run it, handing over the design doc path, the pre-mortem register
+  path (its items are what the work and delivery episodes verify at the end), the scoped
+  title, and the source issue if any. Once a feature branch exists, record it — the gate
+  ledger is per-branch, so later pieces need it: `work-set --branch "<branch>"`. `/build`
+  plans, builds one task at a time, exorcises, then convenes `/review`'s work episode
+  itself — dispatching a fix and re-convening once on its own `FIX AND RE-REVIEW`, exactly
+  once, before handing an unresolved fix cycle back — and reports its own verdict
+  (`BUILT` / `PAUSED` / `ESCALATED`) plus the convened episode's own (`PASS` /
+  `FIX AND RE-REVIEW` / `NEEDS DISCUSSION`) in one message — read both.
+- **Any other route:** Superpowers' plan/execute workflow, or hand-implemented code,
+  builds however the user likes — no episode cares which, deliberately, for the same
+  reason piece 2 states. No producer exists on this route to convene the episode, so once
+  implementation commits exist on the branch, this door runs `/review` against the built
+  diff directly — bare `/review` opens the work episode with a built diff present — exactly
+  as it always has. Each run is one round of that bounded episode; `/review` owns the
+  episode bookkeeping (`bin/gate-ledger`'s episode verbs: open, re-enter, verdict, with the
+  round cap enforced in code), so never count rounds or decide re-entry here.
 
-- The design doc path, the pre-mortem register path (its items are what the work and delivery
-  episodes verify at the end), the scoped title, and the source issue if any.
-- Once a feature branch exists, record it — the gate ledger is per-branch, so later pieces need
-  it: `work-set --branch "<branch>"`.
-- Name `/build` as the route that ships with this plugin: it plans, then builds, and reports
-  `BUILT | PAUSED | ESCALATED` back into this work file, so the next `/next` invocation resumes
-  from that without asking.
-- If Superpowers is installed, its plan/execute workflow picks up from the design doc instead.
-  Either way the user builds however they like — no episode cares which. Deliberately, for the
-  same reason piece 2 states.
+Then, from whichever ran:
 
-Log `work-log --step build --outcome HANDED-OFF`. Phase stays `build`; the evidence check
-advances it when implementation commits exist.
+- **No commits yet** → phase stays `build`.
+- **`PAUSED`** → phase stays `build`; surface `/build`'s own named cause (a dirty baseline,
+  a `REPLAN`, a risk-tagged pause, a script usage error, or its convened episode's own round
+  cap / convergence refusal) and resume action.
+- **`ESCALATED`** → phase regresses to `design`; surface the reported reason.
+- **`PASS`** (`/build`'s convened episode, or `/review` run directly) → phase `acceptance`;
+  the work episode is closed.
+- **`NEEDS DISCUSSION`** → phase stays `build`; surface the concerns — the user decides how
+  to resolve them.
+- **`FIX AND RE-REVIEW`** surviving `/build`'s own one internal fix-and-reconvene, or a bare
+  `/review`'s first `FIX AND RE-REVIEW` → phase stays `build`; the next piece is fixing the
+  blocking findings (via whichever route produced the branch) then re-running — that run
+  **re-enters the same episode** for its one re-review round, narrowed to the blocking
+  lanes, never a fresh review from scratch. If it reports the round cap or a convergence
+  refusal instead, surface the choice named — record a terminal verdict, reopen a fresh
+  episode, or take the still-open findings to discussion — and let the user make it.
 
-### 5 · work review
-
-Run `/review` — with a built diff, bare `/review` opens the work episode. Each run is one round
-of that bounded episode; `/review` owns the episode bookkeeping (`bin/gate-ledger`'s episode
-verbs: open, re-enter, verdict, with the round cap enforced in code), so never count rounds or
-decide re-entry here. Then:
-
-- **PASS** → phase `acceptance`; the work episode is closed
-- **FIX AND RE-REVIEW** → phase stays `audit`; the next piece is fixing the blocking findings,
-  then running `/review` again — that run **re-enters the same episode** for its one re-review
-  round, narrowed to the blocking lanes, never a fresh review from scratch. If `/review`
-  reports the round cap instead, surface its choice — reopen a fresh episode or take the
-  still-open findings to discussion — and let the user make it.
-- **NEEDS DISCUSSION** → phase stays `audit`; surface the concerns — the user decides how to
-  resolve them
-
-Log with `work-log --step audit --outcome "<verdict>" --phase "<phase>"`.
+Log with `work-log --step build --outcome "<verdict>" --phase "<phase>"` — the verdict
+logged is the episode's own token (`reference/gate-vocabulary.md`'s spelling for the
+`audit` gate); `/build`'s own `BUILT`/`PAUSED`/`ESCALATED` rides in the report prose, not
+this field.
 
 Whatever the verdict, run `gate-ledger episode-get --gate audit` and carry its first line —
 `round R of C — N open, M carried` — into the closing block, verbatim: the episode's own round
@@ -248,7 +274,7 @@ and finding counts, never a re-tally of the report. If it prints nothing (no epi
 on this branch — a legacy ledger, a driver-recorded verdict, or no `jq`), carry `none recorded`
 instead — never invent counts.
 
-### 6 · delivery review
+### 4 · delivery review
 
 Run `/review --delivery`. This is the branch's bounded delivery episode, and it runs at the
 delivery boundary — after the work episode closed `PASS`, before the PR — never as a per-fix
@@ -265,9 +291,9 @@ loop. Then:
 Log with `work-log --step acceptance --outcome "<verdict>" --phase "<phase>"`.
 
 Whatever the verdict, run `gate-ledger episode-get --gate acceptance` and carry its first line
-into the closing block, verbatim — same rule as piece 5, same `none recorded` fallback.
+into the closing block, verbatim — same rule as piece 3, same `none recorded` fallback.
 
-### 7 · ship — handoff
+### 5 · ship — handoff
 
 Both episodes have passed. Closing out is a handoff, not a judgment — there is no verdict to
 record here.
@@ -296,12 +322,12 @@ skippable.
 After the piece finishes, end with exactly this shape and nothing after it:
 
 ```text
-Flow: <slug> — piece <k>/7 (<name>): <outcome>.
+Flow: <slug> — piece <k>/5 (<name>): <outcome>.
 Next piece: <name> — <one clause on what it involves>.
 Say "next" when you're ready, or run /next.
 ```
 
-When the piece just run was the work review (5) or the delivery review (6), insert that
+When the piece just run was build (3) or the delivery review (4), insert that
 episode's readout as a second line — the `round R of C — N open, M carried` line the piece read
 from `gate-ledger episode-get --gate <audit|acceptance>`, verbatim:
 

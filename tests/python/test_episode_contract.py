@@ -590,27 +590,30 @@ class NavigatorEpisodeTest(unittest.TestCase):
 
     def piece(self, n: int) -> str:
         start = self.text.index(f"### {n} ·")
-        end = self.text.index(f"### {n + 1} ·") if n < 7 else self.text.index("## Skips")
+        end = self.text.index(f"### {n + 1} ·") if n < 5 else self.text.index("## Skips")
         return self.text[start:end]
 
     # --- Done means 1: the audit piece re-enters the same episode and
     # prints round and finding counts from episode-get ---
+    # Piece 3 ("build") folded the old separate work-review piece into itself
+    # (command-surface/option-b): `/build` convenes the work episode at its own
+    # exit, so this is still the same episode contract, one piece number later.
 
     def test_audit_piece_reenters_the_same_episode(self) -> None:
-        piece5 = self.piece(5)
-        self.assertIn(RETRY_TOKEN, piece5)
+        piece3 = self.piece(3)
+        self.assertIn(RETRY_TOKEN, piece3)
         self.assertIn(
-            "re-enters the same episode", piece5,
+            "re-enters the same episode", piece3,
             "the audit piece's fix-and-retry must stay inside the open work "
             "episode, never start a fresh audit from scratch",
         )
         self.assertNotIn("FIX AND RE-AUDIT", self.text)
 
     def test_audit_piece_prints_round_and_counts_from_episode_get(self) -> None:
-        piece5 = self.piece(5)
-        self.assertIn("episode-get --gate audit", piece5)
+        piece3 = self.piece(3)
+        self.assertIn("episode-get --gate audit", piece3)
         self.assertIn(
-            "round R of C — N open, M carried", piece5,
+            "round R of C — N open, M carried", piece3,
             "the audit piece must carry the ledger's own round and finding "
             "counts into the closing block, never a re-tally",
         )
@@ -638,19 +641,19 @@ class NavigatorEpisodeTest(unittest.TestCase):
         self.assertIn("episode-scoped", self.text)
 
     def test_no_instruction_rearms_audit_from_an_acceptance_verdict(self) -> None:
-        piece6 = self.piece(6)
-        self.assertIn("never re-arms the work episode", piece6)
+        piece4 = self.piece(4)
+        self.assertIn("never re-arms the work episode", piece4)
         self.assertNotIn(
-            "phase `audit`", piece6,
+            "phase `audit`", piece4,
             "no acceptance verdict may route the phase back to audit — a "
             "story-scale fix routes via the door's own instruction, and the "
             "explicit backward route belongs to the user",
         )
 
     def test_acceptance_retry_keeps_phase_at_acceptance(self) -> None:
-        piece6 = self.piece(6)
-        self.assertIn(RETRY_TOKEN, piece6)
-        self.assertIn("phase stays `acceptance`", piece6)
+        piece4 = self.piece(4)
+        self.assertIn(RETRY_TOKEN, piece4)
+        self.assertIn("phase stays `acceptance`", piece4)
         self.assertNotIn("FIX AND RE-CHECK", self.text)
 
 

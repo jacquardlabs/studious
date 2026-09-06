@@ -149,13 +149,12 @@ unsupervised: `/bet` records the verdict, and the appetite is a number you hold 
 ```
 /bet     →  scores the idea, ranks it against the backlog, sets the appetite
    ↓
-/shape   →  interview, drafted design doc, viva sign-off per section
+/shape   →  interview, drafted design doc, viva sign-off per section, then convenes
+            /review's design episode itself — writes the pre-mortem register on a pass
    ↓
-/review  →  design episode; writes the pre-mortem register on a pass
-   ↓
-/build   →  plans, then builds — fresh executor per task, script-verified, evidence captured
-   ↓
-/review  →  work episode; up to 13 specialist lanes, plus criteria conformance
+/build   →  plans, then builds — fresh executor per task, script-verified, evidence
+            captured — then convenes /review's work episode itself: up to 13 specialist
+            lanes, plus criteria conformance
    ↓
 /review --delivery  →  delivery episode; does this deliver what the bet promised?
    ↓
@@ -193,7 +192,10 @@ perform. It ships a route through both. Use it, or don't; the judges can't tell.
 - **`/shape`** inventories your context docs and the code the change touches, runs one batch
   interview of 5–9 questions (forks as 2–3 options, one recommended), drafts the design doc
   section by section, and holds every section at a viva sign-off round in the browser.
-  Reports `DESIGNED`, `NEEDS RESEARCH`, or `REVISED`.
+  Once every section is signed off, it convenes `/review`'s design episode itself — the
+  verdict is always `/review`'s, `/shape` never writes one. Reports `DESIGNED`,
+  `NEEDS RESEARCH`, or `REVISED`, plus the convened episode's own `PROCEED TO PLAN`,
+  `REVISE`, or `RETHINK`.
 - **`/build`** plans, then builds. Planning turns the design doc into a `PLAN.md` — a
   dependency spine, 3–8 calibrated tasks, a checkpoint block each — that has to pass
   `scripts/plan-lint` and a viva round before any code is written. Building works that plan
@@ -202,8 +204,12 @@ perform. It ships a route through both. Use it, or don't; the judges can't tell.
   by the model, and load-bearing tasks get a fresh inspector judging exactly three things:
   test self-dealing, contract match, technicality gaming. After the last task passes, an
   exorcist pass strips what no criterion asked for, the scripts re-verify, and one
-  `exorcise:` commit lands (skipped with a note when exorcist is not installed). Reports
-  `BUILT`, `PAUSED`, or `ESCALATED`, and never auto-continues past a pause.
+  `exorcise:` commit lands (skipped with a note when exorcist is not installed). It then
+  convenes `/review`'s work episode itself — the verdict is always `/review`'s, `/build`
+  never writes one — dispatching a fresh, scoped fix executor and re-convening once on its own
+  `FIX AND RE-REVIEW` before handing an unresolved fix cycle back. Reports `BUILT`,
+  `PAUSED`, or `ESCALATED`, plus the convened episode's own `PASS`, `FIX AND RE-REVIEW`, or
+  `NEEDS DISCUSSION`, and never auto-continues past a pause.
 - **`/ship`** closes out a `BUILT` branch: an evidence table mapping each done-means item to
   how it was verified, follow-ups filed only on per-item confirmation, proposed (never
   applied) patches to your context docs, and a dated build report. Reports `MERGE`, `PR`,

@@ -1,6 +1,6 @@
 ---
 name: build
-description: Runs the build loop over a hand-written PLAN.md (one checkpoint block for the quick path, several in spine order for the full cycle) -- a fresh, isolated executor per task, independent script-run verification, evidence capture, status flips written only by scripts never the model, a conditional fresh inspector dispatched on load-bearing tasks only, judging exactly test self-dealing, contract match, and technicality gaming, and one exorcise simplification pass (exorcist's /exorcist:exorcise, when installed) after the last PASS, re-verified by script before it is committed. Use when the user says /build, asks to build or implement a PLAN.md's tasks, or hands over a single checkpoint block for the quick path (no /shape or /build doc required). Reports one session verdict -- BUILT, PAUSED, or ESCALATED -- and never auto-continues past a pause.
+description: Runs the build loop over a hand-written PLAN.md (one checkpoint block for the quick path, several in spine order for the full cycle) -- a fresh, isolated executor per task, independent script-run verification, evidence capture, status flips written only by scripts never the model, a conditional fresh inspector dispatched on load-bearing tasks only, judging exactly test self-dealing, contract match, and technicality gaming, and one exorcise simplification pass (exorcist's /exorcist:exorcise, when installed) after the last PASS, re-verified by script before it is committed. After the last PASS, convenes /review's work episode itself (the full gauntlet lane fan-out, compiled to one verdict) rather than handing off to a separate /review invocation; a FIX AND RE-REVIEW dispatches a fresh executor scoped to the blocking findings and re-convenes once before an unresolved fix cycle goes back to the human. Use when the user says /build, asks to build or implement a PLAN.md's tasks, or hands over a single checkpoint block for the quick path (no /shape or /build doc required). Reports one session verdict -- BUILT, PAUSED, or ESCALATED -- plus the convened episode's own PASS, FIX AND RE-REVIEW, or NEEDS DISCUSSION -- and never auto-continues past a pause.
 ---
 
 # /build
@@ -400,11 +400,13 @@ For each task block, in order:
    which lens it concerns and the recommended lane below, then proceed to
    step 2.7 exactly as `CLEAR` — the task still reaches `PASS`. Capture the
    report via the exact same `evidence-capture` artifact call `CLEAR` uses.
-   The forward rides the evidence table `/ship` assembles into the PR body:
-   a captured text artifact is quoted inline there, so the concern reaches
-   the human's later `/review` pass with the rest of the task's evidence —
-   no `gate-ledger` coupling, no auto-invoked `/review`, no dependency on
-   studious being installed at all (graceful even standalone).
+   The forward rides two paths, either way with the rest of the task's evidence: the
+   work episode Step 4 convenes at the end of this same session reads it like any other
+   captured artifact, and the evidence table `/ship` assembles into the PR body also
+   quotes the captured text artifact inline — so a `/review` run by hand later, on a
+   branch this skill built standalone with no `gate-ledger` on `PATH`, still sees it. No
+   `gate-ledger` coupling and no dependency on studious being installed at all is required
+   for the concern itself to survive — only Step 4's own convening does.
 
    | Lens | Lane | Why this lane |
    |---|---|---|
@@ -598,7 +600,7 @@ an unrelated `verify` `FAIL`, or from a later task's own first `DEFECT`.
 ## Step 3 — Exorcise, once, after the last PASS
 
 Runs exactly once per session, only when every task in the plan has reached
-`PASS`, and before the `BUILT` verdict below hands off to `/review`. It
+`PASS`, and before Step 4 convenes `/review`'s work episode. It
 casts out what no criterion asked for — [exorcist](https://github.com/jacquardlabs/exorcist)'s
 `/exorcist:exorcise` holds the whole build against its intent and applies the
 removals — so the judge reads a smaller diff, and the worker contract's "work
@@ -678,21 +680,101 @@ with the build proceeding to its verdict.
 A branch that never went through `/build` gets no pass from this skill —
 that is `/review`'s finding or the human's own `/exorcist:exorcise`.
 
+## Step 4 — Convene the work episode
+
+Runs once Step 3 has finished (whatever it found — a simplification landed, a Track note,
+or a skip line). `/build` now convenes `/review`'s work episode itself, on this same
+built diff, in this same session — the same episode a separately-invoked `/review` would
+run against it, never a lighter or shortcut version. **Convening is not judging: `/build`
+may convene the work episode as a convenience, but the verdict is always `/review`'s.
+This door never writes one.**
+
+Follow `commands/review.md` inline, exactly as written, from "Locate gauntlet" through the
+work episode's "Compile" — don't restate its steps here and don't shortcut them, and don't
+add anything to a dispatch prompt beyond what those steps already gather. Lane 14
+(criteria conformance) resolves its own criteria source through `gate-ledger work-list`/
+`work-get` or the branch's own design doc, exactly as it would for a human-typed `/review`
+— never shortcut that by handing it `PLAN.md` or this session's own plan context directly;
+`PLAN.md` and `.studious/build-evidence/` are this door's own private artifacts, and the
+episode reads only what `reference/evidence-format.md` and its own resolution rules give
+it, the same as it would for any other executor:
+
+1. **Locate gauntlet** — `gauntlet:where`, recording `GAUNTLET_ROOT`.
+2. **Establish the changeset** — merge-base to `HEAD` in this worktree.
+3. **Precompute the changeset diff** — small-changeset scratch file, per that step's
+   400-line threshold.
+4. **Resolve the branch's evidence log** — `gate-ledger evidence-list --dedupe`, passed as
+   `--receipts-path` when non-empty.
+5. **Open or re-enter the episode** — `gate-get --gate audit`, the three re-entry
+   conditions, then `episode-round --gate audit` (re-entry) or `episode-open --gate audit`
+   (fresh), branching on its exit exactly as that step specifies. **Exit 1 (cap) or exit 3
+   (convergence refusal) on this first call** means a verdict already stands from before
+   this `/build` session started — stop here, before dispatching anyone, and go straight to
+   this step's "Cap or convergence refusal" branch below.
+6. **Read the findings ledger on re-entry** — round 2 only, per that step.
+7. **Build the invocations, filter to the profile, dispatch** — full roster on a fresh
+   episode, narrowed to `.gates.audit.blockingLanes` on re-entry.
+8. **The work episode itself** — every lane and skip rule commands/review.md names
+   (1–14), launched in parallel exactly as that section specifies.
+9. **Compile** — `report.py`, the three verdict tokens (`PASS` · `FIX AND RE-REVIEW` ·
+   `NEEDS DISCUSSION`), per `reference/audit-compilation.md`.
+10. **Record it** — `gate-ledger episode-verdict --gate audit --verdict "<verdict>"`.
+
+**On `PASS`:** stop and report. Session verdict `BUILT`, naming Step 3's own outcome and
+the episode's `PASS`, in the same message.
+
+**On `NEEDS DISCUSSION`:** stop and report. Session verdict `BUILT` — every task passed
+and the episode ran — plus the episode's `NEEDS DISCUSSION` and its concerns. No further
+build work follows from this door; resolving the concern is the human's call.
+
+**On `FIX AND RE-REVIEW`, this episode's first round:** read the blocking findings
+(`gate-ledger episode-get --gate audit --findings`) and apply the Failure routine's own
+FIX/RESAMPLE choice to this batch, exactly as step 1 of that routine describes, retargeted
+from a `verify` item's gap to a finding's gap:
+
+- **FIX** — dispatch one fresh executor scoped to exactly the blocking findings, when each
+  reads as a narrow, mechanical gap in already-landed work.
+- **RESAMPLE** — when a finding names a task whose whole approach it invalidates, dispatch
+  a wholly fresh executor for that task alone, from scratch (discarding its prior
+  commits), scoped by that task's own checkpoint block plus the finding. Leave every other
+  task's `PASS` alone.
+- A batch spanning both: one `RESAMPLE` per task a finding invalidates, one shared `FIX`
+  dispatch for the rest.
+
+Either way, re-run step 2.5 (`verify`) for every task whose files the fix/resample
+dispatch touched, and — for any load-bearing task a `RESAMPLE` touched — re-run step 2.6's
+Inspector fresh against that new commit, exactly as the Failure routine's own first-FAIL
+branch already requires. Then **re-convene**: repeat steps 1–10 above. Step 5's re-entry
+condition now holds (the recorded verdict is `FIX AND RE-REVIEW`, its sha is an ancestor of
+the new `HEAD`), so this round narrows to `.gates.audit.blockingLanes` automatically —
+`/build` never picks lanes itself.
+
+**On the re-convened round's own verdict:** `PASS` and `NEEDS DISCUSSION` resolve exactly
+as above. `FIX AND RE-REVIEW` surviving this second round, or step 5's re-entry hitting the
+cap or a convergence refusal on this second call, both land on the same stop:
+
+**Cap or convergence refusal.** Stop before dispatching anyone a third time — this
+session's own fix cycle only ever gets the one re-convene. Session verdict `PAUSED`,
+naming which of the two fired and review.md's own named choices for it verbatim (record a
+terminal verdict over the still-riding retry outcome, reopen a fresh episode, or take the
+still-open findings to discussion) — the human's call, not this door's.
+
 ## Session verdict
 
 | Verdict | When |
 |---|---|
-| `BUILT` | Every task in the plan reaches `PASS` and Step 3 has run (or been skipped with its line). Report the branch/worktree and Step 3's outcome on one line (concepts removed, the nothing-cast-out line, the Track note, or the skip line), then tell the developer to run `/review` next — unconditionally, since that gate ships in this same plugin. |
-| `PAUSED` | A dirty or missing baseline stopped Setup, or a task's Failure routine resolved to `REPLAN`, or a risk-tagged task is waiting for a pre-dispatch acknowledgment, or a `verify`/`status-flip` usage error persisted after one retry. Resumable once the human acts. |
+| `BUILT` | Every task in the plan reaches `PASS`, Step 3 has run (or been skipped with its line), and Step 4's convened work episode closed `PASS` or `NEEDS DISCUSSION`. Report the branch/worktree, Step 3's outcome (concepts removed, the nothing-cast-out line, the Track note, or the skip line), and Step 4's episode verdict on one line each. |
+| `PAUSED` | A dirty or missing baseline stopped Setup, or a task's Failure routine resolved to `REPLAN`, or a risk-tagged task is waiting for a pre-dispatch acknowledgment, or a `verify`/`status-flip` usage error persisted after one retry, or Step 4's convened work episode hit its round cap or a convergence refusal. Resumable once the human acts. |
 | `ESCALATED` | A task's Failure routine resolved to `ESCALATE`. Terminal for this session — hand off to `/shape` in revision mode. |
 
-**Never report `PAUSED` bare.** It collapses four distinct causes (missing
+**Never report `PAUSED` bare.** It collapses five distinct causes (missing
 or dirty baseline, `REPLAN`, a risk-tagged pre-dispatch pause, a persisted
-script usage error) into one token. Every `PAUSED` report names, in the
-same message: which of those four fired, and the specific action that
-resumes `/build` — fix the baseline and re-invoke; revise the checkpoint
+script usage error, Step 4's episode cap/convergence refusal) into one token. Every
+`PAUSED` report names, in the same message: which of those five fired, and the specific
+action that resumes `/build` — fix the baseline and re-invoke; revise the checkpoint
 block by hand and re-invoke; acknowledge the risk tag to proceed; fix the
-transcription bug and re-invoke.
+transcription bug and re-invoke; or, for the episode cap, one of review.md's own
+named choices.
 
 **Write concisely.** Per-task status lines are one sentence each. The session
 verdict is the bold token, one sentence naming the cause and resume action (for
@@ -700,8 +782,10 @@ verdict is the bold token, one sentence naming the cause and resume action (for
 
 ## Report status back to studious
 
-Right before reporting the session verdict above -- never in place of it --
-check `command -v gate-ledger`:
+Right before reporting the session verdict above -- never in place of it, and after Step 4
+has resolved (so a `BUILT` logged after a fix-and-reconvene cycle stamps the post-fix
+`HEAD`, not the pre-fix one `/next` would otherwise find stale) -- check `command -v
+gate-ledger`:
 
 - **Found** -- `gate-ledger work-list` and match a row whose branch column
   equals the current branch. Matched -- `gate-ledger work-log --slug

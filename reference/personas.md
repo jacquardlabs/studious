@@ -54,8 +54,9 @@ tool is worse than a longer one (the same finding #257 hit with the old bare `/d
   `scripts/check_gate_independence.py`); `reference/worker-contract.md` is the
   executor-agnostic contract a judge may rely on instead.
 - **producer** — writes and commits code, docs, and evidence. May name other producers and
-  may *convene* a judge (`/ship` convenes the delivery episode), but may never write a
-  verdict. Convening is not judging.
+  may *convene* a judge at its own exit (`/shape` the design episode, `/build` the work
+  episode, `/ship` the delivery episode), but may never write a verdict. Convening is not
+  judging.
 - **navigator** — does neither. `/next` reads position, proposes the next door, and runs it
   only on confirmation. It routes to producers and convenes judges, so it is deliberately
   off the guarded surface; what bounds it is the episode round cap in `bin/gate-ledger`,
@@ -79,8 +80,8 @@ episode to the door that convenes it, and nothing else.
 | Episode | Convened by | Also convened by |
 |---|---|---|
 | bet | `/bet` | `/next` (on confirmation) |
-| design | `/review` | `/next` (on confirmation) |
-| work | `/review` | `/next` (on confirmation) |
+| design | `/review` | `/shape`, `/next` (on confirmation, when the doc's route isn't `/shape`) |
+| work | `/review` | `/build`, `/next` (on confirmation, when the branch's route isn't `/build`) |
 | delivery | `/review --delivery` | `/ship`, `/next` (on confirmation) |
 
 ## Specialists
