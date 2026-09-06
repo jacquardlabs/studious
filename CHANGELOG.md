@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v3.5.0 (2026-09-06)
+
+### Features
+
+- Add scripts/intake, deterministic ready-issue eligibility filter
+  ([#323](https://github.com/jacquardlabs/studious/pull/323),
+  [`8b3dbc2`](https://github.com/jacquardlabs/studious/commit/8b3dbc28c7ac38023a36dcfa609255260e151cd3))
+
+
 ## v3.4.0 (2026-09-06)
 
 ### Bug Fixes
