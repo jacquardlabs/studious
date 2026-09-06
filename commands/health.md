@@ -26,7 +26,7 @@ Read CLAUDE.md, PRODUCT.md, and DESIGN.md first.
 | `readme` | `gauntlet:docs-posture-auditor` | (inline) | Wider than README drift: every user-facing doc — stale claims, missing capabilities, commands and paths that don't resolve, voice drift. The judge returns findings, never a diff; this door drafts the diff (Context doc updates below) | `docs/studious/readme-reviews/YYYY-MM-DD-readme-review.md` |
 | `prompts` | `gauntlet:prompt-posture-auditor` | `prompt-checklist` | Trigger coverage, instruction consistency, orchestrator-subagent contract alignment, duplication, injection posture, token economy | `docs/studious/prompt-reviews/YYYY-MM-DD-prompt-review.md` |
 | `backlog` (or `hygiene`) | `backlog-hygiene` (local) | — | Open issues that should be closed — resolved by commits, made obsolete, or duplicated | none — reported in-session |
-| `simplify` (or `seance`) | `/exorcist:seance` (skill, not a dispatch) | — | Standing simplification targets — pattern contention, dead code, duplicated helpers, wrapper strata — as a ranked register. Working it is the human's act: `/bet` the register or `/exorcist:exorcise <register>`; this door never applies one | `docs/exorcist/seance-YYYY-MM-DD/register.md` (exorcist writes it) |
+| `simplify` (or `seance`) | `/exorcist:seance` (skill, not a dispatch) | — | Standing simplification targets — pattern contention, dead code, duplicated helpers, wrapper strata — as a ranked register. Working it is the human's act: `/bet` the register or `/exorcist:exorcise <dir>/register.json`; this door never applies one | `docs/exorcist/seance-YYYY-MM-DD/register.json` (exorcist writes it; `register.md` is its rendering) |
 
 The `Standard` column mirrors each judge's row in gauntlet's charter, because this door cannot read that charter at run time (`${CLAUDE_PLUGIN_ROOT}` resolves only this plugin, and the plugin cache is never globbed). A named standard is a lookup rubric; `(inline)` means the judge's own prompt is the rubric and `standard.name` is the judge's name, version omitted.
 
@@ -35,7 +35,7 @@ The `Standard` column mirrors each judge's row in gauntlet's charter, because th
 **`simplify` is the other mode, opt-in for the same reason `backlog` is:** the séance's four lanes read the whole tree at opus — ~75 minutes on a 20k-line repository (exorcist's README, Cost) — so it never rides the bare sweep. Check whether exorcist is installed the way `/setup` Step 6b does: look for `exorcist:seance` in this session's registered skill listing — never a file path.
 
 - **Not installed:** one line — "exorcist not installed — simplify skipped; install with `/plugin install exorcist@jacquardlabs-marketplace`." — and stop. Never an error: the mode is optional.
-- **Installed:** invoke `/exorcist:seance` (it surveys HEAD) and relay its report verbatim. It resolves its own worktree and writes only under `docs/exorcist/seance-<date>/`; nothing in the tree changes. Point at the register and stop: setting ghosts `approved` and working them — `/bet` the register or `/exorcist:exorcise <register>` — is a human-typed producer act, never this door's.
+- **Installed:** invoke `/exorcist:seance` (it surveys HEAD) and relay its report verbatim. It resolves its own worktree and writes only under `docs/exorcist/seance-<date>/`; nothing in the tree changes. Point at `register.json` and stop: setting ghosts `approved` there and working them — `/bet` the register or `/exorcist:exorcise <dir>/register.json` — is a human-typed producer act, never this door's.
 
 Either way, skip the rest of this file.
 
@@ -125,7 +125,7 @@ Do NOT apply these changes. Present them as proposed diffs for the user to revie
 
 No metrics dashboard: trend belongs to the issue tracker, and a gauntlet findings document carries no metrics field.
 
-If a séance register exists (`docs/exorcist/seance-*/register.md`), link the newest under the action plan — it is a lead for the human, never a lane in this sweep.
+If a séance register exists (`docs/exorcist/seance-*/register.json`; `register.md` is its rendering), link the newest under the action plan — it is a lead for the human, never a lane in this sweep.
 
 Save the master summary to `docs/studious/health-reviews/YYYY-MM-DD-deep-review-summary.md`.
 

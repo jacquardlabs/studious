@@ -41,12 +41,23 @@ def test_simplify_degrades_to_one_line_without_exorcist() -> None:
 
 def test_simplify_never_applies_a_register() -> None:
     for text in (SIMPLIFY_ROW, MODE_PARAGRAPH):
-        assert "`/exorcist:exorcise <register>`" in text, "names the human's next step"
+        assert "`/exorcist:exorcise <dir>/register.json`" in text, "names the human's next step"
         assert "never" in text and "human" in text, "working the register is the human's act"
     assert "human-typed producer act" in MODE_PARAGRAPH
 
 
+def test_simplify_hands_exorcise_the_json_never_the_rendering() -> None:
+    # exorcise's mode test is "first token is an existing .json" (exorcist 0.4.2
+    # `commands/exorcise.md` §0); a .md path silently becomes a changeset-run intent.
+    # Approval status lives in register.json too (`reference/register.md`, `status`).
+    for text in (SIMPLIFY_ROW, MODE_PARAGRAPH):
+        for arg in re.findall(r"/exorcist:exorcise ([^`]*)", text):
+            assert arg.endswith("register.json"), f"exorcise handed {arg!r}"
+    assert "`docs/exorcist/seance-YYYY-MM-DD/register.json`" in SIMPLIFY_ROW
+    assert "`register.json`" in MODE_PARAGRAPH, "approval is set in the json"
+
+
 def test_full_sweep_links_the_latest_register_without_dispatching_it() -> None:
     compile_section = HEALTH[HEALTH.index("### Phase 2") : HEALTH.index("## Rendering")]
-    assert "docs/exorcist/seance-*/register.md" in compile_section
+    assert "docs/exorcist/seance-*/register.json" in compile_section
     assert "never a lane in this sweep" in compile_section
