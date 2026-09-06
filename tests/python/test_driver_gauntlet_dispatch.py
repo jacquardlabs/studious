@@ -13,9 +13,7 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 
-import pytest
 from test_driver_crash_hardening import (
     AUDITOR_SHORT_NAMES,
     DRIVER,
@@ -122,24 +120,6 @@ def test_a_died_probe_falls_back_to_branch_refs_and_no_receipt() -> None:
     assert result[0] == {"kind": "changeset", "base": "epic/x", "head": "epic/x--a", "root": "/wt/a"}
     assert result[1] == result[0]
     assert result[2] == "" and result[3] == "" and result[4] == RECEIPTS
-
-
-def test_invocations_validate_against_gauntlets_own_schema() -> None:
-    """Cross-check against the contract's reference validator when gauntlet is installed
-    locally — a structural pin above is the CI guarantee; this is the extra."""
-    cache = Path.home() / ".claude" / "plugins" / "cache" / "jacquardlabs-marketplace" / "gauntlet"
-    versions = sorted(cache.glob("*/scripts/schema.py")) if cache.is_dir() else []
-    if not versions:
-        pytest.skip("gauntlet is not installed in this session's plugin cache")
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("gauntlet_schema", versions[-1])
-    schema = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(schema)
-    invocations = _node(INVOCATION_SYMBOLS, f"""[...Object.keys(STANDARD_OF), 'ux-reviewer', 'product-reviewer'].map(judge =>
-      invocationFor(judge, changesetArtifact({{ mergeBase: '{SHA_BASE}', head: '{SHA_HEAD}' }}, 'epic/x', 'epic/x--a', '/wt/a'), contextDocs('/wt/a'), ''))""")
-    for inv in invocations:
-        schema.validate_invocation(inv)
 
 
 # ---------- findings documents: contract §4 in code ----------

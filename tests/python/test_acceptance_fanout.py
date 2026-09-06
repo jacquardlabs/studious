@@ -4,7 +4,7 @@
 dispatch product-review and the walkthrough as one serial self-performing
 step — the shape behind issue #142 (a single acceptance dispatch took 117
 minutes). This adds a fan-out mirroring auditRound: a mechanical scope-check
-(product-reviewer has no Bash — issue #89), then product-review and
+(the product lane reviews a named scope, never one it improvises — issue #89), then product-review and
 walkthrough dispatched concurrently, then a compile step.
 
 Scope: story-level only; the finale acceptance dispatch and design-review gate
@@ -20,11 +20,11 @@ from __future__ import annotations
 import json
 
 from test_driver_crash_hardening import (
-    clean_document,
     DRIVER,
     FINALE_AUDITORS_PASS,
     _one_story_acceptance_epic,
     _run_driver,
+    clean_document,
 )
 
 SCOPE_WITH_DOC = {"findings": json.dumps({"files": ["foo.py"], "designDoc": "docs/design-foo.md"})}
@@ -75,7 +75,7 @@ def test_normal_round_dispatches_all_four_lanes_in_shape() -> None:
 
 def test_product_review_prompt_names_the_resolved_design_doc() -> None:
     """The product-review dispatch gets the design doc the scope-check resolved,
-    not a pointer it has to go discover itself (product-reviewer has no Bash)."""
+    not a pointer it has to go discover itself (issue #89)."""
     epic = _one_story_acceptance_epic()
     rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_WITH_DOC},
@@ -154,7 +154,7 @@ def test_died_product_review_lane_forces_a_ship_compile_down_to_hold() -> None:
 
 def test_died_scope_check_skips_the_product_review_dispatch_entirely() -> None:
     """A died/unparseable scope-check must not hand product-reviewer an empty
-    scope — it has no Bash to fall back on, and an empty scope is the exact
+    scope — it never improvises one, and an empty scope is the exact
     failure mode issue #89 fixed the interactive command against. The lane is
     marked UNREVIEWED without ever being dispatched."""
     epic = _one_story_acceptance_epic()
