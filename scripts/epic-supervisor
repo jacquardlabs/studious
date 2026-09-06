@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+"""epic-supervisor -- one decide-and-maybe-fire cycle for an epic (issue #316).
+
+An epic runs inside one Workflow invocation in one session; a crash or a
+park ends the run, and the documented recovery
+(`reference/epic-orchestration.md` "Reconcile -- evidence first") is a human
+re-typing `/next`. This script is that re-fire, meant to be called
+repeatedly by something else that owns the schedule -- a launchd
+`StartInterval` unit, or a loop around `claude --bg` -- never a scheduler
+itself. Each invocation does exactly one cycle: read the ledger, decide,
+and either fire `/next <slug>` once (foreground, blocking until it returns)
+or stop. Idempotent against the ledger by construction: every decision is
+re-derived fresh from `gate-ledger epic-reconcile`/`epic-get`, nothing is
+cached between invocations, and calling this twice in a row with nothing
+having changed makes the same decision twice.
+
+**Stops, and never overrides the ledger's own word on any of them:**
+
+- `epic.status == "ready"` -- the finale already ran and passed.
+- `epic-reconcile`'s own `stopLoss.refuse` -- two consecutive zero-landed
+  runs (the M11 rule), computed once in `bin/gate-ledger` and read here,
+  never recomputed.
+- Every story settled -- `landed`, `parked`, or `dropped` -- meaning
+  nothing left that an unattended dispatch could move. A `story-supervised`
+  story is recorded `parked` with a `reason` starting `story-supervised:`
+  (`reference/epic-orchestration.md`'s park convention) and is exactly as
+  settled as any other park to this script: **never its business** to
+  un-park one, take it over, or wait on it.
+- Appetite exhausted -- `sum(runs[].tokensSpent) >= appetite.tokens`.
+  **Honestly incomplete**: `workflows/epic-driver.js` returns no per-run
+  spent figure to `/next` today (only `budget.remaining()`, read
+  internally), so `--tokens-spent` is optional at `epic-run-log` and this
+  sum is 0 until a caller starts passing it. This check is real and will
+  fire the day a caller does; until then it never triggers, which is
+  the same honesty `epic-orchestration.md`'s own `budget.note` states for
+  the fallback path -- an unenforceable ceiling has to look different
+  from an enforced one, not silently pretend to be one.
+
+**Never un-parks. Never drops. Never edits a story's status at all** --
+only `/next` (dispatched, or the human) writes those. This script's own
+write surface is nothing: it reads the ledger and, when it decides to
+fire, runs `claude -p`. The fired `/next` invocation is what calls
+`gate-ledger epic-run-log` at its own close, which is also where the
+`epic-run` event line lands (`reference/events-format.md`) -- so "logs
+each fire" is satisfied by the existing single writer, not by a second one
+here recording the same fact twice.
+
+Exit codes: 0 = decided (either fired, or stopped for a legitimate
+reason -- both print a `STOPPED: <reason>` or `FIRED` line a wrapper can
+grep); 1 = fire attempted and failed; 2 = usage error, no such epic, or
+`gate-ledger`/`claude` missing. Python 3.9 floor, stdlib only.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import git_repo_root, run  # noqa: E402
+
+SETTLED_STATUSES = frozenset({"landed", "parked", "dropped"})
+
+
+def tokens_spent(epic: dict[str, Any]) -> int:
+    return sum(int(r.get("tokensSpent") or 0) for r in epic.get("runs") or [])
+
+
+def appetite_exhausted(epic: dict[str, Any]) -> bool:
+    tokens = ((epic.get("appetite") or {}).get("tokens"))
+    if not tokens:
+        return False
+    return tokens_spent(epic) >= int(tokens)
+
+
+def all_stories_settled(epic: dict[str, Any]) -> bool:
+    stories = epic.get("stories") or {}
+    if not stories:
+        return False
+    return all((s.get("status") in SETTLED_STATUSES) for s in stories.values())
+
+
+def decide(reconcile: dict[str, Any]) -> str | None:
+    """Return a stop reason, or None to fire."""
+    epic = reconcile.get("epic") or {}
+    if epic.get("status") == "ready":
+        return "epic is ready -- finale already passed"
+    if (reconcile.get("stopLoss") or {}).get("refuse"):
+        zeros = reconcile["stopLoss"].get("consecutiveZeroLanded")
+        return f"stop-loss armed -- {zeros} consecutive zero-landed runs"
+    if appetite_exhausted(epic):
+        return f"appetite exhausted -- {tokens_spent(epic)} of {epic['appetite']['tokens']} tokens spent"
+    if all_stories_settled(epic):
+        return "every story is landed, parked, or dropped -- nothing left to drive unattended"
+    return None
+
+
+def next_argv(slug: str) -> list[str]:
+    return ["claude", "-p", f"/next {slug}", "--permission-mode", "dontAsk"]
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="epic-supervisor",
+        description="One decide-and-maybe-fire cycle: re-run /next <slug> while gate-reconcile reports unsettled work.",
+    )
+    parser.add_argument("--slug", required=True, help="the epic slug recorded via epic-set")
+    parser.add_argument("--repo", default=".", help="path inside the target repo (default: current directory)")
+    parser.add_argument("--dry-run", action="store_true", help="print the decision and the command that would run; fire nothing")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+    repo_root = git_repo_root(Path(args.repo).resolve())
+    if repo_root is None:
+        print(f"error: '{args.repo}' is not inside a git repository", file=sys.stderr)
+        return 2
+
+    gate_ledger = repo_root / "bin" / "gate-ledger"
+    if not gate_ledger.is_file():
+        print(f"error: no bin/gate-ledger at '{repo_root}'", file=sys.stderr)
+        return 2
+
+    proc = run([str(gate_ledger), "epic-reconcile", "--slug", args.slug], cwd=repo_root)
+    if proc.returncode != 0 or not proc.stdout.strip():
+        print(f"error: no recorded epic '{args.slug}'", file=sys.stderr)
+        return 2
+    try:
+        reconcile = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        print(f"error: epic-reconcile returned non-JSON output: {exc}", file=sys.stderr)
+        return 2
+
+    reason = decide(reconcile)
+    if reason is not None:
+        print(f"STOPPED: {reason}")
+        return 0
+
+    fire_argv = next_argv(args.slug)
+    if args.dry_run:
+        print(f"would run: {' '.join(fire_argv)}")
+        return 0
+
+    if shutil.which("claude") is None:
+        print("error: 'claude' not found on PATH", file=sys.stderr)
+        return 2
+
+    fire_proc = subprocess.run(fire_argv, cwd=repo_root, check=False)
+    if fire_proc.returncode != 0:
+        print(f"error: /next exited {fire_proc.returncode}", file=sys.stderr)
+        return 1
+    print("FIRED")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

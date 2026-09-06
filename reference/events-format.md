@@ -1,11 +1,12 @@
 # Events log format — the epic transition trail and the per-epic findings ledger
 
-`bin/gate-ledger`'s `record`, `epic-set`, `epic-story-set`, `work-set`, and `work-log`
-verbs each append one JSON object per line to `.studious/epics/<epic-slug>.events.jsonl`
+`bin/gate-ledger`'s `record`, `epic-set`, `epic-story-set`, `work-set`, `work-log`, and
+`epic-run-log` verbs each append one JSON object per line to
+`.studious/epics/<epic-slug>.events.jsonl`
 via the shared `append_event()` helper — the append-only counterpart to `json_update()`'s
 role as the shared writer for every mutating verb. This file pins the exact shape so
 drift from what the code actually writes is a visible diff against this doc, not a
-silent surprise. Every one of the five functions' existing arguments, return values,
+silent surprise. Every one of the six functions' existing arguments, return values,
 and exit codes is unchanged; the event append is a side effect only, run after the
 function's own primary snapshot write already succeeded.
 
@@ -56,7 +57,7 @@ No `schemaVersion` per line — matching `reference/evidence-format.md`'s existi
 convention for this repo's append-only logs: each line is a flat, self-describing
 object, not part of one versioned document.
 
-## The five write sites
+## The six write sites
 
 | Function | `kind` | Fires when | Additional fields |
 |---|---|---|---|
@@ -65,6 +66,7 @@ object, not part of one versioned document.
 | `cmd_epic_story_set` | `story` | `--status`, `--reason`, `--bump-retry`, or `--reset-retry` was provided | whichever of `status`, `reason`, `bumpRetryGate`/`resetRetryGate` were passed this call, plus a `retries` field holding that gate's post-write count |
 | `cmd_work_set` | `phase` | `--phase` was provided, and the slug is epic-qualified | `phase` |
 | `cmd_work_log` | `step` | always (its `--step`/`--outcome` are required args), and the slug is epic-qualified | `step`, `outcome`, `phase` (omitted, not empty-string or null, when `--phase` wasn't given this call), `sha` |
+| `cmd_epic_run_log` | `epic-run` | always, and only after the snapshot write (`.runs[]`) already succeeded | `landed`, plus `tokensSpent` when `--tokens-spent` was given this call |
 
 A call that touches only non-transition fields appends nothing: `epic-set --title ...`
 alone, or `epic-story-set --title ... --deps ... --gates ...` with no `--status`/
@@ -81,7 +83,17 @@ keeps the log a runtime transition trail, not a mirror of every plan edit.
 {"at":"2026-07-11T14:20:02Z","epic":"worker-evidence-and-board","story":"board-events-log","kind":"phase","phase":"build"}
 {"at":"2026-07-11T14:22:40Z","epic":"worker-evidence-and-board","story":"board-events-log","kind":"story","status":"landed"}
 {"at":"2026-07-11T14:22:41Z","epic":"worker-evidence-and-board","story":"","kind":"epic-status","status":"ready"}
+{"at":"2026-07-11T14:23:00Z","epic":"worker-evidence-and-board","story":"","kind":"epic-run","landed":2}
 ```
+
+`epic-run` is the one kind carrying no `story` value at all in practice — a driver
+invocation lands zero or more stories, never exactly one, so it is always recorded as an
+epic-level line (`story: ""`), the same convention `cmd_record`'s no-`--` case uses for
+the epic's own integration branch. `scripts/epic-supervisor` (#316) is a reader, not a
+writer: it decides whether to fire `/next` again from `epic-reconcile`'s existing
+`stopLoss` verdict and from `.runs[].tokensSpent`, and never appends here itself — every
+`epic-run` line still comes from `cmd_epic_run_log`, fired at the close of the `/next`
+invocation the supervisor triggered, exactly as it would for one a human typed.
 
 A `gate-verdict` event and a `step` event can describe the same real gate outcome —
 `epic-driver.js`'s `gatePrompt` calls `gate-ledger record --gate ... && gate-ledger
