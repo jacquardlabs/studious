@@ -154,19 +154,31 @@ unsupervised: `/bet` records the verdict, and the appetite is a number you hold 
    ↓
 /review --delivery  →  delivery episode; does this deliver what the bet promised?
    ↓
-/ship    →  evidence table, follow-ups, build report, then the PR is yours
+/ship    →  evidence table, follow-ups, build report, then for stories the PR is yours; for epics the finale opens it
 ```
 
 `/next` walks that sequence for you, one piece per invocation, and never auto-advances.
 Position lives in local, gitignored `.studious/` state, so the flow survives across sessions
 and picks up where the work actually stands — including doors you ran by hand.
 
-At milestone scale, the same `/next` proposes a story plan (dependency order, acceptance
-criteria, per-story gate profile, an epic-level pre-mortem), interviews you once for the
-whole epic, shows you what it will cost, and stops for approval. Nothing runs before you
-approve. Then dispatched agents drive the unattended stories in parallel worktrees, and hand
-back the ones a judge can't verify mechanically. Full contract:
-[`reference/epic-orchestration.md`](reference/epic-orchestration.md).
+**At milestone scale,** the same `/next` proposes a story plan (dependency order, acceptance
+criteria, per-story gate profile and merge class, an epic-level pre-mortem), interviews you
+once for the whole epic, shows you what it will cost, and stops for approval. Nothing runs
+before you approve. Then dispatched agents drive the unattended stories in parallel
+worktrees, and hand back the ones a judge can't verify mechanically.
+
+**Entry modes.** An epic may enter interactively — you approve the plan at a terminal — or
+asynchronously. In async mode, an agent authors the brief, records it `proposed`, and waits
+for a viva stamp; once stamped, `scripts/stamp-bridge` fires `/next` for you, and
+`scripts/epic-supervisor` keeps re-firing it while `gate-ledger epic-reconcile` reports
+unsettled work. A story that parks at a human-judgment gate under supervision writes a
+browser QA round (`scripts/park-packet`); resolving it there (`scripts/park-resolve`) needs
+no terminal. Full contract: [`reference/epic-orchestration.md`](reference/epic-orchestration.md).
+
+**Merge authority.** Every story in the plan is classed `auto-merge` (CI green, zero critical
+findings), `human-approve` (a code owner merges), or `never-unattended` (always supervised) —
+decided at plan approval, never inferred later. See PRODUCT.md's "Merge authority" for the
+full matrix.
 
 ## The build loop
 
