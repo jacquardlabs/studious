@@ -16,8 +16,12 @@ item list from exactly one of two sources:
   `scripts/_planparse.py` module so the two scripts can't drift apart.
   `--task` names the task by its heading number (`3` or `Task 3`).
   A `script`/`test-backed` item's backtick-quoted repo-relative method
-  path becomes its `command` verbatim; that derivation is fully
-  mechanical. A `probe` item's artifact/pattern isn't in the plan grammar
+  path becomes its `command`, resolved mechanically (issue #208, never a
+  guess): verbatim when the path is itself executable; run through
+  whichever test runner owns its tree when it is a `.py` file under
+  `tests/python/` (`pytest`) or `tests/jig/` (`unittest discover`,
+  narrowed to that one filename) — see `resolve_command_for_method`'s own
+  docstring below for the full rule. A `probe` item's artifact/pattern isn't in the plan grammar
   at all, so it comes from the optional `--probe-spec <json>` supplement
   (see `PROBE_SPEC_SCHEMA` below) — a task whose block has probe items
   but no supplement entry for them is a usage error (exit 2) naming
@@ -105,13 +109,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import shlex
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from textwrap import indent
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -236,7 +242,51 @@ def parse_item_tier(item: Item) -> tuple[str, str | None]:
     return tier_word, method_path
 
 
-def derive_items_from_plan(plan_path: Path, task_label: str, probe_spec_path: Path | None) -> dict:
+def resolve_command_for_method(method_path: str, repo_root: Path) -> str:
+    """Turn a `script`/`test-backed` item's cited method path into a runnable shell
+    command, mechanically -- never a guess (issue #208).
+
+    `scripts/plan-lint`'s own `check_item_tier` requires only that the path *exist*
+    on disk; most of what satisfies that -- every test file, every `SKILL.md`, every
+    markdown report -- carries no execute bit and no shebang. Treating the path
+    itself as the command (this repo's behavior before this fix) fails every one of
+    those deterministically with exit 126 ("Permission denied"), regardless of
+    whether the underlying claim is true.
+
+    Two cases get a real command:
+    - The path is executable on disk: unchanged, verbatim -- this is jig's own
+      handful of directly-runnable scripts (`scripts/plan-lint`, `scripts/verify`,
+      ...).
+    - The path is a `.py` file under one of this repo's two test trees
+      (CLAUDE.md's "Two test runners, deliberately"): the command runs that ONE
+      file through whichever runner already owns its tree -- `pytest <path> -q`
+      for `tests/python/`, `python3 -m unittest discover -s <dir> -p <basename>`
+      for `tests/jig/` (unittest has no single-file invocation; `-p` narrows
+      discovery to one filename so the rest of the tree isn't swept in).
+
+    Anything else falls through to the path itself, unchanged -- the same
+    behavior as before this fix, and out of its scope: a `test-backed` item
+    citing neither an executable nor a file under either test tree is a plan-
+    authoring problem `scripts/plan-lint` should catch, not something this
+    script can rescue by guessing an interpreter.
+    """
+    full = repo_root / method_path
+    if os.access(full, os.X_OK):
+        return method_path
+    if full.suffix == ".py" and full.is_file():
+        try:
+            parts = full.resolve().relative_to(repo_root.resolve()).parts
+        except ValueError:
+            parts = ()
+        if parts[:2] == ("tests", "python"):
+            return f"python3 -m pytest {shlex.quote(method_path)} -q"
+        if parts[:2] == ("tests", "jig"):
+            directory = str(PurePosixPath(*parts[:-1]))
+            return f"python3 -m unittest discover -s {shlex.quote(directory)} -p {shlex.quote(parts[-1])}"
+    return method_path
+
+
+def derive_items_from_plan(plan_path: Path, task_label: str, probe_spec_path: Path | None, repo_root: Path) -> dict:
     """Build an ITEMS_SCHEMA document mechanically from `plan_path`'s named
     task block; raises ValueError (a usage error, exit 2) on any problem —
     fail closed, never a silently partial item list."""
@@ -288,7 +338,8 @@ def derive_items_from_plan(plan_path: Path, task_label: str, probe_spec_path: Pa
 
     def derive(item: Item, tier: str, method_path: str | None) -> dict:
         if tier in COMMAND_TIERS:
-            return {"id": int(item.num), "kind": item.kind, "tier": tier, "command": method_path}
+            command = resolve_command_for_method(method_path, repo_root)
+            return {"id": int(item.num), "kind": item.kind, "tier": tier, "command": command}
         entry = probe_spec[item.num]
         derived = {"id": int(item.num), "kind": item.kind, "tier": tier, "artifact": entry["artifact"]}
         if "pattern" in entry:
@@ -456,10 +507,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
+    repo = Path(args.repo).resolve()
 
     try:
         data = (
-            derive_items_from_plan(Path(args.plan), args.task, Path(args.probe_spec) if args.probe_spec else None)
+            derive_items_from_plan(Path(args.plan), args.task, Path(args.probe_spec) if args.probe_spec else None, repo)
             if args.plan
             else load_items(Path(args.items))
         )
@@ -468,7 +520,6 @@ def main(argv: list[str]) -> int:
         return 2
 
     items = data["items"]
-    repo = Path(args.repo).resolve()
     has_probe = any(item["tier"] == "probe" for item in items)
 
     since_ts: float | None = None

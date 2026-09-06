@@ -79,15 +79,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "verify"
 
 
-def _script_constant(name: str):
-    """Read a module-level constant out of `verify` by importing it by path.
-
-    The bound the probe tests exercise has to be the one `verify` actually
-    applies; restating the number here would let the two drift apart silently,
-    which is the failure `DEFAULT_TIMEOUT_SECONDS` was already filed for (#227).
-    Loading under a non-`__main__` name leaves the CLI entry point dormant.
-    The loader is explicit because `verify` has no `.py` suffix, so importlib
-    cannot infer one from the filename.
+def _verify_module():
+    """Import `verify` by path, under a non-`__main__` name so its CLI entry
+    point stays dormant. The loader is explicit because `verify` has no `.py`
+    suffix, so importlib cannot infer one from the filename.
     """
     loader = importlib.machinery.SourceFileLoader("_verify_under_test", str(SCRIPT))
     spec = importlib.util.spec_from_file_location("_verify_under_test", SCRIPT, loader=loader)
@@ -98,9 +93,19 @@ def _script_constant(name: str):
     sys.modules[spec.name] = module
     try:
         spec.loader.exec_module(module)
-        return getattr(module, name)
+        return module
     finally:
         sys.modules.pop(spec.name, None)
+
+
+def _script_constant(name: str):
+    """Read a module-level constant out of `verify`.
+
+    The bound the probe tests exercise has to be the one `verify` actually
+    applies; restating the number here would let the two drift apart silently,
+    which is the failure `DEFAULT_TIMEOUT_SECONDS` was already filed for (#227).
+    """
+    return getattr(_verify_module(), name)
 
 
 MAX_PROBE_ARTIFACT_BYTES = _script_constant("MAX_PROBE_ARTIFACT_BYTES")
@@ -741,6 +746,168 @@ class TestVerifyPlanModeDerivation(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertIn("[FAIL] item 1", result.stdout)
             self.assertIn("[PASS] item 2", result.stdout)
+
+
+class TestResolveCommandForMethod(unittest.TestCase):
+    """`resolve_command_for_method` (#208) — the mechanical, never-a-guess
+    mapping from a cited method path to a runnable command. Pure-function
+    tests against the loaded module, no subprocess: what these check is the
+    derivation itself, not whether a shell can run the result."""
+
+    def setUp(self) -> None:
+        self.module = _verify_module()
+
+    def test_an_executable_path_is_returned_verbatim(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            write_method_script(repo, "scripts/ok", exit_code=0)
+            self.assertEqual(
+                self.module.resolve_command_for_method("scripts/ok", repo), "scripts/ok"
+            )
+
+    def test_a_non_executable_py_file_under_tests_python_maps_to_pytest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            target = repo / "tests" / "python" / "test_thing.py"
+            target.parent.mkdir(parents=True)
+            target.write_text("def test_ok():\n    pass\n", encoding="utf-8")
+            self.assertEqual(
+                self.module.resolve_command_for_method("tests/python/test_thing.py", repo),
+                "python3 -m pytest tests/python/test_thing.py -q",
+            )
+
+    def test_a_non_executable_py_file_under_tests_jig_maps_to_unittest_discover(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            target = repo / "tests" / "jig" / "test_thing.py"
+            target.parent.mkdir(parents=True)
+            target.write_text("import unittest\n", encoding="utf-8")
+            self.assertEqual(
+                self.module.resolve_command_for_method("tests/jig/test_thing.py", repo),
+                "python3 -m unittest discover -s tests/jig -p test_thing.py",
+            )
+
+    def test_a_non_executable_py_file_outside_either_test_tree_is_unchanged(self) -> None:
+        """Out of this fix's scope, deliberately: a plan-authoring problem
+        scripts/plan-lint should catch, not something this script rescues by
+        guessing an interpreter."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            target = repo / "scripts" / "helper.py"
+            target.parent.mkdir(parents=True)
+            target.write_text("pass\n", encoding="utf-8")
+            self.assertEqual(
+                self.module.resolve_command_for_method("scripts/helper.py", repo),
+                "scripts/helper.py",
+            )
+
+    def test_a_non_executable_non_python_file_is_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            target = repo / "skills" / "build" / "SKILL.md"
+            target.parent.mkdir(parents=True)
+            target.write_text("# doc\n", encoding="utf-8")
+            self.assertEqual(
+                self.module.resolve_command_for_method("skills/build/SKILL.md", repo),
+                "skills/build/SKILL.md",
+            )
+
+    def test_a_path_that_does_not_exist_on_disk_is_unchanged(self) -> None:
+        """The do-line fallback case (plan-lint's check_item_tier): a method
+        the plan promises an earlier task will create. Not yet resolvable
+        either way -- unchanged, same as a path outside both test trees."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            self.assertEqual(
+                self.module.resolve_command_for_method("not/created/yet.py", repo),
+                "not/created/yet.py",
+            )
+
+
+class TestVerifyPlanModeMethodPathResolutionEndToEnd(unittest.TestCase):
+    """#208's actual regression, reproduced and fixed end to end: a
+    `test-backed` item citing a real, non-executable test file under
+    `tests/jig/` used to fail every time with exit 126 ("Permission
+    denied"), regardless of whether the cited test passed. Exercised
+    through `tests/jig/` specifically because stdlib `unittest` needs no
+    extra dependency in whatever environment runs this suite; the
+    `tests/python/` (pytest) mapping is covered at the unit level above."""
+
+    def test_a_passing_test_under_tests_jig_now_passes_instead_of_126(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            target = repo / "tests" / "jig" / "test_regression.py"
+            target.parent.mkdir(parents=True)
+            target.write_text(
+                "import unittest\n\n"
+                "class T(unittest.TestCase):\n"
+                "    def test_ok(self):\n"
+                "        self.assertTrue(True)\n",
+                encoding="utf-8",
+            )
+            plan = write_plan(
+                repo,
+                plan_task(
+                    1,
+                    items=(
+                        "1. [cap] the regression test passes "
+                        "(tier: test-backed `tests/jig/test_regression.py`)\n"
+                    ),
+                ),
+            )
+            result = run_script(["--plan", str(plan), "--task", "1", "--repo", str(repo)])
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("[PASS] item 1", result.stdout)
+            self.assertNotIn("Permission denied", result.stdout)
+
+    def test_a_failing_test_under_tests_jig_reports_fail_not_a_permission_error(self) -> None:
+        """Proves the fix actually runs the cited test rather than
+        vacuously passing every non-executable path."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            target = repo / "tests" / "jig" / "test_regression.py"
+            target.parent.mkdir(parents=True)
+            target.write_text(
+                "import unittest\n\n"
+                "class T(unittest.TestCase):\n"
+                "    def test_fails(self):\n"
+                "        self.assertTrue(False)\n",
+                encoding="utf-8",
+            )
+            plan = write_plan(
+                repo,
+                plan_task(
+                    1,
+                    items=(
+                        "1. [cap] the regression test passes "
+                        "(tier: test-backed `tests/jig/test_regression.py`)\n"
+                    ),
+                ),
+            )
+            result = run_script(["--plan", str(plan), "--task", "1", "--repo", str(repo)])
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("[FAIL] item 1", result.stdout)
+            self.assertNotIn("Permission denied", result.stdout)
+
+    def test_a_non_test_tree_non_executable_method_still_behaves_as_before(self) -> None:
+        """Out of #208's scope, deliberately unchanged: this is the honest
+        signal that the plan cited a file this script has no mechanical way
+        to run, not a silently swallowed gap."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            target = repo / "docs" / "note.md"
+            target.parent.mkdir(parents=True)
+            target.write_text("# note\n", encoding="utf-8")
+            plan = write_plan(
+                repo,
+                plan_task(
+                    1,
+                    items=("1. [cap] c (tier: script `docs/note.md`)\n"),
+                ),
+            )
+            result = run_script(["--plan", str(plan), "--task", "1", "--repo", str(repo)])
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("[FAIL] item 1", result.stdout)
 
 
 class TestVerifyPlanModeUsageErrors(unittest.TestCase):
