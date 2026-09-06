@@ -140,7 +140,7 @@ EOF
 
 expect_pass "an agent() call routed through an agentType is clean" <<'EOF'
 export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
-const r = await agent('do it', { agentType: 'studious:some-auditor', label: 'x', phase: 'y' })
+const r = await agent('do it', { agentType: 'gauntlet:some-auditor', label: 'x', phase: 'y' })
 return { r }
 EOF
 

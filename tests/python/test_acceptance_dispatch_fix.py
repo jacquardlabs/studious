@@ -34,6 +34,8 @@ from __future__ import annotations
 import json
 
 from test_driver_crash_hardening import (
+    finding,
+    clean_document,
     DRIVER,
     FINALE_AUDITORS_PASS,
     _extract_function,
@@ -75,7 +77,7 @@ def test_single_register_dispatches_premortem_auditor_inside_parallel_batch() ->
         "parallel() is awaited — inside the batch, never a serial dispatch "
         "added after it resolves"
     )
-    assert "agentType: 'studious:premortem-auditor'" in source, (
+    assert "agentType: 'gauntlet:premortem-auditor'" in source, (
         "the premortem dispatch must use the real, registered premortem-auditor "
         "agentType, not a generic agent told to imitate it"
     )
@@ -83,9 +85,9 @@ def test_single_register_dispatches_premortem_auditor_inside_parallel_batch() ->
     epic = _one_story_acceptance_epic()
     rules = [
         {"match": r"^acceptance:scope:a$", "result": _scope_with_files(["foo.py", "docs/studious/premortems/foo-design.md"])},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
-        {"match": r"^acceptance:premortem:a$", "result": {"findings": "| # | Failure mode | Verdict | Evidence |\n|---|---|---|---|\n| 1 | migration skips a step | NOT REALIZED | rollback tested |"}},
+        {"match": r"^acceptance:premortem:a$", "result": clean_document("premortem-auditor", coverage="item 1 (migration skips a step) NOT REALIZED — rollback tested")},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
         {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
         *FINALE_LAND_RULES,
@@ -103,15 +105,15 @@ def test_single_register_dispatches_premortem_auditor_inside_parallel_batch() ->
 def test_premortem_auditor_realized_findings_feed_compile_prompt_as_third_block() -> None:
     """The premortem-auditor's report reaches acceptanceFanIn's compile prompt
     as its own distinctly labeled block, separate from product-review and
-    walkthrough, and the rubric is extended to map REALIZED findings via the
-    same BLOCKER/SHOULD FIX vocabulary Part 4 already uses."""
+    walkthrough, and the rubric is extended to weigh REALIZED findings by the
+    same three tiers Part 4 already reads off the product lane."""
     epic = _one_story_acceptance_epic()
     marker = "PREMORTEM_MARKER item 3 REALIZED — migration step skipped, file:line evidence at foo.py:42"
     rules = [
         {"match": r"^acceptance:scope:a$", "result": _scope_with_files(["foo.py", "docs/studious/premortems/foo-design.md"])},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "PRODUCT_MARKER looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="PRODUCT_MARKER looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "WALKTHROUGH_MARKER no complaints"}},
-        {"match": r"^acceptance:premortem:a$", "result": {"findings": marker}},
+        {"match": r"^acceptance:premortem:a$", "result": clean_document("premortem-auditor", [finding("critical", marker, anchor="item 3, REALIZED: foo.py:42")])},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "HOLD", "sha": "a0", "summary": "one blocker"}},
         # merge:a deliberately unmocked — matches test_acceptance_fanout.py's
         # own established convention for a prompt-content-only assertion; the
@@ -142,7 +144,8 @@ def test_premortem_auditor_realized_findings_feed_compile_prompt_as_third_block(
 
     # Rubric extended to cover the premortem block, not left describing two.
     assert "REALIZED" in prompt
-    assert "BLOCKER" in prompt and "SHOULD FIX" in prompt
+    assert "on the same three tiers Part 4 already reads off the product lane" in prompt
+    assert "BLOCKER" not in prompt and "SHOULD FIX" not in prompt
 
 
 def test_register_with_only_technical_items_still_dispatches_premortem_auditor() -> None:
@@ -155,10 +158,10 @@ def test_register_with_only_technical_items_still_dispatches_premortem_auditor()
     epic = _one_story_acceptance_epic()
     rules = [
         {"match": r"^acceptance:scope:a$", "result": _scope_with_files(["docs/studious/premortems/foo-design.md"])},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         # premortem-auditor ran, found nothing in-lane — all items technical.
-        {"match": r"^acceptance:premortem:a$", "result": {"findings": "| # | Failure mode | Verdict | Evidence |\n|---|---|---|---|\n\n(no product-lane items — items 1-3 are all technical-lane, out of scope for this dispatch)"}},
+        {"match": r"^acceptance:premortem:a$", "result": clean_document("premortem-auditor", coverage="no product-lane items — items 1-3 are all technical-lane, out of scope for this dispatch")},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
         {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
         *FINALE_LAND_RULES,
@@ -187,7 +190,7 @@ def test_no_register_in_changeset_dispatches_no_premortem_auditor_call() -> None
         # directory has nothing Branch-matching (dedicated fallback-path test
         # is test_confirmed_empty_premortems_directory_skips_verification).
         {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
         {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
@@ -208,7 +211,7 @@ def test_no_register_in_changeset_dispatches_no_premortem_auditor_call() -> None
         "shape to before this fix — no third block"
     )
     assert "REALIZED" not in prompt, (
-        "the extended BLOCKER/SHOULD FIX-for-premortem rubric sentence must "
+        "the extended tiers-for-premortem rubric sentence must "
         "not appear when there is no premortem block to reference"
     )
 
@@ -236,9 +239,9 @@ def test_fallback_lookup_verifies_a_branch_matching_register_outside_changeset()
                 "branchMatches": True,
             })},
         },
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
-        {"match": r"^acceptance:premortem:a$", "result": {"findings": "| # | Failure mode | Verdict | Evidence |\n|---|---|---|---|\n| 1 | migration skips a step | NOT REALIZED | rollback tested |"}},
+        {"match": r"^acceptance:premortem:a$", "result": clean_document("premortem-auditor", coverage="item 1 (migration skips a step) NOT REALIZED — rollback tested")},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
         {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
         *FINALE_LAND_RULES,
@@ -282,7 +285,7 @@ def test_died_or_ambiguous_fallback_dispatch_degrades_to_unreviewed_not_confirme
         return [
             {"match": r"^acceptance:scope:a$", "result": _scope_with_files(["foo.py", "bar.py"])},
             fallback_rule,
-            {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+            {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
             {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
             # The compiler never sees the fallback dispatch fail — the driver
             # overrides its own SHIP regardless, same posture as the existing
@@ -364,9 +367,9 @@ def test_two_premortem_matches_in_changeset_skip_fallback_and_dispatch() -> None
                 "branchMatches": True,
             })},
         },
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
-        {"match": r"^acceptance:premortem:a$", "result": {"findings": "SHOULD NEVER BE DISPATCHED"}},
+        {"match": r"^acceptance:premortem:a$", "result": clean_document("premortem-auditor", coverage="SHOULD NEVER BE DISPATCHED")},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
         # merge:a and park:a deliberately unmocked (established convention:
         # HOLD never reaches merge(); park() falls through to its own
@@ -416,7 +419,7 @@ def test_confirmed_empty_premortems_directory_skips_verification() -> None:
     rules = [
         {"match": r"^acceptance:scope:a$", "result": _scope_with_files(["foo.py", "bar.py"])},
         {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
         {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
@@ -466,9 +469,9 @@ def test_multiple_branch_matching_candidates_degrade_to_unreviewed_never_picked_
             "docs/studious/premortems/one-design.md",
             "docs/studious/premortems/two-design.md",
         ])},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
-        {"match": r"^acceptance:premortem:a$", "result": {"findings": "SHOULD NEVER BE DISPATCHED"}},
+        {"match": r"^acceptance:premortem:a$", "result": clean_document("premortem-auditor", coverage="SHOULD NEVER BE DISPATCHED")},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "looked fine to me"}},
         # acceptance:premortem-fallback:a and park:a deliberately unmocked —
         # fallback must never dispatch for this source; park() falls through
@@ -496,9 +499,9 @@ def test_multiple_branch_matching_candidates_degrade_to_unreviewed_never_picked_
     fallback_rules = [
         {"match": r"^acceptance:scope:a$", "result": _scope_with_files(["foo.py", "bar.py"])},
         {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "multiple"})}},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
-        {"match": r"^acceptance:premortem:a$", "result": {"findings": "SHOULD NEVER BE DISPATCHED"}},
+        {"match": r"^acceptance:premortem:a$", "result": clean_document("premortem-auditor", coverage="SHOULD NEVER BE DISPATCHED")},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "looked fine to me"}},
         # park:a deliberately unmocked, same convention as above.
     ]
@@ -556,9 +559,9 @@ def test_single_and_zero_candidate_cases_unaffected_by_multi_candidate_handling(
     # (a) Task 2: exactly one candidate named directly in the changeset.
     changeset_single = run([
         {"match": r"^acceptance:scope:a$", "result": _scope_with_files(["foo.py", "docs/studious/premortems/foo-design.md"])},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
-        {"match": r"^acceptance:premortem:a$", "result": {"findings": "| # | Failure mode | Verdict | Evidence |\n|---|---|---|---|\n| 1 | migration skips a step | NOT REALIZED | rollback tested |"}},
+        {"match": r"^acceptance:premortem:a$", "result": clean_document("premortem-auditor", coverage="item 1 (migration skips a step) NOT REALIZED — rollback tested")},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
         {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
         *FINALE_LAND_RULES,
@@ -580,9 +583,9 @@ def test_single_and_zero_candidate_cases_unaffected_by_multi_candidate_handling(
             "path": "docs/studious/premortems/other-feature-design.md",
             "branchMatches": True,
         })}},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
-        {"match": r"^acceptance:premortem:a$", "result": {"findings": "| # | Failure mode | Verdict | Evidence |\n|---|---|---|---|\n| 1 | migration skips a step | NOT REALIZED | rollback tested |"}},
+        {"match": r"^acceptance:premortem:a$", "result": clean_document("premortem-auditor", coverage="item 1 (migration skips a step) NOT REALIZED — rollback tested")},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
         {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
         *FINALE_LAND_RULES,
@@ -597,7 +600,7 @@ def test_single_and_zero_candidate_cases_unaffected_by_multi_candidate_handling(
     confirmed_empty = run([
         {"match": r"^acceptance:scope:a$", "result": _scope_with_files(["foo.py", "bar.py"])},
         {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
         {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
@@ -617,7 +620,7 @@ def test_single_and_zero_candidate_cases_unaffected_by_multi_candidate_handling(
             "path": "docs/studious/premortems/some-other-branch-design.md",
             "branchMatches": False,
         })}},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
         {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
@@ -715,7 +718,7 @@ def test_multi_candidate_fix_and_re_review_forced_to_hold_before_retry_loop() ->
             "docs/studious/premortems/one-design.md",
             "docs/studious/premortems/two-design.md",
         ])},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "a0", "summary": "please address the findings"}},
         # acceptance:premortem-fallback:a, acceptance:premortem:a, and
@@ -752,7 +755,7 @@ def test_multi_candidate_fix_and_re_review_forced_to_hold_before_retry_loop() ->
     fallback_rules = [
         {"match": r"^acceptance:scope:a$", "result": _scope_with_files(["foo.py", "bar.py"])},
         {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "multiple"})}},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "a0", "summary": "please address the findings"}},
         # acceptance:premortem:a, fix:acceptance:a, park:a unmocked, same

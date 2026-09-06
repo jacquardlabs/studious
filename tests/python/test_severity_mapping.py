@@ -3,10 +3,10 @@
 `/review`'s judge lanes are gauntlet's and emit the three tiers directly, so it maps exactly
 one vocabulary: the `web-design-guidelines` skill's, on its inline lane-8 path, which returns
 no findings document. The per-auditor tables survive only in the rubric's trailing "Local
-roster" section, for `workflows/epic-driver.js`'s `epicLedgerInstruction`, which still maps
-the local agents' labels and anchor-checks their Criticals until #334 S2. These tests pin
-both halves: the `/review` prefix carries the a11y row and nothing else; the local-roster
-suffix carries exactly the driver's dispatches.
+roster" section, beside the local `agents/` they describe until S4 removes both — unread by
+any door since #334 S2. These tests pin both halves: the `/review` prefix carries the a11y
+row and nothing else; the local-roster suffix carries exactly the lanes the driver
+dispatches (now gauntlet's, under the same names).
 """
 
 from __future__ import annotations
@@ -92,11 +92,9 @@ def test_review_maps_no_per_judge_row() -> None:
 
 
 def test_local_roster_tables_cover_exactly_the_epic_drivers_dispatches() -> None:
-    """`epicLedgerInstruction` (workflows/epic-driver.js:1548) maps each local lane's
-    label through "that file's per-auditor table" and holds a Critical to its anchor row
-    before the ledger write that can park a story's dependent subtree. Every lane the
-    driver dispatches needs a row in both tables, and no other lane may have one —
-    a row for a lane it never runs is a lane it could attest clean without running."""
+    """The tables describe the local agents that share the driver's lane names. Every
+    lane the driver dispatches has a row in both tables, and no other lane may have one —
+    a row for a lane no door runs is a label nothing emits."""
     roster = _local_roster()
     tables = roster.split("### ")[1:]
     assert len(tables) == 2, "local roster must carry a label→tier table and an anchors table"

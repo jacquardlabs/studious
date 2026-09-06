@@ -75,14 +75,15 @@ Findings across audits and reviews sort into three tiers, named consistently eve
 `Critical` · `Important` · `Track`. `/review`'s judge lanes are gauntlet's and emit these
 tiers directly (its findings contract §5, #334); the canonical ladder, the one label→tier
 row `/review` still maps (the `web-design-guidelines` a11y path), the pointer to gauntlet's
-per-judge anchors, and the per-auditor tables the epic driver's local roster still needs
-until #334 S2 live in `reference/severity-rubric.md`, cited by `commands/review.md` rather
-than restated there. `deep-review` and the `review-*` agents already emit directly
-in this vocabulary and need no mapping.
+per-judge anchors, and the local `agents/`' own label tables (unread by any door
+since #334 S2, removed with them at S4) live in `reference/severity-rubric.md`, cited by
+`commands/review.md` rather than restated there. `deep-review` and the `review-*` agents
+already emit directly in this vocabulary and need no mapping.
 
 The shared audit/review posture — injection-defense, read-only/diff-scope, output-row
-schema, and the calibrate-don't-suppress closer — lives in `reference/prompt-contract.md`,
-cited by the auditor/reviewer agents rather than restated per-agent.
+schema, and the calibrate-don't-suppress closer — lives in `reference/prompt-contract.md`
+for the local agents; a gauntlet judge inlines its own, and the epic driver states a
+one-paragraph equivalent for the prose lanes it dispatches itself.
 
 ## Formatting
 

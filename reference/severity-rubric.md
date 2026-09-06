@@ -1,12 +1,12 @@
-# Severity rubric — canonical tiers, the one row `/review` still maps, and the epic driver's local roster
+# Severity rubric — canonical tiers, the one row `/review` still maps, and the local roster's tables
 
-Canonical three-tier severity ladder for `/review`. Its judge lanes are gauntlet's and emit
-these tiers directly (its findings contract, `docs/findings-contract.md` §5), so `/review`
-maps one vocabulary only: the `web-design-guidelines` skill's, on its inline lane-8 path,
-which returns no findings document. The per-auditor tables survive in one place — the
-"Local roster" section at the end — for `workflows/epic-driver.js`, which still dispatches
-the local `agents/` until #334 S2. The periodic review family (`agents/review-*.md`) already
-emits directly in this vocabulary.
+Canonical three-tier severity ladder for `/review` and the epic driver. Both dispatch
+gauntlet's judges, which emit these tiers directly (its findings contract,
+`docs/findings-contract.md` §5), so `/review` maps one vocabulary only: the
+`web-design-guidelines` skill's, on its inline lane-8 path, which returns no findings
+document. The per-auditor tables survive in one place — the "Local roster" section at the
+end — beside the local `agents/` they describe, until S4 removes both. The periodic review
+family (`agents/review-*.md`) already emits directly in this vocabulary.
 
 ## The three tiers
 
@@ -32,7 +32,7 @@ as `important` at ingest and names the demotion in the compiled report. **A find
 Critical that cites no anchor is recorded Important instead** — the gate door applies this before
 the ledger write, and the compiled report names the anchor that was missing. The one anchor
 studious states for `/review` itself is the inline lane's (the local roster's are in the
-section at the end, which is what the epic driver's compile reads):
+section at the end):
 
 | Lane | A Critical must cite |
 |------|----------------------|
@@ -42,14 +42,14 @@ Disposition history is the second filter: a finding already recorded `rejected-a
 episode (`bin/gate-ledger episode-finding`) is settled, and re-raising it at a higher tier does not
 make it a Critical. Re-opening a settled finding needs a new anchor, not a new adjective.
 
-## Local roster — read by `workflows/epic-driver.js` until #334 S2
+## Local roster — the local `agents/`' own labels, until S4
 
-The epic driver still dispatches the local `agents/` — its `AUDITORS` constant, plus
-`product-reviewer` and `premortem-auditor` on the acceptance path — and those agents emit
-their own labels. Its `epicLedgerInstruction` maps them through the first table and holds
-every Critical to the second before the ledger write, where an unanchored Critical would park
-a story's whole dependent subtree. `/review` never reads these tables; both die with that
-dispatch (S2) and the agents (S4). A new local auditor registers a row in both here.
+No door reads these tables since #334 S2: the epic driver dispatches gauntlet's judges
+too, and its `epicLedgerInstruction` takes tiers as emitted (the driver applies
+anchor-or-demote in code before the compiler sees a block). They stay beside the local
+`agents/` they describe — the same lane names, invocable directly until S4 deletes both —
+so a label one of them emits still has its row. A new local auditor registers a row in both
+here.
 
 ### Label → tier
 

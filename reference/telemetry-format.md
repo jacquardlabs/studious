@@ -58,7 +58,7 @@ no cross-surface consumer reads them.
 | `task_id` | `--task-id`, defaulting to the current branch name | The unit of work under review. |
 | `skill` | `--skill` | The dispatch surface: `gate-audit`, `gate-acceptance`, `health`, `review-outcomes`, or `deep-review` for a local `review-*` agent dispatched by hand (the retired `/retro` sweep's key, kept until #334 S4 deletes those files). |
 | `role` | `--role` | The agent's own `name` (`security-auditor`, `codebase-posture-auditor`), never the `studious:`- or `gauntlet:`-qualified dispatch string — `telemetry-dispatch` refuses a colon. `fleet` says which plugin the name belongs to. |
-| `fleet` | `--fleet` | `studious` or `gauntlet`: whose agent `role` names. Optional and caller-claimed like `capturer`; the hook always sets it, the driver sets nothing until #334 S2, so `""` means unstated. A same-named lane in both fleets (`security-auditor`) is two different judges with two different pins — this is the field that keeps them apart. Added as an optional field, which is not a bump: no per-line schema version exists to bump (above), and a reader that ignores it reads every line as before. |
+| `fleet` | `--fleet` | `studious` or `gauntlet`: whose agent `role` names. Optional and caller-claimed like `capturer`; the hook always sets it, the driver sets `gauntlet` on every judge lane and nothing on its own prose lanes (the fix-delta pass), so `""` means a local role with no agent file, or a line from before #334 S2. A same-named lane in both fleets (`security-auditor`) is two different judges with two different pins — this is the field that keeps them apart. Added as an optional field, which is not a bump: no per-line schema version exists to bump (above), and a reader that ignores it reads every line as before. |
 | `model` | `--model`, else resolved from `agents/<role>.md`'s frontmatter unless `fleet` is `gauntlet` (an unstated fleet still resolves) | `inherit` is recorded verbatim when that is what the agent declares — that is live evidence for #136, not a gap to paper over. Empty is the normal case for a `gauntlet` role — its pin lives in gauntlet's own plugin, which this one never reads, and a same-named local agent is not consulted — so the #136 `inherit` evidence stream ends for each lane the moment it migrates (gauntlet's pins are that issue's fix). Also empty for a local role with no agent file. |
 | `effort` | `--effort`, same fallback | The other half of the cost dial (CLAUDE.md pins `model` and `effort` independently). |
 | `routing_reason` | `--routing-reason` | Closed set: `static` (a fixed roster), `override` (something displaced the static roster — a narrowed re-audit round is `override`), `classifier:v<digits>` (a literal `v` followed by digits only), or `ab:<arm>` (`<arm>` is one non-empty token with no whitespace or control characters). Rejected otherwise. |
@@ -201,8 +201,8 @@ branch it describes — a routing comparison reads runs that finished long ago.
 - `tests/test_dispatch_telemetry.sh` asserts the hook's two-fleet allow-list, skill
   mapping, sentinel suppression, and defensive exits.
 - `workflows/epic-driver.js`'s audit fan-out builds the driver-side call; changing the
-  flag set means changing that prompt builder in the same commit. `--fleet` is the one
-  standing exception: optional, and the driver adopts it at #334 S2 when its dispatches
-  move — not drift.
+  flag set means changing that prompt builder in the same commit. `--fleet` is optional
+  there: the driver passes it on judge lanes (#334 S2) and omits it on its own prose
+  lanes — not drift.
 - `scripts/retro-stats` reads `kind`, `task_id`, `model`, and `skill` off dispatch lines and
   `task_id` off outcome lines; renaming any of those means changing its cost table.

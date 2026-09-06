@@ -26,12 +26,15 @@ from test_driver_crash_hardening import (
     MAX_FIX_CYCLES,
     REPO_ROOT,
     _extract_function,
+    _extract_symbol,
     _run_driver,
     _run_node,
+    clean_document,
+    finding,
 )
 
 GATE_AUDIT_MD = REPO_ROOT / "commands" / "review.md"
-AUDITORS_JS = json.dumps([f"studious:{n}" for n in AUDITOR_SHORT_NAMES])
+AUDITORS_JS = json.dumps([f"gauntlet:{n}" for n in AUDITOR_SHORT_NAMES])
 
 
 # ---------- resolveReauditScope: pure-function executed fixture ----------
@@ -97,13 +100,13 @@ def test_missing_sha_fails_closed() -> None:
 
 
 def test_well_formed_prior_result_narrows() -> None:
-    """Happy path: narrows and maps short lane names to `studious:<lane>` ids."""
+    """Happy path: narrows and maps short lane names to `gauntlet:<lane>` ids."""
     result = _resolve_scope(
         '{ verdict: "FIX AND RE-AUDIT", sha: "deadbeef", summary: "s", '
         'blockingLanes: ["security-auditor", "test-auditor"] }'
     )
     assert result["narrowed"] is True
-    assert result["blockingAuditors"] == ["studious:security-auditor", "studious:test-auditor"]
+    assert result["blockingAuditors"] == ["gauntlet:security-auditor", "gauntlet:test-auditor"]
     assert result["priorSha"] == "deadbeef"
 
 
@@ -113,7 +116,8 @@ def test_well_formed_prior_result_narrows() -> None:
 def _join_reports(dispatched: list[str], reports: list[dict | None], carried: list[str],
                    prior_sha: str, fix_delta_dispatched: bool, fix_delta_report) -> dict:
     source = DRIVER.read_text()
-    fn = _extract_function(source, "joinReports")
+    # joinReports reads the findings-document helpers beside it (#334 S2).
+    fn = "\n".join(_extract_symbol(source, name) for name in ("CONTRACT_VERSION", "TIERS", "isFindingsDocument", "normalizeFindings", "renderFindingsDocument", "joinReports"))
     script = f"""
 {fn}
 const result = joinReports(
@@ -132,8 +136,8 @@ console.log(JSON.stringify(result))
 def test_join_reports_unnarrowed_round_is_unchanged_shape() -> None:
     """An unnarrowed round reads exactly as it did before this story."""
     result = _join_reports(
-        dispatched=["studious:security-auditor", "studious:code-auditor"],
-        reports=[{"findings": "clean"}, {"findings": "clean"}],
+        dispatched=["gauntlet:security-auditor", "gauntlet:code-auditor"],
+        reports=[clean_document("security-auditor"), clean_document("code-auditor")],
         carried=[],
         prior_sha="",
         fix_delta_dispatched=False,
@@ -142,44 +146,44 @@ def test_join_reports_unnarrowed_round_is_unchanged_shape() -> None:
     assert result["missing"] == []
     assert "carried forward" not in result["joined"]
     assert "fix-delta-cross-lane-pass" not in result["joined"]
-    assert "--- studious:security-auditor ---\nclean" in result["joined"]
+    assert '--- gauntlet:security-auditor ---\n{"contract_version":1,"judge":"security-auditor"' in result["joined"]
 
 
 def test_join_reports_marks_a_dispatched_died_lane_as_unaudited() -> None:
     result = _join_reports(
-        dispatched=["studious:security-auditor", "studious:code-auditor"],
-        reports=[{"findings": "clean"}, None],
+        dispatched=["gauntlet:security-auditor", "gauntlet:code-auditor"],
+        reports=[clean_document("security-auditor"), None],
         carried=[],
         prior_sha="",
         fix_delta_dispatched=False,
         fix_delta_report=None,
     )
-    assert result["missing"] == ["studious:code-auditor"]
+    assert result["missing"] == ["gauntlet:code-auditor"]
     assert "AGENT DIED" in result["joined"]
-    assert "studious:code-auditor --- (AGENT DIED" in result["joined"]
+    assert "gauntlet:code-auditor --- (AGENT DIED" in result["joined"]
 
 
 def test_join_reports_carries_forward_a_skipped_lane_distinctly_from_died() -> None:
     """Carried-forward and AGENT DIED must stay visibly distinct labels."""
     result = _join_reports(
-        dispatched=["studious:security-auditor"],
-        reports=[{"findings": "clean"}],
-        carried=["studious:code-auditor", "studious:doc-auditor"],
+        dispatched=["gauntlet:security-auditor"],
+        reports=[clean_document("security-auditor")],
+        carried=["gauntlet:code-auditor", "gauntlet:doc-auditor"],
         prior_sha="abc123",
         fix_delta_dispatched=False,
         fix_delta_report=None,
     )
     assert result["missing"] == []
-    assert "studious:code-auditor --- (carried forward: PASS, no Confirmed Critical as of abc123" in result["joined"]
-    assert "studious:doc-auditor --- (carried forward" in result["joined"]
+    assert "gauntlet:code-auditor --- (carried forward: PASS, no Confirmed Critical as of abc123" in result["joined"]
+    assert "gauntlet:doc-auditor --- (carried forward" in result["joined"]
     assert "AGENT DIED" not in result["joined"]
 
 
 def test_join_reports_folds_in_a_successful_fix_delta_pass() -> None:
     result = _join_reports(
-        dispatched=["studious:security-auditor"],
-        reports=[{"findings": "clean"}],
-        carried=["studious:code-auditor"],
+        dispatched=["gauntlet:security-auditor"],
+        reports=[clean_document("security-auditor")],
+        carried=["gauntlet:code-auditor"],
         prior_sha="abc123",
         fix_delta_dispatched=True,
         fix_delta_report={"findings": "nothing in the delta"},
@@ -193,9 +197,9 @@ def test_join_reports_a_died_fix_delta_pass_is_unaudited_not_silently_absent() -
     """A died fix-delta pass must show up as UNAUDITED and count in `missing`,
     never silently absent — it's the one safety net a narrowed round relies on."""
     result = _join_reports(
-        dispatched=["studious:security-auditor"],
-        reports=[{"findings": "clean"}],
-        carried=["studious:code-auditor"],
+        dispatched=["gauntlet:security-auditor"],
+        reports=[clean_document("security-auditor")],
+        carried=["gauntlet:code-auditor"],
         prior_sha="abc123",
         fix_delta_dispatched=True,
         fix_delta_report=None,
@@ -258,7 +262,7 @@ def test_both_dispatch_surfaces_cite_the_identical_blocking_lanes_flag() -> None
 
 def _full_roster_pass_rules(story: str) -> list[dict]:
     return [
-        {"match": rf"^audit:{name}:{story}$", "result": {"findings": "clean"}}
+        {"match": rf"^audit:{name}:{story}$", "result": clean_document(name)}
         for name in AUDITOR_SHORT_NAMES
     ]
 
@@ -268,7 +272,7 @@ def _full_roster_pass_rules(story: str) -> list[dict]:
 # test_driver_crash_hardening.py's `test_needs_you_is_empty_on_an_unremarkable_
 # two_story_run`). Parked stories never reach the finale and don't need this.
 _FINALE_CLEAN_RULES = [
-    {"match": rf"^finale:{name}$", "result": {"findings": "clean"}} for name in AUDITOR_SHORT_NAMES
+    {"match": rf"^finale:{name}$", "result": clean_document(name)} for name in AUDITOR_SHORT_NAMES
 ] + [
     {"match": r"^finale:attestations$", "result": {"findings": '{"attestations": []}'}},
     {"match": r"^finale:findings-closure$", "result": {"findings": "every recorded finding reached a resolved sha"}},
@@ -320,6 +324,9 @@ def test_retry_narrows_to_blocking_lanes_and_fix_delta_pass_only() -> None:
         "blockingLanes": ["security-auditor", "test-auditor"],
     }
     rules = [
+        # The two blocking lanes carry a critical each: blockingLanes may only name a
+        # lane whose findings document still has one after ingest.
+        *[{"match": rf"^audit:{name}:{story}$", "result": clean_document(name, [finding("critical", anchor="named anchor at a.py:1")])} for name in ("security-auditor", "test-auditor")],
         *_full_roster_pass_rules(story),
         {"match": rf"^audit:compile:{story}$", "result": blocking_result},
         {"match": rf"^audit:fix-delta:{story}$", "result": {"findings": "fix-delta clean"}},
@@ -363,6 +370,7 @@ def test_retry_compile_prompt_carries_forward_non_blocking_lanes_and_never_confu
         "blockingLanes": ["security-auditor"],
     }
     rules = [
+        {"match": rf"^audit:security-auditor:{story}$", "result": clean_document("security-auditor", [finding("critical", anchor="named anchor at a.py:1")])},
         *_full_roster_pass_rules(story),
         {"match": rf"^audit:compile:{story}$", "result": blocking_result},
         {"match": rf"^audit:fix-delta:{story}$", "result": {"findings": "fix-delta clean"}},
@@ -379,8 +387,8 @@ def test_retry_compile_prompt_carries_forward_non_blocking_lanes_and_never_confu
     # generically — the real signal is a per-lane carried-forward block.)
     round_one = compile_prompts[0]
     for name in AUDITOR_SHORT_NAMES:
-        assert f"--- studious:{name} ---\nclean" in round_one
-        assert f"studious:{name} --- (carried forward" not in round_one
+        assert f'--- gauntlet:{name} ---\n{{"contract_version":1,"judge":"{name}"' in round_one
+        assert f"gauntlet:{name} --- (carried forward" not in round_one
 
     # Every retry round: non-blocking lanes are carried forward, never re-reported
     # in full, and never shown as AGENT DIED.
@@ -389,10 +397,10 @@ def test_retry_compile_prompt_carries_forward_non_blocking_lanes_and_never_confu
         for name in AUDITOR_SHORT_NAMES:
             if name == "security-auditor":
                 continue
-            assert f"studious:{name} --- (carried forward: PASS, no Confirmed Critical as of s1" in retry_prompt, (
+            assert f"gauntlet:{name} --- (carried forward: PASS, no Confirmed Critical as of s1" in retry_prompt, (
                 f"{name}'s carry-forward line is missing or malformed in a narrowed round's compile prompt"
             )
-            assert f"studious:{name} --- (AGENT DIED" not in retry_prompt
+            assert f"gauntlet:{name} --- (AGENT DIED" not in retry_prompt
 
 
 def test_a_died_lane_strips_blocking_lanes_and_forces_needs_discussion_even_if_the_compiler_said_pass() -> None:
@@ -406,7 +414,7 @@ def test_a_died_lane_strips_blocking_lanes_and_forces_needs_discussion_even_if_t
         "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"]}},
     }
     rules = [
-        {"match": rf"^audit:{name}:{story}$", "result": {"findings": "clean"}}
+        {"match": rf"^audit:{name}:{story}$", "result": clean_document(name)}
         for name in AUDITOR_SHORT_NAMES
         if name != "doc-auditor"
     ]
@@ -472,7 +480,7 @@ def test_resumed_process_with_a_narrowable_ledger_verdict_narrows() -> None:
     )
     rules = [
         {"match": rf"^audit:ledger-scope:{story}$", "result": {"findings": ledger_findings}},
-        {"match": rf"^audit:security-auditor:{story}$", "result": {"findings": "clean"}},
+        {"match": rf"^audit:security-auditor:{story}$", "result": clean_document("security-auditor")},
         {"match": rf"^audit:fix-delta:{story}$", "result": {"findings": "clean"}},
         {"match": rf"^audit:compile:{story}$", "result": {"verdict": "PASS", "sha": "s2", "summary": "clean"}},
         {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "s3", "notes": "clean"}},

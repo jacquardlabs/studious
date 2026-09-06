@@ -109,18 +109,14 @@ const localRules = {
   // `// eslint-disable-next-line local/no-unpinned-agent-dispatch -- <why>` comment
   // recording that the gap is a deliberate, not-yet-made decision — never a silent
   // default. Routing through an agentType only pins the model if that agent's own
-  // frontmatter does — 4 of the 11 in workflows/epic-driver.js's AUDITORS array
-  // (code-auditor, doc-auditor, test-auditor, frontend-reviewer) are `model: inherit`
-  // today (see the comment beside AUDITORS), so this rule cannot statically verify
-  // those four are pinned; it can only verify the dispatch names a registered agent
-  // and leaves the agent's own pin to #136's A/B, which is explicitly out of scope
-  // here.
+  // frontmatter does; this rule verifies the dispatch names a registered agent and
+  // leaves the agent's own pin to that agent's file.
   'no-unpinned-agent-dispatch': {
     meta: {
       type: 'problem',
       docs: {
         description:
-          'Every agent() dispatch must carry an explicit `model` or `agentType` option in its options object, or a `// eslint-disable-next-line local/no-unpinned-agent-dispatch -- <why>` justification. An unpinned dispatch silently inherits the session model (#136) rather than a deliberately chosen one. Note: `agentType` only satisfies this statically — it does not guarantee the referenced agent itself is pinned. 4 of the 11 agents in workflows/epic-driver.js\'s AUDITORS array (code-auditor, doc-auditor, test-auditor, frontend-reviewer) are `model: inherit`; fixing that is #136\'s A/B, not this rule\'s job.',
+          'Every agent() dispatch must carry an explicit `model` or `agentType` option in its options object, or a `// eslint-disable-next-line local/no-unpinned-agent-dispatch -- <why>` justification. An unpinned dispatch silently inherits the session model (#136) rather than a deliberately chosen one. Note: `agentType` only satisfies this statically — it does not guarantee the referenced agent itself is pinned; that is the agent file\'s job.',
       },
       schema: [],
       messages: {
