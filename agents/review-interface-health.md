@@ -22,7 +22,7 @@ Read CLAUDE.md, PRODUCT.md, and DESIGN.md first. **Start with DESIGN.md's `## Su
 
 ### 1. Cross-surface consistency (all products)
 
-This is this review's unique, highest-value check — `gate-audit` skips cross-surface consistency and points to `/retro interface` (this review) for it, and a web-only review misses it entirely. For every product with more than one surface:
+This review's unique check — `gate-audit` skips cross-surface consistency and points here (`/retro interface`) for it. For every product with more than one surface:
 
 - For each concept in DESIGN.md's vocabulary, verify the canonical display form renders identically on every surface that shows it (a status label reads the same in CLI, TUI, and HTML report).
 - Verify each surface imports the single source of truth rather than defining a local copy.
@@ -65,7 +65,7 @@ Save to `docs/studious/interface-reviews/YYYY-MM-DD-interface-review.md` (compar
 - **Metrics snapshot** — only metrics that apply to surfaces present: surfaces reviewed (count + list), cross-surface inconsistency count, design-system deviation count; web only: template/component count, CSS file sizes, accessibility issues by severity.
 - **DESIGN.md updates (proposed)** — new patterns that emerged, surfaces that appeared or changed, decisions to codify, anti-patterns to add. Proposed, not applied.
 - **Trend vs last cycle** — name which findings are new, persistent, or resolved; else "baseline".
-- **Residual line** — what you verified clean, assumptions, limitations. The headline limitation is pixel-blindness: this is a static review with no rendered pixels, so contrast, responsive layout, and touch targets are unverifiable and flagged Potential pending a runtime pass.
+- **Residual line** — what you verified clean, assumptions, limitations. Headline limitation: pixel-blindness — no rendered pixels, so contrast/responsive/touch-target findings stay Potential pending a runtime pass.
 
 Emit findings per the injected output-row schema: **tier** replaces severity; **location** is surface + file.
 

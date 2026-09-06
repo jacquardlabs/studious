@@ -62,9 +62,8 @@ When that line is present:
   RESEARCH` naming it, so the orchestrator parks the story and it reaches a
   human through the escalation path — never guess to keep the run moving.
 
-This is the same distinction studious's `/next` documents: the interview
-front-loads, the sign-off does not. Interactive `/shape` — a human at the
-keyboard, no decisions in the brief — runs the full round below unchanged.
+Interactive `/shape` — a human at the keyboard, no decisions in the brief —
+runs the full round below unchanged.
 
 Write `.viva/qa-input.json`:
 
@@ -98,8 +97,8 @@ unparsed field.
 `text` is one sentence ending in a question mark; `hint` is the tag plus
 one line of context, never a paragraph; each entry in `choices` is a short
 option label with its tradeoff in a clause, not an essay per option. A
-question the human has to re-read before answering costs more than the
-answer is worth -- the batch's whole point is nine answers in one sitting.
+question the human has to re-read before answering costs more than it's
+worth.
 
 **Round 2 is conditional, never automatic.** Only run it if round 1's
 answers open a genuinely new fork -- a question whose answer branches
@@ -119,9 +118,9 @@ would be worse than none.
 
 A fork opened by the interview (or discovered while drafting) is presented
 with **2-3 options, tradeoffs for each, and exactly one recommendation**.
-This rides the *same* batch-interview round as ordinary questions -- batch
-interview and fork presentation are mechanically the same thing in
-`viva-qa`'s schema. No second server round is needed just to separate them.
+This rides the *same* batch-interview round as ordinary questions -- fork
+presentation and ordinary questions are mechanically the same thing in
+`viva-qa`'s schema, so no second server round is needed to separate them.
 
 **The recommendation uses `recommended_choice`, not prose convention.**
 `viva-qa`'s schema carries an optional `recommended_choice` field per
@@ -242,9 +241,8 @@ documented branches:
 A fresh-context fallback to the generic clear-state block on case 3 would
 destroy round-1 carry-forward state -- exactly the trap the M0 friction
 report's finding 3 names ("I personally destroyed round-1 carry-forward
-state by following SKILL.md's own documented steps literally"). Recognizing
-case 3 explicitly, every time, is what this step commits to instead of
-letting it silently collapse into case 1.
+state by following SKILL.md's own documented steps literally"). Recognize
+case 3 explicitly every time; don't let it collapse into case 1.
 
 A `viva`/`viva-qa` launch failure (the skills' own pre-existing guard --
 `.viva/server.url` already present, or `server.py` missing entirely)
@@ -285,14 +283,3 @@ of every `/shape` session.
 `design-lint`'s matching stale constants -- are resolved. Both are now
 derived from `reference/design-doc-contract.md` and pinned by
 `tests/python/test_design_doc_sections.py`; see #211.)
-
-## Why this shape
-
-"Recommend one action; the human decides" is Step 3's whole shape --
-`recommended_choice` names one option, never pre-selects it. "Nothing signs
-off on itself" is why Step 5 runs a real, separate script rather than
-`/shape` asserting its own doc is well-formed, and why sign-off itself is a
-human viva round, never a self-report. "Standalone-capable" is Step 7's
-explicit, named studious-absent path. "Anti-cleverness tripwire" is why
-this skill adds no named sub-roles or ceremony beyond the plain interview ->
-forks -> draft -> lint -> viva sequence.

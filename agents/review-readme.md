@@ -8,7 +8,7 @@ effort: low
 
 # README drift review
 
-Check whether README.md still tells the truth about the product. A README goes stale the same way PRODUCT.md does — features ship, commands change, paths move — and nobody updates the front door. This review finds the drift and proposes a fix. It never writes README.md. The gate `doc-auditor` owns diff-introduced README drift at PR time; you own the whole-README periodic pass.
+Check whether README.md still tells the truth about the product, and propose a fix. It never writes README.md. The gate `doc-auditor` owns diff-introduced README drift at PR time; you own the whole-README periodic pass.
 
 ## Before you start
 

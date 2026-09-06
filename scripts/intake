@@ -1,46 +1,36 @@
 #!/usr/bin/env python3
 """intake -- deterministic pre-filter for `ready`-labelled issues (issue #314).
 
-`reference/epic-plan-contract.md`'s "Story class" section names two of
-`epic-default`'s prerequisites as computations over data an issue already
-holds -- a stated file surface, and whether the source issue carries
-acceptance criteria -- and one as the planner's judgment (an unfamiliar
-surface). This script computes the two mechanical ones only. It never
-assigns `epic-default` itself: that class is decided at plan approval
-(`epic-plan-contract.md`'s "Story class" section, and PRODUCT.md's merge-
-authority matrix, #312), by a human or the plan piece reading the brief.
-`eligible` here means "passes both mechanical triggers" -- necessary, not
+Computes the two mechanical `epic-default` prerequisites from
+`reference/epic-plan-contract.md`'s "Story class" section: file-surface
+signal and acceptance-criteria citations. It never assigns `epic-default`
+itself -- that's decided at plan approval, by a human or the plan piece
+(`epic-plan-contract.md`, PRODUCT.md's merge-authority matrix, #312).
+`eligible` means "passes both mechanical triggers" -- necessary, not
 sufficient.
 
-**The two triggers, computed:**
+**The two triggers:**
 
-1. **Not majority prompt-prose.** Backtick-quoted paths named in the issue
-   body are matched against `reference/audit-routing-signals.md`'s Prompt
-   signal list (`PROMPT_SIGNAL_GLOBS` below mirrors that list; a copy, not
-   a restatement of authority -- `tests/jig/test_intake.py` fails if the
-   two drift, the same mirror-plus-test shape `design-lint` uses for
-   `reference/design-doc-contract.md`). A majority of named paths matching
-   -> the issue fails this trigger.
-2. **Acceptance criteria with citations.** An "Acceptance criteria"
-   heading (any depth, case-insensitive) followed by at least one list
-   item, at least one of which carries a concrete citation: a
-   backtick-quoted path, a `file:line` span, a URL, or a `#<N>` issue
-   reference. Anything short of that fails this trigger.
+1. **Not majority prompt-prose.** Backtick-quoted paths in the issue body
+   are matched against `reference/audit-routing-signals.md`'s Prompt
+   signal list (`PROMPT_SIGNAL_GLOBS` mirrors it; `tests/jig/test_intake.py`
+   fails if the two drift). A majority match fails this trigger.
+2. **Acceptance criteria with citations.** An "Acceptance criteria" heading
+   followed by at least one list item carrying a concrete citation
+   (backtick-quoted path, `file:line`, URL, or `#<N>`) passes; anything
+   short of that fails.
 
 Read-only against GitHub except one rejection comment on an ineligible
-issue, naming the failing clause and the `story-supervised` route
-(`epic-plan-contract.md`'s own words) -- never opens, closes, labels, or
-edits an issue. The comment carries an HTML sentinel
-(`<!-- studious-intake: clause=<slug> -->`) and is skipped if a comment
-with that exact sentinel is already on the issue, so a supervisor
-re-running intake (#316) never re-posts the same finding. Issue text is
-untrusted data, read only, never executed or interpolated into a shell
-command.
+issue, naming the failing clause and the `story-supervised` route -- never
+opens, closes, labels, or edits an issue. The comment carries an HTML
+sentinel (`<!-- studious-intake: clause=<slug> -->`) and is skipped if
+already present, so a supervisor re-running intake (#316) never re-posts.
+Issue text is untrusted data, read only, never executed or interpolated
+into a shell command.
 
 Two read paths: `gh issue list` (live) or `--from-json <file>` (a saved
 `gh issue list --json number,title,body,url` array), the latter for
-`tests/jig/test_intake.py` and for #315's bridge to consume without a
-second `gh` round-trip. Python 3.9 floor -- vermin runs over this file --
+`tests/jig/test_intake.py` and #315's bridge. Python 3.9 floor (vermin) --
 stdlib only.
 """
 from __future__ import annotations
@@ -56,10 +46,8 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _gitutil import git_repo_root, run  # noqa: E402
 
-# Mirrors reference/audit-routing-signals.md's Prompt signal section.
-# tests/jig/test_intake.py pins these substrings against that file's text
-# so a future edit to the canonical list surfaces as a test failure here
-# rather than a silent drift.
+# Mirrors reference/audit-routing-signals.md's Prompt signal list;
+# tests/jig/test_intake.py pins these substrings so drift fails the test.
 PROMPT_SIGNAL_GLOBS = (
     "agents/*.md",
     "commands/*.md",

@@ -1,44 +1,28 @@
 """Regression tests for the crash-hardening story (issue #128).
 
-Before this story, a thrown exception from any `agent()` dispatch inside
-`runStory()` (worker phase, gate phase, or the merge step) propagated
-uncaught out of that story's promise. `Promise.all(...)` at the bottom of
-`workflows/epic-driver.js` rejects the instant ANY of its promises rejects —
-so one malformed worker/gate/merge return could abort the whole epic run,
-including every sibling story still in flight. Separately, a finale gate
-(audit or acceptance) whose fix cycles ran out while it still held its own
-retry token (`FIX AND RE-AUDIT` / `FIX AND RE-CHECK`) simply fell through
-`finaleGate()`'s loop and was folded only into the `finale.audit` /
-`finale.acceptance` fields — never surfaced in `needsYou`, the one field
-`reference/epic-orchestration.md`'s "Needs you" render loop specifically calls out,
-so a stalled finale ended a run reading as an unexplained "not ready".
+Before this story: an uncaught `agent()` throw inside `runStory()` (worker,
+gate, or merge) rejected that story's promise, and `Promise.all(...)` at the
+bottom of `workflows/epic-driver.js` aborts the whole run on the first
+rejection — taking every in-flight sibling story down with it. Separately, a
+finale gate stalled on its own retry token past the fix-cycle cap only ever
+updated `finale.audit`/`finale.acceptance`, never `needsYou` — the field
+`reference/epic-orchestration.md`'s "Needs you" loop actually renders — so a
+stalled finale read as an unexplained "not ready".
 
-`workflows/epic-driver.js` is not a conventionally importable module — see
-the `harnessShape` processor comment at the top of `eslint.config.mjs`, which
-documents (as fact, not a guess) exactly how the Workflow harness executes
-this file: it reads `export const meta` for metadata, strips the `export`
-keyword, and runs the remainder as the body of an async function it supplies
-with `args`/`agent`/`parallel`/`log`/`phase`. Two kinds of test live here,
-following that file's own precedent:
+`workflows/epic-driver.js` isn't importable; the `harnessShape` processor
+comment in `eslint.config.mjs` documents how the Workflow harness runs it:
+strip the `export` keyword, run the remainder as an async function body
+supplied with `args`/`agent`/`parallel`/`log`/`phase`. Three kinds of test:
 
 - **Pure-function executed fixtures** (`crashParkArgs`, `stalledFinaleEntry`)
-  — extracted verbatim (balanced-brace scan, never reimplemented) and run
-  standalone in a plain `node -e` subprocess, the same technique
-  `test_contract_injection.py` and `test_scheduler_fixes.py` established for
-  this same file.
-- **Structural source assertions** — confirm the call sites actually wire
-  those pure helpers in, the same "trust the shape, not a paraphrase" style
-  `test_contract_injection.py`'s `test_driver_contract_const_sources_from_...`
-  and friends already use.
-- **A full end-to-end harness-shape execution** — this file goes one step
-  further than the two precedents above and actually *runs* the driver's
-  real scheduling logic (`runStory`, `finaleGate`, the top-level `run`
-  section), using the exact preprocessing `eslint.config.mjs` documents the
-  harness performs, with `agent`/`parallel`/`log`/`phase` supplied as mocked
-  parameters. This is the only way to honestly prove the acceptance
-  criteria's actual claims — "sibling stories still complete in the same
-  run" and "a non-empty needsYou entry" are statements about the scheduler's
-  emergent behavior, not about any one function's return value.
+  — extracted verbatim (balanced-brace scan) and run in a `node -e`
+  subprocess, per `test_contract_injection.py`/`test_scheduler_fixes.py`.
+- **Structural source assertions** — confirm the call sites wire those pure
+  helpers in, "trust the shape" style.
+- **Full end-to-end harness-shape execution** — actually runs `runStory`,
+  `finaleGate`, and top-level `run` with mocked params. Needed because
+  "siblings still land" and "a non-empty needsYou entry" are claims about
+  scheduler emergent behavior, not any one function's return value.
 """
 
 from __future__ import annotations
@@ -54,17 +38,12 @@ DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 
 MAX_FIX_CYCLES = 2
 
-# gate-audit round 1 (#271 fix cycle): the routing-scope dispatch's prompt builder
-# now slices its own §1 injection-defense preamble out of whatever contract text it's
-# given (`injectionDefensePreamble` in workflows/epic-driver.js), which requires real
-# `## 1.`/`## 2.` section markers — the bare placeholder `"CONTRACT-TEXT"` this
-# harness used before has neither, so `_run_driver`'s default must be a shape
-# `injectionDefensePreamble` can actually slice, or every routing-scope dispatch would
-# throw before its mocked `agent()` rule is ever reached (the throw happens while
-# evaluating `routingScopeCheckPrompt(...)` as an argument, before the mock call is
-# made), silently exercising the fail-open path instead of whichever routing flags a
-# test's rule specifies. The real contract file always has both markers, so it
-# doubles as a faithful default for every other dispatch too.
+# gate-audit round 1 (#271 fix cycle): `injectionDefensePreamble` slices real
+# `## 1.`/`## 2.` markers out of the contract text; the old bare placeholder
+# "CONTRACT-TEXT" has neither, so routing-scope dispatch throws before the
+# mocked agent() rule is ever reached, silently exercising fail-open instead
+# of the test's intended routing flags. The real contract file has both
+# markers, so it's a faithful default for every dispatch.
 DEFAULT_TEST_CONTRACT = (REPO_ROOT / "reference" / "prompt-contract.md").read_text()
 
 
@@ -136,12 +115,9 @@ console.log(JSON.stringify(crashParkArgs('build', 'a bare string throw')))
 
 def test_crash_park_args_does_not_say_agent_threw_for_a_parkgate_classification() -> None:
     """Gate-acceptance round 3 (fix-and-recheck MINOR): a `parkGate`-carrying error
-    (ledgerAuditPrior's own worktree-broken throw — its probe returned normally and
-    the driver rejected the content) is a deliberate code-level classification, not a
-    literal `agent()` dispatch crash. "agent() threw during X" misdirects the first
-    step of operator diagnosis toward the wrong failure class. Only a parkGate-less
-    error (a genuine `agent()` throw, covered by the two tests above) gets that
-    phrasing."""
+    is a deliberate code-level classification (e.g. ledgerAuditPrior's worktree-broken
+    throw), not a literal `agent()` dispatch crash — "agent() threw during X" would
+    misdirect diagnosis. Only a parkGate-less error gets that phrasing."""
     source = DRIVER.read_text()
     fn = _extract_function(source, "crashParkArgs")
     script = f"""
@@ -269,44 +245,30 @@ def _run_driver(
     contract: str = DEFAULT_TEST_CONTRACT,
     preamble: str = "",
 ) -> dict:
-    """Runs the real, unmodified driver source the way the Workflow harness
-    does: strip the one `export` keyword and execute the remainder as the
-    body of an async function supplied with args/agent/parallel/log/phase —
-    the exact preprocessing the `harnessShape` processor at the top of
-    `eslint.config.mjs` documents (and which notes `node --check` passing on
-    the file unmodified is an accident, not proof of executability).
+    """Runs the real, unmodified driver source per the `harnessShape` processor
+    in `eslint.config.mjs`: strip `export`, run the remainder as an async
+    function body supplied with args/agent/parallel/log/phase.
 
     `agent_rules` is an ordered list of ``{"match": <regex on the dispatch
     label>, "throw": <str>}`` or ``{"match": ..., "result": <json-able>}``;
-    the first matching rule wins, mirroring `label:`-based dispatch. A label
-    matching no rule rejects loudly inside the mock — a silently-accepted
-    unmocked dispatch would mean the test isn't exercising what it claims to.
+    first match wins. An unmatched label rejects loudly in the mock, so a
+    test can't silently pass by leaving a dispatch unmocked.
 
-    The returned dict also carries ``calls``: every ``{label, prompt}`` pair
-    the mock `agent()` was invoked with, in call order — a resolved/rejected
-    mock still records the call before settling. Consumers that only care
-    about the final result (every test predating delta-scoped re-audit, #130)
-    simply don't look at it; `test_delta_scoped_reaudit.py` uses it to assert
-    on which lanes were actually dispatched (not just what the mock returned)
-    and on the compile step's own prompt content (carry-forward/fix-delta
-    block text a label-only mock can't otherwise distinguish).
+    The returned dict also carries ``calls``: every ``{label, prompt}`` the
+    mock `agent()` was invoked with, in order. `test_delta_scoped_reaudit.py`
+    uses this to assert which lanes were dispatched and on prompt content a
+    label-only mock can't otherwise distinguish.
     """
     source = DRIVER.read_text()
     stripped = re.sub(r"^export\s+", "", source)
-    # The driver no longer derives worktree paths (#166): bin/gate-ledger's
-    # worktree_path() owns the layout, and the driver — which has no exec access
-    # to ask for one — is handed the answer as args.worktrees. This harness plays
-    # reference/epic-orchestration.md's part, so it supplies the same map
+    # The driver no longer derives worktree paths (#166) — bin/gate-ledger's
+    # worktree_path() owns the layout; this harness supplies the same map
     # `gate-ledger worktree-path --slug <slug> --json` would.
     _wt = f"/repo/.studious/worktrees/{epic.get('slug', '')}"
-    # Every fixture in this file and its importers predates the canary (#268) and
-    # exercises the widened-fleet path — sibling stories dispatched alongside the
-    # one under test. The canary defaults ON in the driver, which would serialize
-    # them and (when the canary is the story a test crashes on purpose) hold the
-    # siblings the test asserts still land. Default it off here so those fixtures
-    # keep testing what they were written to test; a fixture that wants canary
-    # behavior sets `"canary": True` explicitly, and
-    # tests/python/test_epic_appetite_canary.py covers the default-on path.
+    # Canary defaults ON in the driver, which would serialize siblings and (when
+    # the canary is the story under test) hold the ones a fixture asserts still
+    # land. Default it off so pre-canary (#268) fixtures test what they were
+    # written to test; test_epic_appetite_canary.py covers the default-on path.
     epic = {"canary": False, **epic}
     args = {
         "epic": epic,
@@ -319,11 +281,9 @@ def _run_driver(
         "defaultBranch": "main",
         "contract": contract,
     }
-    # `preamble` runs before the driver body and is how a test supplies a
-    # substrate global the harness would inject but this mock does not take as a
-    # parameter — today only `globalThis.budget` (#144). Empty by default, so a
-    # driver read of an unsupplied global still exercises the real
-    # "no ceiling available" degrade path rather than a stubbed one.
+    # `preamble` lets a test inject a substrate global this mock doesn't take
+    # as a parameter — today only `globalThis.budget` (#144). Empty by default
+    # so an unsupplied global still exercises the real degrade path.
     script = f"""
 {preamble}
 async function __driver(args, agent, parallel, log, phase) {{
@@ -351,12 +311,9 @@ __driver({json.dumps(args)}, agent, parallel, log, phase)
   .then(r => {{ console.log(JSON.stringify({{ ok: true, result: r, calls: CALLS }})) }})
   .catch(err => {{ console.log(JSON.stringify({{ ok: false, error: String((err && err.stack) || err), calls: CALLS }})) }})
 """
-    # Written to a file rather than passed via `node -e <script>`: the embedded
-    # driver source plus mock scaffolding routinely exceeds Linux's per-argument
-    # exec() limit (MAX_ARG_STRLEN, 128 KiB) well before macOS's much larger one —
-    # a `node -e` invocation that runs fine locally can still fail as "Argument
-    # list too long" on Linux CI runners once the driver file itself grows past
-    # that threshold, as opposed to any actual behavioral difference.
+    # Written to a file, not `node -e <script>`: the embedded source routinely
+    # exceeds Linux's exec() arg limit (128 KiB), which macOS tolerates but
+    # CI's Linux runners fail with "Argument list too long".
     with tempfile.NamedTemporaryFile(mode="w", suffix=".js", delete=False) as f:
         f.write(script)
         script_path = f.name
@@ -382,36 +339,29 @@ def _two_story_epic(story_a_gates: list[str]) -> dict:
 
 
 SIBLING_LANDS_RULES = [
-    # Story b's acceptance gate is the story-level fan-out (perf item 10): a
-    # mechanical scope-check, then product-review + walkthrough, then a compile
-    # step — four dispatches replacing what was one `acceptance:b` label before.
+    # Story b's acceptance gate: story-level fan-out (perf item 10) — scope-check,
+    # product-review, walkthrough, compile — replacing the old single `acceptance:b`.
     {"match": r"^acceptance:scope:b$", "result": {"findings": json.dumps({"files": ["b.py"], "designDoc": ""})}},
-    # b.py names no premortem register, so the Task 3 fallback lookup fires —
-    # confirmed empty, same "nothing to verify" outcome this fixture always had.
+    # b.py names no premortem register, so the Task 3 fallback lookup fires (confirmed empty).
     {"match": r"^acceptance:premortem-fallback:b$", "result": {"findings": json.dumps({"status": "empty"})}},
     {"match": r"^acceptance:product-review:b$", "result": {"findings": "looks good"}},
     {"match": r"^acceptance:walkthrough:b$", "result": {"findings": "looks good"}},
     {"match": r"^acceptance:compile:b$", "result": {"verdict": "SHIP", "sha": "b1", "summary": "ok"}},
     {"match": r"^merge:b$", "result": {"merged": True, "sha": "b2", "notes": "clean"}},
-    # `park:a` is deliberately left unmocked in the three crash scenarios below:
-    # it falls through to the mock's "UNMOCKED" rejection, which exercises
-    # park()'s own hardening (its agent() dispatch is itself wrapped in
-    # try/catch) and proves the reason recorded in needsYou is the crash
-    # message crashParkArgs produced, not something a park-recording agent
-    # supplied — the fallback `(parked && parked.summary) || reason` path.
+    # `park:a` is deliberately left unmocked below, falling through to "UNMOCKED":
+    # exercises park()'s own try/catch and proves the needsYou reason came from
+    # crashParkArgs, not a park-recording agent (the `(parked && parked.summary) || reason` fallback).
 ]
 
 
 def test_ledger_scope_check_throw_parks_under_its_own_gate_name_not_audit() -> None:
-    """#261 fix-and-recheck finding (3), executed end to end rather than asserted:
-    `ledgerAuditPrior`'s throw for a broken worktree happens inside the
-    `Promise.all([ledgerAuditPrior(...), resolveRoutingMatchFlags(...)])` at the top
-    of `runGate`'s audit branch — BEFORE the audit dispatch itself ever runs. Without
-    `err.parkGate` surviving that `Promise.all` and being read by `crashParkArgs`, an
-    operator scanning `needsYou` would see this story BLOCKED at "audit", even though
-    the audit gate never ran. `attempts: 1` on story a's audit retries is what forces
-    `runGate` down the `attempts > 0` branch that dispatches `ledgerAuditPrior` at all
-    (see the resumed-run comment above `ledgerAuditPrior`'s declaration).
+    """#261 fix-and-recheck finding (3), executed end to end: `ledgerAuditPrior`'s
+    worktree-broken throw happens inside `Promise.all([ledgerAuditPrior(...),
+    resolveRoutingMatchFlags(...)])`, before the audit dispatch itself ever runs.
+    Without `err.parkGate` surviving that `Promise.all` into `crashParkArgs`, an
+    operator would see this story BLOCKED at "audit" though audit never ran.
+    `attempts: 1` forces `runGate`'s `attempts > 0` branch that dispatches
+    `ledgerAuditPrior` at all (see the resumed-run comment above its declaration).
     """
     epic = {
         "slug": "epx",
@@ -492,8 +442,7 @@ def test_gate_throw_parks_that_story_blocked_and_sibling_lands() -> None:
     epic = _two_story_epic(story_a_gates=["acceptance"])
     rules = [
         # The compile step is the one acceptance-round dispatch left unwrapped by
-        # try/catch or parallel()'s per-lane fault isolation (matching auditFanIn's
-        # own precedent) — a throw here is the equivalent of the old single
+        # try/catch or parallel()'s fault isolation — equivalent to the old single
         # `acceptance:a` dispatch throwing.
         {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
         {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
@@ -522,9 +471,8 @@ def test_merge_throw_parks_that_story_blocked_and_sibling_lands() -> None:
     epic = _two_story_epic(story_a_gates=["acceptance"])
     rules = [
         {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
-        # a.py names no premortem register, so the Task 3 fallback lookup
-        # fires — confirmed empty, so acceptance still resolves SHIP and
-        # reaches the (deliberately throwing) merge step below.
+        # a.py names no premortem register, so the Task 3 fallback fires (confirmed
+        # empty) — acceptance still resolves SHIP and reaches the throwing merge step.
         {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
         {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "looks good"}},
@@ -575,8 +523,7 @@ def _one_story_epic_ready_for_finale() -> dict:
 
 LAND_STORY_A_RULES = [
     {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
-    # a.py names no premortem register, so the Task 3 fallback lookup fires —
-    # confirmed empty, same "nothing to verify" outcome this fixture always had.
+    # a.py names no premortem register, so the Task 3 fallback lookup fires (confirmed empty).
     {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
     {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
     {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "looks good"}},
@@ -644,13 +591,9 @@ def test_finale_acceptance_stall_past_cap_produces_needsyou_entry_naming_the_gat
 
 
 def test_needs_you_is_empty_on_an_unremarkable_two_story_run() -> None:
-    """Sanity check / regression guard: the crash-hardening and stalled-finale
-    additions must not manufacture needsYou noise on an ordinary clean run.
-
-    Both stories land, which triggers the real finale — mocked all the way
-    through (9 auditors, compile, acceptance, and the ready-recorder) so this
-    exercises the fully clean path, not just the two stories.
-    """
+    """Regression guard: the crash-hardening and stalled-finale additions must
+    not manufacture needsYou noise on an ordinary clean run. Both stories land
+    and trigger the real finale, mocked end to end."""
     epic = _two_story_epic(story_a_gates=["acceptance"])
     rules = [
         *LAND_STORY_A_RULES,

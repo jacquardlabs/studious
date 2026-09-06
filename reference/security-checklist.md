@@ -1,6 +1,6 @@
 # Security checklist — lookup data
 
-Not a detection crutch — a capable model already knows these vulnerability classes. This file is the **lookup data** it won't recall verbatim: exact sinks, secret regexes, the JWT attack list, and per-stack defaults. The eight core dimensions and the extended-class checklist live inline in `agents/security-auditor.md`; consult this for the specifics. CLAUDE.md's documented security posture overrides anything here. Severity stays reachability-gated: no user-controlled path to the sink → `Potential`, drop a tier.
+**Lookup data only**: exact sinks, secret regexes, the JWT attack list, per-stack defaults — not the vulnerability classes themselves, which a capable model already knows. Core dimensions and the extended-class checklist live inline in `agents/security-auditor.md`. CLAUDE.md's documented security posture overrides this file. Severity stays reachability-gated: no user-controlled path to the sink → `Potential`, drop a tier.
 
 ## Extended-class signatures (one line each)
 

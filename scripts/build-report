@@ -1,25 +1,16 @@
 #!/usr/bin/env python3
 """jig's build-report script (story finish-skill, issue #20).
 
-`/ship`'s Step 5: writes a dated, durable build report --
-`docs/studious/build-reports/YYYY-MM-DD-<story-slug>-build-report.md` -- same class
-and naming shape as studious's own dated review reports
-(`docs/studious/<kind>-reviews/YYYY-MM-DD-<kind>-review.md`), reusing an
-established convention rather than inventing a new report shape.
+`/ship` Step 5: writes docs/studious/build-reports/YYYY-MM-DD-<slug>-build-report.md,
+matching studious's dated review-report naming convention.
 
-This script only performs the mechanical write of already-assembled
-content -- it does not draft, summarize, or judge the report body itself;
-`/ship`'s own session assembles the evidence table, the cctx footer (or
-its "not installed" note), the filed/skipped follow-ups, and the proposed
-decision patches, and hands the finished markdown to this script as a
-single file (`--content`). Never commits on its own -- matching
-`evidence-capture`'s precedent (writes files, the caller commits), since a
-report write and the Step 6 cleanup commit that follows it are meant to
-stay distinguishable in the branch's history.
+Mechanical write only -- `/ship` assembles the markdown body and passes it via
+--content. Never commits (matches evidence-capture's precedent); the caller
+commits separately so the write and the Step 6 cleanup commit stay
+distinguishable in history.
 
-Exit codes: 0 report written. 2 usage error (a `--slug` containing '/' or
-'..', a malformed `--date`, a missing/unreadable `--content` file, or an
-existing report already at the target path without `--force`).
+Exit codes: 0 written. 2 usage error (bad --slug, bad --date, missing
+--content, or an existing report without --force).
 """
 from __future__ import annotations
 

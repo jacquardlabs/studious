@@ -1,12 +1,11 @@
 # Operability checklist — lookup data
 
-Not a detection crutch — a capable model already knows these failure classes. This
-file is the **lookup data** it won't recall verbatim: per-library timeout defaults,
-per-delivery-guarantee idempotency signatures, and per-runtime shutdown idioms. The
-five dimensions live inline in `agents/operability-auditor.md`; consult this for the
-specifics. CLAUDE.md's documented operational posture overrides anything here.
-Severity stays exposure-gated: no path from the failure to user or operator impact →
-`Potential`, drop a tier.
+**Lookup data**, not a detection crutch: per-library timeout defaults, per-delivery-
+guarantee idempotency signatures, per-runtime shutdown idioms. The five dimensions
+live inline in `agents/operability-auditor.md`; consult this for specifics.
+CLAUDE.md's documented operational posture overrides anything here. Severity stays
+exposure-gated: no path from the failure to user or operator impact → `Potential`,
+drop a tier.
 
 ## Outbound-call timeout defaults
 
@@ -34,8 +33,8 @@ libraries left at aggressive defaults.
 
 ## Idempotency signatures per delivery guarantee
 
-At-least-once delivery means every handler eventually re-runs. What non-idempotent
-looks like:
+At-least-once delivery means every handler eventually re-runs. Non-idempotent patterns
+per system:
 
 - **SQS/SNS** — standard queues redeliver; a handler that inserts/charges/sends
   without a dedup key duplicates on redelivery. FIFO dedup IDs cover a 5-minute

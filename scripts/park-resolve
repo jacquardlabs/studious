@@ -1,43 +1,33 @@
 #!/usr/bin/env python3
 """park-resolve -- apply a browser-submitted park decision (issue #317).
 
-The other half of `scripts/park-packet`: scans `.viva/parks/<slug>--*/` for
-an `answers.json` viva wrote after a human resolved that park's `qa-input.json`
-in the browser, and applies the chosen resolution through
-`gate-ledger`, never by hand-editing ledger state
-(`reference/epic-orchestration.md`'s "Amendments go through this command").
+Companion to `scripts/park-packet`: scans `.viva/parks/<slug>--*/` for an
+`answers.json` viva wrote after a human resolved `qa-input.json` in the
+browser, and applies the resolution via `gate-ledger` only, never by
+hand-editing ledger state (`reference/epic-orchestration.md`, "Amendments
+go through this command").
 
-**Idempotent against the ledger, not file presence.** A story whose recorded
-`status` is no longer `parked` is skipped -- already resolved, by this
-script or a human at a terminal -- so re-running against a stale
-`answers.json` left on disk is a no-op, never a second write.
+Idempotent against the ledger, not file presence: a story no longer
+`parked` is skipped, so a stale `answers.json` re-run is a no-op.
 
-**The three choices, mapped to the exact verbs
-`reference/epic-orchestration.md`'s "Skips, amendments, and un-parking"
-section names:**
+Three choices (verbs per `reference/epic-orchestration.md`'s "Skips,
+amendments, and un-parking"):
 
-- **`waive`** -- accepts the risk. Closes every unresolved finding recorded
-  against this story (`epic-finding --status waived --waiver <note>`), then
-  un-parks (`epic-story-set --status pending --reason "resolved: waived --
-  <note>" --reset-retry <gate>`). Refuses with no write at all when `note`
-  is empty -- a waiver with no reason is exactly what
-  `cmd_epic_finding`'s own validation already refuses for a Critical, and
-  this script does not create a code path around that by omitting the flag
-  for anything below Critical.
-- **`amend`** -- un-parks with the human's note carried forward as guidance
-  (`--carried-findings`), never `--decisions`: this is a human accepting an
-  agent's diagnosis or supplying their own, not the settled answer to an
-  interview fork (`epic-orchestration.md`'s own distinction between the two
-  fields). `note` is optional here; an empty one un-parks with no carried
-  guidance at all, which is still a legitimate "just try again."
+- **`waive`** -- closes every unresolved finding (`epic-finding --status
+  waived --waiver <note>`), then un-parks to `pending`. Refuses with no
+  write if `note` is empty, matching `cmd_epic_finding`'s own refusal for
+  a Critical.
+- **`amend`** -- un-parks to `pending`, carrying the note via
+  `--carried-findings` (guidance, not `--decisions`'s settled interview
+  answer). `note` is optional.
 - **`drop`** -- `epic-story-set --status dropped`. No note required.
 
-`<gate>` for `--reset-retry` is read off the story's own recorded `reason`
-(`"<gate>: <verdict> -- <one clause>"`), never re-typed by a caller.
+`<gate>` for `--reset-retry` is parsed off the story's own `reason`
+(`"<gate>: <verdict> -- <clause>"`), never re-typed by a caller.
 
-Exit codes: 0 = ran (nothing to resolve is a complete answer); 1 = one or
-more resolutions failed or were refused; 2 = usage error, no such epic, or
-`gate-ledger` missing. Python 3.9 floor, stdlib only.
+Exit codes: 0 = ran; 1 = a resolution failed or was refused; 2 = usage
+error, no such epic, or `gate-ledger` missing. Python 3.9 floor, stdlib
+only.
 """
 from __future__ import annotations
 
@@ -54,10 +44,8 @@ from _gitutil import git_repo_root, run  # noqa: E402
 def gate_from_reason(reason: str) -> str:
     """The `<gate>` token off a story's `"<gate>: <verdict> -- <clause>"` reason.
 
-    Empty if unparseable, or if the reason is a `story-supervised:` park --
-    that prefix names no gate at all (`park-packet` never issues a packet
-    for one; this guard is defense-in-depth for a story-supervised park
-    resolved by some other path).
+    Empty if unparseable, or for a `story-supervised:` park (names no gate;
+    defense-in-depth since park-packet never issues one for these).
     """
     if not reason.startswith("story-supervised:") and ":" in reason:
         return reason.split(":", 1)[0].strip()
@@ -67,8 +55,8 @@ def gate_from_reason(reason: str) -> str:
 def parse_findings_tsv(output: str) -> list[dict[str, str]]:
     """Parse `epic-findings --unresolved`'s TSV body (skips the summary line).
 
-    Duplicated from `scripts/park-packet` rather than imported: both are
-    extensionless CLI scripts, not a package, and this is five lines.
+    Duplicated from `scripts/park-packet`, not imported: both are
+    extensionless CLI scripts, not a package.
     """
     rows = []
     for line in output.splitlines()[1:]:

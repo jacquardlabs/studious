@@ -1,25 +1,15 @@
-"""Shared git-shelling helpers for jig's build scripts.
+"""Shared git-shelling helpers for jig's build scripts (issue #14): shared by
+`worktree-setup`, `verify`, and `evidence-capture` so each doesn't reinvent
+its own copy, mirroring `tests/_frontmatter.py` / `tests/_vocabulary.py`'s
+leading-underscore "shared, not itself collected" convention.
 
-`worktree-setup`, `verify`, and `evidence-capture` (story build-scripts,
-issue #14) each need to ask a repository the same handful of questions —
-its top-level path, whether it has uncommitted changes, its last commit's
-sha/timestamp. Previously each script would have defined its own copy;
-this module is the one place it lives, mirroring the `tests/_frontmatter.py`
-/ `tests/_vocabulary.py` leading-underscore "shared, not itself collected"
-convention already established in this repo.
+Also holds `run_shell_with_timeout`, shared by `worktree-setup`'s baseline
+check and `verify`'s command-tier items for running an untrusted shell
+command under a timeout (issue #49) without leaking an orphaned child past
+it (issue #61).
 
-`worktree-setup`'s baseline check and `verify`'s command-tier items also
-share a second concern that isn't strictly about git: running an untrusted,
-plan- or project-supplied shell command under a timeout (issue #49) without
-leaking an orphaned child past that timeout (issue #61). `run_shell_with_
-timeout` below is that shared execution helper, kept in this module rather
-than a third one so the two scripts still have exactly one shared,
-dependency-free import.
-
-Not a package, not importable from outside `scripts/` — each script adds
-its own directory to `sys.path` before importing this (see any script's
-top for the pattern). Deliberately dependency-free (standard library only)
-so each script stays a standalone CLI tool.
+Not a package: each script adds its own directory to `sys.path` before
+importing this. Standard-library only, so each script stays standalone.
 """
 from __future__ import annotations
 
@@ -29,36 +19,24 @@ import subprocess
 from pathlib import Path
 
 DEFAULT_TIMEOUT_SECONDS = 600.0
-"""Shared generous default for the --timeout of `worktree-setup`'s baseline
-command and `verify`'s command-tier items (issue #49) -- the same value in
-both, so they don't drift apart. Suites legitimately run minutes; a hung
-command (waiting on stdin, deadlocked, network-bound with no timeout of its
-own) should still be killed well short of hanging a session indefinitely."""
+"""Shared --timeout default for `worktree-setup`'s baseline command and
+`verify`'s command-tier items (issue #49), kept equal so they don't drift."""
 
 
 def run_shell_with_timeout(command: str, cwd: Path, timeout: float) -> subprocess.CompletedProcess[str]:
     """Run `command` via the shell, killing its *whole process group* — not
     just the shell — if it outlives `timeout` (issue #61).
 
-    `shell=True` spawns the shell as an intermediate process. A compound or
-    piped command (a backgrounded job, a multi-stage pipeline, anything the
-    shell itself forks) runs as a child of that shell, sharing its process
-    group. Plain `subprocess.run(..., shell=True, timeout=timeout)` only
-    signals the shell process on timeout (`Popen.kill()`), which can leave
-    such a child running after the caller is told the command "was killed".
-
-    `start_new_session=True` makes the shell the leader of a fresh session
-    and process group (equal to its own pid); on timeout, `os.killpg` signals
-    every process sharing that group at once, so a backgrounded or piped
-    child dies alongside the shell instead of being orphaned to reparent and
-    keep running.
+    Plain `subprocess.run(..., shell=True, timeout=timeout)` only signals the
+    shell on timeout; a backgrounded or piped child (sharing the shell's
+    process group) survives, reparented. `start_new_session=True` makes the
+    shell the leader of a fresh process group, so `os.killpg` on timeout
+    takes the whole group with it.
 
     Drop-in for `subprocess.run(command, shell=True, cwd=cwd,
-    capture_output=True, text=True, check=False, timeout=timeout)`: returns
-    an equivalent `CompletedProcess` on success, and raises the same
-    `subprocess.TimeoutExpired` (with `.stdout`/`.stderr` already populated
-    from whatever was captured before the timeout fired) on a hang — callers
-    catch it exactly as they would `subprocess.run`'s own.
+    capture_output=True, text=True, check=False, timeout=timeout)`: same
+    return value on success, same `subprocess.TimeoutExpired` (stdout/stderr
+    already populated) on a hang.
     """
     with subprocess.Popen(
         command,
@@ -72,9 +50,7 @@ def run_shell_with_timeout(command: str, cwd: Path, timeout: float) -> subproces
         try:
             stdout, stderr = process.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
-            # Kill the whole process group the shell leads, not just the
-            # shell itself -- a backgrounded/piped child shares that group
-            # and would otherwise survive, reparented, past this timeout.
+            # Whole process group, not just the shell -- see docstring.
             os.killpg(process.pid, signal.SIGKILL)
             process.wait()
             raise
@@ -101,15 +77,12 @@ def main_checkout_root(start: Path) -> Path:
     """The MAIN working tree containing `start`, or `start` itself outside a repo.
 
     Resolved via `--git-common-dir`, not `--show-toplevel`: in a linked worktree
-    it names the main repo's `.git`, whose parent is the main working tree; in an
-    ordinary checkout it names `<root>/.git`, so the parent is the same root
-    `git_repo_root` finds. Mirrors `bin/gate-ledger`'s own `repo_root()`, which is
-    every `.studious/` store's owner — a linked worktree resolving to its own
-    root instead would silently scatter a store's records across worktrees.
+    it names the main repo's `.git`, whose parent is the main working tree —
+    matching `bin/gate-ledger`'s `repo_root()`, every `.studious/` store's owner,
+    so a linked worktree can't scatter a store's records across worktrees.
 
-    Falls back to `--show-toplevel`, then to `start` itself, if the common-dir
-    resolution doesn't land on a `.git` directory (odd/bare layouts) or can't be
-    resolved at all — same degradation direction as gate-ledger's own fallback.
+    Falls back to `--show-toplevel`, then to `start`, on odd/bare layouts —
+    same degradation direction as gate-ledger's own fallback.
     """
     try:
         result = run(["git", "rev-parse", "--git-common-dir"], cwd=start)
@@ -129,29 +102,24 @@ def main_checkout_root(start: Path) -> Path:
 def build_evidence_root(repo: Path) -> Path:
     """The default evidence store: `<main checkout>/.studious/build-evidence`.
 
-    Anchored to the MAIN checkout, not `repo` itself, for the same reason
-    `bin/gate-ledger`'s stores are: `/build` runs in a temporary linked worktree
-    that is removed after its branch merges, and `/ship` runs later, wherever the
-    user is. A store inside the build worktree would vanish with it.
+    Anchored to the MAIN checkout, not `repo`: `/build` runs in a temporary
+    linked worktree removed after merge, and `/ship` runs later elsewhere — a
+    store inside the build worktree would vanish with it.
 
-    `.studious/` is gitignored (`bin/gate-ledger`'s `ensure_gitignore()` keeps it
-    that way in consuming projects), so evidence never enters the repo — the PR
-    body's assembled table is the durable record. `build-evidence/` is a sibling
-    of the hook log's `evidence/` (reference/evidence-format.md), deliberately
-    not the same directory: one holds per-branch JSONL append logs, the other
-    per-task artifact folders, and a shared root would make each store's readers
-    scan the other's files.
+    `.studious/` is gitignored, so evidence never enters the repo — the PR
+    body's assembled table is the durable record. `build-evidence/` stays a
+    sibling of, not the same directory as, the hook log's `evidence/`
+    (reference/evidence-format.md): different record shapes (JSONL logs vs.
+    per-task artifact folders), so a shared root would mix readers' scans.
     """
     return main_checkout_root(repo) / ".studious" / "build-evidence"
 
 
 def current_branch(repo: Path) -> str:
-    """Return `repo`'s checked-out branch name, or the literal "HEAD" when
-    detached or unreadable.
+    """Return `repo`'s checked-out branch name, or "HEAD" when detached/unreadable.
 
-    Deliberately identical to `bin/gate-ledger`'s `branch_name()` — same
-    command, same "HEAD" fallback — so a folder captured on a detached HEAD
-    and a ledger file written on the same checkout agree on what to call it.
+    Matches `bin/gate-ledger`'s `branch_name()` exactly so a folder captured
+    on detached HEAD and a ledger file on the same checkout agree on the name.
     """
     result = run(["git", "-C", str(repo), "rev-parse", "--abbrev-ref", "HEAD"])
     branch = result.stdout.strip()
@@ -161,18 +129,13 @@ def current_branch(repo: Path) -> str:
 def branch_slug(branch: str) -> str:
     """Collapse a branch name to a path-safe token: every '/' becomes '-'.
 
-    This is `bin/gate-ledger:37`'s `branch_slug()` rule (bash
-    `printf '%s' "${b//\\//-}"`), reused rather than re-invented — the same
-    convention `.studious/evidence/<branch-slug>.jsonl` and the gate ledger's
-    own per-branch files already use. Two implementations in two languages is
-    the cost of the ledger being bash and this script being Python;
-    `tests/jig/test_evidence_capture.py`'s parity test runs both over the same
-    branch names so they cannot drift silently.
+    Mirrors `bin/gate-ledger:37`'s `branch_slug()` rule; `tests/jig/
+    test_evidence_capture.py`'s parity test keeps the bash and Python copies
+    from drifting.
 
-    Its one residual is documented at `bin/gate-ledger:273` and inherited here
-    on purpose: `feat/foo` and `feat-foo` produce the same slug. That is why
-    the manifest records the branch *name* and resolution matches on the name,
-    never on the slug.
+    Inherits its one residual, documented at `bin/gate-ledger:273`: `feat/foo`
+    and `feat-foo` collide. So the manifest records the branch *name* and
+    resolution matches on the name, never the slug.
     """
     return branch.replace("/", "-")
 
@@ -189,12 +152,10 @@ def last_commit_sha_and_epoch(repo: Path) -> tuple[str, float] | None:
 def resolve_revision_epoch(repo: Path, revision: str) -> float | None:
     """Resolve a git revision (branch, tag, sha) to its commit timestamp, or None.
 
-    `--end-of-options`, not `--`: `revision` reaches here from `verify --since`,
-    and git reads a leading-dash positional as an option unless told otherwise
-    (`git show -s --format=%ct --output=FILE HEAD` writes FILE). `--` is the
-    wrong separator for a revision -- it marks what follows as a *pathspec*, so
-    `git show ... -- HEAD` matches a file named HEAD, finds none, and returns
-    empty. This function would then return None for every revision, silently.
+    Uses `--end-of-options`, not `--`: `revision` comes from `verify --since`
+    and could start with a dash; `--` would mark it a *pathspec* instead,
+    so `git show ... -- HEAD` matches a file named HEAD and silently returns
+    empty for every revision.
     """
     result = run(["git", "-C", str(repo), "show", "-s", "--format=%ct", "--end-of-options", revision])
     if result.returncode != 0 or not result.stdout.strip():
@@ -205,11 +166,9 @@ def resolve_revision_epoch(repo: Path, revision: str) -> float | None:
 def branch_exists(repo: Path, branch: str) -> bool:
     """Whether `branch` exists in `repo`.
 
-    Needs no `--end-of-options` guard: the positional is interpolated behind a
-    literal `refs/heads/` and so can never begin with a dash. `git rev-parse`
-    could not take the guard anyway -- it echoes `--end-of-options` as an
-    output line rather than consuming it, which is why the two helpers that do
-    need it are `show` and `merge-base`, not this one.
+    No `--end-of-options` guard needed: the positional is interpolated behind
+    a literal `refs/heads/`, so it can't begin with a dash; `git rev-parse`
+    would echo the guard as output rather than consume it anyway.
     """
     return run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"]).returncode == 0
 

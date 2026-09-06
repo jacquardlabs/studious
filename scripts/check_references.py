@@ -15,11 +15,9 @@ REPO = Path(__file__).resolve().parent.parent
 MANIFEST = REPO / ".claude-plugin" / "plugin.json"
 SCAN_DIRS = ("commands", "agents", "skills", "reference")
 AGENT_RE = re.compile(r"@agent-([a-z0-9-]+)")
-# Recognized phrasings for a skill reference, e.g. "the `<name>` skill" (also
-# matches the possessive "the `<name>` skill's ..."), "invoke `<name>`"/"invoke
-# the `<name>`", and "skill `<name>`". Commands (`` `/gate-x` ``) and agents
-# (`@agent-x`) use their own distinct prefixes, so a bare backtick-wrapped
-# lowercase-dash token after "invoke" or "skill" is unambiguously a skill name.
+# Recognized skill-reference phrasings: "the `<name>` skill" (incl. possessive
+# "skill's"), "invoke [the] `<name>`", "skill `<name>`". Commands and agents use
+# their own prefixes, so a bare backtick token after "invoke"/"skill" is unambiguous.
 SKILL_RES = (
     re.compile(r"the `([a-z0-9-]+)` skill"),
     re.compile(r"invoke (?:the )?`([a-z0-9-]+)`"),
@@ -28,11 +26,10 @@ SKILL_RES = (
 # Curated rubric paths agents cite, e.g. `reference/security-checklist.md` or the
 # template `reference/idioms/<language>.md`. Angle-bracket placeholders are allowed.
 REFERENCE_RE = re.compile(r"reference/[A-Za-z0-9_./<>-]+\.md")
-#: Directories holding files that outlive any branch. A file here may not cite a
-#: *specific* design doc, because design docs are branch-local and deleted at
-#: closeout (#219) — the citation is dangling the moment the branch merges. The
-#: bare directory (`docs/design/`, `docs/design/<slug>.md` as a template) is fine
-#: and common: that is the producer's output path, not a reference to one doc.
+#: Directories holding files that outlive any branch. Design docs are branch-local
+#: and deleted at closeout (#219), so a file here citing a *specific* one dangles
+#: once merged. The bare directory or `<slug>` template form is fine — that's an
+#: output path, not a reference to one doc.
 DURABLE_DIRS = ("scripts", "skills", "commands", "agents", "reference", "bin", "workflows", "tests")
 #: A concrete filename under a disposable doc tree, as opposed to the bare
 #: directory or the `<slug>` placeholder form, both of which are legitimate.
@@ -42,12 +39,8 @@ DISPOSABLE_CITATION = re.compile(r"docs/design/(?!<)([A-Za-z0-9_-]+\.md)")
 def find_disposable_citations(root: Path) -> list[str]:
     """Durable files citing a design doc that cannot survive its branch (#233).
 
-    Thirty-three of these accumulated before anyone noticed, every one reading as
-    load-bearing rationale ("per the build-scripts design doc") that a reader
-    following it would find missing — unable to tell whether the claim was ever
-    true. `check_references.py` did not catch them because it validates only
-    `@agent-*`, skill names, and `reference/*.md`, and scans only three
-    directories.
+    33 of these accumulated undetected, each reading as load-bearing rationale
+    a later reader can't verify since the cited doc is gone by then.
     """
     errors: list[str] = []
     for sub in DURABLE_DIRS:
@@ -72,10 +65,8 @@ def find_disposable_citations(root: Path) -> list[str]:
 
 
 def _declared_dependencies() -> set[str]:
-    """Plugins this one declares a dependency on. Their skills are legitimately
-    referenced by name and legitimately absent from `skills/` — derived from the
-    manifest rather than restated here, so declaring a dependency is the single
-    action that makes its skill citable."""
+    """Plugins this one depends on — their skills are citable by name though
+    absent from `skills/`. Derived from the manifest, not restated here."""
     try:
         return set(json.loads(MANIFEST.read_text(encoding="utf-8")).get("dependencies", []))
     except (OSError, json.JSONDecodeError):

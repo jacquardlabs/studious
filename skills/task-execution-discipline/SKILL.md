@@ -11,16 +11,13 @@ Every `/build` task arrives as a checkpoint block: a stated `Do`, a stated
 `Not here`, numbered `cap`/`hold` items each carrying a verification tier
 (`script` | `test-backed` | `probe`), and a `Done means` that the task's own
 `Evidence` field must satisfy (`DESIGN.md`, Vocabulary and Formatting).
-`/build`'s for-loop hands each task to a **fresh** executor — no memory of
-how the previous task's executor decided these same questions carries over,
-by design (`PRODUCT.md`, critical user journey 1). This skill is the shared
-starting position every fresh executor reads instead of re-deciding
-discipline from scratch, task after task: write the test first, stay inside
-`Not here`, and never self-report `Done means` without fresh evidence.
+`/build`'s for-loop hands each task to a **fresh** executor with no memory
+of prior tasks' decisions (`PRODUCT.md`, critical user journey 1) — this
+skill is the shared starting discipline: write the test first, stay inside
+`Not here`, never self-report `Done means` without fresh evidence.
 
-**Core principle:** the checkpoint block is the contract. Discipline means
-staying inside the block in front of you, not "doing good work" in the
-abstract.
+**Core principle:** the checkpoint block is the contract — stay inside the
+block in front of you, not "doing good work" in the abstract.
 
 **Violating the letter of a pillar below is violating its spirit.**
 
@@ -70,18 +67,15 @@ CODE THAT REACHES PAST THIS TASK'S `Do` INTO ITS `Not here` IS THE VIOLATION
 
 Before adding a parameter, option, config flag, or abstraction the cap
 item's test didn't ask for, check the checkpoint block's `Not here` list.
-If the addition is on it — or would need to be, had the block's author
-thought to list it — it doesn't belong in this task. Flag it as a
-follow-up instead of building it now. The loop has no way to amend a plan
-under its own pressure, by construction: a block that turns out to be
-wrong gets a `REPLAN` suffix from `scripts/status-flip` and pauses the
-session for a human to revise by hand (`skills/build/SKILL.md`'s Failure
-routine; `commands/next.md` routes the same state to a manual step).
-Widening the task in place is that pause, skipped.
+If it's on the list — or would need to be — it doesn't belong in this
+task; flag it as a follow-up instead of building it. A block that turns
+out wrong gets a `REPLAN` suffix from `scripts/status-flip` and pauses for
+a human to revise by hand (`skills/build/SKILL.md`'s Failure routine;
+`commands/next.md` routes the same state to a manual step) — widening the
+task in place skips that pause.
 
-This isn't "don't over-engineer" as a vague instinct — it's "match the
-`Do`, stop at the `Not here`," checkable against the concrete block in
-front of you rather than a feeling.
+This isn't a vague "don't over-engineer" instinct — it's "match the `Do`,
+stop at the `Not here`," checkable against the block in front of you.
 
 ## Pillar 3 — Verification-before-completion
 
@@ -92,30 +86,26 @@ NO DONE-MEANS CLAIM WITHOUT FRESH EVIDENCE IN THIS TASK'S EVIDENCE FIELD
 ```
 
 A task's status moves `todo` → `in-progress` → `PASS`/`REPLAN`/`ESCALATE`.
-`FIX` is not in that set: it is the failure routine's own transient action
-between attempts, and `scripts/status-flip` never writes it as a heading
-suffix (`skills/build/SKILL.md`, DESIGN.md's Vocabulary table). That flip
-belongs to a script, never the executor's
-self-report — "Judgment in the model, mechanics in scripts," and "Nothing
-signs off on itself" (`PRODUCT.md`, Product principles). `scripts/verify`
-independently re-runs every item after you're done regardless — that
-independent re-run, not your own report, is what actually backs the flip;
-nothing here loosens that. The executor's job is narrower and
-non-negotiable: before writing anything that reads like `Done means` is
-satisfied, an item's `Evidence` must reflect its check's output at the
-*current* code state, captured this task, never "should pass now," "looks
-right," or a memory of an earlier run.
+`FIX` is not in that set — it's the failure routine's transient action
+between attempts; `scripts/status-flip` never writes it as a heading
+suffix (`skills/build/SKILL.md`, DESIGN.md's Vocabulary table). The flip
+belongs to a script, never the executor's self-report — "Judgment in the
+model, mechanics in scripts," "Nothing signs off on itself" (`PRODUCT.md`,
+Product principles). `scripts/verify` independently re-runs every item
+regardless — that re-run, not your report, backs the flip. The executor's
+job: before writing anything that reads like `Done means` is satisfied, an
+item's `Evidence` must reflect its check's output at the *current* code
+state, captured this task — never "should pass now," "looks right," or a
+memory of an earlier run.
 
 **Fresh doesn't mean re-run on principle.** A test-backed cap item's own
-Pillar 1 Verify-GREEN step already ran that exact check against the code
-as it stands the moment it passed — cite that output directly rather than
-running the identical command a second time in the same turn purely to
-re-confirm it. That reuse is only valid while nothing has touched the code
-since: any edit after that run (including Pillar 1's own Refactor step, or
-work on a later cap item that touches shared code) invalidates it — the
-next thing that happens is a fresh run, not a citation of stale output. A
-`hold` item or a `probe` item carries no Pillar 1 cycle to reuse from, so
-it always needs its own fresh run here.
+Pillar 1 Verify-GREEN step already ran that exact check at the moment it
+passed — cite that output rather than re-running the identical command
+purely to re-confirm it. That reuse is valid only while nothing has
+touched the code since; any edit after (including Pillar 1's own Refactor
+step, or later work touching shared code) invalidates it — run fresh
+instead of citing stale output. A `hold` or `probe` item carries no
+Pillar 1 cycle to reuse from, so it always needs its own fresh run.
 
 Gate function, before any completion-shaped claim:
 
@@ -134,9 +124,8 @@ task before this one's `Evidence` field is filled in.
 
 ## Why all three together
 
-TDD-per-capability produces the thing to verify. YAGNI keeps it inside the
-task's actual contract instead of a bigger one nobody asked for.
-Verification-before-completion stops the executor from asserting the first
-two happened instead of showing that they did. Drop any one and a fresh
-executor is back to re-litigating discipline questions task after task —
-the exact inconsistency this skill exists to remove.
+TDD-per-capability produces the thing to verify; YAGNI keeps it inside the
+task's actual contract; verification-before-completion stops the executor
+from asserting the first two happened instead of showing it. Drop any one
+and a fresh executor is back to re-litigating discipline task after
+task — the exact inconsistency this skill exists to remove.

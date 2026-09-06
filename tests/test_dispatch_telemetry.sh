@@ -2,15 +2,11 @@
 # Integration tests for hooks/dispatch-telemetry.sh (the PreToolUse hook wired to
 # the Task tool in hooks.json). Requires git + jq.
 #
-# What this file does and doesn't prove, in the same terms as
-# tests/test_evidence_capture.sh: every test feeds the hook a crafted JSON payload
-# on stdin, shaped as code.claude.com/docs/en/hooks documents PreToolUse input.
-# That deterministically proves the hook's own logic — roster filter, skill
-# mapping, sentinel suppression, identity derivation, defensive exits. It does NOT
-# prove that a real Task dispatch produces a `subagent_type` field under that name;
-# the docs do not enumerate the Task tool's tool_input, and no Task tool is
-# available to this suite to observe a real one (reference/telemetry-format.md,
-# "What the hook can and cannot see", records that as assumed, not verified).
+# Each test feeds the hook a crafted JSON payload shaped per code.claude.com/docs/en/hooks'
+# PreToolUse input, proving the hook's own logic (roster filter, skill mapping, sentinel
+# suppression, identity derivation, defensive exits). It does NOT prove a real Task dispatch
+# uses `subagent_type` under that name — unverified per reference/telemetry-format.md,
+# "What the hook can and cannot see".
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

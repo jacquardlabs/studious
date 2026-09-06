@@ -1,59 +1,36 @@
 """Regression tests for the acceptance-retry-visibility story (issue #142, Finding 2).
 
-That story's design determined that no layer this repo controls (`workflows/epic-driver.js`, `bin/gate-ledger`,
-the dispatched-agent prompts) has an accessible signal that a prior `agent()` dispatch was
-abandoned/superseded before a retry began — so acceptance criterion 2 (a `work-log RETRY`
-entry) does not ship. Instead, per criterion 3, `reference/epic-orchestration.md`'s report gained
-a staleness-heuristic mitigation: reconstruct each reported story's per-phase wall-clock
-duration from `gate-ledger work-get`'s own `history` array (data already recorded today,
-no new instrumentation) and render it next to that phase's verdict.
+No layer in this repo can detect that a prior `agent()` dispatch was abandoned/superseded
+before a retry, so acceptance criterion 2 (a `work-log RETRY` entry) doesn't ship. Instead
+(criterion 3), `reference/epic-orchestration.md`'s report reconstructs each phase's wall-clock
+duration from `gate-ledger work-get`'s existing `history` array and renders it next to the
+verdict.
 
-`reference/epic-orchestration.md` is prose, not executable code, so there is no runtime harness
-for the render loop itself (mirrors `tests/python/test_handback_skill.py`'s framing for the
-same reason). The one piece of real logic this story adds — the `jq` filter that turns a
-work file's `history` array into a duration chain — *is* executable, so these tests extract
-it from the prose verbatim (never reimplemented, the same discipline
-`test_contract_injection.py`/`test_driver_crash_hardening.py` use for `epic-driver.js`) and
-run it against constructed fixtures via `jq` directly. That locks the design doc's own
-pre-mortem register (`docs/studious/premortems/2026-07-21-acceptance-retry-visibility-design.md`)
-finding 2 (a missing/malformed `createdAt` or `at` must degrade to "no duration shown", never
-a literal NaN or a negative number) as an executable regression, plus the design's own
-worked example and its issue #142 counterfactual, byte-for-byte.
+The command file is prose, not code (same framing as `test_handback_skill.py`), except for
+the `jq` filter that turns `history` into a duration chain — that piece is extracted
+verbatim (never reimplemented, per `test_contract_injection.py`/`test_driver_crash_hardening.py`)
+and run against fixtures via `jq`. This locks pre-mortem finding 2
+(`docs/studious/premortems/2026-07-21-acceptance-retry-visibility-design.md`; malformed/missing
+timestamps degrade to "no duration", never NaN or negative) plus the design doc's worked
+example and #142 counterfactual, byte-for-byte.
 
-The remaining findings have no code to execute against — a prose instruction, not an
-arithmetic result — so they're checked structurally instead, the same way
-`test_handback_skill.py` checks its command's prose commitments: finding 1 (degrade
-per-story, never abort the whole report), finding 3 (prose-level `jq`, not a new
-`gate-ledger` verb, while this story is the arithmetic's only consumer), finding 4 (fall
-back to the driver's own trail when a story's history can't be read), finding 5 (full
-history renders, intentionally, not scoped to this run), finding 6 (the rendered text never
-asserts health), and finding 7 (a compact parenthetical, not a separate table).
+Remaining pre-mortem findings have no arithmetic to run, so they're checked structurally:
+finding 1 (degrade per-story, never abort the report), finding 3 (prose-level jq, no new
+`gate-ledger` verb), finding 4 (fall back to the driver's trail text), finding 5 (full
+history renders, not scoped to the run), finding 6 (rendered text never asserts health),
+finding 7 (a compact parenthetical, not a table).
 
-**Revision 2 (`gate-design-review` REVISE, criterion-4 false negative):** the design doc's
-first revision fixed `gate-acceptance`'s `HOLD` (a resumed phase's idle time rendering as a
-misleading duration) by suppressing the duration entirely for any phase immediately
-following a `run-boundary` marker — but that suppression rendered a genuinely slow resumed
-phase (issue #142's own 117-minute stall, landing at a resume boundary) byte-identical to a
-healthy 5-minute resume: both bare, no flag. This revision promotes the `(resumed)` tag from
-a deferred cosmetic Open Question to a requirement, so every phase following a
-`run-boundary` marker carries an explicit, uniform flag rather than rendering fully bare.
-The tests below marked "Revision 2" lock this: the marker never renders as its own line, the
-phase immediately after one always carries the resumed tag regardless of how long the real
-dispatch behind it actually took (the specific false-negative regression), and only the
-*immediately* following phase is tagged — a later phase in the same story computes its
-delta normally against its own real predecessor.
+**Revision 2** (`gate-design-review` REVISE): suppressing duration for any phase right after
+a `run-boundary` marker fixed the `HOLD` false positive but made a genuinely slow resumed
+phase (#142's own 117-minute stall) render identical to a healthy 5-minute resume. Promotes
+`(resumed)` from an Open Question to a requirement: every phase immediately after a
+`run-boundary` marker gets an explicit tag, scoped to just that one phase.
 
-**Revision 3 (`gate-acceptance` FIX AND RE-CHECK, Finding 1):** Revision 2's bare `(resumed)`
-tag was itself found to read, to a scanning maintainer, as a benign lifecycle fact rather
-than an invitation to check a potentially slow gate — reopening the same false negative
-Revision 2 exists to close, one level up: the *presence* of a flag no longer distinguished
-fast from slow, but its *meaning* still had to be inferred rather than stated. This revision
-enriches the tag's own literal text (`RESUMED_TAG` below, copied verbatim from the `jq`
-filter so the two can't drift apart silently) to say plainly that no same-run duration was
-measured and that a manual `gate-ledger work-get` check may be worth taking — never
-reopening whether to have a tag at all (settled by `gate-design-review`) and never adding a
-minute count to it (forbidden by criterion 2; a resumed phase still can't be measured, only
-flagged more legibly).
+**Revision 3** (`gate-acceptance` FIX AND RE-CHECK, Finding 1): the bare `(resumed)` tag
+still read as benign lifecycle info rather than a signal to investigate — same false
+negative, one level up. The tag's literal text (`RESUMED_TAG` below, copied verbatim so it
+can't drift) now states plainly that no same-run duration was measured and a manual check
+may be worth it — never a health verdict, never a minute count.
 """
 
 from __future__ import annotations
@@ -66,14 +43,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORK_THROUGH = REPO_ROOT / "reference" / "epic-orchestration.md"
 
-# `gate-acceptance` FIX AND RE-CHECK, Finding 1: a bare `(resumed)` tag reads as a
-# benign lifecycle fact to a scanning maintainer, not an invitation to investigate a
-# potentially slow gate — reopening the exact false negative Revision 2 exists to
-# close. The tag's literal text now states plainly that no same-run duration was
-# measured and that a manual `gate-ledger work-get` check may be worth taking, never
-# a health verdict (forbidden by criterion 4) and never a minute count (forbidden by
-# criterion 2). A single hardcoded constant, not re-typed per assertion, so a byte-level
-# mismatch (an em dash vs. a hyphen, say) can't slip between two assertions silently.
+# gate-acceptance FIX AND RE-CHECK, Finding 1: bare (resumed) read as benign, not a
+# signal to investigate — states no-measurement + suggests a manual check, never a
+# health verdict (criterion 4) or minute count (criterion 2). Single constant so
+# wording can't drift between assertions.
 RESUMED_TAG = "(resumed — no same-run duration; worth a gate-ledger work-get check)"
 
 def _command_text() -> str:
@@ -81,10 +54,8 @@ def _command_text() -> str:
 
 
 def _close_section() -> str:
-    """The `## Close every invocation the same way` section this story edits,
-    isolated from the rest of the file so assertions about its prose can't be
-    satisfied by unrelated text elsewhere (e.g. the finale section's own,
-    pre-existing use of the word "stalled")."""
+    """Isolates the section this story edits so assertions can't match unrelated
+    text (e.g. the finale section's own pre-existing "stalled")."""
     text = _command_text()
     start = text.index("## Close every invocation the same way")
     end = text.index("## Record keeping")
@@ -92,8 +63,7 @@ def _close_section() -> str:
 
 
 def _reconcile_section() -> str:
-    """The `### 1 · Reconcile` step this story's Revision 2 edits to add the
-    run-boundary marker write, isolated the same way `_close_section` is."""
+    """Isolates the Reconcile step Revision 2 edits, same rationale as `_close_section`."""
     text = _command_text()
     start = text.index("### 1 · Reconcile")
     end = text.index("### 2 · Run the driver script")
@@ -101,10 +71,8 @@ def _reconcile_section() -> str:
 
 
 def _extract_jq_filter() -> str:
-    """Extract the jq filter embedded in the fenced ```bash block, verbatim —
-    never reimplemented, per this repo's own precedent
-    (test_handback_skill.py, test_contract_injection.py) for locking prose-
-    embedded logic against silent drift."""
+    """Extracts the jq filter verbatim from its fenced block — never
+    reimplemented (same precedent as test_handback_skill.py, test_contract_injection.py)."""
     match = re.search(
         r"```bash\ngate-ledger work-get --slug \"<slug>--<story>\" \| jq -r '\n(.*?)\n'\n```",
         _command_text(),
@@ -138,9 +106,8 @@ def test_jq_pipeline_fenced_block_present() -> None:
 
 
 def test_jq_pipeline_reads_work_get_not_a_new_verb() -> None:
-    """Out of scope: 'Any change to bin/gate-ledger's schema, verbs, or dispatch
-    table' — the design's working default (open question) is prose-level jq
-    over the existing work-get verb, not a new gate-ledger read verb."""
+    """Out of scope: any change to gate-ledger's schema/verbs — this is
+    prose-level jq over existing work-get, not a new verb."""
     text = _close_section()
     assert "gate-ledger work-get" in text
     assert "work-durations" not in text
@@ -158,9 +125,8 @@ def test_never_asserts_health_language_present() -> None:
 
 
 def test_full_history_intentional_note_present() -> None:
-    """Pre-mortem finding 5: history is cumulative across runs, not scoped to
-    this run — the design doc's stated intent, not a bug. Locks that the
-    command prose says so explicitly rather than leaving it ambiguous."""
+    """Pre-mortem finding 5: history is cumulative across runs by design, not
+    a bug — locks that the prose says so explicitly."""
     text = _close_section()
     assert "Renders full history, not just this run's phases" in text
 
@@ -174,9 +140,9 @@ def test_degrade_per_story_instruction_present() -> None:
 
 
 def test_finale_pseudo_entry_excluded_from_per_story_read() -> None:
-    """The epic finale's stalled-gate entry (`<epic-slug>--finale: ...`) is a
-    needsYou entry with no `<slug>--story>` work file behind it — the
-    duration-reconstruction step must not assume every needsYou entry has one."""
+    """The finale's stalled-gate entry (`<epic-slug>--finale: ...`) is a
+    needsYou entry with no work file behind it — duration reconstruction
+    must not assume every needsYou entry has one."""
     text = _close_section()
     assert "finale" in text.lower()
     assert "does not and falls through the degrade rule" in text
@@ -193,8 +159,8 @@ def test_report_template_carries_duration_placeholder() -> None:
     assert "(<Nm>)" in template
     assert "Needs you:" in template
     assert "Landed this run:" in template
-    # The old, pre-duration placeholder must actually be gone, not just
-    # supplemented — this was a real rendering change, not an addition.
+    # Old placeholder must be gone, not just supplemented — a rendering
+    # change, not an addition.
     assert "<story — verdict trail>" not in template
 
 
@@ -202,10 +168,8 @@ def test_report_template_carries_duration_placeholder() -> None:
 
 
 def test_jq_pipeline_matches_design_doc_worked_example() -> None:
-    """Reproduces the design doc's own real, already-recorded fixture
-    (13m20s / 14m46s / 8m26s / 4m53s) and asserts the rendered chain is
-    byte-identical to the design doc's rendering example (13m / 15m / 8m / 5m
-    — rounded, not floored: 14m46s rounds up to 15m, 4m53s rounds up to 5m)."""
+    """Design doc's own fixture; asserts byte-identical output, rounded not
+    floored (14m46s -> 15m, 4m53s -> 5m)."""
     payload = {
         "createdAt": "2026-07-11T13:32:09Z",
         "history": [
@@ -223,10 +187,9 @@ def test_jq_pipeline_matches_design_doc_worked_example() -> None:
 
 
 def test_jq_pipeline_reproduces_issue_142s_117_minute_incident() -> None:
-    """The counterfactual check from the design doc's Success metrics section:
-    applying the computation to issue #142's own reported timeline yields the
-    ~117-minute anomaly the reporter surfaced by hand, unattributed — a plain
-    number, never labeled "stalled" or "retried" by the filter itself."""
+    """Design doc's Success-metrics counterfactual: #142's own timeline
+    yields the ~117-minute anomaly as a plain number, never labeled
+    "stalled"/"retried"."""
     payload = {
         "createdAt": "2026-07-20T15:00:00Z",
         "history": [
@@ -241,9 +204,8 @@ def test_jq_pipeline_reproduces_issue_142s_117_minute_incident() -> None:
 
 
 def test_jq_pipeline_missing_created_at_shows_no_duration_not_nan() -> None:
-    """Pre-mortem finding 2: a work file missing `createdAt` (pre-existing on
-    disk, hand-edited, or otherwise) must render the first phase with no
-    duration at all, never a NaN or a negative number."""
+    """Pre-mortem finding 2: missing `createdAt` renders the first phase with
+    no duration, never NaN or negative."""
     payload = {
         "history": [
             {"step": "design-review", "outcome": "PROCEED TO PLAN", "at": "2026-07-11T13:45:29Z"},
@@ -257,9 +219,9 @@ def test_jq_pipeline_missing_created_at_shows_no_duration_not_nan() -> None:
 
 
 def test_jq_pipeline_malformed_at_degrades_without_crashing() -> None:
-    """Pre-mortem finding 2's corollary: a malformed `at` on one entry must not
-    abort the computation for the rest of the story's history — it (and any
-    later entry whose predecessor is the malformed one) shows no duration."""
+    """Finding 2 corollary: a malformed `at` degrades that entry (and any
+    entry whose predecessor is malformed) to no duration, without aborting
+    the rest."""
     payload = {
         "createdAt": "2026-07-11T13:32:09Z",
         "history": [
@@ -273,9 +235,8 @@ def test_jq_pipeline_malformed_at_degrades_without_crashing() -> None:
 
 
 def test_jq_pipeline_never_emits_a_negative_duration_on_clock_skew() -> None:
-    """A later entry's `at` earlier than its predecessor (clock skew, a
-    hand-edited file) must degrade to no duration, never a negative number —
-    the filter's own explicit `$secs < 0` guard."""
+    """Clock skew (a later `at` earlier than its predecessor) degrades to no
+    duration, never negative — the filter's explicit `$secs < 0` guard."""
     payload = {
         "createdAt": "2026-07-11T14:00:00Z",
         "history": [
@@ -332,14 +293,11 @@ def test_run_boundary_tags_a_fast_resumed_phase() -> None:
 
 
 def test_run_boundary_tags_a_slow_resumed_phase_the_same_way() -> None:
-    """The BLOCKING regression this revision fixes: `gate-design-review`'s
-    second-round finding showed the pre-Revision-2 bare rendering hid a
-    genuinely slow resumed phase (issue #142's own 117-minute stall, landing
-    at a resume boundary) exactly as it hid a healthy one — byte-identical,
-    zero signal either way. Locking that the slow case now carries the same
-    explicit resumed tag as the fast case (never a bare render, and never
-    a differentiating number the design doc's own Alternatives section
-    rejected on queueing-delay grounds)."""
+    """The regression this revision fixes: pre-Revision-2 bare rendering hid
+    a slow resumed phase (#142's 117-minute stall) identically to a healthy
+    one. Locks that slow and fast cases now carry the same tag — never bare,
+    never a differentiating number (rejected on queueing-delay grounds in
+    the design doc's Alternatives)."""
     payload = {
         "createdAt": "2026-07-18T16:50:00Z",
         "history": [
@@ -357,10 +315,9 @@ def test_run_boundary_tags_a_slow_resumed_phase_the_same_way() -> None:
 
 
 def test_run_boundary_tag_is_scoped_to_the_immediately_following_phase_only() -> None:
-    """A second phase after the marker (e.g. a fix-and-retry round following
-    the resumed dispatch) has a real same-run predecessor and must compute a
-    normal duration — the tag doesn't leak past the one phase it's honest
-    about."""
+    """A second phase after the marker has a real same-run predecessor and
+    computes a normal duration — the tag doesn't leak past the one phase
+    it's honest about."""
     payload = {
         "createdAt": "2026-07-18T16:50:00Z",
         "history": [
@@ -386,13 +343,9 @@ def test_run_boundary_tag_is_scoped_to_the_immediately_following_phase_only() ->
 
 
 def test_resumed_tag_states_no_measurement_and_invites_a_manual_check() -> None:
-    """`gate-acceptance` FIX AND RE-CHECK, Finding 1: the bare `(resumed)` tag read as
-    a benign lifecycle fact to a scanning maintainer, not an invitation to check a
-    potentially slow gate — reopening the false negative Revision 2 exists to close.
-    The tag's literal rendered text must now say both that no same-run duration was
-    measured and that a manual `gate-ledger work-get` check may be worth taking,
-    without smuggling in a health verdict (forbidden by criterion 4) or a minute
-    count (forbidden by criterion 2)."""
+    """gate-acceptance Finding 1: the tag's rendered text must state no
+    same-run duration was measured and suggest a manual check, without a
+    health verdict (criterion 4) or minute count (criterion 2)."""
     payload = {
         "createdAt": "2026-07-18T16:50:00Z",
         "history": [
@@ -411,9 +364,7 @@ def test_resumed_tag_states_no_measurement_and_invites_a_manual_check() -> None:
 
 
 def test_resumed_tag_matches_the_hardcoded_regression_constant() -> None:
-    """Guards `RESUMED_TAG` itself against silent drift from the actual rendered
-    text — if a future edit changes the tag's wording in `reference/epic-orchestration.md`
-    without updating this module's constant, this is the test that catches it."""
+    """Catches `RESUMED_TAG` drifting from the actual rendered wording."""
     payload = {
         "createdAt": "2026-07-18T16:50:00Z",
         "history": [
@@ -427,10 +378,9 @@ def test_resumed_tag_matches_the_hardcoded_regression_constant() -> None:
 
 
 def test_reconcile_writes_run_boundary_marker_for_pre_existing_work_files() -> None:
-    """Criterion 1: the run-boundary marker itself, written once per invocation
-    in Reconcile for any story whose work file already existed (an earlier
-    invocation started it) — never for a brand-new story, never twice, never
-    for a story with only its merge left."""
+    """Criterion 1: the run-boundary marker is written once per invocation,
+    only for a story whose work file already existed — never for a new
+    story, never twice, never when only merge is left."""
     text = _reconcile_section()
     assert 'gate-ledger work-log --slug "<slug>--<story>" --step "run-boundary"' in text
     assert '--outcome "DISPATCHED"' in text
@@ -439,16 +389,12 @@ def test_reconcile_writes_run_boundary_marker_for_pre_existing_work_files() -> N
 
 
 def test_reconcile_binds_work_get_json_from_the_captured_reconcile_payload() -> None:
-    """Regression (epic finale audit, perf-audit-followups): the
-    epic-reconcile-verb story (issue #160) collapsed each story's separate
-    `gate-ledger work-get` call into one composite `epic-reconcile` call, but
-    this section's "reuse the same work-get JSON already read above" prose
-    was never updated to match — `$work_get_json` was referenced in the
-    run-boundary snippet without ever being bound to anything, so
-    `[ -n "$work_get_json" ]` was always false and the run-boundary marker
-    silently never wrote. Locks that `epic-reconcile`'s payload is captured
-    into a named variable, and that `$work_get_json` is actually derived from
-    it (this story's `.work` field) before the existing checks run."""
+    """Regression (epic finale audit): issue #160 collapsed per-story
+    `work-get` calls into one `epic-reconcile` call, but this section's prose
+    was never updated — `$work_get_json` was referenced without being bound,
+    so the run-boundary marker silently never wrote. Locks that
+    `epic-reconcile`'s payload is captured and `$work_get_json` is actually
+    derived from it (`.work` field) before the existing checks run."""
     text = _command_text()
     assert 'reconcile_json=$(gate-ledger epic-reconcile --slug "<slug>")' in text
     reconcile_text = _reconcile_section()
@@ -465,20 +411,17 @@ def test_run_boundary_reserved_step_name_documented_collision_free() -> None:
 
 
 def test_resumed_tag_required_not_cosmetic_in_close_section() -> None:
-    """The Open Question this story's design doc originally deferred
-    ("whether the suppressed phase should carry a small factual tag") was
-    promoted to a requirement by `gate-design-review`'s second round — locking
-    that the command prose actually states the tag is mandatory, not merely
-    possible."""
+    """The Open Question this design doc deferred was promoted to a
+    requirement by gate-design-review's second round — locks that the prose
+    states the tag is mandatory, not optional."""
     text = _close_section()
     assert "(resumed)" in text
     assert "never a bare render" in text or "never silently bare" in text
 
 
 def test_resumed_tag_rationale_names_the_false_negative_it_fixes() -> None:
-    """Locks that the command prose itself explains *why* a bare render was
-    rejected — not just that the tag exists — so a future editor can't quietly
-    revert to bare suppression without re-breaking criterion 4."""
+    """Locks that the prose explains *why* bare rendering was rejected, so a
+    future edit can't quietly revert without re-breaking criterion 4."""
     text = _close_section()
     assert "5" in text and "117" in text
     assert "queueing-delay" in text or "queueing delay" in text
@@ -494,17 +437,13 @@ def test_report_template_documents_resumed_placeholder() -> None:
 
 
 def test_rationale_citation_resolves() -> None:
-    """This guard originally asserted a `docs/superpowers/specs/` design doc existed.
-    Under the ratified rule a design doc is branch-local and dies at closeout (#219),
-    so a permanent command file must not cite one — that is the dangling-pointer
-    class this guard exists to catch, not an exception to it. `reference/epic-orchestration.md` now
-    cites the issue that owns the decision, which does not expire.
-
-    Generalized rather than deleted: every path this file names in a doc tree *this*
-    repo owns must resolve. Scoped to those three trees deliberately — `reference/epic-orchestration.md`
-    also names `docs/headless-contract.md`, which lives in viva's repo behind the
-    published contract that keeps it a separate repo (CLAUDE.md boundary criterion (e)),
-    and a checkout-local existence check is the wrong question to ask of it."""
+    """Originally asserted a `docs/superpowers/specs/` doc existed; under the
+    ratified rule (#219) a design doc is branch-local and dies at closeout, so
+    a permanent file must cite the issue instead — this guard now checks that
+    citation and, generalized rather than deleted, that every doc path in a
+    tree this repo owns resolves. `docs/headless-contract.md` is excluded: it
+    lives in viva's repo behind a published contract (CLAUDE.md boundary
+    criterion (e)), so a checkout-local existence check doesn't apply."""
     text = WORK_THROUGH.read_text(encoding="utf-8")
     assert "issues/142" in text, "the retry-visibility rationale citation is gone"
 

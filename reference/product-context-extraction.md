@@ -3,7 +3,7 @@
 
 # Extract product context from codebase
 
-Analyze the existing codebase to discover what this product actually is, who it serves, and how it works — based on evidence in the code, not assumptions. Do not invent or idealize — document what IS.
+Analyze the existing codebase to discover what this product actually is, who it serves, and how it works — based on evidence in the code, not assumptions. Document what IS, not what should be.
 
 Read PRODUCT.md first. If it already has content, you're updating it. If it's the blank template, you're populating it from scratch.
 
@@ -68,14 +68,11 @@ Look for evidence of who uses this product:
 - Scan UI copy, labels, button text, onboarding text, error messages, email templates
 - What terminology does the product use? (customers, patients, members, users, teams?)
 - What domain language appears? (orders, appointments, lessons, recipes, projects?)
-- This reveals the target audience more reliably than any README
 
 **Data models:**
 - What is the central entity? (the thing most other tables/collections reference)
 - What does a user profile contain? (fields reveal assumptions about the user)
 - Check seed data or fixtures — sample data often models the intended user
-
-Draft the persona based on what the code reveals, not what you think it should be.
 
 ## Step 5 — Discover the business model
 

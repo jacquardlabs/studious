@@ -1,21 +1,19 @@
 """Regression tests for the priced-epic story (#268, #144, #296, #297).
 
-Four mechanisms compose into one scheduling loop in `workflows/epic-driver.js`,
-and the issues say plainly why they ship together: "shipping either alone leaves
-the other failure mode fully funded" (#268). So they are tested together, end to
-end, through the same harness-shape execution `test_driver_crash_hardening.py`
-established — the assertions here are about emergent scheduling behaviour ("the
-fleet stayed home", "the story was never dispatched"), which no single function's
-return value can honestly demonstrate.
+Four mechanisms compose into one scheduling loop in `workflows/epic-driver.js`
+(#268: "shipping either alone leaves the other failure mode fully funded"), so
+they're tested together through the same harness `test_driver_crash_hardening.py`
+uses — these assertions are about emergent scheduling behavior a single
+function's return value can't demonstrate.
 
-- **Canary (#268)** — exactly one story goes first; the rest wait. A canary that
-  lands releases them; one that parks holds them, because the ~0.4M-vs-~4M token
-  saving the issue prices is only real if a bad plan stops at story one.
-- **Budget (#144)** — the approved appetite is a runtime ceiling read from the
-  Workflow `budget` primitive, and an unavailable primitive degrades to a stated
-  "no ceiling" rather than to a silent unbounded run.
-- **Open episodes (#297)** — the second appetite number caps how many stories may
-  be awaiting a human at once, regardless of token headroom.
+- **Canary (#268)** — one story goes first; a park holds the rest, a landing
+  releases them. The ~0.4M-vs-~4M token saving only holds if a bad plan stops
+  at story one.
+- **Budget (#144)** — approved appetite is a runtime ceiling read from the
+  Workflow `budget` primitive; an unavailable primitive degrades to a stated
+  "no ceiling", never a silent unbounded run.
+- **Open episodes (#297)** — caps how many stories may await a human at once,
+  regardless of token headroom.
 """
 
 from __future__ import annotations
@@ -38,18 +36,16 @@ B_LANDS = SIBLING_LANDS_RULES
 
 
 def _epic(filler: bool = False, **overrides: object) -> dict:
-    """Two stories, a and b, neither depending on the other — the smallest plan
-    that can distinguish "the fleet widened" from "the fleet stayed held".
+    """Two independent stories a and b — the smallest plan that can distinguish
+    "the fleet widened" from "the fleet stayed held".
 
-    `filler` adds a third story already parked in the plan. It exists to keep the
-    epic finale (a separate ~13-dispatch fan-out with nothing to do with appetite)
-    out of the fixtures where both real stories land: the finale runs only when
-    every story is landed or dropped. Tests that assert on exact open-episode
+    `filler` adds a third already-parked story, keeping the finale (a separate
+    ~13-dispatch fan-out, runs only once every story lands or drops) out of
+    fixtures where both real stories land. Tests asserting exact open-episode
     counts leave it off and arrange their own.
     """
-    # `canary` is set explicitly on every fixture here: `_run_driver` defaults it
-    # OFF for the pre-canary fixtures it was written for, and these tests are the
-    # ones that must exercise the real default-on behaviour.
+    # `canary` set explicitly: `_run_driver` defaults it OFF for older fixtures;
+    # these tests must exercise the real default-on behaviour.
     epic: dict = {
         "canary": True,
         "slug": "epx",
@@ -104,10 +100,9 @@ A_PARKS = [
 
 
 def test_canary_that_parks_holds_the_rest_of_the_fleet() -> None:
-    """The whole point of the canary, and the one behaviour its cost arithmetic
-    depends on: story b must never be dispatched. #268 prices a canaried bad plan
-    at ~0.4M tokens against ~4M for a full-width run — a saving that exists only
-    if the siblings stay home when the canary fails."""
+    """Core canary invariant: story b must never dispatch while the canary is
+    failing. #268 prices this at ~0.4M tokens vs ~4M full-width — real only if
+    siblings stay home when it fails."""
     out = _run_driver(_epic(), [*A_PARKS, *B_LANDS])
     assert out["ok"], f"driver crashed: {out.get('error')}"
     result = out["result"]
@@ -157,11 +152,10 @@ def test_canary_off_dispatches_the_fleet_at_once() -> None:
 
 
 def test_a_failed_canary_never_reclassifies_a_plan_parked_story_as_held() -> None:
-    """A story the plan already parked has its own recorded outcome. The canary's hold
-    loop must skip it exactly as the canary's SELECTION already does — overwriting it
-    with the canary's hold reason would drop it out of "Needs you" and lose the park
-    reason it was carrying, turning a story awaiting a human into one that looks like it
-    is merely waiting on a ceiling."""
+    """A plan-parked story has its own recorded outcome; the hold loop must skip it
+    like selection already does — overwriting it would drop it from "Needs you" and
+    lose its park reason, disguising a human-awaiting story as one merely waiting on
+    a ceiling."""
     epic = _epic(filler=True)  # story c is parked in the plan
     epic["stories"]["c"]["reason"] = "story-supervised: take it through /next"
     out = _run_driver(epic, [*A_PARKS, *B_LANDS])
@@ -179,10 +173,10 @@ def test_a_failed_canary_never_reclassifies_a_plan_parked_story_as_held() -> Non
 
 
 def test_a_plan_parked_story_counts_against_the_cap_before_the_canary_dispatches() -> None:
-    """#297's cap is on the queue's depth, and a resumed at-cap epic is exactly the case
-    it exists for. The canary is dispatched before the fleet, so if the plan's own parks
-    are only counted afterwards the canary runs a whole story past the ceiling the user
-    approved before the cap is ever compared against the real queue."""
+    """#297's cap is on queue depth — a resumed at-cap epic is exactly its case. The
+    canary dispatches before the fleet, so if plan-parks are counted only afterward,
+    it runs past the approved ceiling before the cap is ever compared against the
+    real queue."""
     epic = _epic(filler=True, appetite={"tokens": 4000000, "openEpisodes": 1})
     out = _run_driver(epic, [*A_LANDS, *B_LANDS, *B_VERIFY])
     assert out["ok"], f"driver crashed: {out.get('error')}"
@@ -198,18 +192,17 @@ def test_a_plan_parked_story_counts_against_the_cap_before_the_canary_dispatches
     # "fix or re-plan" would send the operator at a plan that was never in question.
     assert "epx--b" in held, f"the fleet widened behind a held canary: {result['held']}"
     assert "held before it dispatched" in held["epx--b"], held["epx--b"]
-    # Not just the shape of the sentence — the ceiling itself has to be interpolated in,
-    # or the message degrades to a generic "a ceiling stopped it" that names no remedy.
+    # The ceiling itself must be interpolated in, not just the sentence shape — else
+    # it degrades to a generic "a ceiling stopped it" that names no remedy.
     assert "open-episode cap" in held["epx--b"], held["epx--b"]
 
 
 def test_canary_selector_skips_a_story_whose_dep_is_not_in_the_plan() -> None:
-    """`depsLandedAtStart` used to treat a dep absent from the story set as satisfied,
-    while runStory's dep wait (no donePromises entry to await) settles such a story
-    `blocked` — so the canary could select a story that instantly blocks with zero
-    dispatches, holding the whole fleet under a reason implying the story ran. The
-    selector now agrees with runStory, and the unknown-dep story parks up front as a
-    plan defect instead of vanishing into a bare `blocked` count."""
+    """`depsLandedAtStart` used to treat a missing dep as satisfied, while runStory's
+    dep wait settles such a story `blocked` — letting the canary select a story that
+    instantly blocks with zero dispatches, holding the fleet under a misleading
+    reason. The selector now agrees with runStory; an unknown-dep story parks up
+    front as a plan defect instead of vanishing into a bare `blocked` count."""
     epic = _epic()
     epic["stories"]["a"]["deps"] = ["zz"]
     out = _run_driver(epic, [*B_LANDS, *B_VERIFY])
@@ -223,9 +216,8 @@ def test_canary_selector_skips_a_story_whose_dep_is_not_in_the_plan() -> None:
     assert not any(c["label"].endswith(":a") for c in out["calls"]), (
         f"the unsatisfiable story was dispatched: {[c['label'] for c in out['calls']]}"
     )
-    # The plan defect is itemised where the human looks, with the dep named — not
-    # reclassified as a hold (nothing about it clears on re-run) and not left as a
-    # nameless entry in the blocked count.
+    # Itemised where the human looks, dep named — not a hold (nothing clears on
+    # re-run), not a nameless blocked-count entry.
     needs_you = {e["story"]: e for e in result["needsYou"]}
     assert "epx--a" in needs_you, f"the unknown-dep story left the queue: {result['needsYou']}"
     assert needs_you["epx--a"]["verdict"] == "UNKNOWN DEP"
@@ -237,10 +229,9 @@ def test_canary_selector_skips_a_story_whose_dep_is_not_in_the_plan() -> None:
 
 
 def test_a_plan_whose_every_story_has_an_unsatisfiable_dep_fails_legibly() -> None:
-    """No canary candidate exists, and before this fix the run degraded to an opaque
-    shape — a selected canary that instantly blocked, or stories that all settled
-    `blocked` leaving only a bare count. Every story must instead land in needsYou
-    naming its missing dep, with zero dispatches spent."""
+    """No canary candidate exists. Before this fix the run degraded opaquely — an
+    instantly-blocked canary, or a bare `blocked` count. Every story must land in
+    needsYou naming its missing dep, with zero dispatches spent."""
     epic = _epic()
     epic["stories"]["a"]["deps"] = ["zz"]
     epic["stories"]["b"]["deps"] = ["yy"]
@@ -276,11 +267,10 @@ def test_canary_is_skipped_once_a_story_has_already_landed() -> None:
 
 
 def test_open_episode_cap_holds_dispatch_regardless_of_token_headroom() -> None:
-    """A story parked by the plan itself (the `story-supervised` handoff Cluster B
-    routes) is an episode awaiting a human exactly as much as one this run parked.
-    With the cap at 1 and that one already open, nothing else may dispatch — the
-    #297 claim that review bandwidth binds before tokens do, with no budget
-    primitive in play at all here."""
+    """A plan-parked story (the `story-supervised` handoff Cluster B routes) is an
+    open episode exactly like one this run parked. With the cap at 1 already open,
+    nothing else may dispatch — #297's claim that review bandwidth binds before
+    tokens do, with no budget primitive involved."""
     epic = _epic(canary=False, appetite={"tokens": 4000000, "openEpisodes": 1})
     epic["stories"]["a"].update({
         "status": "parked",
@@ -339,10 +329,10 @@ def test_exhausted_budget_holds_every_undispatched_story() -> None:
 
 
 def test_budget_running_out_mid_story_parks_rather_than_holds() -> None:
-    """A story that has already spent tokens on this run has work on its branch, so
-    running out mid-profile is a verdict-carrying park, not a hold — and the phase
-    loop must release its semaphore slot by hand before awaiting park(), or the
-    scheduler quietly loses a slot for the rest of the run."""
+    """A story that already spent tokens has work on its branch, so running out
+    mid-profile parks (verdict-carrying), not holds — and the phase loop must
+    release its semaphore slot by hand before awaiting park(), or the scheduler
+    quietly loses a slot for the rest of the run."""
     epic = _epic(canary=False, appetite={"tokens": 1000, "openEpisodes": 5})
     # a runs design -> acceptance: the budget empties after the design worker.
     epic["stories"]["a"]["gates"] = ["design", "acceptance"]
@@ -380,10 +370,10 @@ def test_budget_running_out_mid_story_parks_rather_than_holds() -> None:
 
 
 def test_an_exhausted_budget_holds_the_finale_instead_of_starting_its_fan_out() -> None:
-    """The finale is the single largest fan-out in a run — ~13 dispatches plus bounded
-    fixer rounds — and it used to start unconditionally the moment every story settled,
-    with no ceiling compared at its entrance. Held, not parked: nothing there earned a
-    verdict, and re-running with fresh budget picks it up unchanged."""
+    """The finale is the largest fan-out in a run (~13 dispatches plus bounded fixer
+    rounds) and used to start unconditionally with no ceiling check. Held, not
+    parked: nothing earned a verdict, and fresh budget picks it up unchanged on
+    re-run."""
     out = _run_driver(
         _epic(appetite={"tokens": 1000, "openEpisodes": 5}),
         [*A_LANDS, *B_LANDS, *B_VERIFY],
@@ -411,9 +401,9 @@ def test_an_exhausted_budget_holds_the_finale_instead_of_starting_its_fan_out() 
 
 
 def test_a_gate_retry_loop_checks_the_budget_before_it_dispatches_a_fixer() -> None:
-    """A gate's own retry loop can spend two unpinned fixers plus two full audit
-    fan-outs between two phase-boundary checks — the largest uninterrupted spend in a
-    story. Parked, not held: real work is on the branch."""
+    """A gate's retry loop can spend two unpinned fixers plus two full audit fan-outs
+    between phase-boundary checks — the largest uninterrupted spend in a story.
+    Parked, not held: real work is on the branch."""
     rules = [
         {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
         {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
@@ -443,8 +433,8 @@ def test_a_gate_retry_loop_checks_the_budget_before_it_dispatches_a_fixer() -> N
     needs_you = {e["story"]: e for e in result["needsYou"]}
     assert "epx--a" in needs_you, f"the story was not parked: {result}"
     assert needs_you["epx--a"]["verdict"] == "BUDGET EXHAUSTED"
-    # The findings the last round already paid for ride along into the recorded park, so
-    # resuming does not re-audit to rediscover them.
+    # Last round's findings ride into the recorded park, so resuming doesn't
+    # re-audit to rediscover them.
     park_prompt = next(c["prompt"] for c in out["calls"] if c["label"] == "park:a")
     assert "criterion 2 has no evidence" in park_prompt, park_prompt
     assert "budget exhausted" in park_prompt, park_prompt
@@ -465,10 +455,9 @@ def test_ample_budget_enforces_without_blocking() -> None:
 
 
 def test_missing_budget_primitive_reports_no_ceiling_instead_of_running_silently() -> None:
-    """With no `budget` global at all — the state of any substrate that doesn't
-    supply one — the run must still complete, and must say in its own report that
-    the approved appetite went unenforced. A silently-unbounded run that looks
-    identical to a bounded one is the failure this field exists to prevent."""
+    """With no `budget` global — any substrate that doesn't supply one — the run
+    must complete and report the appetite as unenforced. A silently-unbounded run
+    that looks identical to a bounded one is the failure this field prevents."""
     out = _run_driver(
         _epic(filler=True, canary=False, appetite={"tokens": 4000000, "openEpisodes": 5}),
         [*A_LANDS, *B_LANDS, *B_VERIFY],
@@ -504,12 +493,11 @@ def test_budget_accessor_degrades_on_a_throwing_or_nonsense_primitive() -> None:
 
 # ---------- resume-at-merge: both ceilings apply before the first dispatch ----------
 #
-# A story whose reconciled phase is 'merge' skips runStory's phase loop entirely
-# (idx = profile.length), so the hold checks at the top of that loop never see it —
-# its first dispatch of the run used to be the merge agent itself, compared against
-# neither ceiling. reference/epic-plan-contract.md says a story that would start with
-# the budget spent is held, not dispatched, and reference/epic-pricing.md's "before a
-# story's first dispatch (held)" comparison point has no merge carve-out.
+# A story reconciled at phase 'merge' skips runStory's phase loop entirely
+# (idx = profile.length), so the hold checks at the loop's top never see it — its
+# first dispatch used to be the merge agent, checked against neither ceiling.
+# reference/epic-plan-contract.md and reference/epic-pricing.md have no merge
+# carve-out for the "held before first dispatch" rule.
 
 
 def test_resume_at_merge_is_held_by_an_exhausted_budget_before_the_merge_dispatch() -> None:

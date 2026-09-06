@@ -1,16 +1,11 @@
 """Regression tests for the god-file threshold unification (issue #91).
 
-`agents/code-auditor.md` (the PR-time gate) and `agents/review-codebase-health.md`
-(the periodic whole-codebase review) both measured the "god file" file-size smell,
-but at two different line counts (500 vs 200) — a file could pass `/review`
-clean and then get flagged as a new split candidate at the next periodic review with
-no growth at all. Both lanes now share code-auditor's existing, already-enforced
-500-line bar. The separate function-length check in review-codebase-health.md is
-left untouched at 200 — this story's acceptance criteria is the god-file (file-size)
-number only; folding the file-side change into review-codebase-health's bundled
-"functions/files over 200 lines" clause would have silently dragged the
-function-length trigger to 500 too, so the clause is split into a files-only clause
-(500) and a functions-only clause (200).
+`agents/code-auditor.md` and `agents/review-codebase-health.md` checked the
+god-file (file-size) smell at different thresholds (500 vs 200); both now share
+500. Function-length stays a separate, untouched 200-line check — bundling it
+into the file-size fix would have silently dragged it to 500 too, so the old
+"functions/files over 200 lines" clause is split into a files-only clause (500)
+and a functions-only clause (200).
 
 Static/textual checks only — no live model required.
 """
@@ -54,11 +49,9 @@ def test_health_review_file_size_threshold_matches_code_auditor() -> None:
 
 
 def test_health_review_function_length_threshold_stays_200() -> None:
-    """The pre-existing function-length mismatch (50 vs 200) is out of scope here.
-
-    Only the file-size (god-file) number moves; the function-length clause must
-    remain a separate, untouched 200-line check rather than being silently dragged
-    to 500 by a naive find-and-replace on the old bundled clause.
+    """Pre-existing function-length mismatch (50 vs 200) is out of scope; it must
+    stay a separate, untouched 200-line check, not dragged to 500 by a naive
+    find-and-replace on the old bundled clause.
     """
     text = HEALTH_REVIEW.read_text()
     function_lines = [
@@ -79,10 +72,8 @@ def test_health_review_function_length_threshold_stays_200() -> None:
 
 
 def test_health_review_file_and_function_clauses_are_split() -> None:
-    """The file-size and function-length checks must be two separate bullet clauses.
-
-    A single bundled 'functions/files over N lines' line can't carry two different
-    thresholds; this locks the split so a future edit can't silently re-merge them.
+    """Locks the file-size/function-length split — a bundled 'functions/files over
+    N lines' clause can't carry two different thresholds.
     """
     text = HEALTH_REVIEW.read_text()
     assert "functions/files over" not in text, (
@@ -92,9 +83,8 @@ def test_health_review_file_and_function_clauses_are_split() -> None:
 
 
 def test_largest_file_metric_key_unchanged() -> None:
-    """The 'Largest file (lines)' metrics-snapshot key is a contract with deep-review's
-    dashboard (commands/retro.md) and must not be renamed or removed by the
-    threshold split.
+    """'Largest file (lines)' metrics-snapshot key is a contract with deep-review's
+    dashboard (commands/retro.md) — must survive the threshold split unchanged.
     """
     text = HEALTH_REVIEW.read_text()
     assert "Largest file (lines)" in text, (

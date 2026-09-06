@@ -4,35 +4,8 @@ Standard library only, matching test_build_skill.py's convention. Run with:
 
     uv run --no-project python3 -m unittest discover -s tests -v
 
-Checks this story's acceptance criteria and the epic pre-mortem's named
-risks mechanically, by inspecting the prose `/ship`'s session actually
-reads (the same approach test_build_skill.py already takes for its own
-sibling skill):
-
-1. `skills/ship/SKILL.md` has valid `name`/`description` frontmatter,
-   `name` matching the directory, and no longer reads as the M1 stub.
-2. The body carries jig's own `/ship`-level verdict vocabulary (`MERGE`/
-   `PR`/`KEEP`/`DISCARD`), derived from DESIGN.md at test time (see
-   `_vocabulary.py`), not hand-copied.
-3. Step 1's freshness hold is floored on each evidence folder's own
-   manifest, never the branch's current HEAD (pre-mortem risk #1), uses
-   the ancestor check (risk #2), and stops the run by name rather than
-   promoting a failed folder silently.
-4. Step 1 names the two evidence shapes (inline `<details>` text, raw-URL
-   images pinned to a commit SHA, never the branch name) and the "evidence
-   not found for item N" contract for a missing folder.
-5. Step 2's cctx-absent path is explicit and names the install pointer;
-   the installed path never passes `--apply` outside an explicit,
-   in-turn human confirmation (pre-mortem risk #3).
-6. Step 3's follow-up filing is per-item confirmed, never batch
-   all-or-nothing, and a skipped draft is dropped rather than filed later
-   (pre-mortem risk #4).
-7. Step 4 never applies a decision patch under any branch, confirmed or
-   not (pre-mortem risk #5).
-8. Step 6 names all four verdict tokens with distinct worktree/branch/PR
-   handling (pre-mortem risk #6), asks the human rather than picking one,
-   and never guesses a base branch silently toward `main`.
-9. No `SKILL.md` is nested deeper than the directory's top level.
+Pins the story's acceptance criteria and the epic pre-mortem's named risks
+(#1-#6) against the prose `/ship`'s session actually reads.
 """
 from __future__ import annotations
 
@@ -238,13 +211,11 @@ if __name__ == "__main__":
 
 
 class TestFinishResolvesTheEvidenceFolderByAsking(PhraseInBodyMixin, unittest.TestCase):
-    """#179/#224's read side, narrowed to path resolution.
+    """#179/#224's read side: path resolution only.
 
-    The folder name gained a branch slug, so any reader that rebuilds
-    `<date>-<task>` from its shape now matches nothing. These pin only that
-    `/ship` asks the script and joins the path correctly -- the token
-    *reporting* contract (labels, quoted messages, stream separation) was
-    split out of this story and is tracked separately.
+    The folder name gained a branch slug, so rebuilding `<date>-<task>` from
+    its shape matches nothing. Token *reporting* (labels, quoted messages,
+    stream separation) is split into a separate story.
     """
 
     def setUp(self) -> None:
@@ -255,13 +226,11 @@ class TestFinishResolvesTheEvidenceFolderByAsking(PhraseInBodyMixin, unittest.Te
         """The repo-wide scan does NOT cover this file's grammar line -- pin it here.
 
         `tests/jig/test_evidence_path_grammar.py` holds the shape invariant over
-        every tree in its own `SURFACES`, with a planted-violation control. It
-        has one deliberate blind spot, and this file is it: line 41 carries the
-        `evidence-grammar: counterexample` sentinel so it can name the pre-#258
-        shape while warning readers off it, and the sentinel exempts the whole
-        line -- including the correct grammar stated on it. An earlier revision
-        of this docstring claimed the scan covered this file; it does not, and
-        without the assertion below the line could revert to the pre-#258 shape
+        every tree in its own `SURFACES`, with a planted-violation control, but
+        this file's `evidence-grammar: counterexample` sentinel line is its one
+        deliberate blind spot -- it names the pre-#258 shape to warn readers off
+        it, and the sentinel exempts the whole line, correct grammar included.
+        Without the assertion below, the line could revert to the pre-#258 shape
         with the whole suite green (#260 audit, test-auditor High).
         """
         self.assertIn("capture writes `.studious/build-evidence/<date>-<task>-<branch-slug>/`", self.body)

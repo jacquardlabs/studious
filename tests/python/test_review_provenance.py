@@ -1,26 +1,18 @@
 """studious's trend directories hold only studious's own reports (issue #220).
 
-Commit `980d523` absorbed jig and brought its 2026-07-17 deep-review sweep along
-verbatim — 8 reports written against `/Users/bryan/Projects/jig`, filed into the
-six `docs/studious/*-reviews/` directories and `docs/studious/reviews/metrics.jsonl`
-because those are the paths `/retro` writes to in whatever project it runs in.
+Commit `980d523` absorbed jig and filed its 2026-07-17 deep-review sweep (8 reports
+against `/Users/bryan/Projects/jig`) into `docs/studious/*-reviews/` and
+`docs/studious/reviews/metrics.jsonl` — the paths `/retro` writes to regardless of
+project. Every reviewer compares against the prior report in its own directory, and
+`commands/retro.md:116` uses `metrics.jsonl` as the dashboard's join key, so the next
+sweep here would trend studious against jig's numbers as its own baseline.
 
-The paths are what makes this a defect rather than clutter. Every periodic reviewer
-is told to "compare against the most recent prior report" in its own directory, and
-`commands/retro.md:116` reads `metrics.jsonl` as the dashboard's join key. So
-the next sweep of *this* repo would trend studious against another codebase's
-numbers and call the delta a regression — a baseline forked at the join key, which
-no amount of reading the reports carefully would undo.
+Fix: relocate, don't annotate (a `project:` field still leaves files where the globs
+find them) — move the record to `docs/jig/reviews/`, beside the existing
+`docs/jig/CHANGELOG-pre-merge.md`.
 
-The fix is relocation, not annotation: a `project:` field or a provenance header
-leaves the files exactly where the globs find them and asks every future consumer to
-remember a filter. The record moves whole — reports and the one metrics row — to
-`docs/jig/reviews/`, beside `docs/jig/CHANGELOG-pre-merge.md`, which is already
-where this repo keeps jig's pre-merge history.
-
-Nothing else guards this. `scripts/check_references.py` scans only `commands/`,
-`agents/`, `skills/`, and `reference/`; `.markdownlint-cli2.jsonc` ignores
-`**/docs/**`. A re-copy would be invisible to CI without this file.
+`scripts/check_references.py` doesn't scan `docs/`, and `.markdownlint-cli2.jsonc`
+ignores it too — a re-copy would be invisible to CI without this file.
 """
 
 from __future__ import annotations
@@ -32,9 +24,8 @@ REPO = Path(__file__).resolve().parents[2]
 JIG_REVIEWS = REPO / "docs" / "jig" / "reviews"
 STUDIOUS_DOCS = REPO / "docs" / "studious"
 
-#: The sweep as it actually landed. The issue names 4; `980d523` carried 8 — the six
-#: periodic reviews, the codebase-health lane's separate idiom audit, and the master
-#: summary that indexes them.
+#: The sweep as it landed: the issue names 4, but `980d523` carried 8 — six periodic
+#: reviews, the codebase-health lane's idiom audit, and the master summary.
 JIG_PRE_MERGE_REPORTS = (
     "2026-07-17-architecture-review.md",
     "2026-07-17-code-idioms.md",
@@ -49,12 +40,11 @@ JIG_PRE_MERGE_REPORTS = (
 #: The date of jig's sweep, and so of the one `metrics.jsonl` row that moved with it.
 JIG_BASELINE_DATE = "2026-07-17"
 
-#: Scaffolded by `commands/setup.md:61-66`, so each keeps a `.gitkeep` and
-#: survives holding nothing. Two neighbours are deliberately absent from this list:
-#: `docs/studious/prompt-reviews/` is the seventh directory `studious-init` lists
-#: (line 67) but was never scaffolded in this repo, so there is no `.gitkeep` to
-#: preserve; and `docs/studious/reviews/` is created at write time by
-#: `commands/retro.md:119`, so it must not acquire one.
+#: Scaffolded by `commands/setup.md:61-66`, each keeping a `.gitkeep` so it survives
+#: empty. Two neighbours are deliberately excluded: `docs/studious/prompt-reviews/`
+#: (7th dir listed at line 67) was never scaffolded here, so has no `.gitkeep` to
+#: preserve; `docs/studious/reviews/` is created at write time by `commands/retro.md:119`
+#: and must not acquire one.
 SCAFFOLDED_REVIEW_DIRS = (
     "architecture-reviews",
     "health-reviews",
@@ -72,18 +62,16 @@ def test_the_jig_pre_merge_sweep_is_under_docs_jig() -> None:
 
 
 def pre_merge_report_names() -> set[str]:
-    """The relocated reports, read from the directory rather than from the constant
-    above, so a report added to jig's record later is guarded too. `metrics.jsonl` is
-    excluded deliberately — studious's own dashboard file carries the same basename
-    by design, and it is the row dates, not the filename, that must not collide."""
+    """Read from the directory, not the constant, so a report added later is guarded
+    too. `metrics.jsonl` is excluded: studious's own dashboard shares that basename
+    by design — it's the row dates, not the filename, that must not collide."""
     return {p.name for p in JIG_REVIEWS.glob("*.md")}
 
 
 def test_no_jig_pre_merge_report_is_in_studious_trend_dirs() -> None:
-    """The general form, not a check for those 8 names: no file under
-    `docs/studious/` may share a basename with the pre-merge record, so re-copying
-    any of it back — under any future name added to that directory — fails here
-    rather than at the next sweep's trend line."""
+    """General form, not just those 8 names: no file under `docs/studious/` may share
+    a basename with the pre-merge record, so a re-copy fails here, not at the next
+    sweep's trend line."""
     pre_merge = pre_merge_report_names()
     offenders = sorted(
         str(p.relative_to(REPO))
@@ -97,17 +85,16 @@ def test_no_jig_pre_merge_report_is_in_studious_trend_dirs() -> None:
 
 
 def test_the_basename_guard_can_see_something() -> None:
-    """A guard on the guard. An empty or missing `docs/jig/reviews/`, or a
-    `docs/studious/` that globbed to nothing, would make the check above pass
-    against any amount of contamination."""
+    """Guard on the guard: an empty/missing `docs/jig/reviews/`, or a `docs/studious/`
+    that globs to nothing, would make the check above pass against any contamination."""
     assert pre_merge_report_names() >= set(JIG_PRE_MERGE_REPORTS)
     assert sum(1 for p in STUDIOUS_DOCS.rglob("*") if p.is_file()) > 0
 
 
 def test_the_metrics_baseline_row_moved_rather_than_vanished() -> None:
-    """The row is jig's real baseline and stays readable as jig's — deleting it
-    would lose the only machine-readable record of that sweep, and tagging it
-    `project: jig` would leave studious's join key forked behind a convention."""
+    """Deleting the row loses the only machine-readable record of that sweep;
+    tagging it `project: jig` would leave studious's join key forked behind a
+    convention instead."""
     rows = [
         json.loads(line)
         for line in (JIG_REVIEWS / "metrics.jsonl").read_text(encoding="utf-8").splitlines()

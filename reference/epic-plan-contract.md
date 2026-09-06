@@ -1,10 +1,9 @@
 # Epic-plan contract — lookup data
 
-`/next`'s plan piece proposes a decomposition; the user approves it. This file
-names what an approvable plan must contain — the analogue of
-`reference/design-doc-contract.md` one level up. A plan missing a required element isn't
-a style nit: the driver schedules from this data, so a gap here becomes an unscheduled
-or unjudgeable story later.
+`/next`'s plan piece proposes a decomposition; the user approves it. This file names
+what an approvable plan must contain — the analogue of `reference/design-doc-contract.md`
+one level up. The driver schedules from this data, so a missing element becomes an
+unscheduled or unjudgeable story later, not just a style nit.
 
 ## Required elements
 
@@ -29,8 +28,8 @@ or unjudgeable story later.
 
 ## Story class — what the driver runs unattended, and what it hands back
 
-Not every story is safe to run unattended, and the plan is where that is decided —
-before any dispatch, not after a design doc nobody signed off on reaches the epic PR.
+Not every story is safe to run unattended; the plan decides this before dispatch, not
+after an unsigned-off design doc reaches the epic PR.
 
 - **`epic-default`** — the driver runs the story's whole gate profile unattended.
   Requires **both**: the story's stated file surface is code with executable
@@ -42,33 +41,30 @@ before any dispatch, not after a design doc nobody signed off on reaches the epi
   here**; or its source is a raw idea with no acceptance criteria; or it is the epic's
   first story on a surface this epic hasn't worked before.
 
-  That citation is load-bearing, not a style preference. The canonical list reaches well
-  past the four obvious plugin globs: it also covers `.claude/agents/**`,
-  `.claude/commands/**`, `.claude/skills/**`, `output-styles/**`, `CLAUDE.md` at any
-  depth, `AGENTS.md`, `.cursorrules`, `GEMINI.md`, and any path whose name contains
-  `prompt`, and it gates `reference/**` on the repo being a Claude Code plugin. A story
-  whose stated surface is `.claude/commands/**`, `prompts/`, or `AGENTS.md` is
-  prompt-prose by that list and matches no narrower inline copy — which would classify it
-  `epic-default` and dispatch it unattended, the exact outcome this trigger exists to
-  prevent.
+  That citation is load-bearing. The canonical list reaches past the four obvious plugin
+  globs: it also covers `.claude/agents/**`, `.claude/commands/**`, `.claude/skills/**`,
+  `output-styles/**`, `CLAUDE.md` at any depth, `AGENTS.md`, `.cursorrules`, `GEMINI.md`,
+  and any path whose name contains `prompt`, and it gates `reference/**` on the repo
+  being a Claude Code plugin. A story whose stated surface is `.claude/commands/**`,
+  `prompts/`, or `AGENTS.md` is prompt-prose by that list with no narrower inline match
+  needed — which would otherwise classify it `epic-default` and dispatch it unattended.
 
 The first two triggers are computations over data the plan already holds — the stated
-file surface is the plan's own, and whether the source issue carries acceptance
-criteria is a read of that issue. The third is the planner's judgment. Say which one
-fired, and never dress the third as a computation: an unfamiliar surface is a call,
-and the user overrides it at approval like anything else in the plan.
+file surface is the plan's own; whether the source issue carries acceptance criteria is
+a read of that issue. The third is the planner's judgment: say which one fired, and
+never dress the third as a computation — the user overrides it at approval like anything
+else in the plan.
 
 **The stated file surface is the sole classification input**, and the same field is what
 the gate-profile section below reads for routing signals — story class and gate profile
 are its only two consumers. `work-set --declared-files` records the same fact later, at
 design time, refined by the design worker against the code it actually read — a
-refinement of what the plan stated, never a competing source of truth, and not available
-this early to either of them.
+refinement, never a competing source of truth, and not available this early to either.
 
 **Supervised is scheduled, not dropped.** A `story-supervised` story is recorded with
-the rest of the plan and parked at record time, so the driver's existing already-parked
-path surfaces it in the run's "Needs you" queue instead of dispatching it. Two
-consequences the plan must state at approval, because the user is approving them:
+the rest of the plan and parked at record time, so the driver's already-parked path
+surfaces it in the run's "Needs you" queue instead of dispatching it. Two consequences
+the plan must state at approval:
 
 - Every dependent of a supervised story is blocked until the user lands it — name
   which stories those are. An epic whose first story is supervised does nothing at all
@@ -81,11 +77,8 @@ consequences the plan must state at approval, because the user is approving them
 ## Gate profile — computed from the plan's own data, decided by the user
 
 The trim mechanism already exists: `epic-story-set --gates` records a phase list and
-`workflows/epic-driver.js`'s `profileOf` runs it. What this section adds is the
-criterion, so a trim is reproducible rather than whatever the planning session happened
-to notice — a well-specified story otherwise pays for a drafted design doc plus an opus
-review of it by default, and an under-specified one gets trimmed because someone was in
-a hurry.
+`workflows/epic-driver.js`'s `profileOf` runs it. This section adds the criterion, so a
+trim is reproducible rather than whatever the planning session happened to notice.
 
 **What the computation may propose.** Only the `design` + `design-review` pair. `build`
 and `audit` are never trimmed. `acceptance` stays in every proposed profile — the user
@@ -137,12 +130,11 @@ because two different things run out:
   human at once, regardless of token headroom, and a `story-supervised` story counts
   against it from the moment the plan parks it.
 
-**The canary is the third ceiling, and it is on time rather than on quantity.** The
-first invocation of a fresh epic dispatches exactly one dependency-free story through
-its whole profile and releases the rest only once it lands. A canary that parks holds
-the fleet: the point is that a bad plan, a product bug, or an outage costs one story to
-discover rather than a full-width run. Once any story has landed, the plan is proven
-and later invocations widen immediately — the canary is not a per-invocation tax.
+**The canary is the third ceiling, on time rather than quantity.** The first invocation
+of a fresh epic dispatches exactly one dependency-free story through its whole profile
+and releases the rest only once it lands — so a bad plan, a product bug, or an outage
+costs one story to discover, not a full-width run. Once any story has landed, later
+invocations widen immediately; the canary is not a per-invocation tax.
 
 Both consequences must be visible before approval, not discovered after: an epic whose
 canary parks lands nothing on its first run, and an epic whose open-episode number is
@@ -152,13 +144,11 @@ them.
 ## Acceptance altitude — built, default off, and not yet safe to turn on
 
 **Do not set `--acceptance-altitude delivery-boundary` on a real epic yet.** The
-mechanism ships (#269), it is tested, and it changes nothing until an epic plan
-explicitly opts in. That default is not caution for its own sake — it is #269's own
-precondition, quoted: *"Do not ship this before the counter-evidence check... #281's
+mechanism ships (#269), is tested, and changes nothing until a plan opts in — per #269's
+own precondition, quoted: *"Do not ship this before the counter-evidence check... #281's
 findings ledger makes that answerable, and #133's outcome labels make it measurable."*
-Both of those were built in the same change as this flag, so the evidence they exist to
-produce does not exist yet. Turning the flag on is a later, deliberate act taken after
-reading that evidence, and the plan that does it says why.
+Both were built in the same change as this flag, so that evidence doesn't exist yet.
+Turning the flag on is a later, deliberate act taken after reading it.
 
 - **`per-story`** (default; absent reads as this) — every story's `acceptance` gate runs
   the full product review: the opus product-reviewer, the persona walkthrough, and the
@@ -184,13 +174,12 @@ the plan is the batched should-we-build for every story in it — no per-story d
 gate runs later. A story added mid-flight gets its own scoped decide pass and explicit
 approval of its DAG placement before it joins the schedule.
 
-The fork interview runs before approval, not after: the user is approving a plan whose
-open product questions are already answered, not one that will discover them mid-run.
-Cap the interview at 10–12 questions for the whole epic, admitting only forks that are
-both product/scope level and answerable before any story is built. Implementation forks
-surface mid-build and depend on earlier stories' output — those park, and the story
-appears in "Needs you". Approval is the interview's deadline, so a fork raised after it
-follows the mid-flight-story rule above.
+The fork interview runs before approval: the user approves a plan whose open product
+questions are already answered, not one that discovers them mid-run. Cap it at 10–12
+questions for the whole epic, admitting only forks that are product/scope level and
+answerable before any story is built. Implementation forks surface mid-build and depend
+on earlier stories' output — those park, and the story appears in "Needs you". A fork
+raised after approval follows the mid-flight-story rule above.
 
 ## Consumers that must stay in sync
 

@@ -54,8 +54,8 @@ def test_flags_missing_reference_file(tmp_path: Path) -> None:
 
 
 def test_resolves_reference_placeholder_path_via_directory(tmp_path: Path) -> None:
-    # code-auditor cites a template path with a <language> placeholder; the literal
-    # file can't exist, so the containing directory is what gets validated.
+    # code-auditor's <language> placeholder can't exist literally, so the
+    # containing directory is validated instead.
     _write(tmp_path / "reference" / "idioms" / "python.md", "x")
     _write(
         tmp_path / "agents" / "code-auditor.md",
@@ -134,12 +134,10 @@ def test_reference_dir_siblings_resolve(tmp_path: Path) -> None:
 
 
 def test_a_declared_dependencys_skill_is_not_a_broken_reference() -> None:
-    """`viva` ships in its own plugin, so `skills/viva/` will never exist here — but
-    `/shape`, `/build`, and `/doctor`'s tooling check all name it, and the
-    manifest declares the dependency. Deriving the exemption from `dependencies`
-    rather than hardcoding it means declaring a dependency is the one action that
-    makes its skill citable, and dropping one immediately makes citations broken
-    again."""
+    """`viva` ships in its own plugin, so `skills/viva/` never exists here. The
+    exemption derives from the manifest's `dependencies` list rather than a
+    hardcoded name, so adding or dropping a dependency is what makes a
+    citation valid or broken."""
     import check_gate_independence  # noqa: F401  (proves scripts/ is importable)
     from check_references import EXTERNAL_SKILLS, _declared_dependencies
 
@@ -157,11 +155,10 @@ def test_an_undeclared_external_skill_is_still_broken(tmp_path: Path) -> None:
     assert any("skills/not-a-dependency/ missing" in e for e in errors)
 
 
-# The guard forbids a literal `docs/design/<file>.md` in any durable file — and this
-# file is one. The fixtures below therefore assemble the path at runtime: the regex
-# needs the filename immediately after the slash, so a concatenation never matches in
-# source while still producing the exact string under test. That keeps the invariant
-# absolute, with no self-exemption list to go stale (#233).
+# The guard forbids a literal `docs/design/<file>.md` in any durable file, including
+# this one — so fixtures assemble the path at runtime to avoid tripping it while still
+# testing the exact string, keeping the invariant absolute with no self-exemption list
+# (#233).
 _DIR = "docs/design/"
 
 
@@ -170,10 +167,8 @@ def _cite(name: str) -> str:
 
 
 def test_a_durable_file_may_not_cite_a_specific_design_doc(tmp_path: Path) -> None:
-    """#233: 33 citations accumulated pointing at design docs that are deleted at
-    closeout by the rule ratified in #219. Each read as load-bearing rationale, so a
-    reader following one found nothing and could not tell whether the claim was ever
-    true."""
+    """#233: 33 citations pointed at design docs deleted at closeout (#219) —
+    each read as load-bearing rationale that resolved to nothing."""
     from check_references import find_disposable_citations
 
     _write(tmp_path / "scripts" / "verify", f"per {_cite('build-scripts.md')}, step 2")
@@ -184,9 +179,9 @@ def test_a_durable_file_may_not_cite_a_specific_design_doc(tmp_path: Path) -> No
 
 
 def test_the_design_doc_directory_itself_is_not_a_citation(tmp_path: Path) -> None:
-    """The bare directory and the `<slug>` placeholder are the producer's output
-    path, named legitimately by /shape, /build, /next, and gate-design-review. Only
-    a concrete filename is a pointer that can dangle."""
+    """The bare directory and `<slug>` placeholder are the producer's output
+    path, named legitimately by /shape, /build, /next, and gate-design-review —
+    only a concrete filename can dangle."""
     from check_references import find_disposable_citations
 
     _write(tmp_path / "skills" / "shape" / "SKILL.md", f"Written to `{_DIR}<slug>.md`")

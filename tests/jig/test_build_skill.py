@@ -199,14 +199,11 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertPhraseIn("capture a fresh dispatch timestamp per step 2.2 for each one")
 
     def test_dispatch_names_the_executor_model_beside_the_timestamp_capture(self) -> None:
-        # Task: Foreman records which model it dispatched the Executor on --
-        # the bundle's one decisive field. Step 2's Dispatch item must name,
-        # immediately beside its existing dispatch-timestamp capture, which
-        # model the Executor runs on: an explicit override if one is passed,
-        # otherwise the Foreman's own resolved session model (the one named
-        # in its own system prompt) since a no-override dispatch inherits
-        # it -- stated plainly, mirroring step 1.5's own
-        # "state the computed set plainly before proceeding" pattern.
+        # Task: the Foreman records which model it dispatched the Executor on -- the
+        # bundle's one decisive field. Step 2's Dispatch item must name, beside its
+        # existing dispatch-timestamp capture, which model runs: an explicit override
+        # if passed, else the Foreman's own resolved session model (a no-override
+        # dispatch inherits it), stated plainly per step 1.5's own pattern.
         self.assertPhraseIn("Name this attempt's dispatch model")
         self.assertPhraseIn("an explicit model override")
         self.assertPhraseIn("state it plainly as `override: <model>`")
@@ -230,11 +227,9 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         )
 
     def test_dispatch_model_names_unavailable_case_beside_override_and_inherited(self) -> None:
-        # Task 3 (issue #34 follow-up, /review --delivery SHOULD FIX): the
-        # design's own documented Failure path names
-        # a third dispatch-model case -- when the model genuinely can't be
-        # determined at all, the Foreman states it plainly as `unavailable`,
-        # immediately beside the existing `override`/`inherited` cases.
+        # Task 3 (issue #34 follow-up, /review --delivery SHOULD FIX): the design's
+        # documented Failure path names a third case -- model undeterminable --
+        # stated plainly as `unavailable`, beside the `override`/`inherited` cases.
         self.assertPhraseIn(
             "If the model genuinely can't be determined at all, state it "
             "plainly as `unavailable`"
@@ -262,11 +257,9 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
 
     def test_no_evidence_commit_and_the_absence_is_stated(self) -> None:
         # The store moved to the main checkout's gitignored .studious/build-evidence,
-        # so the old commit-the-evidence-dir step (a real smoke-test gap in its day:
-        # uncommitted evidence dirtied the tree and the next capture refused) has no
-        # tree to dirty. The skill must say the step is gone deliberately — a Foreman
-        # remembering the old flow would otherwise re-add the commit "to be safe" and
-        # put evidence back in the diff.
+        # so the old commit-the-evidence-dir step (uncommitted evidence used to dirty
+        # the tree and the next capture refused) has no tree to dirty. The skill must
+        # say the step is gone deliberately, or a Foreman may re-add it "to be safe."
         self.assertPhraseIn("No evidence commit exists any more, deliberately.")
         self.assertPhraseIn("outside this worktree's tracked tree entirely")
         self.assertPhraseIn('Do not `git add` the evidence folder to "preserve" it')
@@ -280,10 +273,8 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertPhraseIn("you never hand it a status string on this path")
 
     def test_step_5_instructs_scratch_path_for_probe_spec_and_results(self) -> None:
-        # Issue #45: the Foreman's own transient probe-spec.json/results.json
-        # must never land inside the worktree, or evidence-capture's
-        # clean-tree check refuses on task 1 -- before the task can ever
-        # complete, not just before a later one.
+        # Issue #45: probe-spec.json/results.json must never land inside the worktree,
+        # or evidence-capture's clean-tree check refuses on task 1 itself.
         self.assertPhraseIn(
             "Write `--probe-spec` (when needed) and `verify`'s `--out\n"
             "   results.json` to a scratch path outside the worktree"
@@ -292,9 +283,8 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertPhraseIn("issue #45")
 
     def test_step_7_evidence_capture_points_at_the_scratch_path_results(self) -> None:
-        # The evidence-capture call in step 7 must reuse step 5's
-        # scratch-path results.json directly, never a copy staged inside
-        # the worktree first -- the same seam issue #45 names.
+        # Step 7 must reuse step 5's scratch-path results.json directly, never a copy
+        # staged inside the worktree first (same seam issue #45 names).
         self.assertPhraseIn(
             "pointing `--artifact` straight at each scratch-path file, never "
             "at a path staged inside `<worktree>` first"
@@ -305,13 +295,11 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         )
 
     def test_step_7_probe_artifacts_get_a_fresh_copy_before_evidence_capture(self) -> None:
-        # m4-verify-fixes epic-finale audit, code-auditor finding 1: a probe
-        # item's own artifact is committed by the executor inside the
-        # worktree, so its mtime is always at or before that commit's own
-        # timestamp -- the same structural fact issue #44 diagnosed for
-        # verify's --since floor, this time tripping evidence-capture's own
-        # stale-artifact refusal. Step 7 must instruct a fresh, non-preserving
-        # copy before handing such an artifact to --artifact.
+        # m4-verify-fixes epic-finale audit, code-auditor finding 1: a probe artifact
+        # committed inside the worktree has an mtime at or before its own commit's
+        # timestamp (same structural fact as issue #44), tripping evidence-capture's
+        # stale-artifact refusal. Step 7 must instruct a fresh, non-preserving copy
+        # before handing the artifact to --artifact.
         self.assertPhraseIn(
             "copy each such artifact into the scratch dir with a plain, "
             "non-preserving copy"
@@ -327,14 +315,9 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         )
 
     def test_step_7_assembles_replay_bundle_at_scratch_path_before_evidence_capture(self) -> None:
-        # Task (replay bundle, issue #34): the Foreman assembles one JSON
-        # replay-bundle object at a scratch path -- never inside the
-        # worktree first, matching issue #45's clean-tree discipline
-        # step 5's own items/results files already follow -- before the
-        # existing evidence-capture call, naming all four fields the
-        # bundle needs: task_id, title, the task's own checkpoint block as
-        # raw verbatim text, and the verify command(s)/result already
-        # sitting in results.json.
+        # Task (replay bundle, issue #34): the Foreman assembles one JSON replay-bundle
+        # object at a scratch path (never inside the worktree first, matching issue
+        # #45's clean-tree discipline) before the existing evidence-capture call.
         self.assertPhraseIn(
             "Assemble the replay bundle at a scratch path — never inside "
             "the worktree first"
@@ -401,9 +384,7 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertIn("issue #15", self.body)
 
     def test_load_bearing_set_is_computed_once_after_the_task_split(self) -> None:
-        # Epic pre-mortem risk #3: a fixed, one-time computation over step
-        # 1.4's own task blocks, before task 1 is ever dispatched -- not a
-        # per-task, run-to-run guess.
+        # Pre-mortem risk #3: fixed one-time computation, not a per-task guess.
         self.assertPhraseIn("Compute the load-bearing set, once (issue #15)")
         self.assertPhraseIn("Using the same task blocks step 1.4 just read into memory")
         self.assertPhraseIn(
@@ -419,14 +400,10 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertPhraseIn("otherwise task N is a **leaf**")
 
     def test_step_1_5_names_plan_growth_recompute_trigger(self) -> None:
-        # Task 4 (issue #47 gate-audit re-audit finding, Important/
-        # architecture): step 1.5's own text must name what happens when
-        # PLAN.md grows mid-session -- a new task's `Rests on:` line naming
-        # an already-`PASS`ed task -- as an immediate load-bearing-set
-        # recompute, before that new task's own executor is dispatched.
-        # Also confirms the recompute stays scoped to this one
-        # amendment-triggered case, not a generalized "recompute on every
-        # step" mechanism (this task's own `Not here`).
+        # Task 4 (issue #47 gate-audit re-audit finding, Important/architecture):
+        # PLAN.md growing mid-session must trigger an immediate load-bearing-set
+        # recompute, scoped to this one amendment-triggered case, not a general
+        # "recompute on every step" habit.
         self.assertPhraseIn(
             "a new task appended whose own `Rests on:` line names a task "
             "that already reached `PASS`"
@@ -442,11 +419,9 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         )
 
     def test_step_1_5_names_retroactive_catch_up_inspector(self) -> None:
-        # Task 4: a task whose status flips from leaf to load-bearing under
-        # the recompute, having already reached PASS without an Inspector,
-        # gets a retroactive catch-up Inspector dispatched now, scoped to
-        # that task's own existing commit(s), before the new dependent
-        # task's own executor is dispatched.
+        # Task 4: a leaf-to-load-bearing flip that already reached PASS without an
+        # Inspector gets a retroactive catch-up dispatch before the new dependent
+        # task's executor runs.
         self.assertPhraseIn(
             "Any task whose status flips from leaf to load-bearing under "
             "that recompute, having already reached `PASS` without an "
@@ -461,12 +436,9 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         )
 
     def test_step_1_5_names_retroactive_inspection_evidence_dir_convention(self) -> None:
-        # Task 4: the sanctioned evidence-dir naming convention for a
-        # retroactive catch-up inspection, `<task>-retroactive-inspection`,
-        # plus why the task's own original evidence folder isn't reused --
-        # evidence-capture always stamps against current HEAD, so reusing
-        # the original folder would misdate the inspection against a later,
-        # unrelated commit.
+        # Task 4: `<task>-retroactive-inspection` is the sanctioned evidence-dir name --
+        # reusing the original folder would misdate the inspection, since
+        # evidence-capture always stamps against current HEAD.
         self.assertPhraseIn("`<task>-retroactive-inspection`")
         self.assertPhraseIn("never the task's own original evidence folder")
         self.assertPhraseIn(
@@ -483,9 +455,8 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         )
 
     def test_inspector_dispatch_is_scoped_to_this_task_only(self) -> None:
-        # Epic pre-mortem risk #2: this task's own checkpoint block, commit
-        # range, and Read first paths -- excluding the full PLAN.md,
-        # another task's history, and this session's own conversation.
+        # Pre-mortem risk #2: excludes the full PLAN.md, other tasks' history, and this
+        # session's own conversation.
         self.assertPhraseIn(
             "the commit range for *this task only* — from this task's "
             "first dispatch through its final, verify-passed commit"
@@ -520,9 +491,8 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertPhraseIn("--artifact inspector:report=<scratch-path>/inspector-report.md")
 
     def test_defect_verdict_enters_failure_routine_under_its_own_item_id(self) -> None:
-        # Epic pre-mortem risk #6: a DEFECT is never reported bare -- the
-        # triggering lens and the Inspector's own cited reasoning are named
-        # inline, at the moment it fires.
+        # Pre-mortem risk #6: never reported bare -- the triggering lens and the
+        # Inspector's own reasoning are named inline.
         self.assertPhraseIn("wires into the Failure routine as a first failure")
         self.assertPhraseIn('tracked under this task\'s own pseudo-item-ID `"inspector"`')
         self.assertPhraseIn(
@@ -532,9 +502,8 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         )
 
     def test_concern_verdict_is_non_blocking_and_names_a_gate_audit_lane(self) -> None:
-        # Epic pre-mortem risk #6/#7: named inline (not bare), and
-        # self-describing enough that a later /review pass can't miss
-        # it even without out-of-band routing.
+        # Pre-mortem risk #6/#7: named inline, self-describing enough that a later
+        # /review pass can't miss it without out-of-band routing.
         self.assertPhraseIn("non-blocking, forwarded to `/review`")
         self.assertPhraseIn(
             "State inline which lens it concerns and the recommended lane below"
@@ -546,9 +515,7 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertPhraseIn("no `gate-ledger` coupling")
 
     def test_second_defect_recheck_is_bounded_not_open_ended(self) -> None:
-        # Epic pre-mortem risk #4: exactly one more independent Inspector
-        # dispatch, never unbounded re-dispatch, before the Foreman's own
-        # REPLAN-vs-ESCALATE diagnosis.
+        # Pre-mortem risk #4: exactly one more independent dispatch, never unbounded.
         self.assertPhraseIn(
             "dispatch exactly one more independent, fresh Inspector "
             "against the same, already-produced artifacts"
@@ -566,12 +533,9 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertPhraseIn("one status that isn't terminal")
 
     def test_built_hands_off_to_gate_audit_unconditionally(self) -> None:
-        # Was "If studious is installed, tell the developer to run /review
-        # next; otherwise report the branch as ready for review directly"
-        # (studious #150). /review ships in this plugin now, so the
-        # otherwise-branch is unreachable-but-live: a session that probes for a
-        # separate studious plugin, fails to find it, and takes the fallback
-        # terminates without ever naming the audit gate.
+        # Was conditional on a separate studious plugin being installed (#150);
+        # /review ships in this plugin now, so that fallback branch is
+        # unreachable-but-live and must be gone.
         self.assertPhraseIn("tell the developer to run `/review` next")
         self.assertPhraseIn("unconditionally")
 
@@ -596,21 +560,13 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
                 self.assertIn(field, self.body)
 
     def test_step_1_1_missing_baseline_convention_pauses_before_any_worktree(self) -> None:
-        # Step 1.1 / epic pre-mortem risk #5 (docs/studious/premortems/build-skill.md):
-        # a target CLAUDE.md that names no baseline command *at all* is a
-        # Setup-time stop for the Foreman itself -- distinct from
-        # scripts/worktree-setup's own dirty-baseline case (a *named*
-        # command that then fails after the worktree already exists; see
-        # TestWorktreeSetupDirtyBaseline in test_worktree_setup.py). This
-        # checks the instruction is unambiguous by requiring every one of
-        # its load-bearing parts to be in the body together: the exact
-        # trigger (no convention at all, not merely an unfamiliar one), the
-        # exact stop point (before any worktree is created), the exact
-        # verdict token (PAUSED), the exact resume action (add a
-        # baseline-command convention, then re-invoke), and the explicit
-        # refusal to paper over the gap by guessing a runner or inventing a
-        # workaround flag -- silent, unverified building is what this stop
-        # exists to prevent.
+        # Step 1.1 / pre-mortem risk #5 (docs/studious/premortems/build-skill.md): a
+        # CLAUDE.md naming no baseline command *at all* is a Setup-time stop, distinct
+        # from worktree-setup's dirty-baseline case (a *named* command that fails after
+        # the worktree exists; see TestWorktreeSetupDirtyBaseline in
+        # test_worktree_setup.py). Requires trigger, stop point, verdict token, resume
+        # action, and the refusal to guess a runner or add a workaround flag, all
+        # present together.
         self.assertPhraseIn("If the target project's `CLAUDE.md` names no baseline command at all")
         self.assertPhraseIn("stop here — before creating any worktree — and report **PAUSED**")
         self.assertPhraseIn(
@@ -625,17 +581,13 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertPhraseIn("never guess a test runner and never hardcode one")
 
     def test_step_1_4_excludes_trailing_coarser_heading_from_last_task_block(self) -> None:
-        # Step 1.4 / epic pre-mortem risk #7: splitting the plan into task
-        # blocks is the Foreman's own judgment, explicitly *not* a
-        # mechanical heading-depth parser -- and must not let a coarser
-        # trailing section (e.g. a closing "## Not-here follow-ups") bleed
-        # into the last task's dispatched block, reproducing the real M0
-        # dogfood bug this instruction exists to prevent. No script performs
-        # this split (status-flip only edits a single `### Task <label>`
-        # heading line in place, see test_status_flip.py's
-        # TestStatusFlipHeadingMatch), so a phrase-level check on the
-        # Foreman's own reading instructions -- rather than a live parser
-        # demonstration -- is the regression guard available here.
+        # Step 1.4 / pre-mortem risk #7: task-splitting is the Foreman's own judgment,
+        # not a mechanical heading-depth parser, and must not let a coarser trailing
+        # section (e.g. "## Not-here follow-ups") bleed into the last task's block --
+        # the real M0 dogfood bug this instruction exists to prevent. No script
+        # performs this split (status-flip only edits a `### Task <label>` heading in
+        # place; see test_status_flip.py's TestStatusFlipHeadingMatch), so this is a
+        # phrase-level check, not a live parser demonstration.
         self.assertPhraseIn("This is your own judgment, not a mechanical heading-depth parser")
         self.assertPhraseIn(
             "read to each `### Task N — <title>` heading and stop accumulating a "
@@ -650,11 +602,9 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertPhraseIn("read for meaning and don't reproduce it")
 
     def test_evidence_capture_exit_2_is_routed_never_a_task_fail(self) -> None:
-        # #242: exit code 2 from evidence-capture ("evidence directory
-        # already exists") had no documented recovery in step 2.7 -- a
-        # /build re-invoked after a PAUSE walked straight into it with no
-        # branch to follow. Same non-FAIL-budget treatment as verify's own
-        # exit 2 above it.
+        # #242: exit 2 ("evidence directory already exists") had no documented
+        # recovery -- a /build re-invoked after a PAUSE walked straight into it.
+        # Same non-FAIL-budget treatment as verify's own exit 2 above it.
         self.assertPhraseIn(
             "not a task FAIL, same as `verify`'s own exit 2 above — a usage error, "
             "and it never counts against the Failure routine's two-failure budget"

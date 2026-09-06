@@ -1,8 +1,8 @@
 """The promise-keeper's own tests (issue #150).
 
 The build skills ship in this plugin now, so nothing structural stops a gate from
-quietly growing a dependency on them. `scripts/check_gate_independence.py` is what
-stops it; these tests are what stop the check from silently becoming a no-op.
+depending on them; `scripts/check_gate_independence.py` enforces that, and these
+tests keep the check from silently becoming a no-op.
 """
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def test_guarded_surface_is_not_empty() -> None:
 
 def test_every_judge_door_in_the_charter_lands_on_the_guarded_surface() -> None:
     """The derivation's whole point (#257 follow-on): a renamed judge door must not be
-    able to fall off the guarded surface silently. Charter first, surface second."""
+    able to fall off the guarded surface silently."""
     guarded = {p.relative_to(REPO).as_posix() for p in gi.surface_paths()}
     judge_doors = gi.judge_paths()
     assert judge_doors, "the charter parsed to zero judge doors"
@@ -152,10 +152,9 @@ def test_routing_outside_the_gate_surface_is_allowed(tmp_path: Path, monkeypatch
 
 # --- the worker-dispatch region (#212) ---------------------------------------
 #
-# `workflows/epic-driver.js` dispatches work *and* compiles gate verdicts. The
-# region lets its dispatch half route to /build + /build without lifting the rule
-# off `auditFanIn` and `acceptanceFanIn`. Everything below exists to make sure the
-# hole stays exactly that size.
+# `workflows/epic-driver.js` dispatches work *and* compiles gate verdicts; the
+# region exempts the dispatch half's /build routing without lifting the rule off
+# `auditFanIn` and `acceptanceFanIn`. Tests below keep the hole exactly that size.
 
 
 def _workflow(tmp_path: Path, body: str) -> None:
@@ -204,9 +203,9 @@ def test_the_same_string_outside_the_region_still_fails(tmp_path: Path, monkeypa
 
 
 def test_a_gate_compiler_may_not_be_moved_inside_the_region(tmp_path: Path, monkeypatch) -> None:
-    """#212's acceptance criterion. Moving the invocation into a compile prompt must
-    fail — including by the route that would otherwise defeat the check entirely:
-    dragging the region markers around the compiler so the invocation looks exempt."""
+    """#212's acceptance criterion: moving the invocation into a compile prompt must
+    fail, including by dragging the region markers around the compiler to fake
+    exemption."""
     _workflow(
         tmp_path,
         f"// {gi.REGION_OPEN}\n"
@@ -233,8 +232,7 @@ def test_every_gate_compiler_is_guarded_by_name(tmp_path: Path, monkeypatch) -> 
 
 
 def test_the_region_never_exempts_a_build_artifact(tmp_path: Path, monkeypatch) -> None:
-    """Rule 2 is not region-scoped. A dispatcher has no reason to require PLAN.md,
-    and a gate must not require one anywhere."""
+    """Rule 2 is not region-scoped: a gate must not require PLAN.md anywhere."""
     _workflow(
         tmp_path,
         f"// {gi.REGION_OPEN}\nconst p = `Read PLAN.md first.`\n// {gi.REGION_CLOSE}\n",

@@ -3,19 +3,15 @@
 
 # Hand back this branch's evidence
 
-`reference/worker-contract.md` requires a worker to return "a summary" and "evidence —
-commands actually run with their captured output." Today that return is prose in a chat
-transcript: read once, then gone. This command turns the harness-captured evidence log
-(`.studious/evidence/<branch-slug>.jsonl`, written by `hooks/evidence-capture.sh` while a
-story is armed) plus a written narrative into one committed file on the branch, so a later
-reader — a human, a gate, a future session picking the branch back up — has one place to
-read "what happened here" instead of reconstructing it from git log and a vanished
-transcript.
+Turns the harness-captured evidence log (`.studious/evidence/<branch-slug>.jsonl`, written
+by `hooks/evidence-capture.sh` while a story is armed) plus a written narrative into one
+committed file on the branch, per `reference/worker-contract.md`'s requirement to return
+"a summary" and "evidence — commands actually run with their captured output."
 
-This is not a gate. It emits no verdict, records nothing to `.studious/`, and isn't in
-`reference/gate-vocabulary.md`. It's a worker action — the same commit authority a worker
-already exercises for its own code (`reference/worker-contract.md`: "the work, committed...
-uncommitted work does not exist").
+Not a gate: emits no verdict, records nothing to `.studious/`, isn't in
+`reference/gate-vocabulary.md`. It's a worker action, using the same commit authority a
+worker already exercises for its own code (`reference/worker-contract.md`: "the work,
+committed... uncommitted work does not exist").
 
 ## 1. Resolve the target branch
 
@@ -31,10 +27,9 @@ else:
 slug=$(printf '%s' "$branch" | tr '/' '-')
 ```
 
-This must match `bin/gate-ledger`'s own `branch_slug()` byte for byte, since it's also the
-key the evidence log and the manifest file are both filed under. Don't re-derive this with
-different logic (e.g. `sed`/regex substitution) that could diverge on an edge case
-`branch_slug()` handles differently — the `tr` form above is the whole rule.
+Must match `bin/gate-ledger`'s `branch_slug()` byte for byte — it's the key both the
+evidence log and manifest file are filed under. Don't re-derive with different logic (e.g.
+`sed`/regex) that could diverge on an edge case; the `tr` form above is the whole rule.
 
 ## 2. Read the evidence log
 
@@ -42,29 +37,25 @@ different logic (e.g. `sed`/regex substitution) that could diverge on an edge ca
 gate-ledger evidence-list --branch "$branch"
 ```
 
-Always pass `--branch` explicitly (never rely on the tool's own current-branch default) —
-this command may run from a worktree checked out to a different branch than the one being
-handed back. This is the *only* way to read the log: it resolves the same `evidence_dir()`
-anchoring `evidence-append` already writes through, so a linked story worktree still finds
-records filed against the shared main-tree store. Never read
-`.studious/evidence/*.jsonl` directly or re-derive the branch-slug/repo-root logic here —
+Always pass `--branch` explicitly (never rely on the tool's current-branch default) — this
+may run from a worktree checked out to a different branch. This is the *only* way to read
+the log: it resolves the same `evidence_dir()` that `evidence-append` writes through, so a
+linked story worktree still finds records in the shared main-tree store. Never read
+`.studious/evidence/*.jsonl` directly or re-derive the branch-slug/repo-root logic —
 one place that store's location lives.
 
-Deliberately **do not** pass `--dedupe` here, unlike `/review`'s and
-`/review --delivery`'s evidence dispatches: a handback manifest's job is a complete
-historical record of every verification attempt across every fix cycle, not
-current-state-only — the opposite of what `--dedupe` is for.
+Deliberately **do not** pass `--dedupe` (unlike `/review`'s and `/review --delivery`'s
+evidence dispatches) — a handback manifest is a complete historical record across every
+fix cycle, not current-state-only.
 
 ## 3. No log, or an empty one — report and stop
 
-If step 2 printed nothing, this branch has no evidence to hand back. **Before reporting,
-distinguish two states a user must be able to tell apart** — do not collapse them into one
-message:
+If step 2 printed nothing, distinguish two states before reporting — do not collapse them
+into one message:
 
 - **Not armed** — no work file known to `gate-ledger` has `.branch` equal to the target
-  branch (`gate-ledger work-list`'s third column, exact match). Evidence capture never had
-  a story to attach records to here; a worker could have run any number of commands and
-  none would have been captured. Report:
+  branch (`gate-ledger work-list`'s third column, exact match): evidence capture never had
+  a story to attach records to, so nothing was captured regardless of what ran. Report:
 
   > No work file is armed for `<branch>` — evidence capture was never on for this branch,
   > so nothing was captured regardless of what ran. Register the branch first (`/next`,
@@ -82,12 +73,12 @@ file "for completeness" — an absent log is a fact to report, not a gap to pape
 
 ## 4. A non-empty log — assemble the manifest
 
-Write (or overwrite) `docs/studious/handback/<slug>.md`. Before writing, check whether the
-file already exists (`Read`/`Glob`) — if it does, this is a regeneration; note that in both
-the file and your final report (see step 7). Re-running `/ship --handback` on the same branch
-always overwrites and recommits this one file rather than accumulating dated copies: the
-evidence log only grows (append-only), so a later manifest is always a superset of an
-earlier one, and git history already preserves every prior snapshot.
+Write (or overwrite) `docs/studious/handback/<slug>.md`. Check first (`Read`/`Glob`)
+whether it exists — if so, this is a regeneration; note that in the file and the step 7
+report. Re-running `/ship --handback` on the same branch always overwrites and recommits
+this one file rather than accumulating dated copies: the evidence log is append-only, so a
+later manifest is always a superset of an earlier one, and git history preserves every
+prior snapshot.
 
 Structure, top to bottom:
 
@@ -113,25 +104,23 @@ Structure, top to bottom:
 <written prose — see below>
 ```
 
-Capture the evidence log once, then derive everything below — the manifest rows and all
-three header counts — from that single captured value, rather than re-invoking
-`gate-ledger evidence-list` per derivation:
+Capture the evidence log once; derive the manifest rows and all three header counts from
+that single value rather than re-invoking `gate-ledger evidence-list` per derivation:
 
 ```bash
 evidence_log=$(gate-ledger evidence-list --branch "$branch")
 ```
 
-**Manifest rows.** One row per JSONL record from step 2, in the order printed (the log is
-append-only, so that's already chronological). Populate columns from these fields only —
+**Manifest rows.** One row per JSONL record from step 2, in printed order (already
+chronological — the log is append-only). Populate columns from these fields only —
 `capturedAt`, `command`, `predicate.result`, `origin`, `outputDigest` — per
 `reference/evidence-format.md`'s pinned shape. Never read or print any other field, and
-never fall back to raw stdout/stderr if a digest looks missing — the schema doesn't store
-raw output at all, only a digest exists to inspect a run without re-exposing whatever a
-failed command's output might have echoed (a token, a stack trace). An absent or empty
-`outputDigest` renders as the literal placeholder `_(no digest captured)_`, never blank and
-never another field's value. Wrap the command in backticks and escape any literal `|` in it
-as `\|` so a piped command doesn't break the table row. This jq pipeline does exactly that
-(verified against a live evidence log while building this command):
+never fall back to raw stdout/stderr if a digest is missing — the schema stores no raw
+output, only a digest, to avoid re-exposing what a failed command's output might have
+echoed (a token, a stack trace). An absent or empty `outputDigest` renders as the literal
+placeholder `_(no digest captured)_`, never blank or another field's value. Wrap the
+command in backticks and escape any literal `|` as `\|` so a piped command doesn't break
+the table row:
 
 ```bash
 printf '%s\n' "$evidence_log" | jq -r '
@@ -154,25 +143,22 @@ passed=$(printf '%s\n' "$evidence_log" | jq -r '.predicate.result' | grep -c '^P
 failed=$(printf '%s\n' "$evidence_log" | jq -r '.predicate.result' | grep -c '^FAILED$' || true)
 ```
 
-**Summary prose.** Written by you, grounded in real artifacts already on the branch — not
-invented (PRODUCT.md's "Evidence over invention" governs this the same way it governs
-context-doc extraction):
+**Summary prose.** Grounded in real artifacts on the branch, never invented (PRODUCT.md's
+"Evidence over invention"):
 
 - `git log <merge-base>..<branch> --oneline` (merge-base against the default branch, e.g.
   `git merge-base <branch> origin/main`, falling back to `origin/master` or the repo's
   actual default branch) — what actually changed.
-- The design doc, if one is recorded (`gate-ledger work-list` for a work file whose
-  `.branch` matches, then `gate-ledger work-get --slug <slug>` for its `.designDoc`) — what
-  the branch is supposed to do. If no work file or no recorded design doc exists, say so in
-  the summary rather than guessing at one; ground the summary in the diff and evidence
-  alone.
+- The design doc, if recorded (`gate-ledger work-list` for a matching `.branch`, then
+  `gate-ledger work-get --slug <slug>` for `.designDoc`) — what the branch is supposed to
+  do. If none exists, say so rather than guessing; ground the summary in the diff and
+  evidence alone.
 - The evidence entries themselves — what was actually verified, and whether it passed.
 
-Say what changed and why, and call out anything the record/pass-fail split alone doesn't
-show (a targeted regression test added for a specific fix, a lint pass that only covers
-part of the diff). The record counts are a floor this section can lean on, not a
-replacement for it — "N commands ran, M passed" with nothing else is exactly what the
-manifest table already shows without a summary at all.
+Say what changed and why, and call out anything the pass/fail split alone doesn't show (a
+targeted regression test for a specific fix, a lint pass covering only part of the diff).
+The record counts are a floor, not a replacement — "N commands ran, M passed" alone adds
+nothing the manifest table doesn't already show.
 
 ## 5. Write and commit
 
@@ -183,17 +169,15 @@ git add docs/studious/handback/<slug>.md
 git commit -m "docs: handback evidence manifest for <branch>"
 ```
 
-This is the worker's own commit authority (`reference/worker-contract.md`), not a new one
-Studious is granting itself here — the same authority already used for the worker's own
-code and, at the design-review gate, for the pre-mortem register.
+This is the worker's own commit authority (`reference/worker-contract.md`) — the same
+authority already used for the worker's own code and, at the design-review gate, for the
+pre-mortem register.
 
 ## 6. If `gate-ledger` is missing
 
-If `gate-ledger` is not on `PATH` (the plugin's `bin/` isn't resolvable in this
-environment), say so plainly and stop — do not fall back to reading
-`.studious/evidence/*.jsonl` directly. That file's location and anchoring are
-`evidence_dir()`'s to own; reading around it here would silently duplicate logic this
-command specifically exists to avoid duplicating (see step 2).
+If `gate-ledger` is not on `PATH` (the plugin's `bin/` isn't resolvable), say so and stop —
+do not fall back to reading `.studious/evidence/*.jsonl` directly. That file's location is
+`evidence_dir()`'s to own (see step 2).
 
 ## 7. Report back
 
@@ -204,5 +188,5 @@ State plainly:
   existing file — a one-line note that it was regenerated and the prior version is in git
   history.
 
-Nothing else advances. This command doesn't touch `.studious/` state, doesn't set a
+Nothing else advances — this command doesn't touch `.studious/` state, doesn't set a
 work-file phase, and doesn't imply any gate ran.

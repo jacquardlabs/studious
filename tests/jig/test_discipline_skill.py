@@ -1,32 +1,13 @@
 """Regression tests for the task-execution-discipline skill (issue #6, story
-discipline-skill).
-
-Standard library only, matching test_scaffold.py's convention. Run with:
+discipline-skill). Standard library only. Run with:
 
     uv run --no-project python3 -m unittest discover -s tests -v
 
-Checks this story's acceptance criteria mechanically:
-
-1. `skills/task-execution-discipline/SKILL.md` exists with valid `name`/
-   `description` frontmatter, `name` matching the directory.
-2. The description reads as **model-invoked** — a "Use when..." trigger
-   naming the moment it fires, not a user-invoked slash-command verb and
-   not one of the other five skills' "STUB — not yet implemented" stub
-   language (this skill has real content, unlike those stubs).
-3. No `SKILL.md` is nested deeper than the directory's top level (regression
-   guard for the same failure mode test_scaffold.py guards for the five
-   user-invoked skills — viva#101).
-4. The body carries jig's own checkpoint-block vocabulary (`cap`/`hold`,
-   `Not here`, `Done means`, `Evidence`, the `PASS`/`FIX`/`REPLAN`/`ESCALATE`
-   status enum) rather than reading as a verbatim copy of Superpowers'
-   generic source material. That vocabulary list is derived from
-   `DESIGN.md` at test time (see `_vocabulary.py` and
-   `test_vocabulary_derivation.py`), not hand-copied here, so a token
-   `DESIGN.md` renames is caught as a missing term instead of silently
-   drifting out of sync with this file.
-5. The skill does not appear among jig's five user-invoked slash commands
-   documented in README.md — it is consumed by model judgment, not typed by
-   a human.
+Covers: valid SKILL.md frontmatter; model-invoked "Use when..." description
+(not a stub); no nested SKILL.md (viva#101); body uses jig's own vocabulary
+(derived from DESIGN.md, not hand-copied, so a rename is caught as missing
+rather than drifting silently — see _vocabulary.py); not listed as a
+slash command in README.md.
 """
 from __future__ import annotations
 
@@ -42,17 +23,13 @@ SKILL_DIR = REPO_ROOT / "skills" / "task-execution-discipline"
 SKILL_MD = SKILL_DIR / "SKILL.md"
 DESIGN_MD = REPO_ROOT / "DESIGN.md"
 
-# Jig's own checkpoint-block vocabulary (DESIGN.md: Vocabulary, Formatting)
-# the canon must be adapted into, not left as Superpowers' generic terms.
-# Derived from DESIGN.md itself -- not an independent, hand-copied tuple --
-# so a token DESIGN.md renames is caught here as a missing term instead of
-# silently drifting out of sync (see test_vocabulary_derivation.py for the
-# demonstration that a deliberate source change is caught).
+# Jig's own checkpoint-block vocabulary (DESIGN.md: Vocabulary, Formatting),
+# derived rather than hand-copied so a DESIGN.md rename is caught as missing
+# (see test_vocabulary_derivation.py).
 JIG_VOCABULARY = derive_jig_vocabulary(DESIGN_MD.read_text(encoding="utf-8"))
 
-# A phrase distinctive to Superpowers' source skills that has no jig
-# equivalent — its presence would signal a verbatim copy rather than an
-# adaptation into jig's own vocabulary.
+# Phrase distinctive to Superpowers' source skills, absent from jig's
+# vocabulary; its presence would signal a verbatim copy.
 SUPERPOWERS_ONLY_PHRASE = "your human partner"
 
 
@@ -73,9 +50,6 @@ class TestDisciplineSkillFile(SkillFileCase):
         )
         self.assertIsNotNone(desc_match)
         description = desc_match.group(1)
-        # Model-invoked skills in this install phrase their description as a
-        # trigger on the moment they should fire ("Use when...") rather than
-        # a slash-command imperative. This distinguishes it from a stub.
         self.assertIn(
             "Use when",
             description,
@@ -99,10 +73,8 @@ class TestDisciplineSkillFile(SkillFileCase):
         )
 
     def test_derived_vocabulary_is_non_empty(self) -> None:
-        # Guards against a parsing regression in _vocabulary.py silently
-        # turning the check below into a vacuous no-op (an empty
-        # JIG_VOCABULARY would make test_body_uses_jig_checkpoint_vocabulary
-        # pass trivially without checking anything).
+        # Guards a parsing regression that would empty JIG_VOCABULARY and
+        # make test_body_uses_jig_checkpoint_vocabulary pass vacuously.
         self.assertGreaterEqual(
             len(JIG_VOCABULARY),
             10,

@@ -1,19 +1,15 @@
 """Tests for front-loading the epic interview (studious #150 follow-on).
 
-A dispatched phase runs in a subagent with no human in its loop, so `/shape`
-cannot hold its viva-qa interview there. `/next`'s Plan piece
-runs one interview for the whole epic instead, records each story's answers via
-`gate-ledger epic-story-set --decisions`, and the driver threads them into every
-dispatch prompt through its shared `ctx()` block.
+A dispatched phase runs in a subagent with no human in the loop, so `/shape`
+can't hold its viva-qa interview there. `/next`'s Plan piece runs one interview
+per epic instead, records answers via `gate-ledger epic-story-set --decisions`,
+and the driver threads them into every dispatch prompt via `ctx()`.
 
-The ledger half is covered by `tests/test_gate_ledger.sh`. Here:
-
-- an **executed** fixture runs the driver's real, unmodified `ctx()` — extracted
-  verbatim by balanced-brace scan, never reimplemented, following
-  `test_contract_injection.py`'s precedent — and asserts the decisions line
-  appears when the field is set and is absent when it is not;
-- structural checks that the two prompts documenting the split (studious's
-  Plan piece, `/shape` Step 2) actually say what the driver relies on.
+Ledger behavior is covered by `tests/test_gate_ledger.sh`. Here: an executed
+fixture runs the driver's real `ctx()` (extracted verbatim, per
+`test_contract_injection.py`'s precedent) to assert the decisions line
+appears/disappears correctly; structural checks confirm the Plan piece and
+`/shape` Step 2 say what the driver relies on.
 """
 from __future__ import annotations
 
@@ -32,9 +28,8 @@ DESIGN_SKILL = REPO_ROOT / "skills" / "shape" / "SKILL.md"
 def _run_ctx(story_fields: dict) -> str:
     """Execute the driver's real ctx() against one story record."""
     source = DRIVER.read_text()
-    # ctx() closes over githubReadOnlyInvariant (#276). Extracted verbatim alongside
-    # it, never stubbed: a stub would let the real invariant drift out of every
-    # dispatch prompt while this fixture went on passing.
+    # ctx() closes over githubReadOnlyInvariant (#276); extracted verbatim, not
+    # stubbed, so drift can't slip past this fixture.
     ctx_src = "\n".join(
         _extract_function(source, name) for name in ("githubReadOnlyInvariant", "ctx")
     )

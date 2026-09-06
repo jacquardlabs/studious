@@ -2,13 +2,11 @@
 
 `bin/gate-ledger`'s `record`, `epic-set`, `epic-story-set`, `work-set`, `work-log`, and
 `epic-run-log` verbs each append one JSON object per line to
-`.studious/epics/<epic-slug>.events.jsonl`
-via the shared `append_event()` helper — the append-only counterpart to `json_update()`'s
-role as the shared writer for every mutating verb. This file pins the exact shape so
-drift from what the code actually writes is a visible diff against this doc, not a
-silent surprise. Every one of the six functions' existing arguments, return values,
-and exit codes is unchanged; the event append is a side effect only, run after the
-function's own primary snapshot write already succeeded.
+`.studious/epics/<epic-slug>.events.jsonl` via the shared `append_event()` helper — the
+append-only counterpart to `json_update()`'s role as the shared writer for every mutating
+verb. The six functions' arguments, return values, and exit codes are unchanged; the
+event append is a side effect only, run after the function's own primary snapshot write
+already succeeded.
 
 Two later kinds share the same file under a different contract: `epic-finding` and
 `epic-attest` (#281) write the per-epic findings ledger, and `epic-findings` reads it
@@ -16,12 +14,14 @@ back. See "The findings ledger" below.
 
 ## Scope: one reader, and two classes of line
 
-The store's first reader is `epic-findings` (#281), and it reads exactly the two
-findings kinds. There is still no general `events-list`/`events-get`, and
-`/next`'s own reconcile step is unchanged: reconciliation continues to trust
-the existing snapshot stores (`.studious/gates/`, `.studious/work/`,
-`.studious/epics/<slug>.json`, plus `.studious/evidence/`) exactly as before.
-The trail's readers today are `scripts/saves-ledger.py` (`/retro outcomes`) and any future operator surface — jacquardlabs/control-room's T1 names this taxonomy as its input. The board renderer that originally motivated the trail was removed as unused; the recorder outlived its first viewer by design.
+The store's first reader is `epic-findings` (#281), which reads exactly the two findings
+kinds. There is still no general `events-list`/`events-get`; `/next`'s reconcile step
+still trusts the existing snapshot stores (`.studious/gates/`, `.studious/work/`,
+`.studious/epics/<slug>.json`, `.studious/evidence/`) unchanged. Readers today:
+`scripts/saves-ledger.py` (`/retro outcomes`) and any future operator surface —
+jacquardlabs/control-room's T1 names this taxonomy as its input. The board renderer that
+originally motivated the trail was removed as unused; the recorder outlived its first
+viewer by design.
 
 The two classes differ in exactly one way that matters, and it is a failure contract,
 not a schema:

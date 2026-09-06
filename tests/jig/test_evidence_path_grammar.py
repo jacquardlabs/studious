@@ -43,37 +43,28 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 EVIDENCE_ROOT = ".studious/build-evidence/"
 
-# A placeholder path opens with this; `<` is what makes it a *shape* a reader
-# would rebuild rather than a literal directory (`.studious/build-evidence/` alone,
-# or the `.studious/build-evidence/*/manifest.json` glob, name a real read and are fine).
+# `<` marks a placeholder shape, not a literal directory or glob.
 PLACEHOLDER_PREFIX = EVIDENCE_ROOT + "<"
 
-# Derived from `scripts/evidence-capture`'s own `target_dir`, never transcribed
-# -- see `_evidence_grammar.py` for why a hand copy here would inherit exactly
-# the drift this scan exists to catch.
+# Derived from `scripts/evidence-capture`'s `target_dir`, never transcribed --
+# see `_evidence_grammar.py` for why a hand copy would inherit the same drift.
 CURRENT_GRAMMAR = EVIDENCE_ROOT + derive_folder_grammar()
 
 REQUIRED_TAIL = CURRENT_GRAMMAR[len(PLACEHOLDER_PREFIX) :]
 
-# A line carrying this may name a wrong shape on purpose -- a skill warning a
-# reader off the pre-#258 folder name has to be able to print it. Same shape as
-# `scripts/check_gate_independence.py`'s `REGION_OPEN` sentinel: a plain comment
-# marker, visible where it applies rather than listed in a config elsewhere.
+# Marks a line as a deliberate wrong-shape example (e.g. a skill warning
+# readers off the old name). Same idea as check_gate_independence.py's
+# REGION_OPEN sentinel: a plain in-place marker, not a separate config.
 COUNTEREXAMPLE_SENTINEL = "evidence-grammar: counterexample"
 
-# The shape `evidence-capture` wrote before #258 -- kept only as a planted
-# violation for the guard-the-guard case below, never as the assertion itself.
+# Pre-#258 shape, kept only as a planted violation for guard-the-guard below.
 PRE_258_GRAMMAR = ".studious/build-evidence/<date>-<task>/"
 
-# Every model-facing surface that could send a reader to a folder path and is not
-# already guarded elsewhere. `agents/` is deliberately absent, not overlooked:
-# `scripts/check_gate_independence.py`'s `ARTIFACTS` regex forbids the evidence store
-# under `agents/*.md` outright, so a stale grammar there fails CI before this scan
-# would see it -- and adding it here would assert a weaker rule over the same files.
+# Model-facing surfaces not already guarded elsewhere; `agents/` is excluded
+# on purpose (see module docstring), not an oversight.
 SURFACES = ("skills", "commands", "reference")
 
-# How much of a violation to quote back, so a failure names the wrong shape
-# rather than only its offset.
+# Enough of a violation to quote back in a failure message.
 SNIPPET = len(CURRENT_GRAMMAR) + 8
 
 
@@ -84,9 +75,8 @@ def prompt_files() -> list[Path]:
 def wrong_shapes(text: str) -> list[str]:
     """Every placeholder evidence path in `text` that is not the current grammar.
 
-    Scanned per line so `COUNTEREXAMPLE_SENTINEL` can exempt one. A placeholder
-    split across a newline is therefore not seen -- it would not be a path a
-    reader could copy either, so the line is the right unit.
+    Scanned per line so `COUNTEREXAMPLE_SENTINEL` can exempt one; a placeholder
+    split across a newline isn't seen, but it wouldn't be a copyable path anyway.
     """
     found = []
     for line in text.splitlines():
@@ -104,10 +94,8 @@ class TestEvidencePathGrammarOnPromptSurfaces(unittest.TestCase):
     def test_the_scan_covers_the_real_surfaces(self) -> None:
         """A wrong root or a typo'd glob would make the scan below vacuous."""
         files = prompt_files()
-        # One anchor per entry in SURFACES, so this fails when a whole tree
-        # stops being reached -- the failure the glob can actually have. Any
-        # single file may be renamed, split, or retired for reasons that have
-        # nothing to do with this scan, so no one file is load-bearing here.
+        # One anchor per SURFACES entry, so losing a whole tree fails here;
+        # no single file is load-bearing since any one may be renamed/retired.
         self.assertIn(REPO_ROOT / "skills" / "ship" / "SKILL.md", files)
         self.assertIn(REPO_ROOT / "commands" / "next.md", files)
         self.assertIn(REPO_ROOT / "reference" / "evidence-format.md", files)
@@ -119,14 +107,11 @@ class TestEvidencePathGrammarOnPromptSurfaces(unittest.TestCase):
         )
 
     def test_at_least_one_surface_names_the_grammar(self) -> None:
-        """Guards the scan against passing because nothing names a path at all.
+        """Guards against the scan passing vacuously because nothing names a path.
 
-        Asserts *some* surface names it rather than naming which one. A
-        file-specific anchor is only as durable as that file: retire or reword
-        the one it points at and the honest edit is to delete this assertion,
-        which restores exactly the vacuity it exists to prevent. Keyed to the
-        set instead, it survives any single surface changing and still fails
-        the day nothing documents the grammar at all.
+        Asserts *some* surface names it, not which one -- a file-specific
+        anchor dies with that file, while this survives any single surface
+        changing and still fails the day nothing documents the grammar.
         """
         naming = [
             path.relative_to(REPO_ROOT)
@@ -168,9 +153,8 @@ class TestEvidencePathGrammarOnPromptSurfaces(unittest.TestCase):
             f"the folders are named `{CURRENT_GRAMMAR}`",
             "Glob `.studious/build-evidence/*/manifest.json`, then Read each manifest",
             "no `.studious/build-evidence/` at all",
-            # A surface warning a reader off the old shape must be able to
-            # print it; without this the scan forces the warning to go vague,
-            # which is what happened to skills/ship/SKILL.md (#260 audit).
+            # Without this, a surface warning readers off the old shape is
+            # forced to go vague -- what happened to skills/ship/SKILL.md (#260).
             f"rebuilding `{PRE_258_GRAMMAR}` matches nothing. <!-- {COUNTEREXAMPLE_SENTINEL} -->",
         ):
             with self.subTest(clean=clean):

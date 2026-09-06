@@ -1,31 +1,27 @@
 #!/usr/bin/env python3
-"""plan-lint -- the structural linter for a `PLAN.md`-shaped file (issue #12).
+"""plan-lint -- structural linter for a `PLAN.md`-shaped file (issue #12).
 
-Zero-model and deterministic-exit-code: every check below is a regex, a
-filesystem `exists()`, or a string match over the plan's own text -- never a
-model call, never a Task-tool dispatch. This is the mechanical gate between
-"a plan drafted" and "a plan a human vivas and a fresh `/build` executor can
-trust". The checkpoint-block grammar it validates is owned by
-`skills/build/SKILL.md`; this script is the checker, not the authority.
+Zero-model: every check is a regex, `exists()`, or string match over the
+plan's own text -- never a model call. The mechanical gate between "a plan
+drafted" and "a plan a human vivas and a fresh `/build` executor can trust".
+The checkpoint-block grammar is owned by `skills/build/SKILL.md`; this
+script checks it, not authors it.
 
-**Grammar validated** -- exactly `skills/build/SKILL.md`'s own checkpoint-
-block shape, plus the one addition this story makes explicit: what goes
-*inside* the tier parenthetical. `script` / `test-backed` items carry a
-backtick-quoted, repo-relative method path immediately after the tier word
+**Grammar validated** -- `skills/build/SKILL.md`'s checkpoint-block shape,
+plus one addition: `script`/`test-backed` items carry a backtick-quoted,
+repo-relative method path after the tier word
 (`` (tier: script `scripts/plan-lint`) ``); `probe` items carry none
-(`` (tier: probe) ``) -- there is no pre-existing repo file to name for a
-probe's live-observed artifact.
+(`` (tier: probe) ``) -- no pre-existing file to name for a probe.
 
-**The backtick convention.** A backtick span is the plan author's explicit
-signal that a token is concrete and checkable, not narrative. This one
-convention answers three checks below: Read-first pointer resolution,
-checkpoint method existence, and LOAD-BEARING cap concreteness. Prose
-outside backticks is never inspected -- guessing which prose "really"
-names a path is exactly the judgment call a zero-model linter can't make.
+**The backtick convention.** A backtick span is the plan author's signal
+that a token is concrete and checkable, not narrative. Answers three checks
+below: Read-first pointer resolution, checkpoint method existence, and
+LOAD-BEARING cap concreteness. Prose outside backticks is never inspected --
+guessing which prose "really" names a path is a judgment call a zero-model
+linter can't make.
 
-**Violation categories** (eight total; the acceptance criteria's checks map
-onto these one-to-one, per-item where an item is the unit, per-task
-otherwise):
+**Violation categories** (eight; map 1:1 to acceptance criteria, per-item
+where an item is the unit, per-task otherwise):
 
 - `cap-count`    -- a task's Done means has zero `[cap]` items.
 - `hold-count`   -- a task's Done means has zero `[hold]` items.
@@ -50,27 +46,23 @@ otherwise):
   its behavior text.
 
 LOAD-BEARING and the method-existence "earlier task" clause are both
-computed against **document order**, not task-number order -- the same
-order `/build`'s own Step 1.4 splits the plan in.
+computed against **document order**, not task-number order -- same order
+`/build`'s Step 1.4 splits the plan in.
 
 **Reporting.** Every violation found in one pass is printed, never just the
-first -- so one run against a deliberately-broken plan names one distinct
-failure per violation category, matching `verify`'s own per-item (not
-per-run) reporting precedent.
+first, matching `verify`'s own per-item reporting precedent.
 
 Exit codes: 0 zero violations. 1 one or more violations (all printed).
-2 usage error -- the file doesn't exist or isn't readable, it isn't inside
-a git repository (paths can't be resolved), or it has zero `### Task`
-headings at all (nothing to lint -- a fail-closed stance, never a vacuous
-PASS, matching `verify`'s own refusal on an empty items list).
+2 usage error -- file missing/unreadable, not inside a git repo (paths
+can't be resolved), or zero `### Task` headings (fail-closed, never a
+vacuous PASS, matching `verify`'s refusal on an empty items list).
 
-Out of scope: the `/plan`
-skill itself; issue #23 (the Not-here-follow-ups heading-*level* fix) and
-issue #13 (UI-probe mechanization); any semantic/quality judgment; CI
-wiring; auto-fixing anything found; validating `/build`'s own status-suffix
-writes beyond tolerating their presence in the heading pattern; the debug
-two-phase fingerprint's untiered meta-item; cross-referencing the design
-doc a plan claims to derive from.
+Out of scope: the `/plan` skill itself; issue #23 (Not-here-follow-ups
+heading-*level* fix) and issue #13 (UI-probe mechanization); semantic/
+quality judgment; CI wiring; auto-fixing; validating `/build`'s
+status-suffix writes beyond tolerating them in the heading pattern; the
+debug two-phase fingerprint's untiered meta-item; cross-referencing the
+design doc a plan claims to derive from.
 """
 from __future__ import annotations
 
@@ -84,15 +76,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _gitutil import git_repo_root  # noqa: E402
 
-# The task-splitting and Done-means-item grammar (`### Task N` blocks, the
-# `N. [cap|hold] ... (tier: ...)` item shape, the tier-parenthetical body)
-# is shared with `verify`'s --plan mode via `_planparse` -- one grammar,
-# never two drifting copies. `TASK_HEADING_RE` and `HEADING_LEVEL_1_TO_3_RE`
-# are (re-)exported here because `tests/_task_split_boundary.py` reads them
-# off this module as surface 1 of the three-way boundary-agreement check
-# (issue #66) -- its mutation test monkeypatches HEADING_LEVEL_1_TO_3_RE on
-# *this* module, which is why `split_tasks` below re-reads it at call time
-# instead of being a bare re-export of `_planparse.split_tasks`.
+# Task-splitting/Done-means-item grammar is shared with `verify`'s --plan
+# mode via `_planparse` -- one grammar, never two drifting copies.
+# `TASK_HEADING_RE`/`HEADING_LEVEL_1_TO_3_RE` are re-exported because
+# `tests/_task_split_boundary.py` reads them off this module (issue #66's
+# boundary-agreement check monkeypatches HEADING_LEVEL_1_TO_3_RE here), which
+# is why `split_tasks` re-reads it at call time rather than re-exporting
+# `_planparse.split_tasks` bare.
 from _planparse import (  # noqa: E402
     COMMAND_TIERS,
     HEADING_LEVEL_1_TO_3_RE,
@@ -107,8 +97,7 @@ from _planparse import split_tasks as _split_tasks  # noqa: E402
 
 MAX_ITEMS = 5
 PLACEHOLDER_FOLLOWUPS = frozenset({"", "todo", "tbd", "..."})
-# Located by heading *text*, not depth -- issue #23's heading-level fix is
-# the sibling plan-skill story's job, not this linter's.
+# By heading text, not depth -- issue #23's heading-level fix is a sibling story's job.
 NOT_HERE_FOLLOWUPS_HEADING_RE = re.compile(r"^(#{1,6})[ \t]*Not-here follow-ups[ \t]*$", re.IGNORECASE | re.MULTILINE)
 ANY_HEADING_RE = re.compile(r"^(#{1,6})[ \t]", re.MULTILINE)
 
@@ -135,9 +124,9 @@ class Violation:
 
 def split_tasks(text: str) -> list[tuple[str, str]]:
     """`_planparse.split_tasks`, bound to this module's own
-    `HEADING_LEVEL_1_TO_3_RE` at call time -- so the boundary-agreement
-    mutation check (tests/_task_split_boundary.py, issue #66) can still
-    monkeypatch that constant here and see the very next call change."""
+    `HEADING_LEVEL_1_TO_3_RE` at call time, so the boundary-agreement
+    mutation check (tests/_task_split_boundary.py, issue #66) can
+    monkeypatch that constant here and see the next call change."""
     return _split_tasks(text, boundary_re=HEADING_LEVEL_1_TO_3_RE)
 
 
@@ -152,32 +141,28 @@ def strip_line_locator(span: str) -> str:
 
 
 def _is_number_match(rests_on_text: str, task_num: str) -> bool:
-    """SKILL.md step 1.5's first alternative: the `Rests on:` line names
-    the dependency by its heading number, e.g. the literal text "Task 2"."""
+    """SKILL.md step 1.5's first alternative: `Rests on:` names the
+    dependency by heading number, e.g. literal text "Task 2"."""
     return bool(re.search(rf"\bTask\s+{re.escape(task_num)}\b", rests_on_text))
 
 
 def _is_title_match(rests_on_text: str, title: str, title_counts: Counter[str]) -> bool:
-    """SKILL.md step 1.5's second, independent alternative: an *unambiguous*
-    title match to task N's own heading -- the `Rests on:` line names the
-    dependency by its title alone, with no heading number anywhere in it.
-    Unambiguous means no other task in the same plan shares that exact
-    title (case-insensitive) -- a title two tasks share can't uniquely
-    identify either one, so it never counts as a match. Mirrors
-    tests/_load_bearing.py's own `_is_title_match` (issue #62's sibling
-    reference implementation) so both copies of this rule agree."""
+    """SKILL.md step 1.5's second alternative: an unambiguous title match
+    to task N's own heading, with no heading number in `Rests on:`.
+    Unambiguous means no other task shares that exact title
+    (case-insensitive) -- a shared title can't uniquely identify either
+    task. Mirrors tests/_load_bearing.py's `_is_title_match` (issue #62's
+    sibling reference implementation) so both copies agree."""
     if not title or title_counts[title.casefold()] > 1:
         return False
     return title.casefold() in rests_on_text.casefold()
 
 
 def compute_load_bearing(tasks: list[tuple[str, str]]) -> frozenset[str]:
-    """A task is LOAD-BEARING iff some *other* task's `Rests on:` line names
-    it -- by heading number (e.g. "Task 2") or by an unambiguous title
-    match to that task's own heading, SKILL.md step 1.5's two independent
-    match paths -- derived mechanically, never declared (the handoff's own
-    §5.3 decision 8), reused rather than re-invented for a second
-    definition."""
+    """A task is LOAD-BEARING iff some other task's `Rests on:` line names
+    it, by heading number or unambiguous title match (SKILL.md step 1.5's
+    two match paths) -- derived mechanically, never declared (handoff §5.3
+    decision 8)."""
     titles = {task_num: task_title(block) for task_num, block in tasks}
     title_counts: Counter[str] = Counter(t.casefold() for t in titles.values() if t)
     load_bearing: set[str] = set()
@@ -210,7 +195,7 @@ def check_item_tier(task_num: str, item: Item, repo_root: Path, earlier_do_lines
         ]
 
     if tier_word not in COMMAND_TIERS:
-        return []  # probe: no pre-existing repo file to name, nothing to check.
+        return []  # probe: no pre-existing file to name.
 
     if not method_path:
         return [

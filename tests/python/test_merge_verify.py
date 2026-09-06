@@ -1,45 +1,33 @@
 """Regression tests for the merge-verify fix (#270 fix-and-recheck round 3,
 Critical, operability-auditor).
 
-`mergePrompt`'s bookkeeping tail (`gate-ledger epic-story-set --status landed`,
-`work-log --step merge --phase done`, worktree removal) is a self-report: the
-merge dispatch's own `merge.merged` boolean was the ONLY signal `runStory` used
-to decide `settle(story, 'landed')`, with nothing re-reading the persisted
-ledger or the epic branch to confirm those writes actually happened. A dropped
-`&&` tail (git merge succeeds, the ledger write doesn't) would silently land in
-this driver's own bookkeeping while the ledger disagreed, with no operator-
-visible signal at any log level (#237: nothing else ever closes the work file
-out).
+`mergePrompt`'s bookkeeping tail (ledger status write, work-log step, worktree
+removal) previously relied solely on the merge dispatch's own `merge.merged`
+boolean to decide `settle(story, 'landed')` — a dropped `&&` could land
+silently while the ledger disagreed, with no operator-visible signal (#237).
 
-`verifyMergeLanded` closes this with a second, independently-dispatched
-mechanical fact-check (same haiku posture as `ledgerScopeCheckPrompt`/
-`routingScopeCheckPrompt`) that re-reads `gate-ledger epic-get` and confirms the
-story branch is an ancestor of the epic branch. Its answer is a three-state
-classification, not a boolean, and the three states are exactly what these
+`verifyMergeLanded` adds a second, independently-dispatched mechanical check
+(same haiku posture as `ledgerScopeCheckPrompt`/`routingScopeCheckPrompt`)
+that re-reads `gate-ledger epic-get` and confirms the story branch is an
+ancestor of the epic branch, returning a three-state classification these
 tests pin:
 
-- **confirmed** — the read-back agrees: lands, as before.
-- **divergent** — the read-back gives a DEFINITE, disagreeing answer: parks
-  with an explicit reason instead of landing (the finding's actual ask).
-- **unknown** — the read-back itself died, threw, came back malformed, or the
-  mechanical check it ran (gate-ledger epic-get, `git merge-base
-  --is-ancestor`) itself errored rather than answering: still lands (logged,
-  not silent) rather than parking a story whose merge may well have genuinely
-  succeeded — collapsing 'unknown' into 'divergent' would trade the finding's
-  failure mode for a worse one (a flaky verify dispatch stranding a landed
-  story in `needsYou` and stalling the epic finale, since `landedCount +
-  droppedCount === allSettled.length` never reaches true while it sits
-  parked).
+- **confirmed** — read-back agrees: lands.
+- **divergent** — read-back gives a DEFINITE disagreeing answer: parks with
+  an explicit reason.
+- **unknown** — read-back died/threw/malformed, or the mechanical check
+  itself errored: still lands (logged) rather than parking a story whose
+  merge may have genuinely succeeded — collapsing 'unknown' into 'divergent'
+  would strand a landed story in `needsYou` and block the finale
+  (`landedCount + droppedCount === allSettled.length` never reaches true).
 
 Finale fix cycle (prompt-auditor Critical + operability-auditor High,
-m6-wave1): the original two-boolean schema (`ledgerLanded`, `isAncestor`)
-could not distinguish "the check ran and confirmed false" from "the check
-itself failed" — `git merge-base --is-ancestor` exits 1 for a genuine
-not-an-ancestor answer but 128 for an unresolvable ref, and both collapsed
-into `isAncestor:false`, feeding straight into 'divergent'. The schema now
-also carries `ledgerCheckOk`/`ancestorCheckOk`; either being false degrades to
-'unknown' regardless of what the other two booleans say, so an environmental
-hiccup in the read-back can no longer park a story that actually landed.
+m6-wave1): the original two-boolean schema couldn't distinguish "check ran
+and confirmed false" from "check itself failed" — `git merge-base
+--is-ancestor` exits 1 for a genuine mismatch but 128 for an unresolvable
+ref, both collapsing into `isAncestor:false` -> 'divergent'. The schema now
+also carries `ledgerCheckOk`/`ancestorCheckOk`; either false degrades to
+'unknown' regardless of the other booleans.
 """
 
 from __future__ import annotations
@@ -50,13 +38,10 @@ from test_driver_crash_hardening import DRIVER, LAND_STORY_A_RULES, _run_driver
 
 
 def _one_story_epic() -> dict:
-    """A second story, `cycle`, depends on itself — `unresolvedStories()` parks
-    it as a true cycle member at the top of `run`, before `runStory` is ever
-    invoked for it, with zero agent dispatches. That keeps `landedCount +
-    droppedCount === allSettled.length` permanently false regardless of what
-    happens to story `a`, so these tests never have to also mock the epic
-    finale's own fan-out (audit lanes, acceptance, premortem, ready-recorder) —
-    none of which is what this file is testing."""
+    """`cycle` depends on itself — `unresolvedStories()` parks it before
+    `runStory` runs, with zero dispatches. Keeps `landedCount +
+    droppedCount === allSettled.length` permanently false so these tests
+    never need to mock the epic finale's own fan-out."""
     return {
         "slug": "epx",
         "title": "Test epic",
@@ -100,16 +85,14 @@ DIVERGENT_CASES = [
 
 
 def test_divergent_verify_parks_instead_of_landing_with_an_explicit_reason() -> None:
-    """The finding's actual ask: a DEFINITE disagreement between `merge.merged`
-    and the independent read-back must never settle 'landed' — it must park
-    with a reason a human can read, naming what disagreed.
+    """A DEFINITE disagreement between `merge.merged` and the independent
+    read-back must never settle 'landed' — it must park with a reason naming
+    what disagreed.
 
-    Round 6 fix-and-recheck (SHOULD FIX): parking here must go through the real
-    `park()` helper — which dispatches `parkPrompt` to persist the reason to
-    gate-ledger — not merely produce a similar-looking in-memory `needsYou`
-    entry. Asserting on `calls` (not just the compiled result) is what
-    distinguishes the two: a `park:epx--a` dispatch proves the persisted write
-    was attempted, which an in-memory-only push cannot fake."""
+    Round 6 fix-and-recheck: parking must go through the real `park()` helper
+    (dispatches `parkPrompt`, persisting to gate-ledger), not an in-memory-only
+    `needsYou` push. Asserting on `calls` (not just the result) distinguishes
+    the two."""
     for name, findings in DIVERGENT_CASES:
         out = _run_with_verify_rule(_findings(findings))
         assert out["ok"], f"{name}: driver crashed: {out.get('error')}"
@@ -145,10 +128,9 @@ UNKNOWN_CASES = [
     ("malformed findings (wrong types)", {"result": {"findings": json.dumps({"ledgerLanded": "yes", "isAncestor": True, "ledgerCheckOk": True, "ancestorCheckOk": True})}}),
     ("malformed findings (field missing)", {"result": {"findings": json.dumps({"ledgerLanded": True, "isAncestor": True})}}),
     # gate-audit finale fix cycle (prompt-auditor Critical + operability-auditor High,
-    # m6-wave1): the check itself failing (git exit 128 / gate-ledger errored) must
-    # degrade to 'unknown', never 'divergent' — even though the same reply also
-    # carries ledgerLanded/isAncestor:false, which used to be read as a confirmed
-    # disagreement before this fix.
+    # m6-wave1): the check itself failing (exit 128 / gate-ledger error) must degrade
+    # to 'unknown', never 'divergent', even when ledgerLanded/isAncestor:false also
+    # appear in the reply.
     ("ledger check itself failed", _findings({"ledgerLanded": False, "isAncestor": True, "ledgerCheckOk": False, "ancestorCheckOk": True})),
     ("ancestor check itself failed", _findings({"ledgerLanded": True, "isAncestor": False, "ledgerCheckOk": True, "ancestorCheckOk": False})),
     ("both checks failed", _findings({"ledgerLanded": False, "isAncestor": False, "ledgerCheckOk": False, "ancestorCheckOk": False})),
@@ -156,10 +138,9 @@ UNKNOWN_CASES = [
 
 
 def test_unknown_verify_still_lands_rather_than_stranding_a_real_landing() -> None:
-    """A flaky/died/malformed verify read-back is a THIRD state, distinct from a
-    definite disagreement — it must never park a story whose merge may well
-    have genuinely succeeded. Collapsing 'unknown' into 'divergent' would
-    strand a landed story in `needsYou` and block the epic finale."""
+    """A flaky/died/malformed verify read-back is a THIRD state, distinct from
+    a definite disagreement — must never park a story whose merge may have
+    genuinely succeeded."""
     for name, rule in UNKNOWN_CASES:
         out = _run_with_verify_rule(rule)
         assert out["ok"], f"{name}: driver crashed instead of degrading gracefully: {out.get('error')}"
@@ -174,18 +155,15 @@ def test_unknown_verify_still_lands_rather_than_stranding_a_real_landing() -> No
 
 
 def test_divergent_reason_names_the_epic_branch_not_the_story_branch() -> None:
-    """Epic acceptance finding C (m6-wave1): the operator-facing remediation
-    clause on a divergent verify must name the epic integration branch
-    (`epic/<slug>`) — the branch `merge --no-ff` actually merges into — not
-    the story branch reconstructed from `workSlug()`.
+    """Epic acceptance finding C (m6-wave1): the remediation clause on a
+    divergent verify must name the epic branch (`epic/<slug>`) — what `merge
+    --no-ff` actually merges into — not the story branch from `workSlug()`.
 
     Before the fix, `'epic/' + workSlug(story)` was byte-identical to
-    `storyBranch(story)`: `workSlug` returns `${slug}--${story}` and
-    `storyBranch` returns `epic/${slug}--${story}`, so `'epic/' +
-    workSlug(story)` === `storyBranch(story)`. The remediation told the
-    operator to check whether the story branch contains the story branch —
-    `git merge-base --is-ancestor X X` trivially exits 0, so the check
-    silently "succeeded" and pointed away from the real divergence."""
+    `storyBranch(story)` (`workSlug` -> `${slug}--${story}`, `storyBranch` ->
+    `epic/${slug}--${story}`), so the remediation told the operator to check
+    whether the story branch contains itself — `git merge-base --is-ancestor
+    X X` trivially exits 0, pointing away from the real divergence."""
     out = _run_with_verify_rule(_findings({"ledgerLanded": False, "isAncestor": True, "ledgerCheckOk": True, "ancestorCheckOk": True}))
     assert out["ok"], f"driver crashed: {out.get('error')}"
     entry = {e["story"]: e for e in out["result"]["needsYou"]}["epx--a"]
@@ -207,10 +185,9 @@ def _merge_tail_region() -> str:
 
 
 def test_divergent_and_unknown_branches_both_log_operator_visibly() -> None:
-    """The finding's minimum bar: 'emit an operator-visible log when merge.merged
-    and the persisted status disagree.' A silent divergence or a silent
-    unknown-and-landed both fail this — assert both branches actually call
-    `log(...)`, not just that they classify correctly (already proven above)."""
+    """Finding's minimum bar: emit an operator-visible log when merge.merged
+    and the persisted status disagree. Assert both branches call `log(...)`,
+    not just that they classify correctly (already proven above)."""
     region = _merge_tail_region()
     assert "log(" in region, "the merge-verify branches no longer log anything operator-visible"
     assert region.count("log(") >= 2, (

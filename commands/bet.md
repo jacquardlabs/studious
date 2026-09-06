@@ -7,15 +7,14 @@ allowed-tools: Read, Glob, Grep, Bash, Task
 # The betting table
 
 Where work is chosen and priced. Every flow enters here, at any scale — a bet's scope may
-be one story, a list of stories, or a whole milestone. Scope changes how many stories a bet
-contains and how much of it runs dispatched versus supervised; it never changes where the
-flow enters.
+be one story, a list of stories, or a whole milestone. Scope changes story count and how much
+runs dispatched vs. supervised; it never changes where the flow enters.
 
 This door records verdicts. It judges the work and never who produced it: it names no
 producer door and reads no producer's private artifact.
 
-Read PRODUCT.md at the project root before doing anything else. You need the full product
-context — personas, principles, known problems, what we're not building.
+Read PRODUCT.md at the project root before doing anything else — personas, principles, known
+problems, what we're not building.
 
 ## Which mode
 
@@ -67,21 +66,16 @@ surface, not an order.
 
 ## Evaluate
 
-1. **Who is this for?** Which persona from PRODUCT.md does this serve? What specific problem
-   of theirs does it solve? If you can't name the persona and the problem in one sentence,
-   that's a red flag.
-2. **Priority check.** Look at "current known problems" in PRODUCT.md. How does this rank
-   against those? Are we solving a real pain point or adding something nice-to-have while
-   real problems remain unfixed? Be direct — if something on the known problems list matters
-   more, say so.
-3. **Scope check.** Does this conflict with anything in "what we're NOT building"? If yes,
-   stop here and explain the conflict.
-4. **Simplest version.** Describe the smallest version of this that still solves the core
-   problem. Not a phased rollout — the actual essential kernel. What can we cut and still
-   deliver the value?
-5. **Expected outcome.** If we ship this, what specifically changes for the user? Not "better
-   experience" — something concrete like "they can do X in Y seconds instead of Z" or "they
-   no longer have to manually do X."
+1. **Who is this for?** Name the PRODUCT.md persona and the specific problem it solves for
+   them in one sentence. Can't do that — red flag.
+2. **Priority check.** Rank against "current known problems" in PRODUCT.md. Be direct — if
+   something on that list matters more, say so.
+3. **Scope check.** Does this conflict with "what we're NOT building"? If yes, stop here and
+   explain the conflict.
+4. **Simplest version.** The smallest version that still solves the core problem — the
+   essential kernel, not a phased rollout. What can we cut and still deliver the value?
+5. **Expected outcome.** What specifically changes for the user — concrete, e.g. "they can do
+   X in Y seconds instead of Z," not "better experience."
 
 Do not be a yes-man. If this is a bad bet, say so plainly and suggest what to build instead
 based on the known problems list. If it's a good bet scoped too big, say that and describe
@@ -130,10 +124,10 @@ be recorded to the gate ledger — do not skip silently.
 
 Also append the verdict to the decision journal — `docs/studious/decisions.jsonl` in the
 consuming project — so the next evaluation of this idea, in any session or clone, opens with
-it. The record shape and append mechanics are pinned in
-`reference/decision-journal-format.md`; this is its canonical append. Substitute your one-line
-restatement of the idea as evaluated, the verdict token, and the one-sentence rationale
-verbatim. The revisit condition — what would change the answer — is required for `DEFER` and
+it. Record shape and append mechanics are pinned in `reference/decision-journal-format.md`;
+this is its canonical append. Substitute your one-line restatement of the idea as evaluated,
+the verdict token, and the one-sentence rationale verbatim. The revisit condition — what would
+change the answer — is required for `DEFER` and
 `DON'T BUILD`; for `BUILD`/`BUILD SMALLER`, drop the `--arg revisit` line and the
 `revisitCondition` key unless one naturally exists:
 

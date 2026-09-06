@@ -1,22 +1,14 @@
-"""Regression tests for the carried-findings field (issue #245).
+"""Regression tests for the carriedFindings field (issue #245).
 
-Before this story, a finding diagnosed in a prior gate round — a stalled
-`FIX AND RE-CHECK`/`FIX AND RE-AUDIT` cycle, a walkthrough's own suggested fix — had
-nowhere to live but `--decisions`, the field `ctx()` (`workflows/epic-driver.js`)
-hands to every dispatch marked "settled ... do not re-litigate." Both parked M11
-stories (`verify-tier-grammar`, `evidence-path-integrity`) did exactly that, and the
-strongest instruction shape the driver has landed on a worker with no human ever
-having reviewed the diagnosis — `c1777ce` wrote one such suggestion verbatim into
-`skills/build/SKILL.md`, and three later commits corrected it.
+Prior parked findings had nowhere to live but `--decisions`, which `ctx()`
+(`workflows/epic-driver.js`) marks "settled ... do not re-litigate" — but an
+unreviewed diagnosis isn't settled. `c1777ce` shipped one such suggestion
+verbatim into `skills/build/SKILL.md`; three later commits corrected it.
+`carriedFindings` carries its own weaker wording instead: worth fixing, not
+worth re-litigating, never "settled".
 
-This adds a distinct field, `carriedFindings`, with its own weaker wording — worth
-fixing, not worth rediscovering or re-litigating whether it is real, never "settled."
-`--decisions` reverts to holding only what a human answered at the epic interview.
-
-Following `test_frontloaded_decisions.py`'s precedent: `ctx()` is extracted verbatim
-by balanced-brace scan (never reimplemented) and executed against constructed story
-fixtures in a real Node process, reusing that file's own harness rather than
-re-deriving it.
+Reuses `test_frontloaded_decisions.py`'s harness: `ctx()` is extracted by
+balanced-brace scan and run in a real Node process.
 """
 from __future__ import annotations
 

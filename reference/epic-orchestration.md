@@ -308,56 +308,47 @@ recording which route produced this approval and when.
 
 **No human approves a design doc on the `epic-default` path. State that plainly to the
 user at approval time — don't let them discover it at the epic PR.** A
-`story-supervised` story is the other half of that sentence: it never reaches an
-unattended design phase at all, so its doc is signed off in `/next` like any
-story-scale feature.
+`story-supervised` story never reaches an unattended design phase at all — its doc is
+signed off in `/next` like any story-scale feature.
 
 The driver's default profile is `design → design-review → build → audit → acceptance`:
 a dispatched worker drafts the design doc and `/review` reviews it against
-`reference/design-doc-contract.md` on every story that carries the pair — every story,
-unless step 4 proposed the trim and the user approved it. Two constraints force this,
-and neither is a preference:
+`reference/design-doc-contract.md` on every story that carries the pair, unless step 4
+proposed the trim and the user approved it. Two constraints force this:
 
 - **A subagent cannot open a browser.** viva's sign-off is a human at a keyboard, and
   there isn't one inside a dispatched phase running three-at-a-time in parallel
   worktrees.
 - **The driver may not name a build skill.** `workflows/epic-driver.js` is on the gate
   surface `scripts/check_gate_independence.py` guards, so it dispatches a worker
-  against `reference/worker-contract.md` rather than routing to `/shape`. That rule is
-  what keeps a gate from caring who built the branch; it also means the epic path can't
+  against `reference/worker-contract.md` rather than routing to `/shape` — the same rule
+  that keeps a gate from caring who built the branch also means the epic path can't
   inherit `/shape`'s sign-off loop even if a human were available.
 
-So the human turns at epic scale are: the story-plan approval, this interview, and the
-PR. `/review` reviews every design doc, but an agent reviewing is not a
-human approving — do not describe it to the user as an equivalent substitute. What
-front-loading moves is the **interview**, which has no substitute at all; the sign-off
-is genuinely reduced, not relocated.
+The human turns at epic scale are the story-plan approval, this interview, and the PR.
+`/review`'s agent review is not a human approving — never describe it as an equivalent
+substitute. What front-loading moves is the **interview**, which has no substitute at
+all; the sign-off is genuinely reduced, not relocated.
 
-**The review model on this pipeline, decided (#210):** a story routed `epic-default`
-relies on `/review`'s agent review, because that class is defined by a
-mechanically verifiable surface — the gate can check the thing a human would have
-checked — while a story whose surface a gate cannot verify mechanically is classed
-`story-supervised` at plan time and routed to `/next`, where it keeps its viva
-sign-off.
-
-That is one rule read at two scales, not two pipelines that drifted: a human signs off
-where a gate cannot verify mechanically. It is also not a softening of the paragraph
-above — an agent reviewing still isn't a human approving, and for an `epic-default`
-story the sign-off is genuinely gone, not covered. What the story class buys is that
-the stories where that trade doesn't hold never take it. A story the user wants signed
-off by hand is a story reclassified `story-supervised` at approval, never an improvised
-third behaviour here.
+**The review model on this pipeline, decided (#210):** an `epic-default` story relies
+on `/review`'s agent review because that class is defined by a mechanically verifiable
+surface — the gate can check what a human would have checked. A story whose surface a
+gate cannot verify mechanically is classed `story-supervised` at plan time and routed to
+`/next`, where it keeps its viva sign-off. One rule read at two scales: a human signs
+off where a gate cannot verify mechanically. A story the user wants signed off by hand
+is a story reclassified `story-supervised` at approval, never an improvised third
+behaviour here.
 
 **A trimmed design pair is the one case that rule does not cover, and the user approves
 it as such.** `epic-default` requires a source issue already carrying acceptance criteria
 with citations — the same read that permits step 4's trim — so the stories most likely to
 be trimmed are exactly the ones this decision calls safe *because* the agent review runs.
-With the pair trimmed there is no doc, and neither a human nor an agent reviews one. That
-is why the trim is only ever proposed when the source already carries the content the
-review would have judged, why it is shown with its inputs rather than defaulted, and why
-the user approving it is approving that specific trade — plan approval being the batched
-should-we-build for everything in the plan (`reference/epic-plan-contract.md`, Approval).
-Restoring the pair on any story is one word at approval.
+With the pair trimmed there is no doc, and neither a human nor an agent reviews one — the
+trim is proposed only when the source already carries the content the review would have
+judged, shown with its inputs rather than defaulted; the user approving it approves that
+specific trade (plan approval is the batched should-we-build for everything in the plan,
+`reference/epic-plan-contract.md`, Approval). Restoring the pair on any story is one word
+at approval.
 
 ## Driver — every later invocation
 

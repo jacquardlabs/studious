@@ -1,17 +1,16 @@
 """Mechanical completion gates and assignment-in-ledger (studious #294, #295, #276, #278).
 
-A dispatched phase used to be accepted on the dispatched agent's own word — its
-reported `status` and a non-empty self-reported `evidence` string. #294 replaces that
-with an independent, judgment-free read of the repository and the ledger, and #295 makes
-the dispatch itself a ledger write so a successor rehydrates from data instead of from a
-fresh re-briefing. #276 and #278 are the two defects that class produced: an invariant
-stated only in `reference/epic-orchestration.md`'s prose and never threaded into a dispatch,
-and a park dispatch with nothing enforcing its own "no fixing, no retrying".
+A dispatched phase used to be accepted on the agent's own word — reported `status` plus
+a non-empty `evidence` string. #294 replaces that with an independent, judgment-free read
+of the repo and ledger; #295 makes the dispatch itself a ledger write so a successor
+rehydrates from data, not a fresh re-briefing. #276/#278 are the defects that class
+produced: an invariant stated only in `reference/epic-orchestration.md` prose and never
+threaded into a dispatch, and a park dispatch with nothing enforcing its own "no fixing,
+no retrying".
 
-The driver's pure classifiers are **executed**, extracted verbatim by balanced-brace
-scan the way `test_contract_injection.py` and `test_frontloaded_decisions.py` already
-extract theirs — a reimplementation here would go on passing after the real logic drifted.
-The rest are structural checks on the surfaces the mechanism rests on.
+The driver's pure classifiers are **executed** (balanced-brace extraction, as in
+`test_contract_injection.py`/`test_frontloaded_decisions.py`) so drift in the real logic
+fails the test. The rest are structural checks on the surfaces the mechanism rests on.
 """
 from __future__ import annotations
 
@@ -78,27 +77,24 @@ def test_a_design_phase_declaring_zero_files_still_declared() -> None:
 
 
 def test_a_design_phase_that_could_not_commit_is_confirmed_by_its_recorded_doc() -> None:
-    """A design record is disposable by contract — `docs/design/<slug>.md` is gitignored
-    (CLAUDE.md, "Where a design record lives") and the ledger writes into `.studious/`,
-    also gitignored — so a design worker that did everything right can leave zero commits
-    on the story branch. Requiring one unconditionally would burn a nudge and park every
-    design-phase story on such a repo as INCOMPLETE."""
+    """Design records are disposable by contract (`docs/design/<slug>.md` and `.studious/`
+    are both gitignored — CLAUDE.md, "Where a design record lives"), so a design worker
+    doing everything right can leave zero commits. Requiring one unconditionally would
+    park every design-phase story as INCOMPLETE."""
     assert _classify("design", commits=0)["status"] == "confirmed"
 
 
 def test_a_design_phase_with_neither_evidence_path_is_still_missing() -> None:
-    """The relaxation is an either/or, not a removal: an explicit declaration of zero
-    files is a real declaration but it is not evidence any design work happened, so with
-    no commit either there is nothing the driver has independently seen."""
+    """Either/or, not a removal: an explicit zero-file declaration is real, but without
+    a commit either, the driver has seen no independent evidence any work happened."""
     out = _classify("design", commits=0, declaredFiles=0)
     assert out["status"] == "missing"
     assert "no commit" in out["reason"]
 
 
 def test_the_build_phase_never_takes_the_design_phase_s_alternative() -> None:
-    """Build's contracted artifact is a commit, and a recorded design doc does not
-    substitute for it — the relaxation is scoped to the phase whose artifact is
-    legitimately gitignored."""
+    """Build's contracted artifact is a commit; a design doc doesn't substitute — the
+    relaxation is scoped to the phase whose artifact is legitimately gitignored."""
     assert _classify("build", commits=0)["status"] == "missing"
 
 
@@ -172,14 +168,11 @@ def test_the_github_invariant_forbids_writing_and_permits_reading() -> None:
 
 
 def test_every_dispatch_altitude_carries_the_invariant() -> None:
-    """#276's own gap: stated in prose, threaded into no dispatch prompt.
-
-    Story-level dispatches inherit it through `ctx`; the finale builders never call
-    `ctx`, which is exactly where `gh pr create` is closest at hand.
-
-    `finalePrPrompt` (#253) is the one deliberate exception, checked separately below
-    — it is the single dispatch licensed to push and open a PR, and it must never
-    receive the invariant that forbids exactly that.
+    """#276's own gap: stated in prose, threaded into no dispatch prompt. Story-level
+    dispatches inherit it through `ctx`; finale builders never call `ctx`, which is
+    exactly where `gh pr create` is closest at hand. `finalePrPrompt` (#253) is the
+    deliberate exception, checked separately below — the one dispatch licensed to
+    push and open a PR, so it must never receive this invariant.
     """
     source = DRIVER.read_text()
     for builder in ("ctx", "finaleAuditDispatchPrompt", "finaleClosurePrompt",
@@ -188,10 +181,9 @@ def test_every_dispatch_altitude_carries_the_invariant() -> None:
 
 
 def test_the_finale_pr_prompt_is_the_documented_exception() -> None:
-    """#253 — exactly one builder may open a PR, and it must carry its own narrow
-    posture rather than a carve-out threaded into the general invariant. Weakening
-    `githubReadOnlyInvariant()` itself instead of isolating the exception here would
-    quietly loosen every other dispatch too."""
+    """#253 — exactly one builder may open a PR, with its own narrow posture rather
+    than a carve-out in the general invariant; weakening `githubReadOnlyInvariant()`
+    itself would quietly loosen every other dispatch too."""
     source = DRIVER.read_text()
     body = _extract_function(source, "finalePrPrompt")
     assert "githubReadOnlyInvariant()" not in body
@@ -207,9 +199,9 @@ def test_the_finale_pr_prompt_is_the_documented_exception() -> None:
 
 
 def test_the_invariant_no_longer_claims_the_branch_is_the_users_alone() -> None:
-    """#253 makes the finale itself license one PR dispatch. The general invariant
-    must still forbid every OTHER dispatch from opening one, but it can no longer
-    assert unconditionally that opening the PR stays the human's act."""
+    """#253 licenses one PR dispatch from the finale. The general invariant must still
+    forbid every other dispatch from opening one, but can no longer claim
+    unconditionally that opening a PR stays the human's act."""
     text = _run(("githubReadOnlyInvariant",), "githubReadOnlyInvariant()")
     assert "the branch is the user's to open a pr from" not in text.lower()
 
@@ -224,8 +216,8 @@ def test_the_nudge_cap_lives_in_code_not_in_a_prompt() -> None:
 def test_the_worker_self_report_no_longer_gates_the_phase() -> None:
     """#294: `!w.evidence` was the self-report the mechanical check replaces, not joins."""
     source = DRIVER.read_text()
-    # The condition itself, not the token: the comment above the replacement names the
-    # old test on purpose, and matching on the bare token would flag that explanation.
+    # The condition itself, not the token: the replacement's own comment names the old
+    # test on purpose, so matching the bare token would flag that explanation.
     assert "|| !w.evidence)" not in source
     assert "verifyWorkerPhase(story, phaseName)" in source
 
@@ -238,10 +230,10 @@ def test_a_first_dispatch_writes_its_assignment_and_a_redispatch_reads_it() -> N
     assert "rehydrateInstruction(story, phaseName, redispatchWhy)" in worker
     rehydrate = _extract_function(source, "rehydrateInstruction")
     assert "gate-ledger work-get" in rehydrate
-    # A re-dispatch leads with the record, never with a fresh brief. It may still fall
-    # back to writing one, since the dispatch it succeeds may have died before recording
-    # anything — but only as the absent-record case, and only through the one shared
-    # builder, so the payload never exists in two hand-maintained copies.
+    # A re-dispatch leads with the record, never a fresh brief. It may still fall back
+    # to writing one — the dispatch it succeeds may have died before recording anything —
+    # but only via the absent-record case, through the one shared builder, so the
+    # payload never exists in two hand-maintained copies.
     assert "If .assignment is absent entirely" in rehydrate
     for caller in ("assignmentInstruction", "rehydrateInstruction"):
         assert "assignmentCommand(story, phaseName)" in _extract_function(source, caller), caller
@@ -250,10 +242,9 @@ def test_a_first_dispatch_writes_its_assignment_and_a_redispatch_reads_it() -> N
 
 def test_a_build_phase_is_confirmed_by_the_outcome_not_the_step_name() -> None:
     """The resume path #294 exists for: a prior run logged PAUSED and the phase no-ops.
-
-    `work-log --step build` has a closed outcome vocabulary and the dispatch contracts
-    for BUILT; matching on the step name alone would confirm a re-dispatched phase that
-    produced nothing, since `epic/<slug>..HEAD` still carries the prior run's commits.
+    `work-log --step build` has a closed outcome vocabulary and dispatch contracts for
+    BUILT; matching on step name alone would confirm a re-dispatched phase that produced
+    nothing, since `epic/<slug>..HEAD` still carries the prior run's commits.
     """
     prompt = _extract_function(DRIVER.read_text(), "workerCompletionPrompt")
     assert '.outcome is exactly "BUILT"' in prompt
@@ -327,13 +318,12 @@ def test_the_report_shape_renders_anomalies_without_folding_them_into_the_queue(
 
 def test_a_story_resumed_by_a_later_invocation_rehydrates_from_its_record() -> None:
     """#295's PRIMARY case: the successor to a parked or crashed worker, next run.
-
     `redispatchWhy` used to be set only inside the intra-run `MAX_COMPLETION_NUDGES`
-    loop, so a story parked at `build` and picked up by a LATER `/next` arrived
-    with `nudges` at zero and took `assignmentInstruction` — re-briefed from scratch on
-    exactly the run whose whole reason for reading the record was that the last one
-    died. The recorded assignment's phase crosses the args boundary (this script has no
-    exec access to run `work-get` itself) and decides it.
+    loop, so a story parked at `build` and picked up by a LATER `/next` arrived with
+    `nudges` at zero and took `assignmentInstruction` — re-briefed from scratch on
+    exactly the run whose reason for reading the record was that the last one died.
+    The recorded assignment's phase crosses the args boundary (no exec access to run
+    `work-get` here) and decides it.
     """
     source = DRIVER.read_text()
     helper = _extract_function(source, "priorAssignmentPhase")
@@ -347,9 +337,9 @@ def test_a_story_resumed_by_a_later_invocation_rehydrates_from_its_record() -> N
         "about to dispatch — a bare 'has any assignment' test would rehydrate `build` "
         "from a `design` brief"
     )
-    # The nudge reason is strictly more specific and must still win once nudges start.
-    # Asserted as two independent branch strings, never as one indentation-bridged
-    # match — a reflow of the call site is not a regression.
+    # The nudge reason is strictly more specific and must win once nudges start,
+    # asserted as two independent branch strings — never one indentation-bridged
+    # match, since a reflow of the call site isn't a regression.
     assert "? `a prior dispatch of this phase returned without the artifacts" in source
     assert (
         "resumedFromRecord ? 'an earlier /next invocation dispatched this phase"
@@ -400,12 +390,10 @@ def test_the_command_hands_the_recorded_assignment_phase_over_as_data() -> None:
 
 
 def test_the_zero_landed_write_is_armed_by_invocation_not_by_a_clean_return() -> None:
-    """#268's stop-loss: a driver that throws is the run most worth counting.
-
-    The arming write is prose (the script has no exec access), and it used to be
-    conditioned on a driver having *run* — a driver that threw before its own `return`
-    yielded no `landed` field, so no run record was appended and the zero-landed streak
-    never advanced.
+    """#268's stop-loss: a driver that throws is the run most worth counting. The
+    arming write is prose (no exec access); it used to require a driver having *run* —
+    one that threw before its own `return` yielded no `landed` field, so no run record
+    was appended and the zero-landed streak never advanced.
     """
     text = WORK_THROUGH.read_text()
     assert '**The trigger is "a driver was invoked", not "a driver returned".**' in text

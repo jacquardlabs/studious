@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Regression tests for eslint.config.mjs (workflows/**/*.js). Proves the
-# config catches the five historically-real defect classes that motivated it —
-# index-misalignment on dead agents, unshift-ordering, fail-open null handling,
-# unpinned agent() dispatch, and the Workflow runtime's forbidden
-# nondeterminism APIs (Date.now / Math.random / argless new Date) — on
-# reconstructed bad patterns, stays quiet on their fixed equivalents, and lints
-# the real workflows/epic-driver.js clean (documented suppressions and all).
+# Regression tests for eslint.config.mjs (workflows/**/*.js): the five defect
+# classes that motivated it — index-misalignment on dead agents,
+# unshift-ordering, fail-open null handling, unpinned agent() dispatch, and
+# the Workflow runtime's forbidden nondeterminism APIs (Date.now /
+# Math.random / argless new Date) — must fire on reconstructed bad patterns,
+# stay quiet on fixed equivalents, and workflows/epic-driver.js must lint
+# clean (suppressions included).
 # Requires network (npx fetches the pinned eslint release; see
 # .github/workflows/ci.yml for the same pin).
 set -uo pipefail
@@ -15,9 +15,8 @@ ESLINT_VERSION="10.6.0"
 fails=0
 
 # lint_stdin <fake-path-under-workflows/> <<< "<source>"
-# Feeds source on stdin, pretending it lives at the given path so it matches
-# the config's `files: ['workflows/**/*.js']` glob, without ever writing a
-# fixture file that CI's own `eslint workflows/` sweep would then lint too.
+# Feeds source on stdin under a fake workflows/ path (matches the config's
+# files glob) so no fixture file is written for CI's own eslint sweep to lint.
 lint_stdin() {
   ( cd "$ROOT" && npx -y "eslint@$ESLINT_VERSION" --report-unused-disable-directives --stdin --stdin-filename "workflows/$1" - )
 }
@@ -166,9 +165,8 @@ const r = await agent('do it', { label: 'x', phase: 'y' })
 return { r }
 EOF
 
-# --- a bare disable-next-line (no rule list at all) covers every rule, ours
-# included, and is just as silent a default as one that names our rule with
-# no reason ---
+# --- a bare disable-next-line covers every rule, ours included, and is just
+# as silent as one naming our rule with no reason ---
 expect_fail "a bare eslint-disable-next-line with no rule list at all is itself flagged" "has no reason after" <<'EOF'
 export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
 // eslint-disable-next-line
@@ -183,9 +181,9 @@ const r = await agent('do it', { label: 'x', phase: 'y' })
 return { r }
 EOF
 
-# --- eslint-disable-next-line as a block comment suppresses exactly like the `//`
-# form above, but the rationale check used to filter on `c.type === 'Line'` and
-# silently missed it (#270 fix-and-recheck finding 1) ---
+# --- a block-comment eslint-disable-next-line suppresses like the `//` form,
+# but the rationale check filtered on `c.type === 'Line'` and missed it
+# (#270 fix-and-recheck finding 1) ---
 expect_fail "a block-comment eslint-disable-next-line with no reason is itself flagged" "has no reason after" <<'EOF'
 export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
 /* eslint-disable-next-line local/no-unpinned-agent-dispatch */
@@ -200,9 +198,8 @@ const r = await agent('do it', { label: 'x', phase: 'y' })
 return { r }
 EOF
 
-# --- a trailing eslint-disable-line, on the call's own line rather than the line
-# above, is the other silently-missed form (#270 fix-and-recheck finding 1) — both
-# `//` and `/* */` syntax ---
+# --- a trailing eslint-disable-line (on the call's own line) is the other
+# silently-missed form (#270 fix-and-recheck finding 1) — both `//` and `/* */` ---
 expect_fail "a trailing eslint-disable-line with no reason is itself flagged" "has no reason after" <<'EOF'
 export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
 const r = await agent('do it', { label: 'x', phase: 'y' }) // eslint-disable-line local/no-unpinned-agent-dispatch
@@ -227,8 +224,8 @@ const r = await agent('do it', { label: 'x', phase: 'y' }) /* eslint-disable-lin
 return { r }
 EOF
 
-# --- a file-level eslint-disable covers every later line, ours included, and
-# is checked for a rationale the same way (#270 fix-and-recheck finding 3) ---
+# --- a file-level eslint-disable covers every later line and is checked for a
+# rationale the same way (#270 fix-and-recheck finding 3) ---
 expect_fail "a file-level bare eslint-disable with no reason is itself flagged" "A file-level eslint-disable" <<'EOF'
 export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
 /* eslint-disable */
@@ -257,10 +254,9 @@ const r = await agent('do it', { label: 'x', phase: 'y' })
 return { r }
 EOF
 
-# --- a bare file-level eslint-disable with zero unpinned agent() calls to hide is
-# still clean: nothing needed the suppression, so no rationale is owed (test-auditor
-# finding 5, #270 fix-and-recheck round 3 — the sawUnpinned guard existed but had no
-# fixture covering the exact case it exists for) ---
+# --- a bare file-level eslint-disable with no unpinned agent() calls to hide is
+# clean: nothing needed the suppression, so none is owed (test-auditor finding 5,
+# #270 fix-and-recheck round 3 — the sawUnpinned guard existed but was untested) ---
 expect_pass "a bare file-level eslint-disable with no unpinned agent() calls at all is clean" <<'EOF'
 export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
 /* eslint-disable */
@@ -269,14 +265,12 @@ const r = await agent('do it', { label: 'x', model: 'haiku' })
 return { r, ok }
 EOF
 
-# --- an inline rule-CONFIGURATION comment (`/* eslint <rule>: "off" */`) is a
-# different directive from eslint-disable(-next-line) entirely, with no `-- reason`
-# convention at all — it silences the named rule file-wide with nothing here able to
-# check it for a rationale (architecture-auditor finding 1, #270 fix-and-recheck
-# round 3). Caught by its own sibling rule, local/no-rule-config-bypass: verified
-# empirically that a report from no-unpinned-agent-dispatch itself about the very
-# comment disabling it is swallowed file-wide, at any anchor line — a same-rule fix
-# is not viable here, unlike the eslint-disable case above. ---
+# --- an inline rule-configuration comment (`/* eslint <rule>: "off" */`) is a
+# different directive from eslint-disable(-next-line), has no `-- reason`
+# convention, and silences the rule file-wide with nothing to check a rationale
+# against (architecture-auditor finding 1, #270 fix-and-recheck round 3). Caught
+# by a sibling rule, local/no-rule-config-bypass — a same-rule fix isn't viable
+# since the comment swallows even a report about itself, file-wide. ---
 expect_fail "a rule-configuration comment disabling our rule is itself flagged" "no-rule-config-bypass" <<'EOF'
 export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
 /* eslint local/no-unpinned-agent-dispatch: "off" */
@@ -300,11 +294,10 @@ EOF
 
 # --- defect class 5: Workflow-runtime forbidden nondeterminism APIs ---
 # The runtime THROWS on Date.now(), Math.random(), and an argless new Date():
-# each would hand a resumed re-execution a different value than the original
-# run observed, breaking the resume contract. CI and the Python driver tests
-# execute workflows/epic-driver.js under plain node — where all three work
-# fine — which is exactly how a module-scope Date.now() once shipped green:
-# nothing in this config banned the class until these rules did.
+# a resumed re-execution would see a different value, breaking the resume
+# contract. Plain node (CI, the Python driver tests) runs all three fine,
+# which is how a module-scope Date.now() once shipped green before these
+# rules existed.
 expect_fail "flags Date.now()" "no-restricted-properties" <<'EOF'
 export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
 const startedAt = Date.now()
@@ -347,15 +340,13 @@ log(reslt)
 return { r }
 EOF
 
-# --- harnessShape's line-remap arithmetic (:HARNESS_PREAMBLE_LINES, consumed by
-# postprocess and by firstStatementLine in both exemption checkers) is tied to one
-# shared constant, not three independently hardcoded literals — but a "message
-# substring" fixture like the one above can't actually prove the remap is correct,
-# only that no-undef fired at all. Assert the ACTUAL reported line number instead:
-# `log(reslt)` sits on the real file's own line 3, so a wrapper change that silently
-# added or dropped a preamble line (mis-anchoring every report these functions
-# produce) would shift this to 2 or 4 while the message-substring check above stayed
-# green (architecture-auditor finding 2, #270 fix-and-recheck round 3) ---
+# --- harnessShape's line-remap (:HARNESS_PREAMBLE_LINES, used by postprocess and
+# firstStatementLine in both exemption checkers) is one shared constant, not three
+# hardcoded literals — but a message-substring fixture can't prove the remap is
+# correct, only that no-undef fired. Assert the actual reported line instead:
+# `log(reslt)` is real line 3, so a wrapper miscount would shift this to 2 or 4
+# while the substring check above stayed green (architecture-auditor finding 2,
+# #270 fix-and-recheck round 3) ---
 reported_line=$(cd "$ROOT" && npx -y "eslint@$ESLINT_VERSION" --report-unused-disable-directives --format json --stdin --stdin-filename "workflows/fixture.js" - <<'EOF' 2>&1 | node -e "let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>{try{const j=JSON.parse(d); const m=j[0].messages.find(m=>m.ruleId==='no-undef'); console.log(m ? m.line : 'MISSING')}catch(e){console.log('PARSE-ERROR: '+e.message)}})"
 export const meta = { name: 'x', description: 'x', whenToUse: 'x', phases: [] }
 const r = await agent('do it', { label: 'x' })

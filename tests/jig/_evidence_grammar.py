@@ -1,32 +1,18 @@
-"""Derives the evidence-folder grammar from `scripts/evidence-capture` rather
-than a hand-maintained copy.
+"""Derives the evidence-folder grammar from `scripts/evidence-capture` instead
+of hand-copying it into `test_evidence_path_grammar.py` -- that scan used to
+transcribe `target_dir` by hand, so a writer change would silently leave it
+enforcing a stale shape (#260, epic m10-flow-coherence).
 
-`test_evidence_path_grammar.py` scans every prompt surface for folder shapes
-that disagree with what capture writes. That scan was itself a hand
-transcription of `target_dir` -- so the next change to the writer would have
-left the scan enforcing the *stale* shape across three trees while staying
-green, which is #260's own failure class inherited by the guard built to
-prevent it (epic m10-flow-coherence, code- and architecture-auditor Important
-findings against the coach-evidence-path story).
+`target_dir` is a local inside `main()`, not an importable callable or
+constant, so this follows `_vocabulary.py`'s pattern-derivation approach
+rather than `test_load_bearing_cross_surface.py`'s call-the-function one. A
+reordered, added, or dropped segment changes what `derive_folder_grammar()`
+returns, so every pinned surface fails loudly instead of staying stale
+silently.
 
-Why source text rather than an import: the grammar lives in
-`target_dir = evidence_root / f"{date}-{args.task}-{branch_slug(branch)}"`, a
-local inside `main()`. There is no callable to invoke and no module constant
-to read, so `test_load_bearing_cross_surface.py`'s "execute the real function"
-approach does not apply here; this module follows `_vocabulary.py` instead,
-which derives from a source of truth by pattern rather than by call.
-
-What that buys, precisely: reorder the segments, add one, or drop one, and
-`derive_folder_grammar()` returns a different string, so every surface pinned
-to it fails until it is corrected. Rename a replacement field and the mapping
-below stops resolving and this module raises -- loudly, not silently, which is
-the whole point.
-
-Not itself a test module -- nothing here is collected by `unittest discover`,
-matching the `_vocabulary.py` / `_load_bearing.py` / `_task_split_boundary.py`
-"shared, not itself collected" convention already established in this repo.
-`test_evidence_path_grammar.py` exercises it directly, including a
-demonstration that a changed source is caught.
+Not collected by `unittest discover`, per the `_vocabulary.py` /
+`_load_bearing.py` / `_task_split_boundary.py` convention; exercised directly
+by `test_evidence_path_grammar.py`.
 """
 from __future__ import annotations
 
@@ -42,10 +28,10 @@ TARGET_DIR_RE = re.compile(
     r"target_dir\s*=\s*evidence_root\s*/\s*f\"(?P<template>[^\"]*)\""
 )
 
-#: Every replacement field the writer's f-string may carry, mapped to the
-#: placeholder a prompt surface writes in its place. A field absent from this
-#: mapping is a rename or an addition the surfaces have not been taught yet,
-#: and resolves to a raised error rather than a guessed placeholder.
+#: Replacement fields the writer's f-string may carry, mapped to the
+#: placeholder prompt surfaces use in their place. An unmapped field means a
+#: rename or addition the surfaces haven't been taught -- raises rather than
+#: guessing.
 FIELD_PLACEHOLDERS = {
     "date": "<date>",
     "args.task": "<task>",

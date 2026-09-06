@@ -2,15 +2,11 @@
 # Integration tests for hooks/evidence-capture.sh (the PostToolUse/PostToolUseFailure
 # hook wired to Bash in hooks.json). Requires git + jq.
 #
-# What this file does and doesn't prove (reference/evidence-format.md, "Open item:
-# origin and /next's actual dispatch mechanism" has the full account): every
-# test here feeds the hook a crafted JSON payload on stdin, exactly as Claude Code's
-# own hooks reference documents PostToolUse/PostToolUseFailure input for Bash — this
-# deterministically proves the hook's own logic (armed check, allow-list, exit-code
-# derivation per event, digest source, cross-worktree resolution) is correct given
-# that input shape. It does NOT prove a real /next dispatch actually produces
-# an agent_id-bearing payload — no Task tool is available to this suite to dispatch a
-# real nested subagent and observe the hook fire from inside it.
+# Feeds the hook crafted JSON payloads matching Claude Code's documented
+# PostToolUse/PostToolUseFailure input shape for Bash, proving the hook's own logic
+# (armed check, allow-list, exit-code derivation, digest source, cross-worktree
+# resolution) — not that a real /next dispatch produces an agent_id-bearing payload;
+# no Task tool is available here to dispatch a real subagent (reference/evidence-format.md).
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -172,11 +168,9 @@ d11=$(sandbox feat/foo); arm "$d11" feat/foo
 run_hook "$d11" '{"hook_event_name":"PostToolUse","tool_input":{"command":"pytest tests/"},"tool_response":{"status":"async_launched","agentId":"x"}}'
 check "non-stdout tool_response shape: no evidence file" "no" "$([ -d "$d11/.studious/evidence" ] && echo yes || echo no)"
 
-# --- dispatched-worker-shaped path: hook invoked from a LINKED WORKTREE cwd
-# (mirroring a story worker's own process cwd) with a subagent-shaped payload.
-# Confirms the hook resolves the armed check and writes to the SHARED main-tree
-# evidence store, not a worktree-local one — the mechanically checkable half of
-# dogfood item zero (see file header and reference/evidence-format.md). ---
+# --- linked-worktree cwd (mirrors a story worker's process cwd), subagent payload:
+# armed check resolves and writes land in the SHARED main-tree evidence store, not
+# a worktree-local one — dogfood item zero (reference/evidence-format.md). ---
 d12=$(sandbox)
 ( cd "$d12" && git worktree add -q "$d12/.studious/worktrees/e/s" -b epic/e--s )
 arm "$d12" epic/e--s

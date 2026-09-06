@@ -1,30 +1,23 @@
 #!/usr/bin/env bash
-# Studious evidence capture — a PostToolUse/PostToolUseFailure hook (both wired
-# in hooks.json to this same script) that silently appends one record per
-# verification command to .studious/evidence/<branch-slug>.jsonl while the
-# current branch is a story gate-ledger already knows about ("armed").
+# Studious evidence capture — PostToolUse/PostToolUseFailure hook (both wired
+# in hooks.json to this script) that appends one record per verification
+# command to .studious/evidence/<branch-slug>.jsonl while the current branch
+# is armed (known to gate-ledger).
 #
-# Fully silent by design, on every path: no stdout, no permission decision,
-# never blocks, never adds a decision Claude Code would surface. A branch
-# nobody armed, or a Bash call that doesn't look like verification, produces
-# no record and no side effect — same posture as hooks/gate-reminder.sh's
-# no-op on a non-`gh pr create` command.
+# Fully silent: no stdout, no permission decision, never blocks. An unarmed
+# branch or non-verification command produces no record, same as
+# hooks/gate-reminder.sh's no-op.
 #
-# Two events, one script, because Claude Code's own hook schema splits a Bash
-# call's outcome across them (verified against code.claude.com/docs/en/hooks,
-# not guessed — see reference/evidence-format.md's "Resolved: PostToolUse vs
-# PostToolUseFailure" section for the full finding):
-#   - PostToolUse   fires ONLY when the command exited zero. tool_response has
-#     stdout/stderr/interrupted/isImage — no exit-code field, because success
-#     is the only reason this event fired at all.
-#   - PostToolUseFailure fires when the command exited non-zero (or was
-#     interrupted). It carries a different shape entirely: an `error` string
-#     (e.g. "Command exited with non-zero status code 1") and `is_interrupt`
-#     — no stdout/stderr. A hook registered on PostToolUse alone never sees a
-#     failing verification run, which would silently defeat the one property
-#     this story exists to add (a FAILED record actually means something
-#     failed) — it wouldn't mislabel failures as PASSED, it would drop them
-#     entirely, which is worse.
+# Two events because Claude Code's hook schema splits a Bash call's outcome
+# across them (code.claude.com/docs/en/hooks; details in
+# reference/evidence-format.md's "Resolved: PostToolUse vs PostToolUseFailure"):
+#   - PostToolUse fires only on exit 0. tool_response has stdout/stderr/
+#     interrupted/isImage, no exit-code field.
+#   - PostToolUseFailure fires on non-zero exit or interrupt. It carries an
+#     `error` string (e.g. "Command exited with non-zero status code 1") and
+#     `is_interrupt` instead — no stdout/stderr. Without this event, failing
+#     verification runs would be silently dropped rather than mislabeled,
+#     defeating the point of a FAILED record.
 
 input=$(cat)
 
@@ -39,19 +32,14 @@ command_str=$(printf '%s' "$input" | jq -r '.tool_input.command // empty')
 [ -n "$command_str" ] || exit 0
 
 # --- verification-relevant filter: conservative, over-inclusive allow-list.
-# Data, not prose — edit this array to tune coverage for a toolchain this list
-# misses (see reference/evidence-format.md's Open questions). Word-boundary
-# matched (a token must not be glued to another alnum char on either side;
-# '_', '.', '/', '-', space, and string edges all count as boundaries — this
-# is what lets "test" catch bash tests/test_gate_ledger.sh and "check" catch
-# scripts/check_references.py, while "checkout" and "cmake" still miss).
-# go test / cargo test|build / npm test / npm run test|build need no explicit
-# entry: they already contain the bare "test"/"build" token, so the catch-all
-# alone covers them — do not add a redundant compound pattern for these.
-# Runs BEFORE the armed check: this hook fires on every Bash call in the
-# session, and this filter is pure bash + one grep, while the armed check
-# spawns git and gate-ledger — the common non-verification command must exit
-# here without ever paying those spawns.
+# Edit this array to add tokens (see reference/evidence-format.md's Open
+# questions). Word-boundary matched ('_','.','/','-',space,edges count as
+# boundaries) so "test" catches tests/test_gate_ledger.sh and "check" catches
+# scripts/check_references.py, while "checkout"/"cmake" don't match. go
+# test/cargo test|build/npm test|build need no extra entry — the bare
+# "test"/"build" token already covers them.
+# Runs before the armed check (git + gate-ledger spawn) so a non-verification
+# command exits cheaply.
 VERIFICATION_TOKENS=(
   pytest jest vitest rspec phpunit                    # test runners (named)
   eslint ruff flake8 shellcheck 'markdownlint(-cli2)?' # lint/static analysis
@@ -66,20 +54,17 @@ done
 pattern="(^|[^A-Za-z0-9])(${alt})(\$|[^A-Za-z0-9])"
 printf '%s' "$command_str" | grep -Eq "$pattern" || exit 0
 
-# --- armed check: current branch must be a branch gate-ledger already knows
-# about (a work file's .branch, written by /next or its epic driver
-# when the story was set up — an existing step, not a new one). work-list's
-# column 3 is the branch, exact string match (not the gates ledger's slug —
-# no collision risk here, this compares full branch names).
+# --- armed check: branch must be one gate-ledger already knows about (a work
+# file's .branch, written by /next or its epic driver). work-list's column 3
+# is the branch; exact string match against full branch names.
 branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || exit 0
 [ -n "$branch" ] && [ "$branch" != "HEAD" ] || exit 0
 armed=$("$ledger" work-list 2>/dev/null | cut -f3 | grep -qxF "$branch" && echo yes || echo no)
 [ "$armed" = "yes" ] || exit 0
 
-# --- origin: agent_id is documented as present only when the hook fires
-# inside a subagent call (code.claude.com/docs/en/hooks, "Common input
-# fields"). reference/evidence-format.md records what this does and doesn't
-# prove about /next's own dispatch mechanism.
+# --- origin: agent_id is present only when the hook fires inside a subagent
+# call (code.claude.com/docs/en/hooks). See reference/evidence-format.md for
+# what this does/doesn't prove about /next's dispatch mechanism.
 agent_id=$(printf '%s' "$input" | jq -r '.agent_id // empty')
 agent_type=$(printf '%s' "$input" | jq -r '.agent_type // empty')
 origin="interactive"
@@ -101,22 +86,19 @@ sha256_of() { # reads stdin, prints lowercase hex digest or nothing
 exit_code="" digest=""
 case "$event" in
   PostToolUse)
-    # Only fires on success: the exit code IS zero, not read from a field
-    # that doesn't exist. Guard the expected shape (has stdout) so an
-    # async-launched background Bash call (a different tool_response shape)
-    # is skipped rather than mis-recorded as a completed, passing run.
+    # Exit code is inferred zero (no such field exists). Guard has("stdout")
+    # so an async/background Bash call (different tool_response shape) is
+    # skipped rather than mis-recorded as a passing run.
     has_stdout=$(printf '%s' "$input" | jq -r '.tool_response | has("stdout")' 2>/dev/null)
     [ "$has_stdout" = "true" ] || exit 0
     exit_code=0
     digest=$(printf '%s' "$input" | jq -cr '.tool_response | {stdout, stderr}' 2>/dev/null | sha256_of)
     ;;
   PostToolUseFailure)
-    # No exit-code field exists on this event at all — only a human-readable
-    # `error` string. Best-effort parse the documented phrasing
-    # ("Command exited with non-zero status code N"); fall back to a non-zero
-    # sentinel when it doesn't parse (e.g. interrupted/timed-out). The FAILED
-    # verdict below never depends on this parse succeeding — only the exact
-    # numeric code would be approximate in the fallback case.
+    # No exit-code field on this event — parse it from the `error` string
+    # ("Command exited with non-zero status code N"); fall back to sentinel 1
+    # when it doesn't parse (e.g. interrupted/timed out). FAILED verdict
+    # doesn't depend on this parse succeeding, only the exact code would.
     err=$(printf '%s' "$input" | jq -r '.error // empty')
     [ -n "$err" ] || exit 0
     exit_code=$(printf '%s' "$err" | grep -oE '[0-9]+$' || true)

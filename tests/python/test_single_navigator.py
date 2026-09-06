@@ -1,25 +1,14 @@
 """One navigator, one door (issues #214, #286, and the persona restructure).
 
-This file replaces `test_navigator_shared_store.py`, whose premise was the opposite
-ruling. The history is worth stating, because the drift it records is the reason these
-assertions exist:
+Replaces `test_navigator_shared_store.py`, whose premise (#214: two navigators sharing
+one store) was reversed by the persona restructure — `/next` absorbed `/work-on`,
+`/work-through`, and `/coach` (#286). M13's `/work-through` story-class routing (#280),
+written before the restructure landed, nearly kept both doors alive instead of
+collapsing them.
 
-* #214 found two navigators — `/work-on` and `/coach` — answering "what's next" from two
-  state stores neither read. It was **ratified** by keeping both and sharing the store.
-* The persona restructure reversed that: `/next` is one door for "what's next" at story
-  and epic scale, absorbing `/work-on`, `/work-through`, and `/coach`'s read posture.
-  #286 is the formal record of the reversal.
-* The reversal then nearly missed its own landing. M13 shipped `/work-through`'s
-  story-class routing (#280) — written three days *before* the restructure was signed off,
-  and scoped to keep both doors — without collapsing them. The surface got a rule for
-  choosing between two entrypoints instead of one entrypoint.
-
-So the invariant these tests pin is not "the navigator behaves well." It is **there is
-exactly one navigator**, checkable mechanically, so a future change that reintroduces a
-second one fails here rather than shipping.
-
-Static text checks — no live model. The one subprocess call is `git ls-files`, so the
-`/coach` sweep scans what actually ships rather than stale local worktrees.
+Pins "exactly one navigator" mechanically so a reintroduced second door fails here.
+Static text checks only; the one subprocess call (`git ls-files`) scans shipped files,
+not stale local worktrees.
 """
 
 from __future__ import annotations
@@ -38,8 +27,7 @@ README = REPO_ROOT / "README.md"
 COMMANDS = REPO_ROOT / "commands"
 SKILLS = REPO_ROOT / "skills"
 
-#: Doors the restructure retired into `/next`. A file reappearing under any of these
-#: names is the second navigator coming back.
+#: Doors retired into `/next`; a reappearing file is the second navigator coming back.
 RETIRED = ("work-on.md", "work-through.md", "coach.md")
 RETIRED_SKILLS = ("coach", "continue-feature-work", "run-the-milestone")
 
@@ -48,8 +36,7 @@ def doors() -> list[dict]:
 
 
 def test_the_charter_declares_exactly_one_navigator() -> None:
-    """The charter is the authority the CI check and the docs both derive from. Two
-    navigator rows here would mean the collapse never happened."""
+    """Two navigator rows here would mean the collapse never happened."""
     navigators = [d["door"] for d in doors() if d["cls"] == "navigator"]
     assert navigators == ["next"], f"expected exactly one navigator door, got {navigators}"
 
@@ -70,8 +57,8 @@ def test_no_retired_navigator_skill_exists() -> None:
 
 
 def test_coach_is_gone_from_every_shipped_surface() -> None:
-    """`/coach` is dropped, not deprecated: its read posture is `/next`'s default. A
-    lingering invocation would send a user at a door that no longer exists."""
+    """`/coach` is dropped, not deprecated; a lingering invocation sends a user at a
+    door that no longer exists."""
     invocation = re.compile(r"(?<![\w/-])/coach(?![\w/-])")
     tracked = subprocess.run(
         ["git", "ls-files", "*.md"],
@@ -83,8 +70,7 @@ def test_coach_is_gone_from_every_shipped_surface() -> None:
     offenders = [
         rel
         for rel in tracked
-        # `docs/` and CHANGELOG.md hold historical records, which describe the surface as
-        # it stood when they were written; `tests/` holds this file's own prose.
+        # docs/ and CHANGELOG.md are historical records; tests/ holds this file's own prose.
         if not rel.startswith(("docs/", "tests/", "CHANGELOG"))
         and invocation.search((REPO_ROOT / rel).read_text(encoding="utf-8"))
     ]
@@ -92,8 +78,8 @@ def test_coach_is_gone_from_every_shipped_surface() -> None:
 
 
 def test_next_carries_the_read_first_posture_it_absorbed() -> None:
-    """`/coach`'s contribution to the merge was its posture, not its file. If the door
-    runs without reporting first, the absorption dropped the half that mattered."""
+    """`/coach`'s contribution was its posture, not its file — the absorption must
+    carry it."""
     text = NEXT.read_text(encoding="utf-8")
     assert "Report first, run on confirmation" in text
     assert "Propose, don't apply." in text
@@ -101,8 +87,8 @@ def test_next_carries_the_read_first_posture_it_absorbed() -> None:
 
 
 def test_next_owns_both_scales() -> None:
-    """Scale-invariance is the ruling that made one door possible. The door has to reach
-    epic scale itself, not hand off to a second entrypoint."""
+    """Scale-invariance is what makes one door possible; it must reach epic scale
+    itself, not hand off to a second entrypoint."""
     text = NEXT.read_text(encoding="utf-8")
     assert "reference/epic-orchestration.md" in text, (
         "/next names no epic-scale contract — epic work has nowhere to go but a second door"
@@ -111,8 +97,8 @@ def test_next_owns_both_scales() -> None:
 
 
 def test_the_epic_contract_is_not_itself_a_door() -> None:
-    """The 1173 lines moved to reference/ so `/next` could stay one door. A frontmatter
-    block there would make it invokable again — a second navigator by another name."""
+    """A frontmatter block here would make it invokable again — a second navigator by
+    another name."""
     head = EPIC.read_text(encoding="utf-8").lstrip()
     assert not head.startswith("---"), (
         "reference/epic-orchestration.md has command frontmatter — it is a contract "
@@ -128,9 +114,7 @@ def test_the_readme_sends_a_reader_to_one_door() -> None:
         assert name not in text, f"README still names the retired door {name}"
 
 
-#: Shipped executables that talk about the driver's own error paths in prose —
-#: worth a retired-door check too, not just the README a person reads. Found by
-#: /exorcist:seance G-20: workflows/epic-driver.js named `/work-through` in a
+#: Found by /exorcist:seance G-20: epic-driver.js still named `/work-through` in a
 #: thrown error message years after the collapse.
 OTHER_SHIPPED_PROSE = (
     REPO_ROOT / "workflows" / "epic-driver.js",

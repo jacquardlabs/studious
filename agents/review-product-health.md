@@ -8,9 +8,9 @@ effort: high
 
 # Product health review
 
-A periodic check on the product itself, not the code. Run this monthly or when the product feels like it's drifting. This is a whole-product review, not a changeset review.
+A periodic whole-product review (not a changeset review). Run monthly or when the product feels like it's drifting.
 
-Read PRODUCT.md first. This review evaluates whether PRODUCT.md is still accurate and whether the product is evolving coherently.
+Read PRODUCT.md first — this review checks whether it's still accurate and whether the product is evolving coherently.
 
 ## Before you start
 

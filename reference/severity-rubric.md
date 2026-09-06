@@ -1,10 +1,9 @@
 # Severity rubric — canonical tiers and per-auditor mapping
 
-Canonical source for the three-tier severity ladder used by `/review` and the label→tier
-mapping that glues the auditors' five different severity vocabularies to it. `commands/review.md`
-cites this file instead of embedding the mapping table. The periodic review family
-(`commands/retro.md`, `agents/review-*.md`) already emits directly in this vocabulary
-and needs no mapping.
+Canonical three-tier severity ladder for `/review`, plus the label→tier mapping from each
+auditor's own vocabulary. `commands/review.md` cites this file instead of embedding the
+mapping table. The periodic review family (`commands/retro.md`, `agents/review-*.md`)
+already emits directly in this vocabulary and needs no mapping.
 
 ## The three tiers
 
@@ -37,13 +36,10 @@ A new auditor registers its own row in both tables here rather than requiring a 
 
 ## Objective anchors — what a Critical must cite
 
-A tier is not a self-assessment. Critical blocks merge, so a Critical is only a Critical when it
-cites the objective anchor its lane owns: a fact a reader can check without re-running the
-reviewer's judgment. **A finding labelled Critical that cites no anchor is recorded Important
-instead** — the gate door that records findings applies this before the ledger write, and the
-compiled report names the anchor that was missing. This is not a challenge to the reviewer's
-skill; it is what keeps "Critical" a claim about the changeset rather than a claim about how the
-reviewer feels about the changeset.
+A tier is not a self-assessment: a Critical must cite the objective anchor its lane owns — a fact
+a reader can check without re-running the reviewer's judgment. **A finding labelled Critical that
+cites no anchor is recorded Important instead** — the gate door applies this before the ledger
+write, and the compiled report names the anchor that was missing.
 
 | Auditor | A Critical must cite |
 |---------|----------------------|

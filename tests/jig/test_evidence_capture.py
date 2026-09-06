@@ -255,11 +255,9 @@ class TestEvidenceCaptureProbeArtifactFreshness(unittest.TestCase):
 
         artifact = repo / "probe-evidence.txt"
         artifact.write_text("no orphaned process found\n", encoding="utf-8")
-        # Backdate the artifact's mtime a few seconds before the (real-time)
-        # commit below — mirrors the real /build ordering (executor writes,
-        # then commits moments later) without forcing GIT_*_DATE into the
-        # future, which would trip evidence-capture's own clock-skew guard
-        # (`now < commit_epoch`) before ever reaching the staleness check.
+        # Backdate mtime a few seconds before the commit, mirroring real
+        # /build ordering, without forcing GIT_*_DATE into the future (which
+        # would trip the clock-skew guard before the staleness check).
         written_at = time.time() - 5
         os.utime(artifact, (written_at, written_at))
 
@@ -268,8 +266,8 @@ class TestEvidenceCaptureProbeArtifactFreshness(unittest.TestCase):
         return repo, artifact
 
     def test_refuses_a_probe_artifact_pointed_at_directly_inside_the_worktree(self) -> None:
-        """Documents the trap: handing --artifact the in-worktree,
-        already-committed probe artifact directly always refuses."""
+        """Handing --artifact the in-worktree, already-committed probe
+        artifact directly always refuses."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, artifact = self._repo_with_committed_probe_artifact(tmp)
 
@@ -290,8 +288,8 @@ class TestEvidenceCaptureProbeArtifactFreshness(unittest.TestCase):
             self.assertIn("stale", result.stderr)
 
     def test_accepts_a_plain_non_preserving_copy_of_the_same_artifact(self) -> None:
-        """The SKILL.md-prescribed fix: a plain copy (fresh mtime, not
-        preserved from the original) clears the same gate."""
+        """SKILL.md's fix: a plain copy (fresh mtime, not preserved from the
+        original) clears the same gate."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, artifact = self._repo_with_committed_probe_artifact(tmp)
 
@@ -509,13 +507,12 @@ class TestEvidenceCaptureUsageErrors(unittest.TestCase):
 
 
 class TestEvidenceCaptureForceClearing(unittest.TestCase):
-    """Issue #224: `--force` copied this run's artifacts in and rewrote
-    manifest.json but never removed what was already there, so a prior
-    capture's differently-labelled artifact survived beside a manifest that
-    no longer listed it. `evidence-freshness` checks that every *listed*
-    artifact is fresh, never that every *present* artifact is listed — so the
-    orphan is invisible to the freshness hold and a plausible wrong link in a
-    PR body.
+    """Issue #224: `--force` copied artifacts in and rewrote manifest.json but
+    never removed what was already there, so a prior capture's
+    differently-labelled artifact survived beside a manifest that no longer
+    listed it — invisible to `evidence-freshness` (checks listed artifacts
+    are fresh, not that present artifacts are listed) and a plausible wrong
+    link in a PR body.
     """
 
     def _repo(self, tmp: Path) -> Path:
@@ -566,9 +563,9 @@ class TestEvidenceCaptureForceClearing(unittest.TestCase):
             self.assertNotIn("results.txt", listed)
 
     def test_a_clearing_run_reports_what_it_deleted(self) -> None:
-        """Deletion is the half of `--force` a reader cannot see in the
-        result. A run that reports only "wrote N artifact(s)" reads
-        identically whether the folder was empty or held a prior capture."""
+        """Deletion is invisible in "wrote N artifact(s)" alone — that line
+        reads identically whether the folder was empty or held a prior
+        capture."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._repo(Path(tmp))
             evidence_root = Path(tmp) / "evidence"
@@ -588,8 +585,8 @@ class TestEvidenceCaptureForceClearing(unittest.TestCase):
             self.assertIn("wrote 1 artifact(s)", forced.stdout)
 
     def test_a_force_run_with_nothing_to_clear_reports_no_deletion(self) -> None:
-        """The count is a report of what happened, not a fixed prefix on
-        every `--force` run -- otherwise it stops being evidence of anything."""
+        """The count reports what happened, not a fixed prefix on every
+        `--force` run — otherwise it's not evidence of anything."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._repo(Path(tmp))
             evidence_root = Path(tmp) / "evidence"
@@ -603,8 +600,8 @@ class TestEvidenceCaptureForceClearing(unittest.TestCase):
             self.assertNotIn("cleared", result.stdout)
 
     def test_the_default_refusal_says_what_force_actually_does(self) -> None:
-        """`--force` deletes now; the refusal used to advertise it as
-        "re-capture into it", wording from before it cleared anything."""
+        """`--force` deletes now; the refusal used to say "re-capture into
+        it", wording from before it cleared anything."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._repo(Path(tmp))
             evidence_root = Path(tmp) / "evidence"
@@ -619,8 +616,7 @@ class TestEvidenceCaptureForceClearing(unittest.TestCase):
             self.assertIn("Pass --force to clear it and re-capture", refused.stderr)
 
     def test_force_copies_into_an_existing_empty_directory(self) -> None:
-        """Nothing to clear, nothing to lose — the second of --force's three
-        recognized cases."""
+        """The second of --force's three recognized cases: nothing to clear."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._repo(Path(tmp))
             evidence_root = Path(tmp) / "evidence"
@@ -633,11 +629,11 @@ class TestEvidenceCaptureForceClearing(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_force_refuses_a_non_empty_directory_carrying_no_manifest(self) -> None:
-        """The third case: a directory the tool cannot identify as its own
+        """The third case: a directory the tool can't identify as its own
         output — the shape a capture that crashed after copying but before
-        writing its manifest leaves. An opt-in past the default refusal
-        authorizes replacing evidence, not deleting something unidentifiable,
-        so this refuses *before* any mutation and names the recovery."""
+        writing its manifest leaves. `--force` authorizes replacing evidence,
+        not deleting something unidentifiable, so this refuses before any
+        mutation and names the recovery."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._repo(Path(tmp))
             evidence_root = Path(tmp) / "evidence"
@@ -658,21 +654,20 @@ class TestEvidenceCaptureForceClearing(unittest.TestCase):
 
 
 class TestEvidenceCaptureForceOverCommittedEvidence(unittest.TestCase):
-    """Design doc open question 1 / pre-mortem risk 5: `--force`'s clearing
+    """Design doc open question 1 / pre-mortem risk 5: `--force` clearing
     deletes previously-*committed* files, leaving the tree dirty with
-    deletions rather than additions — a shape nothing had exercised, because
-    no shipped caller passes `--force`. The exposure is one step downstream:
-    those deletions sit uncommitted and the *next* capture refuses against the
-    dirty tree.
+    deletions — unexercised before since no shipped caller passes `--force`.
+    Downstream exposure: those deletions sit uncommitted and the *next*
+    capture refuses against the dirty tree.
 
-    A scratch `--evidence-root` outside the repo never touches the index and
-    so cannot exercise this at all. The shipped default store is gitignored in a
-    real consuming project, so no shipped caller commits evidence any more — but
-    the fixture repo carries no `.gitignore`, so committing the store remains
-    representable, and a project that force-tracks evidence (or overrides
-    `--evidence-root` to a tracked path) still meets exactly this shape. This
-    test captures into the default store, commits it, re-captures with
-    `--force`, and checks that the resulting deletions commit to a clean tree.
+    A scratch `--evidence-root` outside the repo never touches the index, so
+    can't exercise this. The shipped default store is gitignored in a real
+    consuming project (no shipped caller commits evidence any more), but the
+    fixture repo carries no `.gitignore`, so committing the store is still
+    representable — matching a project that force-tracks evidence or points
+    `--evidence-root` at a tracked path. This test captures into the default
+    store, commits it, re-captures with `--force`, and checks the resulting
+    deletions commit to a clean tree.
     """
 
     def test_force_deletions_over_committed_evidence_commit_to_a_clean_tree(self) -> None:
@@ -710,15 +705,14 @@ class TestEvidenceCaptureForceOverCommittedEvidence(unittest.TestCase):
             result = capture(second, "second", force=True)
             self.assertEqual(result.returncode, 0, result.stderr)
 
-            # The success line names the deletions, because the next capture
-            # meets them at the generic dirty-tree refusal ("Commit the task's
-            # work first"), which names the wrong cause and cannot know this
-            # run produced them. Substrings, not the whole line: the phrasing
+            # The success line names the deletions, since the next capture would
+            # otherwise meet them at the generic dirty-tree refusal, which
+            # names the wrong cause. Substrings, not the whole line: phrasing
             # stays editable, the fact does not.
             self.assertIn("uncommitted deletions", result.stdout)
             self.assertIn("before the next capture", result.stdout)
 
-            # The deletion is real and uncommitted — the untested shape.
+            # Real and uncommitted — the previously-untested shape.
             dirty = git(["status", "--porcelain"], repo)
             self.assertIn("first.txt", dirty)
             self.assertIn("second.txt", dirty)
@@ -735,17 +729,14 @@ class TestEvidenceCaptureForceOverCommittedEvidence(unittest.TestCase):
 
 
 class TestEvidenceCaptureBranchSlugPath(unittest.TestCase):
-    """Issue #179: the folder name carried only a date and the caller's
-    literal `--task`, so two independent branches building on the same day
-    wrote different content to one path and collided as an add/add merge
-    conflict once both targeted the same base.
+    """Issue #179: the folder name carried only a date and the literal
+    `--task`, so two independent branches building on the same day wrote
+    different content to one path and collided as an add/add merge conflict.
 
-    `_tempgit.init_repo` runs `git init -b main`, so two throwaway repos left
-    on their default branch produce identical slugs and identical paths — the
-    slug distinguishes branch *names*, not branches. Every test here therefore
-    checks out a distinctly-named branch first; a test written literally as
-    "two independent repos" without that step fails, or gets 'fixed' by
-    weakening its assertion.
+    `_tempgit.init_repo` runs `git init -b main`, so two throwaway repos on
+    their default branch produce identical slugs — the slug distinguishes
+    branch *names*, not branches. Every test here checks out a
+    distinctly-named branch first.
     """
 
     def test_two_repos_on_differently_named_branches_write_distinct_paths(self) -> None:
@@ -784,11 +775,10 @@ class TestEvidenceCaptureBranchSlugPath(unittest.TestCase):
             )
 
     def test_the_slug_matches_gate_ledgers_bash_branch_slug(self) -> None:
-        """Pre-mortem risk 3: the slug is claimed as reuse of
-        `bin/gate-ledger:37`'s `branch_slug()`, but that is bash and this
-        script is Python — one rule, two implementations, coordinated by
-        prose unless something checks. Run both over the same names, through
-        the real capture path, so a drift in either is a test failure."""
+        """Pre-mortem risk 3: the slug claims reuse of `bin/gate-ledger:37`'s
+        `branch_slug()`, but that's bash and this script is Python — one
+        rule, two implementations, coordinated only by prose unless checked.
+        Runs both over the same names through the real capture path."""
         branches = ("feat/foo", "epic/m11-correctness-tail--evidence-path-integrity", "noslash")
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
@@ -834,15 +824,14 @@ class TestEvidenceCaptureBranchSlugPath(unittest.TestCase):
 
 class TestEvidenceCaptureResolveVerb(unittest.TestCase):
     """The one home for "which folder belongs to which task". Keyed on task +
-    branch, never task + date: once a branch rebases onto a base carrying
+    branch, never task + date: after a branch rebases onto a base carrying
     another branch's merged evidence, both manifests say the same task on the
-    same date, and a date-keyed reader would pick one and emit a link that
-    reads as verified.
+    same date, and a date-keyed reader would pick one and emit a false link.
     """
 
     def _repo_and_root(self, tmp: str) -> tuple[Path, Path]:
-        # Pre-resolved so expected row strings match display_path's own
-        # `.resolve()`d output (macOS tempdirs live behind a /var symlink).
+        # Pre-resolved: macOS tempdirs live behind a /var symlink, and row
+        # strings must match display_path's own `.resolve()`d output.
         repo = Path(tmp).resolve() / "repo"
         repo.mkdir()
         init_repo(repo)
@@ -866,8 +855,8 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
             self.assertEqual(Path(result.stdout.strip()), mine.resolve())
 
     def test_the_newest_capture_wins_within_one_branch(self) -> None:
-        """A --force re-capture overwrites in place, but a re-capture on a
-        later calendar day writes a new folder beside the old one."""
+        """`--force` overwrites in place, but a re-capture on a later
+        calendar day writes a new folder beside the old one."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             write_manifest_folder(
@@ -884,8 +873,8 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
             self.assertEqual(Path(result.stdout.strip()), newer.resolve())
 
     def test_another_branchs_identically_tasked_folder_does_not_resolve(self) -> None:
-        """#179's post-rebase shape: both folders in one tree, both recording
-        task-1 on the same date."""
+        """#179's post-rebase shape: both folders in one tree, same task on
+        the same date."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             mine = write_manifest_folder(root, "2026-07-12-task-1-feat-alpha", task="task-1", branch="feat/alpha")
@@ -906,36 +895,31 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
 
     def test_a_unique_legacy_answer_carries_its_own_token(self) -> None:
         """The asymmetry this closes: *two* branch-less folders sharing a task
-        id refuse loudly as `[ambiguous]`, while *one* of them resolved
-        silently — exit 0, bare path, no token, no caveat — and got promoted
-        into a PR body as a real-SHA raw URL. Identical epistemic state,
-        opposite handling. The answer stays an answer; it stops being an
-        unqualified one."""
+        id refuse loudly as `[ambiguous]`, while *one* resolved silently —
+        exit 0, no caveat — and got promoted into a PR body as a real-SHA raw
+        URL. The answer stays an answer; it stops being unqualified."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             legacy = write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
 
             result = self._resolve(repo, root, "feat/alpha", "task-1")
             self.assertEqual(result.returncode, 0, result.stderr)
-            # stdout stays byte-identical: a caller reading only the path is
-            # not broken by the caveat, which is why it goes to stderr.
+            # stdout stays byte-identical: reading only the path isn't broken
+            # by the caveat, which is why it goes to stderr.
             self.assertEqual(result.stdout, f"{legacy}\n")
             self.assertIn("[legacy]", result.stderr)
             self.assertIn("records no branch", result.stderr)
             self.assertIn("feat/alpha", result.stderr)
             self.assertIn("manifest.json", result.stderr)
-            # One line, so a caller quoting it into a table row can.
+            # One line, so a caller can quote it into a table row.
             self.assertEqual(len(result.stderr.strip().splitlines()), 1)
-            # And it names its own task. A reader may take the two streams from
-            # two separate runs of `list`, so the id inside the note is the only
-            # key that joins a note back to its row — two independent runs share
-            # no ordering guarantee.
+            # Names its own task: independent `list` runs share no ordering
+            # guarantee, so the id inside the note is the only join key.
             self.assertIn("the folder resolved for task 'task-1'", result.stderr)
 
     def test_a_branch_bearing_answer_carries_no_caveat_at_all(self) -> None:
-        """The caveat must not leak onto the ordinary path. A token on every
-        answer trains a reader to ignore it, which costs exactly as much as
-        printing none."""
+        """The caveat must not leak onto the ordinary path — a token on every
+        answer trains a reader to ignore it."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             mine = write_manifest_folder(root, "2026-07-20-task-1-feat-alpha", task="task-1", branch="feat/alpha")
@@ -946,10 +930,10 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
             self.assertEqual(result.stderr, "")
 
     def test_two_legacy_matches_refuse_and_name_ambiguity_not_absence(self) -> None:
-        """Pre-mortem risk 1: the designed refusal must be distinguishable
-        from a broken reader. This repo's own committed evidence has two
-        branch-less manifests recording `task-1` on `2026-07-12`, so this is
-        the real shape, not a contrived one."""
+        """Pre-mortem risk 1: the refusal must be distinguishable from a
+        broken reader. This repo's own committed evidence has two
+        branch-less manifests recording `task-1` on `2026-07-12`, so this
+        shape is real, not contrived."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
@@ -961,10 +945,10 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
             self.assertNotIn("no evidence found", result.stderr)
 
     def test_the_ambiguity_message_enumerates_the_folders_it_refused_over(self) -> None:
-        """A refusal that names no folder leaves its reader nothing to inspect.
-        The shape is not hypothetical: on any *new* branch in this repo, a task
-        whose id collides with two inherited branch-less manifests refuses this
-        way, and the message used to list zero candidates."""
+        """A refusal that names no folder leaves nothing to inspect. Not
+        hypothetical: any *new* branch in this repo hits this exact shape for
+        a task id that collides with two inherited branch-less manifests, and
+        the message used to list zero candidates."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             first = write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
@@ -978,7 +962,7 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
     def test_the_ambiguity_message_does_not_advise_an_unqualified_rename(self) -> None:
         """The old recovery — "rename the one you want by hand" — installs a
         merged, unrelated branch's artifact as this item's link whenever the
-        branch asking captured nothing itself. Any adoption is gated on reading
+        asking branch captured nothing itself. Adoption is gated on reading
         the candidate's own manifest first."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
@@ -990,15 +974,14 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
             self.assertIn("after reading its manifest.json", result.stderr)
 
     def test_the_ambiguity_message_names_only_recoveries_that_work(self) -> None:
-        """A recovery that cannot succeed is worse than none: the reader spends
-        the effort and the lookup refuses identically afterwards. Renaming is
-        exactly that under manifest-keyed resolution — `resolve_folder` matches
-        the manifest's branch and task and no reader parses a folder name, so a
-        rename leaves both candidates branch-less and still colliding. The two
-        that do work are re-capturing here, and editing the candidate's own
-        manifest — and saying so keeps this message, which `/ship` quotes
-        verbatim into a PR row, agreeing with that skill's "not by renaming it,
-        not by linking it" rather than contradicting it."""
+        """A recovery that can't succeed is worse than none: the reader spends
+        effort and the lookup refuses identically afterwards. Renaming is
+        exactly that under manifest-keyed resolution — `resolve_folder`
+        matches branch and task, not folder name, so a rename leaves both
+        candidates branch-less and still colliding. The two that do work:
+        re-capture here, or edit the candidate's own manifest — matching
+        `/ship`'s "not by renaming it, not by linking it", which quotes this
+        message verbatim into a PR row."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
@@ -1011,8 +994,8 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
 
     def test_an_ambiguity_never_claims_the_asking_branch_has_evidence(self) -> None:
         """"This branch captured none" is the true statement, so the refusal
-        names the branch it could not tie the folders to rather than reading as
-        "evidence exists, pick one"."""
+        names the branch it couldn't tie the folders to, rather than reading
+        as "evidence exists, pick one"."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
@@ -1023,8 +1006,8 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
             self.assertIn("nothing here says this branch captured any of it", result.stderr)
 
     def test_both_refusals_open_with_a_stable_bracketed_token(self) -> None:
-        """A reader tells the two refusals apart by the token, not by the
-        English sentence around it — which the next prose edit rewrites."""
+        """The token, not the English sentence around it, is what a reader
+        tells the two refusals apart by — prose gets rewritten."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
@@ -1043,8 +1026,8 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
             self.assertNotIn("ambiguous", result.stderr)
 
     def test_a_malformed_manifest_is_skipped_rather_than_fatal(self) -> None:
-        """Evidence folders are repository content — untrusted data. One
-        unreadable manifest must not stop the reader answering the query."""
+        """Evidence folders are untrusted repository content. One unreadable
+        manifest must not stop the reader answering the query."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             broken = root / "2026-07-12-task-1-broken"
@@ -1070,13 +1053,13 @@ class TestEvidenceCaptureResolveVerb(unittest.TestCase):
 
 
 class TestEvidenceCaptureListVerb(unittest.TestCase):
-    """The second arity over the same rule: a branch, no task id, because
-    "which tasks captured evidence" is a question with no task id in it.
+    """Second arity over the same rule: branch, no task id — "which tasks
+    captured evidence" has no task id in it.
     """
 
     def _repo_and_root(self, tmp: str) -> tuple[Path, Path]:
-        # Pre-resolved so expected row strings match display_path's own
-        # `.resolve()`d output (macOS tempdirs live behind a /var symlink).
+        # Pre-resolved: macOS tempdirs live behind a /var symlink, and row
+        # strings must match display_path's own `.resolve()`d output.
         repo = Path(tmp).resolve() / "repo"
         repo.mkdir()
         init_repo(repo)
@@ -1102,8 +1085,8 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
 
     def test_an_empty_answer_exits_zero(self) -> None:
         """A branch that has captured nothing yet is an ordinary
-        early-pipeline state, not an error — the whole reason `list` reports
-        rule 3 differently from `resolve`."""
+        early-pipeline state, not an error — why `list` differs from
+        `resolve` here."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             result = self._list(repo, root, "feat/alpha")
@@ -1121,9 +1104,9 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
 
     def test_an_undecidable_task_is_a_marker_row_not_an_omission(self) -> None:
         """One rule, two verbs, one answer: `resolve` calls this task
-        ambiguous, so an inventory that silently dropped it would report the
-        task as having no evidence question at all — and the omission is
-        invisible exactly where a human is asking "what do I have"."""
+        ambiguous, so an inventory that silently dropped it would misreport
+        it as having no evidence at all — invisible exactly where a human is
+        asking "what do I have"."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
@@ -1134,8 +1117,8 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
             self.assertEqual(result.stdout.splitlines(), ["task-1\t[ambiguous]"])
 
     def test_a_marker_row_sorts_beside_ordinary_rows_under_one_grammar(self) -> None:
-        """The marker occupies the answer column a path would, so a reader
-        splitting on the tab handles both rows the same way."""
+        """The marker occupies the same column a path would, so a reader
+        splitting on the tab handles both rows identically."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
@@ -1147,11 +1130,10 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
             self.assertEqual(result.stdout.splitlines(), ["task-1\t[ambiguous]", f"task-2\t{two}"])
 
     def test_a_qualified_answer_carries_its_token_into_the_row(self) -> None:
-        """One rule, two arities, one report: the answer `resolve` is caveated
-        about must not read as a plain capture in `list`'s inventory. The
-        token opens the answer column the path occupies rather than taking a
-        column of its own, so a reader splitting on the tab still sees exactly
-        two fields — and cannot drop the caveat by reading only the path."""
+        """An answer `resolve` caveats must not read as a plain capture in
+        `list`'s inventory. The token opens the answer column rather than
+        taking its own, so tab-splitting still sees exactly two fields —
+        and can't drop the caveat by reading only the path."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             legacy = write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
@@ -1167,13 +1149,9 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
 
     def test_a_qualified_row_carries_the_same_note_resolve_prints(self) -> None:
         """A token with no reachable meaning is a bare string in a stream.
-
-        Every route to `[legacy]`'s meaning was closed on this verb's path:
-        `resolve`'s explanatory note sits after the branch `list` returns from,
-        `--help`'s epilog prints usage lines only, and the meaning is — for the
-        one-home reason — this script's to state rather than a reader's to
-        infer. So the note is printed here too, byte-for-byte the one `resolve`
-        prints, and stdout stays exactly what it was.
+        Every route to `[legacy]`'s meaning was closed on this verb's path
+        (`resolve`'s note, `--help`'s epilog), so it's printed here too —
+        byte-for-byte the one `resolve` prints — and stdout is unchanged.
         """
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
@@ -1193,13 +1171,11 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
 
     def test_a_marker_row_carries_a_note_of_its_own(self) -> None:
         """`[ambiguous]` reached this verb with its meaning stated nowhere on
-        the path a `list`-only reader walks: `resolve`'s refusal sits behind an
-        invocation such a reader never makes, and the meaning is — for the
-        one-home reason — this script's to state rather than a reader's to
-        infer. So the row gets the same treatment `[legacy]` already got: one
-        line on stderr, naming the branch nothing could be tied to and
-        enumerating the folders, with the task id inside it as the join key,
-        since two independent runs share no ordering guarantee."""
+        a `list`-only reader's path — `resolve`'s refusal sits behind an
+        invocation such a reader never makes. So the row gets the same
+        treatment `[legacy]` got: one line on stderr naming the branch and
+        enumerating the folders, with the task id as the join key (two
+        independent runs share no ordering guarantee)."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             first = write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
@@ -1217,17 +1193,15 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
             self.assertIn("no folder resolved for task 'task-1'", result.stderr)
             # One line, so a row-oriented reader can carry it beside its row.
             self.assertEqual(len(result.stderr.strip().splitlines()), 1)
-            # A note, not a refusal: `list` answers here where `resolve` refuses,
-            # and a reader that labels rows off the prefix must not read exit 0
-            # as an error.
+            # A note, not a refusal: `list` answers here where `resolve`
+            # refuses, so exit 0 must not read as an error.
             self.assertTrue(result.stderr.startswith("note: "), result.stderr)
 
     def test_a_marker_rows_note_carries_no_recovery_at_all(self) -> None:
-        """One home for the recovery text, and no pointer at it either.
-        `resolve`'s refusal is where the two repairs are stated; a second copy
-        here is a copy to drift, and a "run `resolve`" pointer would put an
-        instruction inside a signal a reader may quote verbatim into an
-        assessment that recommends exactly one action of its own."""
+        """One home for the recovery text, no pointer either. `resolve`'s
+        refusal is where the two repairs live; a second copy here would drift,
+        and a "run `resolve`" pointer would smuggle an instruction into a
+        signal a reader may quote verbatim elsewhere."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             write_manifest_folder(root, "2026-07-12-task-1", task="task-1")
@@ -1238,8 +1212,8 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
                 self.assertNotIn(recovery, result.stderr)
 
     def test_an_unqualified_row_says_nothing_on_stderr(self) -> None:
-        """The note belongs to the token, not to the verb: a branch-bearing
-        answer is not caveated, so an inventory of them is silent."""
+        """The note belongs to the token, not the verb: a branch-bearing
+        answer isn't caveated, so an inventory of them is silent."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             write_manifest_folder(root, "2026-07-12-task-1-feat-alpha", task="task-1", branch="feat/alpha")
@@ -1250,8 +1224,8 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
 
     def test_a_task_with_no_bearing_on_the_branch_stays_omitted(self) -> None:
         """The marker row is for the undecidable case only. A task that belongs
-        to another branch outright is not this branch's inventory at all, and
-        listing it as a marker would re-report another branch's work."""
+        to another branch outright isn't this branch's inventory, and listing
+        it as a marker would re-report another branch's work."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, root = self._repo_and_root(tmp)
             write_manifest_folder(root, "2026-07-12-task-1-feat-beta", task="task-1", branch="feat/beta")
@@ -1264,11 +1238,11 @@ class TestEvidenceCaptureListVerb(unittest.TestCase):
 
 class TestResolvedPathComposesWithFreshness(unittest.TestCase):
     """`/ship` Step 1 runs `resolve`, then feeds the printed path to
-    `evidence-freshness`. Every other test here points `--evidence-root`
-    outside the repo, which takes `display_path`'s absolute fallback — so the
-    repo-relative branch, the only one a real capture ever reaches, went
-    untested, and with it the fact that the two scripts do not compose
-    directly: `resolve` prints repo-relative, `evidence-freshness` resolves
+    `evidence-freshness`. Every other test here uses an `--evidence-root`
+    outside the repo, taking `display_path`'s absolute fallback — so the
+    repo-relative branch a real capture actually reaches went untested,
+    along with the fact that the two scripts don't compose directly:
+    `resolve` prints repo-relative, `evidence-freshness` resolves
     `--evidence` against its own cwd and never joins `--repo`.
     """
 
@@ -1289,9 +1263,8 @@ class TestResolvedPathComposesWithFreshness(unittest.TestCase):
             ]
         )
         self.assertEqual(captured.returncode, 0, captured.stderr)
-        # The evidence lands inside the repo; commit it so the freshness
-        # check's ancestor test has a real commit to walk, exactly as
-        # `/build` step 7 commits its own capture.
+        # Commit it so the freshness check's ancestor test has a real commit
+        # to walk, as `/build` step 7 commits its own capture.
         commit_all(repo, "evidence: task-1")
         return repo, git(["rev-parse", "--abbrev-ref", "HEAD"], repo).strip()
 
@@ -1319,13 +1292,11 @@ class TestResolvedPathComposesWithFreshness(unittest.TestCase):
             )
 
     def test_the_printed_path_composes_with_freshness_from_any_cwd(self) -> None:
-        """The join dance is retired, and this pins its replacement. `resolve`
-        used to print repo-relative, `evidence-freshness` resolves `--evidence`
-        against the process cwd, and `/ship`'s prose had to bridge the two by
-        joining `<worktree>/` on — a bridge that collapsed (exit 2, "no
-        manifest.json found") whenever cwd wasn't what the prose assumed. An
-        absolute print means the same folder from every cwd, so the handoff is
-        verbatim: what `resolve` printed is what `--evidence` takes."""
+        """`resolve` used to print repo-relative and `/ship`'s prose had to
+        bridge to `evidence-freshness`'s cwd-relative `--evidence` by joining
+        `<worktree>/` on — a bridge that collapsed (exit 2, "no manifest.json
+        found") whenever cwd wasn't what the prose assumed. An absolute print
+        means the same folder from every cwd: the handoff is verbatim."""
         with tempfile.TemporaryDirectory() as tmp:
             repo, branch = self._capture_into_the_repo(Path(tmp))
             elsewhere = Path(tmp) / "elsewhere"
@@ -1341,11 +1312,9 @@ class TestResolvedPathComposesWithFreshness(unittest.TestCase):
 
 
 class TestEvidenceCaptureDocstringCarriesTheRollbackCaveat(unittest.TestCase):
-    """The rollback procedure has to outlive the design doc that stated it.
-
+    """The rollback procedure must outlive the design doc that stated it.
     `docs/design/<slug>.md` is disposable and branch-local — `/ship` deletes
-    it at closeout — so a caveat that lives only there is gone precisely when
-    someone needs it. The script the caveat is about is the durable home.
+    it at closeout — so the caveat's durable home is the script itself.
     """
 
     def setUp(self) -> None:
@@ -1357,16 +1326,16 @@ class TestEvidenceCaptureDocstringCarriesTheRollbackCaveat(unittest.TestCase):
 
     def test_the_docstring_names_the_prefix_shape_that_makes_a_glob_lossy(self) -> None:
         """The reverted-reader failure is only *sometimes* visible: an exact
-        matcher misses the folder (safe), a glob matches both and can emit the
-        wrong branch's link (the silent wrong link). Name which is which."""
+        matcher misses the folder (safe), a glob matches both and can emit
+        the wrong branch's link. Name which is which."""
         self.assertIn("2026-07-17-2-retroactive-inspection", self.source)
         self.assertIn("wrong branch's link", self.source)
 
     def test_the_docstring_is_the_one_home_of_the_third_token_too(self) -> None:
         """Neither reader may explain what `[legacy]` means — both skills'
         `test_the_resolution_rule_is_not_restated_in_this_prose` pins the
-        absence of that vocabulary — so the rule's own home has to carry it,
-        or it is stated nowhere and the token is a bare string in a stream."""
+        absence of that vocabulary — so the rule's own home carries it, or
+        it's stated nowhere."""
         self.assertIn("`[legacy]`, on stderr", self.source)
         self.assertIn("A caller promotes a `[legacy]` answer with its", self.source)
         # And the ladder, since a token that changes no exit code is easy to
@@ -1382,10 +1351,9 @@ class TestEvidenceCaptureVerbDispatch(unittest.TestCase):
 
     def test_the_capture_help_is_still_what_a_bare_invocation_reaches(self) -> None:
         """`/build` calls `evidence-capture --task <id> ...` with no verb
-        word, so capture must stay the no-verb default rather than becoming a
-        third subcommand. That a bare capture still *works* is
-        `TestEvidenceCaptureHappyPath`'s job; this pins only that `--help`
-        with no verb documents the capture surface, not a verb chooser."""
+        word, so capture must stay the no-verb default. That a bare capture
+        still *works* is `TestEvidenceCaptureHappyPath`'s job; this pins only
+        that `--help` with no verb documents the capture surface."""
         result = run_script(["--help"])
         self.assertEqual(result.returncode, 0)
         self.assertIn("--task", result.stdout)
@@ -1394,9 +1362,8 @@ class TestEvidenceCaptureVerbDispatch(unittest.TestCase):
     def test_help_documents_all_three_modes_not_only_capture(self) -> None:
         """A persona who hits a `resolve` failure reported by `/ship` runs
         `--help` next. Documenting only the capture surface sends them looking
-        for a verb the script's own help says does not exist. The epilog is
-        derived from the module docstring rather than restated, so the two
-        cannot drift into a third uncoordinated copy."""
+        for a verb the help says doesn't exist. The epilog derives from the
+        module docstring rather than restating it, so the two can't drift."""
         result = run_script(["--help"])
         self.assertEqual(result.returncode, 0)
         for line in (
@@ -1408,11 +1375,9 @@ class TestEvidenceCaptureVerbDispatch(unittest.TestCase):
                 self.assertIn(line, result.stdout)
 
     def test_help_states_the_folder_shape_it_writes(self) -> None:
-        """The shape is what a reader hunting for a capture actually needs,
-        and it changed under them: `<date>-<task>` gained a branch slug
-        (#179). The module docstring and `evidence-freshness` both state it;
-        `--help` said `docs/jig/evidence/.` and stopped, which reads as the
-        folder *itself* being the write location."""
+        """The shape changed under readers: `<date>-<task>` gained a branch
+        slug (#179). `--help` used to say `docs/jig/evidence/.` and stop,
+        reading as if that folder itself were the write location."""
         result = run_script(["--help"])
         self.assertEqual(result.returncode, 0)
         self.assertIn(".studious/build-evidence/<date>-<task>-<branch-slug>/", result.stdout)
@@ -1422,13 +1387,14 @@ class TestEvidenceCaptureVerbDispatch(unittest.TestCase):
 class TestEvidenceStoreIsWorktreeShared(unittest.TestCase):
     """The load-bearing property of the `.studious/build-evidence` move.
 
-    `/build` runs in a temporary linked worktree that is removed once its branch
-    merges; `/ship` runs later, in whatever checkout the user has. A store inside
-    the build worktree would vanish with it — the exact flow the #257 dogfood run
-    exercised, where evidence survived only because it was committed and merged.
-    With commits gone, worktree-sharing is what carries evidence across instead:
-    capture in the linked worktree must land in the MAIN checkout's store, and
-    resolve from the main checkout must find it, with no worktree left on disk.
+    `/build` runs in a temporary linked worktree removed once its branch
+    merges; `/ship` runs later, in whatever checkout the user has. A store
+    inside the build worktree would vanish with it — the exact flow the #257
+    dogfood run exercised, where evidence survived only because it was
+    committed and merged. With commits gone, worktree-sharing carries
+    evidence across instead: capture in the linked worktree must land in the
+    MAIN checkout's store, and resolve from the main checkout must find it,
+    with no worktree left on disk.
     """
 
     def test_capture_in_a_linked_worktree_lands_in_the_main_store(self) -> None:

@@ -1,22 +1,18 @@
-"""Regression tests for /review's pre-verdict challenge step (issue #91).
+"""Regression tests for /review's pre-verdict challenge step (issue #91): a
+hallucinated or misread Critical used to flip the report straight to `FIX AND
+RE-AUDIT` unchallenged, so the compile rules now confirm every Critical against
+the diff before the verdict is assigned, symmetric with the existing
+anti-suppression machinery.
 
-Nothing previously challenged a finding before it drove the compiled verdict: one
-hallucinated or misread Critical from any auditor flipped the report straight to
-`FIX AND RE-AUDIT`, unchallenged. The audit gate's compile rules now independently
-confirm every finding mapped to Critical against the changeset diff before the verdict
-is assigned, symmetric with the existing anti-suppression machinery.
+Since #159 (story `audit-doc-split`) these rules live in
+`reference/audit-compilation.md`, cited (not restated) by `commands/review.md`
+and `workflows/epic-driver.js`'s `auditFanIn()` — this file is the one place
+the challenge step's text actually lives.
 
-Since issue #159 (story `audit-doc-split`), these compile rules live in
-`reference/audit-compilation.md`, cited by both `commands/review.md`'s own session
-and `workflows/epic-driver.js`'s `auditFanIn()` rather than restated in either — this
-file is the one place the challenge step's text actually lives, so it's the target
-these checks read.
-
-These are static/textual checks that the load-bearing elements of that step are
-present in the compile-rules doc — a real behavioral eval would require a live model
-(see tests/fixtures/ + scripts/run_gate_audit_fixtures.py), but the elements below
-are exactly what a future edit could silently drop while still looking like a
-"challenge step" is present, so each is checked independently.
+Static/textual checks only (a real behavioral eval needs a live model — see
+tests/fixtures/ + scripts/run_gate_audit_fixtures.py); each assertion targets
+an element a future edit could silently drop while still looking like the
+challenge step is present.
 """
 
 from __future__ import annotations
@@ -30,8 +26,8 @@ AUDIT_COMPILATION = REPO_ROOT / "reference" / "audit-compilation.md"
 
 def _challenge_section() -> str:
     text = AUDIT_COMPILATION.read_text()
-    # Everything between the severity-mapping line and the "Then compile..." handoff
-    # into the report sections is this step's home.
+    # This step's text sits between the severity-mapping line and the
+    # report-compilation handoff.
     match = re.search(
         r"consult it, don't restate it\.\n(.*?)\nThen compile a unified audit report",
         text,
@@ -92,8 +88,8 @@ def test_drops_are_named_in_the_summary() -> None:
 
 
 def test_only_confirmed_criticals_drive_fix_and_re_review() -> None:
-    # FIX AND RE-REVIEW is the work episode's retry token since #289 (Task 3),
-    # replacing FIX AND RE-AUDIT — reference/gate-vocabulary.md is canonical.
+    # Retry token since #289 (Task 3), replacing FIX AND RE-AUDIT;
+    # reference/gate-vocabulary.md is canonical.
     section = _challenge_section()
     assert re.search(r"FIX AND RE-REVIEW", section), (
         "challenge step doesn't tie back to the FIX AND RE-REVIEW verdict — nothing "

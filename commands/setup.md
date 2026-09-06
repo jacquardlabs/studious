@@ -6,14 +6,13 @@ allowed-tools: Read, Glob, Grep, Bash, Task, Write, Edit, WebFetch
 
 # Set up Studious here
 
-Set up the full flow in this project. This creates the context documents every door and
-specialist depends on — PRODUCT.md, DESIGN.md, and the CLAUDE.md wiring.
+Set up the full flow in this project: PRODUCT.md, DESIGN.md, and the CLAUDE.md wiring.
 
 **With an argument, run only that extraction and stop:** `extract-product` follows
 `reference/product-context-extraction.md`; `extract-design` follows
 `reference/design-system-extraction.md`. Both are the same procedures Steps 2 and 3 run
-inline during first-time setup, exposed on their own so a project whose code has moved on
-can refresh one doc without re-running everything.
+inline during first-time setup, exposed separately to refresh one doc later without
+re-running everything.
 
 Everything this command writes, it names first. Propose, then write — never a silent
 scaffold.
@@ -39,7 +38,7 @@ cp "${CLAUDE_PLUGIN_ROOT}/templates/PRODUCT.md" PRODUCT.md
 
 (`${CLAUDE_PLUGIN_ROOT}` is substituted to the plugin's install path before you read this. If the copy fails because it didn't resolve, locate `templates/PRODUCT.md` inside the plugin install with Glob and copy its contents — do not re-inline a template here.)
 
-Then populate it as part of setup — follow `reference/product-context-extraction.md` inline now; it carries the extraction procedure in full. Don't stop and hand this back as a separate step; extract the product context from the codebase and continue. (Users can re-run `/setup extract-product` on its own later to refresh.)
+Then populate it inline — follow `reference/product-context-extraction.md` in full now; don't hand this back as a separate step. (`/setup extract-product` re-runs it alone later.)
 
 ## Step 3 — Create DESIGN.md (if needed)
 
@@ -51,7 +50,7 @@ cp "${CLAUDE_PLUGIN_ROOT}/templates/DESIGN.md" DESIGN.md
 
 (Same fallback as Step 2: if `${CLAUDE_PLUGIN_ROOT}` didn't resolve and the copy fails, locate `templates/DESIGN.md` inside the plugin install with Glob and copy its contents — do not re-inline a template here.)
 
-Then populate it as part of setup — follow `reference/design-system-extraction.md` inline now; it carries the extraction procedure in full. It detects which surfaces the product actually has and extracts the conventions for each; a non-visual product (CLI, API, plugin) gets a real interface doc, and a pure library gets an honest minimal one. Don't stop and hand this back as a separate step; extract and continue. (Users can re-run `/setup extract-design` on its own later to refresh.)
+Then populate it inline — follow `reference/design-system-extraction.md` in full now; don't hand this back as a separate step. It detects which surfaces the product has and extracts conventions per surface — a non-visual product (CLI, API, plugin) gets a real interface doc, a pure library an honest minimal one. (`/setup extract-design` re-runs it alone later.)
 
 ## Step 4 — Create README.md (if needed)
 
@@ -82,9 +81,9 @@ Add a `.gitkeep` to each empty directory so they're tracked in git.
 
 ## Step 5b — Propose the .gitignore entries
 
-Studious keeps its process residue out of the repo by convention, and the convention
-only works if the consuming project's `.gitignore` carries it. Read the project's
-`.gitignore` (create one if absent) and check for these entries:
+Studious keeps process residue out of the repo by convention; that only works if the
+project's `.gitignore` carries it. Read the `.gitignore` (create one if absent) and check
+for these entries:
 
 ```gitignore
 # Studious local state — gate ledger, work files, telemetry, build evidence (never committed)
@@ -96,13 +95,13 @@ only works if the consuming project's `.gitignore` carries it. Read the project'
 docs/design/
 ```
 
-Propose the exact missing lines as a diff, state what each one keeps out of review, and
-add them on the user's word in this same invocation — never silently, and never touching
-any other line of their `.gitignore`. All three matter, but `.studious/` most:
-`/build`'s evidence store is `.studious/build-evidence/` under the main checkout, and an
-untracked-but-unignored store shows up as noise in every `git status` the user runs.
-(`bin/gate-ledger` self-heals the `.studious/` entry when it first creates ledger state,
-so a skipped proposal degrades to that — later, and without the other two entries.)
+Propose the exact missing lines as a diff, state what each keeps out of review, and add
+them on the user's word in this same invocation — never silently, and never touching any
+other line of their `.gitignore`. `.studious/` matters most: `/build`'s evidence store is
+`.studious/build-evidence/` under the main checkout, and left unignored it shows up as
+noise in every `git status`. (`bin/gate-ledger` self-heals that one entry when it first
+creates ledger state, so a skipped proposal only degrades to that, later, missing the
+other two.)
 
 A project that deliberately tracks its design docs or `PLAN.md` can decline those lines —
 `/ship`'s closeout handles the tracked case with a `git rm` commit instead. Note the

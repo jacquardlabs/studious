@@ -50,15 +50,12 @@ NO_CRITERIA_BODY = "Touch `scripts/foo.py`. No criteria section here."
 
 
 class TestPromptSignalMirror(unittest.TestCase):
-    """`PROMPT_SIGNAL_GLOBS` is a mirror, not a restatement of authority --
-    every glob it carries must trace to a substring the canonical doc
-    actually contains, so a future edit there surfaces here."""
+    """`PROMPT_SIGNAL_GLOBS` mirrors the canonical doc; every glob must trace
+    to it so a future edit there surfaces here."""
 
     def test_every_mirrored_glob_traces_to_the_canonical_doc(self) -> None:
-        # Each mirrored glob must appear verbatim in the canonical list, or as
-        # its bare filename for the "at any depth" globs this module adds
-        # (`**/CLAUDE.md`, `**/AGENTS.md`) which the doc states in prose
-        # ("CLAUDE.md (at any depth)") rather than as a literal glob.
+        # Bare filename covers the "at any depth" globs (**/CLAUDE.md, **/AGENTS.md),
+        # which the doc states in prose rather than as a literal glob.
         m = _intake_module()
         for glob in m.PROMPT_SIGNAL_GLOBS:
             bare = glob.rsplit("/", 1)[-1]

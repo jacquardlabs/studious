@@ -1,24 +1,19 @@
 """Direct tests for `scripts/_gitutil.py` (issue #205).
 
-`_gitutil` is imported by `evidence-capture`, `evidence-freshness`, `plan-lint`,
-`status-flip`, `verify`, and `worktree-setup` — 6 of 7 CLI scripts — and had no
-test of its own. Its behavior was only ever exercised through whichever importer
-happened to cover it, so the subprocess and process-group edge cases got
-independently re-discovered rather than proven once at the source.
+`_gitutil` is imported by 6 of 7 CLI scripts (evidence-capture, evidence-freshness,
+plan-lint, status-flip, verify, worktree-setup) but had no test of its own — edge
+cases only got exercised, and rediscovered, through whichever importer hit them.
 
-Two hardening regressions live here too, because both are `_gitutil`'s behavior
-rather than any one caller's:
+Two hardening regressions covered here because they're `_gitutil`'s behavior, not
+any one caller's:
 
-* `--end-of-options` on the revision-taking helpers (#223). Without it git reads
-  a leading-dash positional as an option; the test below shows one *writing a
-  file*.
-* `DEFAULT_TIMEOUT_SECONDS` being what an unflagged run actually uses (#227),
-  asserted against both scripts that share the constant.
+* `--end-of-options` on the revision-taking helpers (#223): unguarded, git reads
+  a leading-dash revision as an option — the test below shows one *writing a file*.
+* `DEFAULT_TIMEOUT_SECONDS` matches what an unflagged run actually uses (#227).
 
-Standard library only, matching the other modules here. `scripts/` is not
-importable as a package (the files have no `.py` suffix), so the module is
-loaded by path — the same reason `_tempgit.py` re-implements `run()` rather than
-importing this one.
+Standard library only. `scripts/` isn't importable as a package (no `.py` suffix
+on the files), so this loads the module by path — same reason `_tempgit.py`
+reimplements `run()` instead of importing it.
 """
 
 from __future__ import annotations
@@ -75,14 +70,12 @@ class TestRunShellWithTimeout(unittest.TestCase):
             gitutil.run_shell_with_timeout("sleep 30", Path(tmp), 0.5)
 
     def test_a_backgrounded_grandchild_is_killed_with_the_shell(self) -> None:
-        """The whole point of `start_new_session` + `killpg` over plain
-        `subprocess.run(timeout=...)`, which signals only the shell and leaves a
-        backgrounded child reparented and running past the timeout.
+        """Why `start_new_session` + `killpg` beats plain `subprocess.run(timeout=...)`,
+        which signals only the shell and leaves a backgrounded child running past it.
         """
         with TemporaryDirectory() as tmp:
             pidfile = Path(tmp) / "child.pid"
-            # A child that outlives the shell, and records its own pid so the
-            # test can ask the OS whether it actually died.
+            # Outlives the shell; records its pid so the test can check it died.
             command = f"sh -c 'echo $$ > {pidfile}; sleep 30' & sleep 30"
             with self.assertRaises(subprocess.TimeoutExpired):
                 gitutil.run_shell_with_timeout(command, Path(tmp), 1.5)
@@ -114,11 +107,10 @@ def _process_alive(pid: int) -> bool:
 class TestEndOfOptionsHardening(unittest.TestCase):
     """#223: a revision reaching git as a bare positional is read as an option.
 
-    `verify --since <rev>` puts a caller-supplied string into
-    `resolve_revision_epoch`, and `is_ancestor` takes two more. The guard has to
-    be `--end-of-options`, not `--`: `--` marks a *pathspec*, so `git show ... --
-    HEAD` looks for a file named HEAD and returns empty, which would make
-    `resolve_revision_epoch` return None for every revision.
+    `verify --since <rev>` feeds a caller string to `resolve_revision_epoch`, and
+    `is_ancestor` takes two more. Guard must be `--end-of-options`, not `--`: `--`
+    marks a pathspec, so `git show ... -- HEAD` looks for a file named HEAD and
+    returns empty — breaking resolution for every revision.
     """
 
     def setUp(self) -> None:
@@ -193,9 +185,8 @@ class TestRepoQueries(unittest.TestCase):
         self.assertIsInstance(epoch, float)
 
     def test_last_commit_sha_and_epoch_is_none_with_no_commits(self) -> None:
-        """`init_repo` makes an initial commit, so this bootstraps by hand — the
-        empty-repo branch is exactly what the helper's `returncode != 0` guard
-        is for, and using `init_repo` here would assert nothing."""
+        """Bootstraps by hand since `init_repo` always commits; this exercises the
+        helper's `returncode != 0` guard, which `init_repo` would never hit."""
         with TemporaryDirectory() as empty:
             subprocess.run(["git", "init", "-q", "-b", "main", empty], check=True, capture_output=True)
             self.assertIsNone(gitutil.last_commit_sha_and_epoch(Path(empty)))
@@ -232,16 +223,16 @@ class TestBranchSlug(unittest.TestCase):
         self.assertEqual(gitutil.branch_slug("main"), "main")
 
     def test_the_documented_collision_is_still_the_behavior(self) -> None:
-        """`feat/foo` and `feat-foo` slug identically — documented at
-        `bin/gate-ledger:273` and inherited deliberately, which is why the
-        manifest records the branch *name* and resolution matches on it."""
+        """`feat/foo` and `feat-foo` slug identically (documented at
+        `bin/gate-ledger:273`, inherited deliberately) — why the manifest
+        matches on branch name, not slug."""
         self.assertEqual(gitutil.branch_slug("feat/foo"), gitutil.branch_slug("feat-foo"))
 
 
 class TestDefaultTimeoutIsWhatUnflaggedRunsUse(unittest.TestCase):
-    """#227: `DEFAULT_TIMEOUT_SECONDS` had no test asserting it is the value an
-    unflagged run actually applies — only explicit non-default `--timeout`
-    values were ever exercised, so the wiring could drift from the constant.
+    """#227: no test asserted `DEFAULT_TIMEOUT_SECONDS` is what an unflagged run
+    applies — only explicit `--timeout` values were ever exercised, so the
+    wiring could drift from the constant.
     """
 
     def test_the_shared_constant_is_600_seconds(self) -> None:

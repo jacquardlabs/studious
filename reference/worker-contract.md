@@ -1,14 +1,11 @@
 # Worker contract — lookup data
 
-`/next`'s driver dispatches worker agents to author design docs and build
-stories — the how-layer Studious otherwise steps back from, running here under an
-explicitly approved epic plan. This file names the interface between the driver and a
-worker: what every dispatch brief must hand over, and what a worker must hand back
-before its phase counts as done. It is the build-side analogue of
-`reference/design-doc-contract.md`. The contract, not any particular executor, is
-normative — a worker MAY use this plugin's own `/build` workflow (which plans, then builds), or
-Superpowers' plan/execute workflow when it's installed, but a worker using neither must
-still satisfy every row below.
+`/next`'s driver dispatches worker agents to author design docs and build stories under
+an explicitly approved epic plan. This file is the build-side analogue of
+`reference/design-doc-contract.md`: it names what every dispatch brief must hand over,
+and what a worker must hand back before its phase counts as done. The contract is
+normative regardless of executor — `/build` (plans, then builds), Superpowers'
+plan/execute workflow, or anything else — every worker must satisfy every row below.
 
 Workers never gate. A worker must not run a gate command, record a verdict, or
 self-assess against a gate's rubric — the gates judge its output blind, from the diff
@@ -48,8 +45,8 @@ it: `gate-ledger work-list`, match the current branch's row. Found → `gate-led
 work-log --slug "<that-slug>" --step <phase> --outcome "<status>"`, omitting `--phase`
 (the phase judgment stays `/next`'s call). No match, or `gate-ledger` not on `PATH`
 at all → skip silently; this is best-effort corroboration, not a required part of the
-contract. This is a first-person status report, not a gate verdict or a self-assessment
-against a rubric, and does not conflict with "workers never... record a verdict" below.
+contract. It is a first-person status report, not a gate verdict or self-assessment
+against a rubric, so it does not conflict with "workers never gate" above.
 
 **The build phase's status vocabulary is closed, and this table is where it lives.**
 Every executor reports one of these three for `--step build` — the built-in `/build`,

@@ -23,7 +23,7 @@ hunting; other auditors likewise escalate operability issues to you — treat th
 escalations as leads, not as coverage. If the changeset touches no runtime surface —
 code that serves requests, consumes queues or streams, runs as a daemon or scheduled
 job, or performs network I/O — report that and stop: a skipped lane is a valid
-outcome, not a failure. Return your findings to the orchestrator that invoked you.
+outcome, not a failure.
 
 ## Before you start
 

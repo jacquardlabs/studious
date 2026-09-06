@@ -2,38 +2,31 @@
 """jig's worktree-setup script (story build-scripts, issue #14).
 
 Creates a fresh branch + git worktree for a `/build` session, then runs the
-target project's own baseline verification command inside it *before* any
-task is dispatched. A non-zero baseline is a **dirty baseline**: this script
-surfaces the failure, frames it explicitly as pre-existing (not caused by
-this build session), leaves the worktree in place for inspection, and exits
-non-zero — `/build` must stop before task 1 rather than let a fresh
-executor start against an ambiguous starting point.
+target project's baseline verification command inside it before any task
+is dispatched. A non-zero baseline is pre-existing, not caused by this
+session: the script reports it, leaves the worktree for inspection, and
+exits non-zero rather than let a fresh executor start from an ambiguous
+state.
 
-Colliding with an existing branch or worktree at the given path fails loudly
-with the exact remediation command, rather than silently reusing stale
-state (docs/studious/premortems/build-scripts.md, risk #2).
+An existing branch or worktree at the given path fails loudly with the
+remediation command, instead of silently reusing stale state
+(docs/studious/premortems/build-scripts.md, risk #2).
 
 Trust boundary (issue #48): the baseline command is project-supplied (read
-from the target project's own CLAUDE.md by `/build`'s Foreman) and is
-executed verbatim via the shell -- `shell=True`, no allowlist, sandbox, or
-confirmation gate. Commands in a plan are executed verbatim via the shell;
-only run /build on plans you would run by hand.
+from the target project's CLAUDE.md by `/build`'s Foreman) and runs
+verbatim via the shell (`shell=True`, no allowlist/sandbox/confirmation).
+Commands in a plan are executed verbatim via the shell; only run /build on
+plans you would run by hand.
 
-Timeout (issue #49): the baseline command runs under `--timeout` seconds
-(a generous default -- suites legitimately run minutes). A hung command
-(waiting on stdin, deadlocked, a network-bound test with no timeout of its
-own) is killed and reported as a distinct BASELINE TIMEOUT, never
-conflated with the command's own non-zero-exit BASELINE FAILURE message --
-a hang produces no exit code at all, so the two cases must read
-differently. The kill takes down the baseline command's whole process
-group, not just the shell (issue #61) -- via `_gitutil.run_shell_with_
-timeout`, launched with `start_new_session=True` and killed on timeout
-with `os.killpg(process.pid, signal.SIGKILL)` -- so a backgrounded or
-piped child can't outlive the shell that was reported killed.
+Timeout (issue #49): the baseline runs under `--timeout` seconds. A hang
+(no exit code) is reported as BASELINE TIMEOUT, distinct from an ordinary
+non-zero BASELINE FAILURE. The kill takes down the whole process group,
+not just the shell (issue #61), via `start_new_session=True` +
+`os.killpg(..., SIGKILL)` in `_gitutil.run_shell_with_timeout`, so a
+backgrounded or piped child can't outlive the reported-killed shell.
 
-Exit codes: 0 clean baseline: worktree ready to build in. 1 the worktree
-was created but the baseline command failed, timed out, or failed to
-create. 2 usage error, or a collision with existing branch/worktree state.
+Exit codes: 0 clean baseline. 1 worktree created but baseline failed,
+timed out, or failed to create. 2 usage error or branch/worktree collision.
 """
 from __future__ import annotations
 

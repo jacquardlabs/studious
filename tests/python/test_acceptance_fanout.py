@@ -1,25 +1,18 @@
-"""Regression tests for the acceptance-gate fan-out story (perf item 10).
+"""Regression tests for the acceptance-gate fan-out (perf item 10).
 
-`commands/review.md` dispatches @agent-product-reviewer for Part 1 and
-self-performs the Part 3 walkthrough serially inside one agent — the shape that
-produced issue #142's case study (a single acceptance dispatch that took 117
-minutes). `workflows/epic-driver.js`'s story-level acceptance gate mirrored that
-same single-dispatch shape (`gatePrompt`, "perform those roles' checks
-yourself"). This story adds a fan-out mirroring auditRound's own: a mechanical
-scope-check (product-reviewer has no Bash and cannot compute the diff or find
-its own design doc — issue #89), then product-review and the walkthrough
-dispatched concurrently, then a compile step that maps both into one verdict.
+`commands/review.md` and `workflows/epic-driver.js`'s acceptance gate used to
+dispatch product-review and the walkthrough as one serial self-performing
+step — the shape behind issue #142 (a single acceptance dispatch took 117
+minutes). This adds a fan-out mirroring auditRound: a mechanical scope-check
+(product-reviewer has no Bash — issue #89), then product-review and
+walkthrough dispatched concurrently, then a compile step.
 
-Scope: story-level only. The finale acceptance dispatch and the design-review
-gate are NOT part of this story — both stay the single self-performing dispatch
-they were before (see epic-driver.js's own comment above acceptanceRound).
+Scope: story-level only; the finale acceptance dispatch and design-review gate
+stay single-dispatch (see epic-driver.js's comment above acceptanceRound).
 
-These tests run the real driver source end-to-end via `_run_driver` (imported
-from `test_driver_crash_hardening`, this file's own established reuse
-convention — see test_delta_scoped_reaudit.py and test_audit_first_round_routing.py
-for the same import shape), proving the fan-out's dispatch shape and its
-fail-closed missing-lane guarantee, not just that the compiled prompt text
-looks right.
+Runs the real driver source end-to-end via `_run_driver`, imported from
+`test_driver_crash_hardening` per this file's reuse convention (see
+test_delta_scoped_reaudit.py, test_audit_first_round_routing.py).
 """
 
 from __future__ import annotations
@@ -38,22 +31,16 @@ SCOPE_NO_DOC = {"findings": json.dumps({"files": ["foo.py"], "designDoc": ""})}
 SCOPE_EMPTY = {"findings": json.dumps({"files": [], "designDoc": ""})}
 
 # foo.py names no premortem register, so acceptanceRound's Task 3 fallback
-# lookup (acceptance-dispatch-fix, 2026-07-24) fires whenever SCOPE_WITH_DOC/
-# SCOPE_NO_DOC is in play below — confirmed empty, same "nothing to verify"
-# outcome every one of these fan-out tests always had. SCOPE_EMPTY never
-# triggers the fallback at all (an empty changeset already caps the round at
-# HOLD via the product-review lane, so the fallback is skipped rather than
-# fired needlessly — see acceptanceRound's own comment).
+# lookup (acceptance-dispatch-fix, 2026-07-24) fires for SCOPE_WITH_DOC/
+# SCOPE_NO_DOC below, confirmed empty. SCOPE_EMPTY skips it — an empty
+# changeset already caps the round at HOLD via the product-review lane.
 PREMORTEM_FALLBACK_EMPTY = {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}}
 
 
 def test_normal_round_dispatches_all_four_lanes_in_shape() -> None:
-    """A clean round dispatches the scope-check, both parallel lanes, and the
-    compile step — one label each, none silently skipped or duplicated — and
-    the story actually lands end-to-end through the fan-out (the full finale
-    chain is mocked too, since this is a one-story epic and landing triggers
-    it, matching test_driver_crash_hardening.py's own FINALE_AUDITORS_PASS
-    convention)."""
+    """A clean round dispatches the scope-check, both parallel lanes, and
+    compile — one label each — and the story lands end-to-end (finale chain
+    mocked per FINALE_AUDITORS_PASS, since this is a one-story epic)."""
     epic = _one_story_acceptance_epic()
     rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_WITH_DOC},
@@ -95,11 +82,10 @@ def test_product_review_prompt_names_the_resolved_design_doc() -> None:
         {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
-        # merge:a deliberately unmocked — the story parking on a crashed merge
-        # (rather than actually landing) keeps this test from tripping the
-        # one-story epic's finale, which is out of scope for a prompt-content
-        # assertion; the acceptance round's dispatches already happened and
-        # were recorded before the merge phase even starts.
+        # merge:a deliberately unmocked — the crashed merge keeps this test
+        # from tripping the finale (out of scope for a prompt-content
+        # assertion); acceptance round dispatches already happened before
+        # the merge phase starts.
     ]
     out = _run_driver(epic, rules)
     assert out["ok"], f"driver crashed: {out.get('error')}"
@@ -144,9 +130,9 @@ def test_died_product_review_lane_forces_a_ship_compile_down_to_hold() -> None:
         PREMORTEM_FALLBACK_EMPTY,
         {"match": r"^acceptance:product-review:a$", "result": None},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
-        # The compiler never sees this dispatch die — the driver overrides its
-        # own SHIP regardless of what the compiling agent said, proving the
-        # guard doesn't just trust prompt compliance.
+        # The compiler never sees this dispatch die — the driver overrides
+        # its SHIP regardless, proving the guard doesn't just trust prompt
+        # compliance.
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "looked fine to me"}},
         # park:a deliberately unmocked, matching SIBLING_LANDS_RULES's own
         # convention: it falls through to park()'s own try/catch hardening, so
@@ -196,13 +182,11 @@ def test_died_scope_check_skips_the_product_review_dispatch_entirely() -> None:
 
 def test_empty_changeset_skips_product_review_dispatch_and_caps_hold() -> None:
     """An empty-but-non-null `files` array (Bug 2) is a scope-check that ran
-    cleanly and found nothing to review — it must degrade the product-review
-    lane to UNREVIEWED exactly like a died scope-check, never a silent
-    go-ahead to dispatch product-reviewer with zero scope. Deliberately mocks
-    the product-review lane with a normal finding: if the empty-changeset
-    guard is missing, this dispatch actually fires and the compiler's SHIP
-    survives, failing loudly, rather than masking a missing guard behind an
-    UNMOCKED-reject crash park."""
+    cleanly and found nothing to review — must degrade product-review to
+    UNREVIEWED like a died scope-check, never dispatch with zero scope.
+    Product-review is deliberately mocked with a normal finding: if the guard
+    is missing, this dispatch fires and the compiler's SHIP survives, failing
+    loudly rather than masking it behind an UNMOCKED-reject crash park."""
     epic = _one_story_acceptance_epic()
     rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_EMPTY},
@@ -287,12 +271,10 @@ def test_died_walkthrough_lane_also_forces_hold() -> None:
 
 def test_missing_lane_guard_never_touches_an_already_non_ship_verdict() -> None:
     """The override only intercepts an unearned SHIP — a compiler that already
-    judged HOLD on its own (a missing lane was visible in its own prompt) must
-    pass through with its verdict and summary untouched, not get a second,
-    redundant 'unreviewed lane(s)' prefix stapled on top. Deliberately uses
-    HOLD rather than FIX AND RE-CHECK: the latter is acceptance's own retry
-    token, and would route through runGate's fixer loop instead of exercising
-    this guard in isolation."""
+    judged HOLD must pass through untouched, not get a redundant 'unreviewed
+    lane(s)' prefix stapled on top. Uses HOLD rather than FIX AND RE-CHECK:
+    the latter is acceptance's own retry token and would route through
+    runGate's fixer loop instead of exercising this guard in isolation."""
     epic = _one_story_acceptance_epic()
     rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_WITH_DOC},
@@ -338,15 +320,12 @@ def test_compile_prompt_names_the_unreviewed_lane_by_name() -> None:
 
 
 def test_scope_check_is_pinned_to_haiku_low_effort() -> None:
-    """The mechanical scope-check dispatch follows this file's own established
-    posture for fact-checks (ledgerAuditPrior): haiku, low effort — never the
-    session model. resolveRoutingMatchFlags shares the haiku pin but moved to
-    `effort: 'medium'` in the #271 fix cycle, once operabilityMatch made it a
-    content judgment rather than a purely mechanical one — see
-    test_audit_first_round_routing.py::test_routing_scope_dispatch_is_pinned_to_haiku_medium_effort
-    for that dispatch's own coverage (added in the #271 fix cycle's round 2; this
-    docstring's prior reference to that file was aspirational, not actual — the
-    file had zero occurrences of "effort"/"haiku"/"model:" until that test landed)."""
+    """The mechanical scope-check dispatch follows this file's own posture for
+    fact-checks (ledgerAuditPrior): haiku, low effort — never the session
+    model. resolveRoutingMatchFlags shares the haiku pin but moved to
+    `effort: 'medium'` in the #271 fix cycle once operabilityMatch made it a
+    content judgment rather than a mechanical one — see
+    test_audit_first_round_routing.py::test_routing_scope_dispatch_is_pinned_to_haiku_medium_effort."""
     source = DRIVER.read_text()
     anchor = "acceptanceScopeCheckPrompt(dir, base, workSlug(story))"
     assert anchor in source, "acceptanceRound no longer dispatches the scope-check as documented"

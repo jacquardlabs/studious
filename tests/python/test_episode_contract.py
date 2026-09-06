@@ -3,21 +3,19 @@
 
 Freezes the schema every later episode consumer reads or writes:
 
-- `episode-open --gate G` writes `.episodes[G] = {sha, round, openedAt}` in the
-  branch's gates file, with `round` fixed at 1 and `sha` the short HEAD.
-- `episode-round --gate G` increments `round`; a third round is refused in code
-  with a non-zero exit naming the 2-round cap.
-- `episode-verdict --gate G --verdict V` merges `{verdict, sha, verdictAt}` into
-  the episode and dual-writes the legacy `.gates[G] = {verdict, sha, ranAt}`
-  record carrying the same verdict and sha, so `status`/`gate-get` readers run
-  untouched.
+- `episode-open --gate G` writes `.episodes[G] = {sha, round, openedAt}`,
+  `round` fixed at 1, `sha` the short HEAD.
+- `episode-round --gate G` increments `round`; a third round is refused
+  (non-zero exit naming the 2-round cap).
+- `episode-verdict --gate G --verdict V` merges `{verdict, sha, verdictAt}`
+  into the episode and dual-writes the legacy `.gates[G] = {verdict, sha,
+  ranAt}` record with the same verdict and sha, so `status`/`gate-get` readers
+  run untouched.
 
-Deliberately `unittest.TestCase` style, not bare pytest functions: this file
-must be reachable by a plain `python3 -m unittest discover` derivation (no
-pytest, no conftest) so a PLAN.md Done-means item can name it as a test-backed
-command. The repo's pytest suite collects TestCase classes natively, so it runs
-under both runners. Tasks 3-5 extend this same file with their own episode
-assertions.
+`unittest.TestCase` style, not bare pytest functions: must be reachable by
+`python3 -m unittest discover` (no pytest, no conftest) so a PLAN.md Done-means
+item can name it as a test-backed command; the repo's pytest suite still
+collects TestCase classes natively.
 """
 
 from __future__ import annotations
@@ -40,16 +38,14 @@ OPEN_EPISODE_KEYS = {"sha", "round", "openedAt"}
 CLOSED_EPISODE_KEYS = {"sha", "round", "openedAt", "verdict", "verdictAt"}
 LEGACY_GATE_KEYS = {"verdict", "sha", "ranAt"}
 
-#: An episode that has advanced a round additionally banks the blocking-finding
-#: count the round it left behind carried (#291) — the only thing the next
-#: round's convergence check has to compare against. `escalated` is the other
-#: optional key: written only on the convergence refusal path, never on an
-#: advance, so it appears in no exact set here.
+#: An advanced episode additionally banks the blocking-finding count the round
+#: it left behind carried (#291) — the next round's convergence check compares
+#: against it. `escalated` is written only on the convergence-refusal path,
+#: never on an advance, so it's absent from this exact set.
 ADVANCED_EPISODE_KEYS = OPEN_EPISODE_KEYS | {"blockingByRound"}
 
-#: The in-code round cap episode-round enforces (bin/gate-ledger's
-#: EPISODE_ROUND_CAP): round 1 is the gate's first run, round 2 its one
-#: fix-and-re-check, and a third round is refused.
+#: bin/gate-ledger's EPISODE_ROUND_CAP: round 1 is the gate's first run,
+#: round 2 its one fix-and-re-check, a third round is refused.
 EPISODE_ROUND_CAP = 2
 
 
@@ -134,11 +130,10 @@ class EpisodeContractTest(unittest.TestCase):
 
     def test_non_converging_round_is_refused_on_its_own_exit_code(self) -> None:
         """#291: a round that fails to strictly reduce the blocking set is
-        refused before the cap and the episode is marked escalated, on exit 3 —
-        distinct from the cap's exit 1 because the two put different choices to
-        the operator. The predecessor count is seeded here: EPISODE_ROUND_CAP
-        permits exactly one advance, so no episode reaches a round that has one
-        on its own until the cap moves."""
+        refused before the cap, marked escalated, on exit 3 — distinct from
+        the cap's exit 1 since the two put different choices to the operator.
+        Predecessor count is seeded here since EPISODE_ROUND_CAP permits only
+        one advance."""
         self.ledger("episode-open", "--gate", "audit")
         self.ledger(
             "episode-finding", "--gate", "audit", "--fingerprint", "code-auditor/dead-branch",
@@ -183,9 +178,8 @@ class EpisodeContractTest(unittest.TestCase):
         self.assertEqual(legacy["sha"], episode["sha"])
 
     def test_verdict_sha_is_head_at_verdict_time(self) -> None:
-        """An episode's rounds land fix commits; the verdict judges HEAD as it
-        stands then, and the dual-written record must agree — a stale open-time
-        sha would make `status` flag a just-passed gate as needing a re-run."""
+        """A stale open-time sha would make `status` flag a just-passed gate
+        as needing a re-run."""
         self.ledger("episode-open", "--gate", "audit")
         self._git("commit", "-q", "--allow-empty", "-m", "fix")
         self.ledger("episode-verdict", "--gate", "audit", "--verdict", "PASS")
@@ -206,9 +200,8 @@ class EpisodeContractTest(unittest.TestCase):
     # --- the retry verdict is a round outcome, not a closing verdict ---
 
     def test_retry_verdict_is_a_round_outcome_round_two_is_reachable(self) -> None:
-        """The acceptance-gate regression (#289 landing, fix round): a round-1
-        `FIX AND RE-REVIEW` must arm re-entry, not close the episode — the
-        episode's whole point is a reachable, findings-carrying round 2."""
+        """#289 landing regression: a round-1 `FIX AND RE-REVIEW` must arm
+        re-entry, not close the episode."""
         self.ledger("episode-open", "--gate", "audit")
         self.ledger("episode-verdict", "--gate", "audit", "--verdict", "FIX AND RE-REVIEW")
         result = self.ledger("episode-round", "--gate", "audit")
@@ -291,13 +284,10 @@ class EpisodeContractTest(unittest.TestCase):
     # --- Task 4 (#289): episode-get --findings, the re-entry read side ---
 
     def test_findings_flag_lists_open_and_carried_lines(self) -> None:
-        """`episode-get --gate G --findings` prints the summary line, then one
-        tab-separated detail line (status, severity, lane, fingerprint) per
-        finding in the two statuses a verdict answers for, then one `digest`
-        line (lane, fingerprint, status, round) per already-disposed finding —
-        `closed`, `waived`, `rejected-as-noise` (#298: a later round inherits a
-        digest, not a transcript). Each block is fingerprint-sorted so the
-        output is deterministic."""
+        """#298: a later round inherits a digest, not a transcript — disposed
+        findings (`closed`, `waived`, `rejected-as-noise`) collapse to one
+        `digest` line each, while `open`/`carried` findings print full detail
+        lines. Each block is fingerprint-sorted for deterministic output."""
         self.ledger("episode-open", "--gate", "audit")
         self.ledger(
             "episode-finding", "--gate", "audit",
@@ -445,12 +435,11 @@ class EpisodeVocabularyTest(unittest.TestCase):
 def _episode_half(door: str) -> str:
     """The review door minus its design-episode section.
 
-    The three episodes share one file since the persona restructure. The work and delivery
-    episodes record through `episode-verdict`; the design episode still uses
-    `gate-ledger record --gate design-review`, because `bin/gate-ledger`'s retry token is
-    one shared constant (`FIX AND RE-REVIEW`) and a design `REVISE` handed to
-    `episode-verdict` reads as a closing verdict — it would shut the episode rather than
-    bound it. So the no-bare-record rule scopes to the two halves it actually governs.
+    The design episode still records via `gate-ledger record --gate
+    design-review`, not `episode-verdict`: the retry token is one shared
+    constant (`FIX AND RE-REVIEW`), and a design `REVISE` handed to
+    `episode-verdict` would read as a closing verdict rather than a bound. So
+    the no-bare-record rule scopes to the two halves it actually governs.
     """
     return door[: door.index("\n## Design episode")] + door[door.index("\n## Work episode") :]
 
@@ -462,10 +451,9 @@ AUDIT_COMPILATION_MD = REPO_ROOT / "reference" / "audit-compilation.md"
 class GateAuditDoorTest(unittest.TestCase):
     """Task 4 (#289): `commands/review.md` is the work episode's door.
 
-    It opens and re-enters the episode via the ledger's episode verbs, injects
-    the findings ledger on re-entry instead of running a fix-delta cross-lane
-    pass, and dispatches a criteria-conformance lane. Static prose pins, same
-    posture as test_gate_audit_challenge_step.py."""
+    Opens/re-enters via the ledger's episode verbs, injects the findings
+    ledger on re-entry instead of a fix-delta cross-lane pass, and dispatches
+    a criteria-conformance lane. Static prose pins."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -509,10 +497,9 @@ class GateAuditDoorTest(unittest.TestCase):
     # --- #293: a Critical is anchored to the rubric, never to its own label ---
 
     def test_rubric_carries_an_anchors_table_with_the_downgrade_rule(self) -> None:
-        """`reference/severity-rubric.md` names, per lane, the objective fact a
-        Critical must cite, and states what happens to one that cites nothing —
-        LLM severity self-rating is the hole this closes, so the requirement has
-        to live somewhere both the door and a reader can point at."""
+        """`reference/severity-rubric.md` names, per lane, the objective fact
+        a Critical must cite, and what happens to one that cites nothing —
+        closing the LLM severity self-rating hole."""
         rubric = (REPO_ROOT / "reference" / "severity-rubric.md").read_text(encoding="utf-8")
         self.assertIn("## Objective anchors", rubric)
         anchors = rubric[rubric.index("## Objective anchors"):]
@@ -549,8 +536,8 @@ class GateAuditDoorTest(unittest.TestCase):
         )
 
     def test_criteria_lane_is_narrowing_tracked(self) -> None:
-        """product-reviewer joins the narrowing-tracked lane roster the episode
-        step names, so a criteria-only blocker can narrow round 2 to it."""
+        """product-reviewer must be narrowing-tracked so a criteria-only
+        blocker can narrow round 2 to it."""
         start = self.door.index("## Open or re-enter the episode")
         end = self.door.index("## Launch the lane profile")
         self.assertIn("product-reviewer", self.door[start:end])
@@ -584,10 +571,9 @@ class NavigatorEpisodeTest(unittest.TestCase):
     """Task 5 (#289): `commands/next.md` navigates the two review episodes.
 
     The audit piece is the work episode — a fix-and-retry re-enters the same
-    episode, and the closing block prints the ledger's own round and finding
-    counts from `episode-get` (#289's information gap). The staleness rule is
-    episode-scoped: no instruction re-arms audit from an acceptance-side
-    verdict. Static prose pins, same posture as GateAuditDoorTest."""
+    episode, and the closing block prints the ledger's own round/finding
+    counts from `episode-get`. Staleness is episode-scoped: no instruction
+    re-arms audit from an acceptance-side verdict. Static prose pins."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -625,10 +611,9 @@ class NavigatorEpisodeTest(unittest.TestCase):
         self.assertIn("round R of C — N open, M carried", closing)
 
     def test_navigator_reads_the_episode_but_never_writes_it(self) -> None:
-        """Code owns bookkeeping: the doors run the episode's write verbs
-        (open, round, verdict); the navigator only reads `episode-get`. A
-        write verb in this file would be the navigator re-deciding re-entry
-        the door already owns."""
+        """Code owns bookkeeping: doors run the write verbs; the navigator
+        only reads `episode-get`. A write verb here would be the navigator
+        re-deciding re-entry the door already owns."""
         for verb in ("episode-open", "episode-round", "episode-verdict"):
             self.assertNotIn(verb, self.text, f"commands/next.md must never run {verb}")
 
@@ -661,10 +646,10 @@ class NavigatorEpisodeTest(unittest.TestCase):
 
 
 class DeliveryDoorTest(unittest.TestCase):
-    """Task 5 (#289): `commands/review.md` is the delivery episode's
-    door — it runs once at the delivery boundary (pre-PR), speaks
-    SHIP · FIX AND RE-REVIEW · HOLD, and routes story-scale fixes into the
-    work episode instead of looping acceptance per story."""
+    """Task 5 (#289): `commands/review.md` is the delivery episode's door —
+    runs once at the delivery boundary (pre-PR), speaks
+    SHIP · FIX AND RE-REVIEW · HOLD, routes story-scale fixes into the work
+    episode instead of looping acceptance per story."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -708,8 +693,7 @@ class DeliveryDoorTest(unittest.TestCase):
         )
 
     def test_report_quotes_round_and_counts_from_episode_get(self) -> None:
-        """Acceptance re-review round: the delivery bound must be visible
-        before it refuses — the door quotes its own episode readout."""
+        """The delivery bound must be visible before it refuses."""
         self.assertIn("episode-get --gate acceptance", self.door)
         self.assertIn("round R of C — N open, M carried", self.door)
 
@@ -722,11 +706,10 @@ class DeliveryDoorTest(unittest.TestCase):
         )
 
     def test_driver_acceptance_prompt_speaks_no_replaced_token(self) -> None:
-        """`workflows/epic-driver.js`'s acceptance fan-in told the compiler to
-        return `FIX AND RE-CHECK` while GATES retries on `FIX AND RE-REVIEW`
-        (Task 3) — a compiler following the literal return-list could never
-        trigger the retry loop. The driver must speak only the vocabulary
-        table's tokens."""
+        """The acceptance fan-in told the compiler to return `FIX AND
+        RE-CHECK` while GATES retries on `FIX AND RE-REVIEW` (Task 3) — a
+        compiler following the literal return-list could never trigger the
+        retry loop."""
         self.assertNotIn("FIX AND RE-CHECK", EPIC_DRIVER.read_text(encoding="utf-8"))
 
 
@@ -744,11 +727,8 @@ class RetryTokenSweepTest(unittest.TestCase):
     """Task 6 (#289): every surface that instructs or scores a retry verdict
     speaks the episode retry token. GATES froze `FIX AND RE-REVIEW` (Task 3),
     but the driver's embedded compile prompts still told compilers to return a
-    replaced spelling — a compiler following the literal return-list records a
-    token the driver's own retry match never sees, parking every fix cycle.
-    The same drift in the fixture harness's VERDICT_TOKENS scores every
-    new-token verdict as no verdict at all, and /next's fallback path
-    reacts to tokens no gate emits anymore."""
+    replaced spelling, parking every fix cycle; the fixture harness's
+    VERDICT_TOKENS had the same drift, scoring new-token verdicts as none."""
 
     def test_no_replaced_retry_token_survives_in_the_episode_consumers(self) -> None:
         for path in (

@@ -1,22 +1,16 @@
 """Regression tests for the per-epic findings ledger and the re-aimed finale
 (#281, #130's remaining scope, #269's opt-in acceptance altitude).
 
-Three mechanisms that only make sense together, so they are tested together:
-
-- **The ledger (#281)** records a finding once, with the sha it was raised at and
-  the sha it was resolved at. Its write side lives in `bin/gate-ledger`
-  (`tests/test_gate_ledger.sh` pins the fold rules and every refusal); what this
-  file covers is the driver's half — that an unresolved Critical parks the
-  dependent subtree, in code, at the moment the dependent would dispatch.
-- **The finale re-aim (#130)** replaces one wide re-fan with three targeted
-  things: a findings-closure lane, a seam lane, and only the lanes the
-  integration diff still needs after carry-forward. The assertions here are
-  about which lanes were actually dispatched and what the compile prompt was
-  told about the ones that weren't — a lane silently missing from a compiled
-  report is the failure mode the whole file guards.
-- **The acceptance altitude (#269)** is built and DEFAULT OFF. Both branches are
-  tested precisely so the default staying put is a checked fact rather than an
-  intention.
+- **Ledger (#281)**: records a finding with its raised/resolved shas. Write side
+  is `bin/gate-ledger` (`tests/test_gate_ledger.sh` covers the fold rules); this
+  file covers the driver's half — an unresolved Critical parks the dependent
+  subtree at dispatch time.
+- **Finale re-aim (#130)**: replaces one wide re-fan with a findings-closure
+  lane, a seam lane, and only the lanes the integration diff still needs after
+  carry-forward. Assertions check which lanes actually dispatched and what the
+  compile prompt says about the ones that didn't.
+- **Acceptance altitude (#269)**: built, DEFAULT OFF — both branches are tested
+  so the default is a checked fact, not an intention.
 """
 
 from __future__ import annotations
@@ -214,10 +208,9 @@ def test_the_finale_runs_a_closure_lane_and_a_seam_lane() -> None:
 
 
 def test_a_narrowed_retry_round_still_runs_both_new_lanes() -> None:
-    """The finale fixer commits straight onto the integration branch, so a fix cycle is
-    what may have closed a finding AND what may have broken a cross-story contract.
-    Neither lane can be narrowed off a prior round's blockingLanes — that list only ever
-    names AUDITORS members — so skipping either on a retry would leave it uncovered."""
+    """The finale fixer commits onto the integration branch, so a fix cycle may both
+    close a finding and break a cross-story contract. Neither lane can be narrowed off
+    blockingLanes — that list only ever names AUDITORS members."""
     out = _run_driver(_one_story_epic(), [
         *_story_audit_rules("a"),
         {"match": r"^finale:audit-compile$", "result": {
@@ -336,9 +329,8 @@ _CONFORMANCE_RULES = [
 
 
 def test_an_epic_with_no_altitude_runs_the_full_per_story_acceptance() -> None:
-    """The default is the whole point: #269 refuses to ship the move before the
-    counter-evidence check its own text names, so an epic that did not opt in must be
-    byte-for-byte the behaviour it always had."""
+    """#269 refuses to ship the move before its named counter-evidence check, so an
+    epic that didn't opt in must be byte-for-byte its old behaviour."""
     out = _run_driver(_acceptance_epic(None), [*_PER_STORY_ACCEPTANCE_RULES, *_finale_rules()])
     assert out["ok"], out.get("error")
     labels = _labels(out)

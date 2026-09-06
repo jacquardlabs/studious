@@ -2,8 +2,8 @@
 
 Two record kinds, one append-only store, one join key. A **dispatch** record names who
 was sent to do a piece of review work and under which model; an **outcome** record names
-the closed-enum verdict that work produced. Joined, they answer the only question the
-routing initiative has: does this model, on this kind of step, tend to pass the gate.
+the closed-enum verdict that work produced. Joined: does this model, on this kind of
+step, tend to pass the gate.
 
 Both live in `.studious/telemetry/<branch-slug>.jsonl` — local, gitignored, one JSON
 object per line, same store shape and root-anchoring as `.studious/evidence/`. Written
@@ -13,10 +13,10 @@ by `bin/gate-ledger` (`telemetry-dispatch`, and `record`'s own outcome side effe
 ## Scope: a pure writer, no reader yet
 
 Like `reference/events-format.md`'s store, this one ships with no read verb and no
-consumer in this plugin. Nothing in the gate flow branches on it — a missing, empty, or
-malformed telemetry file changes no verdict anywhere. It exists so the routing work has
-a left side to join against, and so the two write paths below don't drift from each
-other silently. This file, not either implementation, is the contract.
+consumer in this plugin. A missing, empty, or malformed telemetry file changes no verdict
+anywhere. It exists so the routing work has a left side to join against, and so the two
+write paths below don't drift from each other. This file, not either implementation, is
+the contract.
 
 ## Envelope
 
@@ -35,13 +35,12 @@ No `schemaVersion` per line, matching `reference/evidence-format.md` and
 one versioned document.
 
 **Envelope keys are camelCase-free and payload keys are `snake_case`** — deliberately
-unlike the rest of this repo's JSON, and worth stating so it doesn't read as drift. The
-eight identity fields below are fixed by the cross-surface event shape jacquardlabs/
-studious#186 defines for build-task dispatch. A downstream replay or routing tool joins
-gate dispatches and build dispatches in one table; making it translate field names per
-surface is exactly the undocumented format agreement CLAUDE.md's repo-boundary rule
-warns about. The envelope keeps `at`/`kind` because that is this repo's own append-only
-convention and no cross-surface consumer reads them.
+unlike the rest of this repo's JSON. The eight identity fields below are fixed by the
+cross-surface event shape jacquardlabs/studious#186 defines for build-task dispatch, so a
+downstream tool joining gate and build dispatches in one table need not translate field
+names per surface (the undocumented-format-agreement risk CLAUDE.md's repo-boundary rule
+warns about). The envelope keeps `at`/`kind` as this repo's own append-only convention;
+no cross-surface consumer reads them.
 
 ## `kind: "dispatch"`
 
@@ -69,9 +68,9 @@ convention and no cross-surface consumer reads them.
 ```
 
 Written by `record` as a side effect of every verdict it already persists — one line per
-`record` call, no new call site, no prompt asked to remember anything. `verdict` is the
-closed-enum token `reference/gate-vocabulary.md` defines; this store never invents,
-normalizes, or re-spells it.
+`record` call, no new call site. `verdict` is the closed-enum token
+`reference/gate-vocabulary.md` defines; this store never invents, normalizes, or
+re-spells it.
 
 | Field | Source |
 |-------|--------|
@@ -87,16 +86,15 @@ one measures whether the review passed, the other whether the shipped thing held
 ### How a verdict finds its run without a prompt carrying an id
 
 `telemetry-dispatch` writes the run it was given to `.studious/telemetry/<branch-slug>.run`,
-a one-line file. `record` reads it. So an interactive `/review` session — which
-cannot see its own `session_id` from inside a prompt — still produces outcome lines
-joinable to the dispatch lines the hook wrote minutes earlier, with no instruction added
-to any command and nothing for a model to forget. Code owns this bookkeeping entirely.
+a one-line file. `record` reads it, so an interactive `/review` session — which cannot
+see its own `session_id` from inside a prompt — still produces outcome lines joinable to
+the dispatch lines the hook wrote minutes earlier, with no instruction added to any
+command. Code owns this bookkeeping entirely.
 
-The attribution rule this implies, stated plainly: **a verdict is attributed to the last
-run that dispatched a review on that branch.** Two sessions reviewing one branch
-concurrently would mis-attribute; that is accepted, not overlooked. Nothing branches on
-this data, and the alternative is a run id threaded through four prompt strings that a
-model would have to reproduce verbatim.
+**A verdict is attributed to the last run that dispatched a review on that branch.** Two
+sessions reviewing one branch concurrently would mis-attribute; that is accepted, not
+overlooked. Nothing branches on this data, and the alternative is a run id threaded
+through four prompt strings that a model would have to reproduce verbatim.
 
 ## The join
 
@@ -108,28 +106,26 @@ Degraded key, for the hook path: the hook cannot see which round it is in or whi
 command dispatched it, so its `parent_step_id` is the enclosing `agent_id` (usually
 `""`), not the gate step. A joiner falls back to `(run_id, task_id, skill)` and
 attributes every dispatch line in that run to that run's outcome lines for the same
-branch. Coarser, and it is the honest limit of what a `PreToolUse` hook can know.
+branch — the honest limit of what a `PreToolUse` hook can know.
 
 ## What each surface emits
 
 **The interactive commands emit nothing themselves.** `/review`, `/review --delivery`,
-and `/retro` are prose read by a human-invoked session; adding a per-lane ledger
-call to their fan-out would spend 11–13 extra Bash round-trips per round to record what
-the hook already sees for free. `hooks/dispatch-telemetry.sh` fires on the `Task` tool
-and writes one dispatch line per lane. The commands carry a pointer to this file and
-nothing else — the schema lives here, in one place.
+and `/retro` are prose read by a human-invoked session; a per-lane ledger call in their
+fan-out would spend 11–13 extra Bash round-trips per round recording what the hook
+already sees for free. `hooks/dispatch-telemetry.sh` fires on the `Task` tool and writes
+one dispatch line per lane; the commands carry a pointer to this file, nothing else.
 
 **The driver emits explicitly**, because it is code and knows things no hook can
-observe: which round this is, whether the roster was narrowed, and which lanes were
-routed out. `workflows/epic-driver.js` stamps the ledger call into each auditor's own
-dispatch prompt with those values already computed.
+observe: which round this is, whether the roster was narrowed, which lanes were routed
+out. `workflows/epic-driver.js` stamps the ledger call into each auditor's own dispatch
+prompt with those values already computed.
 
-Both paths therefore write the same store, and a dispatch the driver stamped must not
-also be recorded by the hook. The suppression is mechanical: a driver-stamped prompt
-carries the literal sentinel `STUDIOUS-TELEMETRY-SELF-REPORT`, and the hook exits
-silently when it sees that string in `tool_input.prompt`. The token is deliberately
-unlikely to occur in ordinary prose — matching on `telemetry-dispatch` would suppress on
-any prompt that happened to quote this document.
+A dispatch the driver stamped must not also be recorded by the hook. Suppression is
+mechanical: a driver-stamped prompt carries the literal sentinel
+`STUDIOUS-TELEMETRY-SELF-REPORT`, and the hook exits silently when it sees that string in
+`tool_input.prompt`. Matching on `telemetry-dispatch` instead would suppress any prompt
+that happened to quote this document.
 
 ## What the hook can and cannot see
 
@@ -147,30 +143,28 @@ input carries no model field of any kind, verified or otherwise, which is why `m
 resolves from `agents/<role>.md` inside `telemetry-dispatch` instead.
 
 The hook deliberately does **not** require the branch to be armed the way
-`hooks/evidence-capture.sh` does. `/retro` runs on `main`, against no story, with
-no work file — an armed check would silence exactly half of what this store exists to
-record. The dispatch of a named Studious reviewer is itself the signal; the roster table
-in the hook is the whole filter.
+`hooks/evidence-capture.sh` does. `/retro` runs on `main`, against no story, with no work
+file — an armed check would silence half of what this store exists to record. The
+dispatch of a named Studious reviewer is itself the signal; the roster table in the hook
+is the whole filter.
 
 ### `skill` on the hook path
 
 The hook derives `skill` from the role by pattern — `review-*` is `/retro`'s,
-`*-auditor`/`*-reviewer` is `/review`'s — plus the carve-outs the patterns cannot
-carry: `product-reviewer` and `premortem-auditor` belong to `/review --delivery`;
-`review-outcomes` matches `review-*` but is dispatched by its own `/retro`
-command, which runs outside the `/retro` sweep, so it maps to `review-outcomes`
-before the pattern is consulted; and `code-auditor` is genuinely ambiguous (it serves
-both `/review`'s lane 2 and `/retro`'s idiom-feedback step), so its lines
-carry `skill: ""` rather than a confident guess and a joiner resolves them from the
-run's other lines. Every carve-out is tested before the patterns, since all four names
-match one.
+`*-auditor`/`*-reviewer` is `/review`'s — plus carve-outs the patterns can't carry:
+`product-reviewer` and `premortem-auditor` belong to `/review --delivery`;
+`review-outcomes` matches `review-*` but is dispatched by its own `/retro` command
+outside the `/retro` sweep, so it's mapped before the pattern is consulted; `code-auditor`
+serves both `/review`'s lane 2 and `/retro`'s idiom-feedback step, genuinely ambiguous,
+so its lines carry `skill: ""` and a joiner resolves them from the run's other lines.
+Every carve-out is tested before the patterns, since all four names match one.
 
 The allow-list is `agents/<role>.md` existing: a role that matches no pattern, or matches
-one but names no shipped agent, produces no record at all — same conservative posture as
-the evidence hook's token list. Deliberately a pattern and not a roster copy:
+one but names no shipped agent, produces no record — same conservative posture as the
+evidence hook's token list. Deliberately a pattern and not a roster copy:
 `workflows/epic-driver.js`'s `AUDITORS` comment already names three hand-maintained
-copies of the auditor list as a standing drift risk (#271), and a fourth would silently
-drop whichever lane ships next.
+copies of the auditor list as a standing drift risk (#271); a fourth would silently drop
+whichever lane ships next.
 
 ## Failure behavior
 
@@ -187,8 +181,7 @@ Every write here is best-effort and secondary, exactly like `append_event()`:
 
 `cmd_gc` prunes per-branch gate and work files whose branch no longer exists; this store
 adds no rule of its own, matching `reference/events-format.md`. Telemetry outlives the
-branch it describes, which is the point — a routing comparison reads runs that finished
-long ago.
+branch it describes — a routing comparison reads runs that finished long ago.
 
 ## Consumers that must stay in sync
 

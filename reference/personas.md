@@ -7,8 +7,7 @@ prose surfaces agree. Change a door here first, then change the door.
 
 **The test is residency, not vocabulary.** A persona is a charter plus durable records —
 never a resident agent. Every agent in `agents/` is dispatched fresh, judges once, and
-exits; naming the roles below does not create standing ones. Read this paragraph before
-concluding the roster describes anything that stays running, because nothing does.
+exits; naming the roles below creates no standing ones.
 
 ## Doors
 
@@ -20,11 +19,10 @@ A door is backed by a `commands/*.md` file or a `skills/*/SKILL.md` file — bot
 invokable slash commands, and which one backs a door is an implementation detail, not a
 class distinction. The `Backed by` column is the authority either way.
 
-**`Absorbed` lists names that are gone**, which is why `/doctor` can grep a consuming
-project for them and report every hit as stale. `/build` is the one door whose name
-survived the restructure with larger scope — it absorbed `/plan` — so `build` is not in
-its own Absorbed cell. Putting it there would make `/doctor` flag every live `/build`
-mention.
+**`Absorbed` lists names that are gone**, so `/doctor` can grep a consuming project for
+them and flag stale hits. `/build` absorbed `/plan` but kept its own name, so `build` is
+excluded from its own Absorbed cell — including it would make `/doctor` flag every live
+`/build` mention.
 
 | Door | Persona | Class | Backed by | Absorbed |
 |---|---|---|---|---|
@@ -40,21 +38,19 @@ mention.
 
 ### Bare names and collisions
 
-The bare verbs are deliberate — recognition is the rename's whole bet — but a bare door
-name resolves only while nothing else claims it. Claude Code built-ins win over plugin
-commands, and `/doctor` collides today (Claude Code ships its own `/doctor`); any other
-name can collide tomorrow with a new built-in or another installed plugin. The
+A bare door name resolves only while nothing else claims it. Claude Code built-ins win
+over plugin commands, and `/doctor` collides today (Claude Code ships its own `/doctor`);
+any other name can collide tomorrow with a new built-in or another installed plugin. The
 namespaced form is always unambiguous: `/studious:doctor`, `/studious:review`,
 `/studious:<door>`. When actionable text tells a human to run a door whose bare name is
 known to collide, write the namespaced form — a copy-pasted command that runs the wrong
-tool is worse than a longer one. This is the same finding #257's session hit with the
-old bare `/design`, applied to the new surface.
+tool is worse than a longer one (the same finding #257 hit with the old bare `/design`).
 
 ### What each class may do
 
 - **judge** — records verdicts. May never invoke a producer door or require a producer's
-  private artifact, because a gate judges the work and never who produced it. This is the
-  rule `scripts/check_gate_independence.py` enforces; `reference/worker-contract.md` is the
+  private artifact — a gate judges the work, never who produced it (enforced by
+  `scripts/check_gate_independence.py`); `reference/worker-contract.md` is the
   executor-agnostic contract a judge may rely on instead.
 - **producer** — writes and commits code, docs, and evidence. May name other producers and
   may *convene* a judge (`/ship` convenes the delivery episode), but may never write a
@@ -88,8 +84,8 @@ episode to the door that convenes it, and nothing else.
 
 ## Specialists
 
-The specialist tier already exists — these are the agents shipping today, each keeping
-exactly the lane and rubric it owns now. One specialist serves both cadences: a
+These are the agents shipping today, each keeping the lane and rubric it owns now. One
+specialist serves both cadences: a
 diff-scoped lane inside a `/review` episode, and a whole-project duty under `/retro`.
 The title is keyed to the agent filename here so a title/agent pair cannot drift.
 
@@ -108,9 +104,8 @@ The title is keyed to the agent filename here so a title/agent pair cannot drift
 | Pre-mortem Verifier | `premortem-auditor` | — |
 | Outcome Analyst | — | `review-outcomes` |
 
-A `—` in the periodic column means that specialist has no whole-project twin today.
-Adding one is a hire: a lane plus its periodic duty, behind demonstrated need, the way
-the Ops Engineer entered (infra first, then operability).
+A `—` in the periodic column means no whole-project twin exists yet (see the hiring
+ruling below).
 
 ## Rulings this charter carries
 
@@ -134,13 +129,12 @@ ratified, in one line each:
 - **Growing the team means hiring a specialist** — a lane plus its periodic twin, behind
   demonstrated need, the way the Ops Engineer entered (infra first, then operability).
 
-**One deviation from that design, recorded here because it is the load-bearing one.** The
-design ratified deprecation shims for one minor-version window, rejecting a hard cut. The
-restructure shipped the hard cut instead: no shim files, and `/doctor` detects retired door
-names in a consuming project and proposes the rewire. The reasoning was that the shim
-rationale rested on marketplace muscle memory for an installer base of one, against the
-cost of fifteen files carrying a deletion chore deferred to "the next major." Reversing it
-is additive — adding shims later costs nothing that removing them now did not already.
+**One deviation from that design.** The design ratified deprecation shims for one
+minor-version window; the restructure shipped a hard cut instead — no shim files, and
+`/doctor` detects retired door names in a consuming project and proposes the rewire.
+Reasoning: the shim rationale rested on marketplace muscle memory for an installer base
+of one, against fifteen files carrying a deferred deletion chore. Reversing it is
+additive — adding shims later costs nothing that removing them now didn't.
 
 ## Consumers that must stay in sync
 

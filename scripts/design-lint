@@ -6,54 +6,39 @@ set; this script mirrors that file's "Required sections" table in
 `CANONICAL_SECTIONS`, and `tests/python/test_design_doc_sections.py` fails
 if the two ever drift apart again (#211).
 
-1. Section vocabulary: every required section present, exactly once each,
-   in any order. A doc may carry additional top-level sections -- the
-   contract permits any heading text so long as the content answers the
-   mapped question ("the gate reads for substance, not exact titles"), so
-   an unrecognized heading is not a violation and there is no exact-count
-   requirement. A misspelled required heading still fails, reported as the
-   required section it was meant to be.
+1. Section vocabulary: every required section present, exactly once, any
+   order. Extra sections are permitted and ignored. A misspelled required
+   heading still fails, reported as the section it was meant to be.
 2. `Proposed design` is concrete, not prose-only: a fenced code block, a
    markdown table, or >= `MIN_ARTIFACT_SPANS` distinct artifact-shaped
-   inline-code spans (a filename, an endpoint, a field -- NOT any
-   backtick-quoted filler word; see premortem risk #7).
-3. `Problem & persona`'s core claim (the persona and its problem) is
-   checkable one of three ways: (a) an interview-ruled `(qN)` fork
-   citation (Check 5 verifies the ruling itself), (b) a tree-checkable
-   inline-code path span resolved against `--repo`, or (c) a blockquoted
-   excerpt that is a verbatim substring of `PRODUCT.md`. A blockquote is
-   the section's expected persona-naming shape (both real fixtures use
-   it, and the contract's own text asks for "verbatim, not a paraphrase")
-   -- when one is present it is authoritative: a wrong/fabricated
-   blockquote is not rescued by an unrelated real path or fork tag
-   elsewhere in the section (premortem risk #1). Only a section with no
-   blockquote at all falls back to buckets (a)/(b). The contract's own
-   "what good looks like" for `Problem & persona` ("verbatim, not a
-   paraphrase invented for this doc") is Check 3's founding "don't trust
-   prose, check it" principle narrowed to `PRODUCT.md` specifically.
-4. `User journey` names at least one failure path alongside its happy
-   path -- a closed, deliberately narrow token vocabulary (premortem risk
-   #3: a real failure phrased without any listed token is a known false
-   negative, not a bug).
-5. Every distinct `(qN)` fork citation, scanned across the whole document,
-   has a ruling-shaped clause (closed ruling-verb vocabulary) in the same
-   sentence or bullet as at least one of its occurrences. Section-name
-   agnostic. A second, independent sub-check
-   covers the table-shaped fork convention real `/design` output actually
-   uses (SKILL.md Step 4): a section with a lettered-options table (>= 2
-   rows) must also carry a `(recommended): <letter>` marker somewhere in
-   that same section -- `(qN)` tags never appear in a real shipped doc, so
-   this sub-check is what actually exercises Check 5 against real input.
+   inline-code spans (see premortem risk #7).
+3. `Problem & persona`'s persona/problem claim is checkable one of three
+   ways: (a) an interview-ruled `(qN)` fork citation (Check 5 verifies the
+   ruling), (b) a tree-checkable inline-code path resolved against
+   `--repo`, or (c) a blockquote that's a verbatim substring of
+   `PRODUCT.md`. A blockquote, when present, is authoritative -- a
+   wrong/fabricated one isn't rescued by a real path or fork tag elsewhere
+   in the section (premortem risk #1); only a section with none falls
+   back to (a)/(b).
+4. `User journey` names a failure path alongside its happy path, via a
+   deliberately narrow token vocabulary (premortem risk #3: a real
+   failure phrased without a listed token is a known false negative, not
+   a bug).
+5. Every `(qN)` fork citation, scanned across the whole document, has a
+   ruling-shaped clause in the same sentence or bullet as an occurrence.
+   A second sub-check covers the table-shaped fork convention real
+   `/design` output actually uses (SKILL.md Step 4): a lettered-options
+   table (>= 2 rows) must carry a `(recommended): <letter>` marker in the
+   same section -- `(qN)` tags never appear in a real shipped doc, so
+   this is what actually exercises Check 5 against real input.
 
 A trailing `## Revision History` section is excluded from every check.
-Parsing splits on `## ` headings alone, never on a `---` divider, so an
-in-body horizontal rule elsewhere in the document can't mis-slice the
-section list (premortem risk #5).
+Parsing splits on `## ` headings alone, never `---`, so an in-body rule
+can't mis-slice the section list (premortem risk #5).
 
-Reports every violation found in a single run (never fails fast), matching
-`verify`'s own established precedent. Exit codes: 0 clean pass (all five
-checks). 1 one or more checks failed. 2 usage error (unreadable doc, bad
---repo).
+Reports every violation in a single run (never fails fast), matching
+`verify`'s precedent. Exit codes: 0 clean pass. 1 one or more checks
+failed. 2 usage error (unreadable doc, bad --repo).
 """
 from __future__ import annotations
 
@@ -63,14 +48,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# Mirrors reference/design-doc-contract.md's "Required sections" table, in
-# its order. That file is the authority; this tuple is a copy kept honest by
-# tests/python/test_design_doc_sections.py. The contract draws no
-# required/optional distinction (no row is marked optional, no count range
-# is stated), so every name here is unconditionally required, exactly once
-# each -- but a doc may add sections beyond them (contract: "Sections may
-# carry any heading text as long as the content answers the mapped
-# question"), so this is a floor, never an exact count.
+# Mirrors reference/design-doc-contract.md's "Required sections" table (the
+# authority); kept honest by tests/python/test_design_doc_sections.py.
+# Every name is required exactly once; a doc may add sections beyond these.
 CANONICAL_SECTIONS = (
     "Problem & persona",
     "Proposed design",
@@ -82,17 +62,12 @@ CANONICAL_SECTIONS = (
     "Open questions",
 )
 
-# Check 2's concreteness floor: the minimum number of distinct
-# artifact-shaped inline-code spans a prose Proposed design section needs
-# to count as "concrete, not prose-only" when it carries neither a fenced
-# code block nor a markdown table. A build-phase constant, deliberately not
-# configurable.
+# Check 2: min distinct artifact-shaped inline-code spans needed when
+# Proposed design has no fenced code block or table.
 MIN_ARTIFACT_SPANS = 3
 
-# Check 4's failure-path vocabulary -- deliberately narrow (design doc:
-# "exact list a build-phase constant"). A real failure path phrased without
-# any of these is a known false negative (premortem risk #3), not silently
-# widened away.
+# Check 4's failure-path vocabulary, deliberately narrow -- a real failure
+# phrased without these tokens is a known false negative (premortem risk #3).
 FAILURE_TOKEN_RE = re.compile(
     r"\bfail(?:s|ed|ure)?\b|\berror(?:s)?\b|\bstops?\b|\brefus(?:es|ed|al)?\b"
     r"|\bnot installed\b|\bunavailable\b",
@@ -100,8 +75,8 @@ FAILURE_TOKEN_RE = re.compile(
 )
 FAILURE_SUBHEADING_RE = re.compile(r"^#{3,6}\s*failure\b", re.IGNORECASE | re.MULTILINE)
 
-# Check 5's ruling-verb vocabulary -- same "e.g." list the design doc names,
-# stems included (ruled/ruling/rules, confirmed/confirms/confirmation, ...).
+# Check 5's ruling-verb vocabulary, per the design doc's "e.g." list (stems
+# included: ruled/ruling/rules, confirmed/confirms/confirmation, ...).
 RULING_VERB_RE = re.compile(
     r"\brul(?:ed|ing|es)?\b|\bconfirm(?:ed|s|ation)?\b|\breject(?:ed|s|ion)?\b"
     r"|\bdecid(?:ed|es|ing)?\b|\brank(?:ed|s|ing)?\b",
@@ -109,29 +84,23 @@ RULING_VERB_RE = re.compile(
 )
 FORK_TAG_RE = re.compile(r"\(q(\d+)\)", re.IGNORECASE)
 
-# The second, table-shaped fork convention real /design output actually uses
-# (SKILL.md Step 4: "recommended option marked **(recommended): <letter>.**")
-# -- unrelated to viva's own `(qN)` interview-citation tags, and the reason
-# Check 5 was vacuous against every real shipped doc (none of them carry a
-# `(qN)` tag at all; see design-lint-reconcile's Open questions). A table row
-# whose first cell is a single capital letter followed by whitespace, a dash,
-# or end-of-cell is an option row ("| B | ... |", "| B — Some option | ... |")
-# -- deliberately narrow so an ordinary header cell ("| Field | Value |")
-# can't false-positive (only a *single* letter matches, not a whole word).
+# Table-shaped fork convention real /design output uses (SKILL.md Step 4),
+# distinct from viva's `(qN)` tags -- the reason Check 5 was vacuous against
+# real docs (none carry a `(qN)` tag; see design-lint-reconcile's Open
+# questions). Matches a first cell that's a single capital letter (option
+# row); narrow enough that a header cell like "| Field | Value |" can't
+# false-positive.
 OPTION_ROW_RE = re.compile(r"^\|\s*([A-Z])(?:\s|$|—|-)", re.MULTILINE)
 # Loose on formatting (bold markers, trailing punctuation) -- the signal is
 # the parenthetical + letter, not the surrounding markdown emphasis.
 RECOMMENDED_MARKER_RE = re.compile(r"\(recommended\)\s*:\s*[A-Za-z0-9]", re.IGNORECASE)
-# Below this many distinct lettered rows, a table is more likely an
-# unrelated one-row table than a genuine 2-3-option fork (SKILL.md Step 4:
-# "2-3 options") -- avoids flagging incidental single-letter-led rows.
+# Below this, a table is more likely incidental than a genuine 2-3-option
+# fork (SKILL.md Step 4: "2-3 options").
 MIN_OPTION_ROWS_FOR_FORK = 2
 
 INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
-# Excludes plain-English filler like `maybe`/`later` from counting as a
-# Check-2 concreteness marker (premortem risk #7) -- an artifact-shaped span
-# names a real file, endpoint, or field, which in practice carries a slash,
-# a dot, an underscore, a digit, or a `{param}` brace.
+# Excludes plain-English filler like `maybe`/`later` (premortem risk #7) --
+# a real artifact span carries a slash, dot, underscore, digit, or `{param}`.
 ARTIFACT_SPAN_RE = re.compile(r"[/._{}\d]")
 # A citation shaped like a file path, optionally with a `:line` or
 # `:line-line` suffix -- e.g. `server.py:3120-3134` (Check 3).
@@ -158,13 +127,10 @@ _CANONICAL_BY_NORM = {_normalize(name): name for name in CANONICAL_SECTIONS}
 
 
 def parse_sections(text: str) -> list[Section]:
-    """Split `text` into top-level (`## `) sections, heading + body (up to
-    the next `## ` heading or EOF). A trailing `## Revision History`
-    section is dropped -- it's an existing convention (a viva sign-off
-    stamp appended after the design content proper), not part of the
-    design content any check below operates on. Splitting happens on `## `
-    headings alone, never on a `---` divider, so an in-body horizontal rule
-    elsewhere can't mis-slice this (premortem risk #5).
+    """Split `text` into top-level (`## `) sections. Drops a trailing
+    `## Revision History` (a viva sign-off stamp, not design content).
+    Splits on `## ` headings only, never `---`, so an in-body rule can't
+    mis-slice this (premortem risk #5).
     """
     matches = list(HEADING_RE.finditer(text))
     sections = [
@@ -208,13 +174,10 @@ def split_bullets(body: str) -> list[str]:
 
 
 def split_paragraph_sentences(body: str) -> list[str]:
-    """Approximate non-bullet prose into sentence-sized units for Check 5's
-    "same sentence" scope (bullets are handled separately by
-    `split_bullets`, which stays a whole-bullet unit). A false merge across
-    a sentence boundary only widens the window Check 5 searches for a
-    ruling verb -- it can never turn a real ruling into a missing one, only
-    the reverse, matching the check's report-every-violation, never-silent
-    posture.
+    """Approximate non-bullet prose into sentences for Check 5's "same
+    sentence" scope (bullets are handled separately by `split_bullets`). A
+    false merge across a sentence boundary only widens the search window --
+    it can turn a missing ruling into a found one, never the reverse.
     """
     paragraphs: list[str] = []
     current: list[str] = []
@@ -241,13 +204,8 @@ def split_paragraph_sentences(body: str) -> list[str]:
 
 
 def check_1_section_vocabulary(sections: list[Section]) -> list[str]:
-    """Every required section present, exactly once each.
-
-    A required section is one of `CANONICAL_SECTIONS`, mirrored from
-    `reference/design-doc-contract.md`. Sections beyond those are permitted
-    and ignored -- the contract lets a doc carry any heading text as long as
-    the content answers the mapped question, so this check is a floor on
-    what must be there, never a ceiling on what may be (#211).
+    """Every required section (`CANONICAL_SECTIONS`) present exactly once.
+    Extra sections are permitted and ignored -- a floor, not a ceiling (#211).
     """
     violations: list[str] = []
     present: dict[str, str] = {}
@@ -283,9 +241,8 @@ def _has_markdown_table(body: str) -> bool:
     lines = [ln.strip() for ln in body.splitlines() if ln.strip()]
     return any(
         a.startswith("|") and "-" in b and _TABLE_DELIM_RE.match(b)
-        # zip over the offset slice, not itertools.pairwise: the skills invoke
-        # these scripts bare (`scripts/design-lint ...`), so they run on whatever
-        # python3 a consuming project has, and pairwise needs 3.10 (#250).
+        # zip over offset slice, not itertools.pairwise -- scripts run bare on
+        # whatever python3 a consuming project has; pairwise needs 3.10 (#250).
         for a, b in zip(lines, lines[1:])
     )
 
@@ -333,10 +290,8 @@ def _resolves_in_repo(path_str: str, repo_root: Path) -> bool:
 
 
 def _extract_blockquotes(body: str) -> list[str]:
-    """Group `body`'s lines into contiguous markdown blockquotes (`>`-prefixed
-    lines), each joined into one string. A section can carry more than one;
-    any one of them matching PRODUCT.md verbatim is enough (Check 3, bucket
-    c)."""
+    """Group `body`'s lines into contiguous blockquotes, each joined into one
+    string. Any one matching PRODUCT.md verbatim is enough (Check 3, bucket c)."""
     blockquotes: list[str] = []
     current: list[str] = []
     for line in body.splitlines():
@@ -352,10 +307,8 @@ def _extract_blockquotes(body: str) -> list[str]:
 
 
 def _normalize_ws(text: str) -> str:
-    """Whitespace-only normalization -- unlike `_normalize` (used for
-    case-insensitive heading matching), a verbatim-quote check must stay
-    case-sensitive: the contract asks for "verbatim, not a paraphrase," and
-    a case change is still not a verbatim match."""
+    """Whitespace-only normalization -- unlike `_normalize`, stays
+    case-sensitive: the contract's "verbatim" means a case change still fails."""
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -373,12 +326,10 @@ def check_3_persona_checkable(sections: list[Section], repo_root: Path) -> list[
 
     body = section.body
 
-    # Bucket (c): a blockquote is the section's expected persona-naming
-    # shape (both real fixtures use it; the contract's own text asks for
-    # "verbatim, not a paraphrase"). When present it is authoritative -- a
-    # wrong/fabricated blockquote is not rescued by an unrelated real path
-    # or fork tag elsewhere in the section (premortem risk #1); only a
-    # section with no blockquote at all falls through to buckets (a)/(b).
+    # Bucket (c): a blockquote is authoritative when present -- a
+    # wrong/fabricated one isn't rescued by a real path or fork tag
+    # elsewhere in the section (premortem risk #1). No blockquote falls
+    # through to (a)/(b).
     blockquotes = _extract_blockquotes(body)
     if blockquotes:
         product_text = _read_product_md(repo_root)
@@ -430,8 +381,8 @@ def check_4_user_journey_failure_path(sections: list[Section]) -> list[str]:
 
 
 def check_5_fork_rulings(sections: list[Section]) -> list[str]:
-    # Scans the whole document -- section-name agnostic by design, since forks
-    # are referenced across whichever sections happen to carry them.
+    # Scans the whole document, section-name agnostic -- forks are
+    # referenced across whichever sections carry them.
     units: list[str] = []
     for s in sections:
         units.extend(split_bullets(s.body))
@@ -453,12 +404,9 @@ def check_5_fork_rulings(sections: list[Section]) -> list[str]:
         if not ruled[tag]
     ]
 
-    # The second fork convention real /design output actually uses: a
-    # lettered-options table with the ruling recorded as a `(recommended):
-    # <letter>` marker, not a `(qN)` tag (see OPTION_ROW_RE's own comment).
-    # Per-section, not whole-document -- a real fork's options table and its
-    # recommendation line live in the same section every shipped doc has
-    # used so far.
+    # Second fork convention: a lettered-options table with the ruling as a
+    # `(recommended): <letter>` marker (see OPTION_ROW_RE). Checked
+    # per-section since a fork's table and recommendation live together.
     for s in sections:
         option_rows = OPTION_ROW_RE.findall(s.body)
         if len(option_rows) < MIN_OPTION_ROWS_FOR_FORK:

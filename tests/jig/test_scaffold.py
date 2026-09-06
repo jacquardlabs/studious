@@ -1,34 +1,26 @@
 """Regression tests for the M1 plugin skeleton (issue #5, story scaffold-skeleton).
 
-Standard library only — no external test-framework dependency for a repo this
-young. Run with:
+Stdlib only. Run with:
 
     uv run --no-project python3 -m unittest discover -s tests -v
 
-Checks the story's acceptance criteria mechanically:
+Checks the story's acceptance criteria:
 
 1. `.claude-plugin/plugin.json` exists, is valid JSON, and matches studious's
-   required manifest shape (name/description/version/author/repository/
-   license/keywords), using the same validation rules studious's own
-   `scripts/validate_plugin.py` applies to itself.
+   required manifest shape, using the same rules `scripts/validate_plugin.py`
+   applies to itself.
 2. `skills/` has one top-level directory per user-invoked skill (design,
-   plan, build, finish, coach) — no skill nested inside another skill's
-   directory (see docs/studious/premortems/m1-scaffold-epic.md, risk #2) —
-   each with a stub `SKILL.md` carrying valid `name`/`description`
-   frontmatter. `skills/` may also hold known model-invoked skill
-   directories (currently just `task-execution-discipline`, see
-   test_discipline_skill.py for its own acceptance checks); the set-equality
-   guard below covers the full known directory list, not just the
-   user-invoked five, so any *unaccounted-for* extra directory still fails
-   the build.
+   plan, build, finish, coach), none nested inside another skill's directory
+   (docs/studious/premortems/m1-scaffold-epic.md, risk #2), each with a stub
+   `SKILL.md` carrying valid `name`/`description` frontmatter. Known
+   model-invoked skill dirs (currently `task-execution-discipline`, see
+   test_discipline_skill.py) are also allowed; the set-equality guard below
+   still fails on any unaccounted-for extra directory.
 3. `scripts/plan-lint` and `scripts/design-lint` exist and are executable.
-   Neither is the M1 stub any longer: `plan-lint` graduated to a real,
-   deterministic-exit-code linter at M3 (story plan-lint, issue #12) — its
-   own behavior is checked by test_plan_lint.py. `design-lint` graduated to
-   a real linter at M2 (story design-lint, issue #9) — see
-   `tests/test_design_lint.py` for its behavior; this module only confirms
-   its CLI now enforces required arguments (a bare invocation is a usage
-   error) rather than the old stub's unconditional exit 0.
+   Neither is the M1 stub any longer: `plan-lint` graduated to a real linter
+   at M3 (issue #12, see test_plan_lint.py); `design-lint` graduated at M2
+   (issue #9, see tests/test_design_lint.py) — this module only confirms its
+   CLI now requires --doc rather than the old stub's unconditional exit 0.
 """
 from __future__ import annotations
 
@@ -56,44 +48,40 @@ REQUIRED_MANIFEST_KEYS = (
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 PLUGIN_NAME = re.compile(r"^[a-z0-9-]+$")
 
-# The five user-invoked skill stubs this story's tests validate frontmatter
-# and stub-content shape for.
+# User-invoked skill stubs this story validates frontmatter and stub-content
+# shape for.
 EXPECTED_SKILLS = ("shape", "build", "ship")
 
-# Known model-invoked skill directories that also legitimately live under
-# top-level skills/ — each has its own dedicated acceptance test module
-# (task-execution-discipline: test_discipline_skill.py) rather than being
-# swept into the user-invoked stub checks below.
+# Model-invoked skill dirs that legitimately live under skills/ too — each
+# has its own test module (task-execution-discipline: test_discipline_skill.py),
+# not the stub checks below.
 EXPECTED_MODEL_INVOKED_SKILLS = ("task-execution-discipline",)
 
-# The full set of top-level skills/ directories this repo currently knows
-# about. Used only to guard against an *unaccounted-for* extra directory
-# (a real regression) without conflating "unknown extra dir" with "a known
-# model-invoked skill that isn't one of the five user-invoked stubs."
+# Full set of known top-level skills/ dirs — guards against an
+# unaccounted-for extra directory without flagging known model-invoked
+# skills as regressions.
 ALL_KNOWN_SKILL_DIRS = set(EXPECTED_SKILLS) | set(EXPECTED_MODEL_INVOKED_SKILLS)
 
 
-# The manifest's own shape is checked once, by scripts/validate_plugin.py and
-# tests/python/test_validate_plugin.py. There is one manifest now (studious #150),
-# so re-asserting name/version/author/license/keywords here would be a second copy
-# of the same contract — the exact duplication absorbing jig was meant to remove.
-# What survives is the one claim those checks do not make:
+# Manifest shape is checked once by scripts/validate_plugin.py /
+# tests/python/test_validate_plugin.py (one manifest now, studious #150) —
+# re-asserting it here would duplicate that contract. What survives is the
+# one claim those checks don't make:
 
 
 class TestPluginManifest(unittest.TestCase):
     def test_declares_the_viva_dependency(self) -> None:
-        # /build and /shape stop dead without viva. It went undeclared the whole
-        # time they shipped from jig's own repo; now that they are studious skills,
-        # the dependency belongs on studious's manifest.
+        # /build and /shape stop dead without viva; it went undeclared while
+        # they shipped from jig's own repo — now studious's manifest must
+        # declare it.
         manifest = json.loads(PLUGIN_MANIFEST.read_text(encoding="utf-8"))
         self.assertIn("viva", manifest.get("dependencies", []))
 
 
 class TestSkillsDirectory(unittest.TestCase):
     def test_every_build_execution_skill_is_present(self) -> None:
-        # skills/ now holds studious's own skills alongside these, so enumerating
-        # the whole directory would just be a list to update on every addition.
-        # What matters is that none of the build-execution set went missing.
+        # skills/ also holds studious's own skills, so check membership
+        # rather than enumerate the whole dir.
         skills_dir = REPO_ROOT / "skills"
         self.assertTrue(skills_dir.is_dir())
         actual = {p.name for p in skills_dir.iterdir() if p.is_dir()}
@@ -121,10 +109,9 @@ class TestSkillsDirectory(unittest.TestCase):
                 )
 
     def test_no_skill_nested_inside_another_skills_directory(self) -> None:
-        # Regression guard for premortem risk #2 (viva#101's exact failure
-        # mode: a skill nested inside another skill's directory never
-        # registers). Each expected skill dir's only markdown file is its
-        # own SKILL.md at the top level, not a further skills/ subtree.
+        # Regression guard for premortem risk #2 (viva#101: a nested skill
+        # never registers). Each skill dir's only SKILL.md must be its own
+        # top-level file, not a subtree.
         for skill in EXPECTED_SKILLS:
             with self.subTest(skill=skill):
                 skill_dir = REPO_ROOT / "skills" / skill
@@ -147,11 +134,10 @@ class TestLintScriptStubs(unittest.TestCase):
                 )
 
     def test_design_lint_is_a_real_cli_not_a_stub(self) -> None:
-        # design-lint graduated from an M1 stub to a real linter at M2
-        # (story design-lint, issue #9); tests/test_design_lint.py owns its
-        # full behavior. This scaffold-level check only confirms it's a
-        # real argparse CLI now -- a bare invocation (missing the required
-        # --doc) is a usage error, not the old stub's unconditional exit 0.
+        # design-lint graduated from stub to real linter at M2 (issue #9);
+        # tests/test_design_lint.py owns its behavior. This only confirms
+        # it's a real argparse CLI — bare invocation is now a usage error,
+        # not the old stub's exit 0.
         path = REPO_ROOT / "scripts" / "design-lint"
         result = subprocess.run(
             [str(path)], capture_output=True, text=True, timeout=10, check=False

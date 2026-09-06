@@ -1,33 +1,11 @@
 """Regression tests for scripts/worktree-setup (story build-scripts, issue #14).
 
-Exercises the script against a throwaway git repo (`tests/_tempgit.py`),
-never the real jig repo or this story's own worktree, checking this story's
-acceptance criteria mechanically:
-
-1. Happy path: a green baseline creates the branch + worktree and exits 0.
-2. Dirty baseline: a failing baseline command stops before returning
-   success, frames the failure as pre-existing (not caused by this build
-   session), names the failing command, and leaves the worktree in place
-   for inspection (docs/studious/premortems/build-scripts.md, risk #3).
-3. Collision: re-running against an existing branch/worktree fails loudly
-   with the exact remediation command to retry (risk #2), rather than
-   silently reusing stale state.
-4. Not a git repo: refuses with a usage error rather than a traceback.
-
-Also covers story subprocess-trust-and-timeout (issues #48, #49):
-
-5. A baseline command that outlives `--timeout` is killed and reported as
-   a distinct BASELINE TIMEOUT, never conflated with a BASELINE FAILURE
-   (an ordinary non-zero exit).
-6. A baseline command that completes comfortably within `--timeout` is
-   unaffected by the flag's presence.
-7. The trust boundary is stated explicitly in the script's own docstring.
-
-Also covers story subprocess-timeout-process-group-kill (issue #61):
-
-8. A timed-out baseline command's whole process group is killed, not just
-   the shell -- a backgrounded child is actually gone afterward, not merely
-   reported as killed.
+Runs against a throwaway git repo (`tests/_tempgit.py`), never the real jig
+repo or this story's own worktree. Covers acceptance criteria from
+docs/studious/premortems/build-scripts.md (risk #2: collision remediation,
+risk #3: leave worktree in place on failure), subprocess-trust-and-timeout
+(#48, #49: BASELINE TIMEOUT vs BASELINE FAILURE), and
+subprocess-timeout-process-group-kill (#61: whole process group killed).
 
 Run with:
 
@@ -189,16 +167,10 @@ class TestWorktreeSetupTimeout(unittest.TestCase):
 
 
 class TestWorktreeSetupTimeoutKillsWholeProcessGroup(unittest.TestCase):
-    """Issue #61: a timed-out baseline command's *whole process group* is
-    killed, not just the shell -- proven by an actually-gone backgrounded
-    child, not merely that the baseline was reported BASELINE TIMEOUT.
-
-    Pre-fix, the baseline check relied on `subprocess.run`'s own timeout
-    handling, which signals only the one process it manages directly. A
-    baseline command that forks a real child (a backgrounded job, a
-    pipeline stage) left that child running, reparented, past the reported
-    timeout -- the exact gap `os.killpg(process.pid, signal.SIGKILL)`
-    (launched via `start_new_session=True`) closes.
+    """Issue #61: `os.killpg(process.pid, signal.SIGKILL)` (via
+    `start_new_session=True`) kills the whole process group, not just the
+    shell. Pre-fix, `subprocess.run`'s own timeout only signaled the shell,
+    leaving a backgrounded/forked child running past the reported timeout.
     """
 
     def test_backgrounded_child_is_actually_gone_after_baseline_timeout(self) -> None:

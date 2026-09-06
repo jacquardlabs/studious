@@ -1,18 +1,16 @@
 """Regression tests for finale crash isolation.
 
-Every story-level dispatch path in `workflows/epic-driver.js` is wrapped
-(`crashParkArgs` and friends, #128), but the finale orchestration — `finaleGate`'s
-rounds, the audit compile, `acceptanceRunOnce`, and the `finale:ready` recorder —
-ran bare. A throw there discarded the whole return object: the still-racing
-acceptance promise's rejection went unhandled (fatal in modern Node), and
-`reference/epic-orchestration.md` then recorded `--landed 0` for an invocation that DID
-land stories — a false zero armed toward the zero-landed stop-loss (#268). An
-earlier pass deliberately left the finale unguarded; that decision predates the
-stop-loss consequence and is overturned by it.
+Story-level dispatch in `workflows/epic-driver.js` is wrapped (`crashParkArgs`,
+#128), but the finale orchestration — `finaleGate`'s rounds, the audit compile,
+`acceptanceRunOnce`, and the `finale:ready` recorder — ran bare. A throw there
+discarded the whole return object (racing acceptance promise's rejection went
+unhandled, fatal in modern Node), and `reference/epic-orchestration.md` recorded
+`--landed 0` for a run that DID land stories — a false zero toward the
+zero-landed stop-loss (#268).
 
-Same end-to-end harness-shape execution as `test_driver_crash_hardening.py`: these
-assertions are about what the run REPORTS after a finale agent throws, which no
-single function's return value can honestly demonstrate.
+Same end-to-end harness as `test_driver_crash_hardening.py`: these assert what
+the run REPORTS after a finale agent throws, which no single function's return
+value can demonstrate.
 """
 
 from __future__ import annotations
@@ -46,10 +44,10 @@ def _assert_stories_survived(result: dict) -> None:
 
 
 def test_a_thrown_finale_audit_degrades_to_a_held_finale_with_the_real_report() -> None:
-    """The audit compile throws AND the racing acceptance dispatch throws — the
-    worst case: before the fix the driver body rejected at `await auditPromise`
-    while the abandoned acceptance promise's rejection escaped unhandled, so no
-    report of any shape came back at all."""
+    """Worst case: audit compile and the racing acceptance dispatch both throw.
+    Before the fix, the driver rejected at `await auditPromise` while the
+    abandoned acceptance promise's rejection escaped unhandled — no report came
+    back at all."""
     rules = [
         *LAND_STORY_A_RULES,
         *FINALE_AUDITORS_PASS,
@@ -98,10 +96,9 @@ def test_a_thrown_finale_acceptance_degrades_after_audit_passed() -> None:
 
 
 def test_a_thrown_ready_recorder_reads_as_a_died_recorder_not_a_finale_crash() -> None:
-    """Both gates passed, then the mechanical ready-recorder threw. That is the
-    same fact as the recorder returning null — gates passed, ready unrecorded — and
-    the existing notes line must report it that way, not as the whole finale
-    crashing (which would bury a passed audit and a SHIP under a crash message)."""
+    """Both gates passed, then the ready-recorder threw — same fact as it
+    returning null, so it must report via the existing notes line, not as the
+    whole finale crashing (which would bury the passed audit and SHIP)."""
     rules = [
         *LAND_STORY_A_RULES,
         *FINALE_AUDITORS_PASS,

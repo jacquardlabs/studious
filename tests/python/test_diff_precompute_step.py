@@ -1,17 +1,11 @@
 """Regression tests for /review's diff-precompute step (perf item 8, 2026-07-17).
 
-Every full-changeset auditor independently discovered the diff itself — 2-5
-`git`/`Read` round-trips per agent, times up to 11 auditors per round, purely to
-learn what the orchestrator already knows from establishing the changeset scope.
-`commands/review.md` now precomputes the diff once and stamps it into every
-full-changeset dispatch prompt when the changeset is small, skipping those
-round-trips; a large changeset falls back to today's self-discovery behavior
-unchanged.
+Every full-changeset auditor independently rediscovered the diff (2-5 `git`/`Read`
+round-trips x up to 11 auditors); `commands/review.md` now precomputes it once and
+stamps it into small-changeset dispatch prompts, falling back to self-discovery for
+large changesets.
 
-These are static/textual checks that the load-bearing elements of that step are
-present in the command prompt — a real behavioral eval would require a live model,
-matching the convention `test_gate_audit_challenge_step.py` already established for
-this same file.
+Static/textual checks only, per the convention in `test_gate_audit_challenge_step.py`.
 """
 
 from __future__ import annotations
@@ -51,14 +45,13 @@ def test_precompute_step_covers_full_changeset_auditors_only() -> None:
     assert re.search(r"1[–-]7 and 9[–-]12", section), (
         "precompute step doesn't name which auditors receive the stamped diff"
     )
-    # The fix-delta cross-lane pass was removed by the episode-door story (#289,
-    # Task 4) — the findings ledger's regression classification replaced its
-    # role, so no mention of it may reappear here.
+    # fix-delta cross-lane pass removed by #289 Task 4 (findings ledger's regression
+    # classification replaced it); must not reappear here.
     assert not re.search(r"fix-delta", section, re.IGNORECASE), (
         "precompute step mentions the retired fix-delta cross-lane pass"
     )
-    # The criteria-conformance lane (14) is excluded by design: its agent has no
-    # Bash, so the block's git-diff fallback instruction is unusable for it.
+    # Lane 14 (criteria-conformance) excluded: its agent has no Bash, so the
+    # git-diff fallback is unusable for it.
     assert re.search(r"criteria-conformance", section), (
         "precompute step doesn't say why the criteria-conformance lane is excluded"
     )

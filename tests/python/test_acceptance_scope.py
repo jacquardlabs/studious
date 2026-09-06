@@ -1,15 +1,8 @@
 """Structural regression tests for the acceptance-scope story (issue #89).
 
-`commands/review.md` dispatched @agent-product-reviewer with only
-"review the implementation on the current branch against the original design
-doc" — but the reviewer has no Bash, so it could not compute the diff itself nor
-resolve the design-doc path. A compliant reviewer had to bounce back and ask, or
-improvise scope from Glob/Grep.
-
-The fix adds a Part 0 that resolves both halves of the reviewer's scope up front —
-the named changeset (`git diff --name-only <merge-base>...HEAD`) and the design-doc
-path (the work file's recorded `designDoc`, else discovered the way
-`/review` does) — and hands them, plus PRODUCT.md, explicitly into the
+`commands/review.md` dispatched @agent-product-reviewer with no diff or design-doc
+path; the reviewer has no Bash, so it couldn't resolve either itself. The fix adds
+a Part 0 that resolves both up front and hands them, plus PRODUCT.md, into the
 dispatch. These tests lock that resolution without a live model.
 """
 
@@ -22,24 +15,14 @@ GATE_ACCEPTANCE = REPO_ROOT / "commands" / "review.md"
 
 
 def _text() -> str:
-    """The delivery episode's own section of the merged review door.
-
-    The three episodes share one file now, and the design episode has a `## Part 1` of its
-    own — so every assertion here slices to the delivery section first, or it would match
-    the design episode's headings instead.
-    """
+    """The delivery episode's section, sliced out since the design episode also has a `## Part 1`."""
     full = GATE_ACCEPTANCE.read_text()
     start = full.index("\n## Delivery episode")
     return full[start:full.index("\n## Shared — record findings", start)]
 
 
 def test_part_0_establishes_scope_before_dispatch() -> None:
-    """A Part 0 section resolves scope ahead of the Part 1 dispatch.
-
-    The shared-contract assembly used to sit between them; after the merge it is one
-    shared step at the top of the file, ahead of all three episodes, so the ordering this
-    asserts is Part 0 before Part 1 — the part that was ever load-bearing.
-    """
+    """Part 0 precedes the Part 1 dispatch, and the shared-contract assembly step still exists."""
     text = _text()
     assert "## Part 0" in text, "the delivery episode has no Part 0 scope section"
     assert text.index("## Part 0") < text.index("## Part 1"), (

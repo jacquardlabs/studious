@@ -7,19 +7,16 @@ description: Closes out a BUILT branch — an assembled PR evidence table (Done-
 
 You are the session that closes out a `BUILT` branch. `/build` produces the
 branch; studious's `/review` and `/review --delivery` (if installed) judge
-it; `/ship` is what turns a judged-ready branch into an evidence-backed
-PR (or a merge, a kept branch, or a discard) and leaves nothing about that
-branch that a human had to hand-assemble.
+it; `/ship` turns a judged-ready branch into an evidence-backed PR (or a
+merge, a kept branch, or a discard) with nothing left to hand-assemble.
 
-**Precondition.** `/ship` runs after a `/build` session reports `BUILT`
-and after `/review`/`/review --delivery` have passed on this branch.
-`/ship` never checks for a recorded gate verdict itself: the gate ledger
-is per-branch flow state that a human can legitimately have bypassed —
-gates are skippable by design, and a `/ship` that refused on an unrecorded
-verdict would turn "use judgment about which gates the risk warrants" into
-a hard requirement. It assumes the human invoked it because the branch is
-ready, the same trust boundary `/build`'s own `BUILT` → "run `/review`
-next" hand-off already relies on.
+**Precondition.** `/ship` runs after a `/build` session reports `BUILT` and
+after `/review`/`/review --delivery` have passed on this branch. `/ship`
+never checks for a recorded gate verdict itself — gates are skippable by
+design, and the gate ledger is per-branch flow state a human can
+legitimately have bypassed. It trusts the human invoked it because the
+branch is ready, same as `/build`'s own `BUILT` → "run `/review` next"
+hand-off.
 
 ## Three modes
 
@@ -41,29 +38,27 @@ the verdict is always `/review`'s. This door never writes one.
 
 **`/ship --epic <slug>`** never runs Steps 1–6 below — those are story-scale, and an
 epic's worktree is already gone by the time this runs (`reference/epic-orchestration.md`'s
-finale removes it once `ready` is recorded). This is additive follow-up work on an
-already-open PR, human-invoked only — `workflows/epic-driver.js` never runs this itself,
-the same "never a producer, never dispatched on the human's behalf" boundary every
-`producer`-class door respects (CLAUDE.md's bookkeeping-boundary bullet).
+finale removes it once `ready` is recorded). It is additive follow-up work on an
+already-open PR, human-invoked only — `workflows/epic-driver.js` never runs this itself
+(CLAUDE.md's bookkeeping-boundary bullet: never a producer, never dispatched on the
+human's behalf).
 
-**Read the ledger fresh, not anything embedded earlier.** Everything this needs is
-already durable and queryable at any time, so there is nothing to re-derive from a
-specific run's own report:
+**Read the ledger fresh, not anything embedded earlier** — everything below is durable
+and queryable at any time:
 
 - `gate-ledger epic-get --slug <slug>` — the epic goal, and every story's recorded
   `decisions` (the settled forks from the plan piece's one interview, #311) and
   `mergeClass` (#312).
 - `gate-ledger epic-findings --epic <slug>` — every finding this epic recorded; filter
-  to `Track` severity (`BLOCKER`/`SHOULD FIX` findings already gated the finale itself —
-  re-litigating them here is exactly the re-derivation `reference/epic-orchestration.md`'s
-  findings-closure lane exists to stop).
+  to `Track` severity (`BLOCKER`/`SHOULD FIX` findings already gated the finale — don't
+  re-litigate them here).
 - The `story-supervised` parks recorded in the same `epic-get` output — each carries its
   own `story-supervised: <reason>` prefix (`reference/epic-orchestration.md`'s "Close
   every invocation the same way").
 - The epic pre-mortem register at `docs/studious/premortems/<slug>-epic.md` — read for
   context on what the epic was watching for. Its per-item REALIZED/NOT REALIZED verdicts
-  from the finale's own audit round are not persisted separately from that run's report;
-  this step does not attempt to resurrect them, only to read the register's own text.
+  from the finale's audit round aren't persisted separately; read the register's own text
+  only, don't try to resurrect them.
 
 **Propose decision patches — Step 4's exact posture, epic-scoped inputs.** Design
 decisions that outlive the feature (a settled fork with lasting consequences, a
@@ -83,10 +78,10 @@ accepts, edits, or skips each draft individually, and only confirmed drafts reac
 issue create`. A `gh issue create` failure (auth, rate limit) surfaces by name, per item.
 
 **Evidence needs no separate assembly here.** Each landed story's own `/ship` run already
-built its evidence table into that story's PR before it merged into the epic branch; the
-epic PR's own body (the finale's dispatch, #253) already cites
-`gate-ledger evidence-list --branch "epic/<slug>" --dedupe`. Point at those rather than
-re-running Step 1 at epic scale.
+built its evidence table into that story's PR before merging into the epic branch; the
+epic PR body (the finale's dispatch, #253) already cites
+`gate-ledger evidence-list --branch "epic/<slug>" --dedupe`. Point at those — don't
+re-run Step 1 at epic scale.
 
 **No Step 6 here.** The epic's worktree is already released and its branch already has an
 open PR — there is no verdict to report and no cleanup left to perform. `/ship --epic`
@@ -110,7 +105,7 @@ For each task in `PLAN.md` (now fully status-flipped), read its `Done
 means` items and the evidence folder `/build`'s own `evidence-capture` call
 wrote for it. The store is local and gitignored — the main checkout's
 `.studious/build-evidence/`, worktree-shared so evidence written in a since-removed
-build worktree is still here — and it never enters the repo: the table this step
+build worktree is still here — and never enters the repo: the table this step
 assembles into the PR body is the durable record. **Ask the script which folder that
 is — never rebuild the path from its shape**:
 capture writes `.studious/build-evidence/<date>-<task>-<branch-slug>/`, so a path rebuilt to the pre-#258 shape `.studious/build-evidence/<date>-<task>/` matches nothing. <!-- evidence-grammar: counterexample -->
@@ -119,11 +114,10 @@ capture writes `.studious/build-evidence/<date>-<task>-<branch-slug>/`, so a pat
 scripts/evidence-capture resolve --repo <worktree> --branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" --task <task id>
 ```
 
-`--branch` takes that exact command and not `git branch --show-current`: the
-capture stamped the manifest using `rev-parse --abbrev-ref HEAD`
-(`scripts/_gitutil.py`'s `current_branch`), literal `HEAD` fallback included, so
-on a detached checkout the reader and the writer still name the branch the same
-thing — where `--show-current` prints an empty string that matches no manifest.
+`--branch` takes that exact command, not `git branch --show-current`: capture stamped
+the manifest using `rev-parse --abbrev-ref HEAD` (`scripts/_gitutil.py`'s
+`current_branch`), literal `HEAD` fallback included — `--show-current` prints an empty
+string on a detached checkout that matches no manifest.
 
 It prints one folder path — absolute, since the store lives outside the tracked
 tree — on exit 0. That folder carries a
@@ -158,13 +152,11 @@ purely mechanical things:
    after capture).
 
 **A folder that fails either check is not promoted silently.** Stop before
-assembling the PR body. Report the exact task and reason (stale/orphaned)
-by name. The human's resume action is re-running the task's evidence
-capture (via `/build` or by hand) and re-invoking
-`/ship`. Do not call
-`evidence-capture` yourself to backfill a gap — `/ship` does not invent
-or re-capture evidence (see Out of scope in the design doc this skill
-implements).
+assembling the PR body. Report the exact task and reason (stale/orphaned) by
+name. The human's resume action is re-running the task's evidence capture (via
+`/build` or by hand) and re-invoking `/ship`. Do not call `evidence-capture`
+yourself to backfill a gap — `/ship` does not invent or re-capture evidence
+(see Out of scope in the design doc this skill implements).
 
 **Any `Done means` item with no corresponding evidence folder at all** (a
 task that reached `PASS` by a path other than `/build`'s own loop, e.g. a
@@ -188,17 +180,14 @@ Two evidence shapes, two treatments:
   `verify:results` artifact) is quoted **inline**, in a collapsible
   `<details>` block per item, directly in the PR body. Never written to a
   new repository file.
-- **Image evidence** (a `probe` item whose artifact is a screenshot or
-  other binary) stays exactly where `evidence-capture` already put it —
-  `<the folder resolve printed>/<label>.<ext>`, that path verbatim and
-  never one rebuilt by hand. A local, gitignored store has no commit for a
-  raw URL to anchor to, so the table names the local path and says so:
-  `image evidence at <path> (local store — attach to the PR if a reviewer
-  needs it)`. Attaching is the human's drag-drop onto the PR body, the one
-  image-upload path GitHub actually offers; never fabricate a URL for a
-  file no remote holds, and never force-commit the artifact to mint one —
-  the local-only trade-off is deliberate, the same class of accepted gap
-  as the old raw-URL scheme's GC-after-branch-delete window.
+- **Image evidence** (a `probe` item whose artifact is a screenshot or other
+  binary) stays exactly where `evidence-capture` already put it —
+  `<the folder resolve printed>/<label>.<ext>`, that path verbatim, never
+  rebuilt by hand. A local, gitignored store has no commit for a raw URL to anchor to, so
+  the table names the local path: `image evidence at <path> (local store —
+  attach to the PR if a reviewer needs it)`. Attaching is the human's
+  drag-drop onto the PR body; never fabricate a URL for a file no remote
+  holds, and never force-commit the artifact to mint one.
 
 ## Step 2 — cctx footer
 
@@ -208,61 +197,47 @@ existence check).
 **Not installed:** state so explicitly in your own output — "cctx not
 installed; skipping the session-cost footer and harvest offer" plus the
 one-line install pointer (`pipx install cctx-cli`) — and move directly to
-Step 3. No error, no stack trace, no silent gap in the PR body where the
-footer would have been. Every degradation without a sibling plugin
-installed is graceful; none is silent. This project's own current
-environment (cctx is not installed here) is this step's most-exercised
-path.
+Step 3. No error, no stack trace, no silent gap in the PR body.
 
-**Installed:** run `cctx autopsy --latest` (unmodified — cctx's own
-documented contract, no flags of our own invented) and append its
-findings summary (verdict, findings, session cost) to the PR body as a
-distinct footer section, separate from the evidence table. Then offer
-`cctx harvest` **interactively**: run it in **preview mode only** — never
-pass `--apply` as part of this default flow — show the proposed
+**Installed:** run `cctx autopsy --latest` (unmodified — no flags of our own
+invented) and append its findings summary (verdict, findings, session cost)
+to the PR body as a distinct footer section, separate from the evidence
+table. Then offer `cctx harvest` **interactively**: run it in **preview mode
+only** — never pass `--apply` as part of this default flow — show the proposed
 `CLAUDE.md` diff, and stop. Only pass `--apply` after the human's own
-explicit confirmation, typed in that same turn. Never infer that
-confirmation from anything else (a prior "yes" to a different question, an
-inferred preference, silence). This matches cctx's own CLI contract exactly
-(`cctx harvest` previews and confirms by default; `--apply` is the caller's
-opt-in to skip that prompt) and the acceptance criteria's own wording:
-always preview-confirms, never auto-applies.
+explicit confirmation, typed in that same turn; never infer confirmation
+from anything else (a prior "yes" to a different question, an inferred
+preference, silence). This matches cctx's own CLI contract (`cctx harvest`
+always preview-confirms, never auto-applies; `--apply` skips that prompt).
 
 ## Step 3 — File survivors
 
 Two follow-up sources, both drafted earlier in the pipeline, neither filed
 until now:
 
-- **Not-here follow-ups** — `PLAN.md`'s own `## Not-here follow-ups`
-  section (bulleted, one line each). Read it directly. The `##` level is
-  confirmed safe, not just carried forward (story `plan-skill`, issue #23):
-  that story re-verified this against the
-  actually-installed viva, including the `Revision History`-collision case
-  a bare heading-level read would miss — `/build`'s own viva invocation
-  passes an explicit `--split-on` rather than relying on auto-detect alone.
+- **Not-here follow-ups** — `PLAN.md`'s own `## Not-here follow-ups` section
+  (bulleted, one line each). Read it directly. The `##` level is confirmed
+  safe against the actually-installed viva (story `plan-skill`, issue #23),
+  including the `Revision History`-collision case a bare heading-level read
+  would miss — `/build`'s own viva invocation passes an explicit `--split-on`
+  rather than relying on auto-detect alone.
 - **NOTES stubs** — an executor's stray discoveries during a task ("outside
-  Done-means... never into the diff") are meant to land in a NOTES stub
-  rather than the diff. `/build`'s current implementation does not yet
-  write these (no NOTES-stub step exists in `skills/build/SKILL.md` today).
-  Look for one anyway, and report "0 NOTES stubs found" rather than
-  treating their absence as an error — today's real branches file real
-  Not-here follow-ups and zero NOTES-derived issues, an honest, not a
-  broken, result.
+  Done-means... never into the diff") belong in a NOTES stub rather than the
+  diff. `/build` doesn't write these yet (no NOTES-stub step in
+  `skills/build/SKILL.md` today). Look for one anyway and report "0 NOTES
+  stubs found" rather than treating absence as an error.
 
 For each survivor, draft a GitHub issue (title + body, citing the task and
-`PLAN.md` line it came from) and present the **full batch** of drafts to
-the human before filing anything. Draft for the per-item scan that follows:
-an imperative title under 70 characters, a body of at most 5 lines (what,
-why it survived, the citing task and `PLAN.md` line), and the batch
-presented as a numbered list the human can accept/edit/skip down in one
-pass — never one draft per screen. Confirmation is **per-item**, not
-all-or-nothing: the human accepts, edits, or skips each draft individually.
-Only `gh issue create` calls for accepted (or accepted-with-edits) drafts
+`PLAN.md` line it came from) and present the **full batch** of drafts to the
+human before filing anything: an imperative title under 70 characters, a
+body of at most 5 lines (what, why it survived, the citing task and
+`PLAN.md` line), presented as a numbered list the human can accept/edit/skip
+down in one pass — never one draft per screen. Confirmation is **per-item**,
+not all-or-nothing: Only `gh issue create` calls for accepted (or accepted-with-edits) drafts
 run; a skipped draft is dropped, not saved for a later run. No code path
-calls `gh issue create` without that specific item's confirmation having
-already happened in this same turn — a batch "file all N? y/n" is exactly
-the shape this rejects: it would either force-file a mediocre follow-up to
-get a good one filed, or block a good one on a bad one.
+calls `gh issue create` without that specific item's confirmation. A batch
+"file all N? y/n" is rejected — it would either force-file a mediocre
+follow-up to get a good one filed, or block a good one on a bad one.
 
 If a `gh issue create` call itself fails (auth, rate limit), surface that
 failure by name, per item — never fold it silently into "follow-ups filed"
@@ -274,41 +249,36 @@ Design decisions that outlive the feature — a granted pattern exception, a
 new contract convention, a ruled fork with lasting consequences — become
 proposed diffs against `PRODUCT.md` / `DESIGN.md` / `CLAUDE.md`.
 
-This step is asymmetric with Steps 2 and 3, deliberately: cctx harvest and
-issue-filing both *do* write something once the human confirms in-flow.
-**Decision patches never do — confirmed or not.** End this step by printing
-the proposed diff blocks. Do not call `Edit`, `Write`, `git apply`, or any
-other patch mechanism against `PRODUCT.md`, `DESIGN.md`, or `CLAUDE.md` in
-this step, under any branch of this flow, even after an explicit "yes."
-"Propose; never apply" is this step's whole shape — the human copies the
-diff in by hand, or runs it through their own separate process. This is the
-same propose-only posture studious's own `/retro` reviewers already
-take toward these same three context docs.
+Unlike Steps 2 and 3 (cctx harvest and issue-filing both *do* write once the
+human confirms in-flow), **Decision patches never do — confirmed or not.**
+End this step by printing the proposed diff blocks. Do not call `Edit`,
+`Write`, `git apply`, or any other patch mechanism against `PRODUCT.md`,
+`DESIGN.md`, or `CLAUDE.md` in this step, under any branch of this flow, even
+after an explicit "yes." Propose; never apply — the human copies the diff in
+by hand or runs it through their own process. Same propose-only posture
+studious's `/retro` reviewers already take toward these three docs.
 
 ## Step 5 — Dated build report (only when no PR body will exist)
 
 **This step is conditional on Step 6's verdict, so resolve that first when the
 answer is already known, or come back to this step after Step 6 names it.** On
-the `PR` verdict, skip this step entirely: the PR body carries everything Steps
-1–4 produced, and a committed copy of the same content is the review noise this
-conditionality exists to remove — one record, in the place a reviewer reads.
+the `PR` verdict, skip this step entirely: the PR body carries everything
+Steps 1–4 produced, and a committed copy would be duplicate review noise.
 
-On `MERGE`, `KEEP`, or `DISCARD` — verdicts with no PR body — the report IS the
-durable record. Assemble what Steps 1–4 produced — the evidence table, the cctx
-footer (or its "not installed" note), which follow-ups were filed (with their
-new issue numbers) and which were skipped, and the proposed decision patches
+On `MERGE`, `KEEP`, or `DISCARD` — no PR body exists — the report IS the
+durable record. Assemble what Steps 1–4 produced — the evidence table, the
+cctx footer (or its "not installed" note), which follow-ups were filed (with
+issue numbers) and which were skipped, and the proposed decision patches
 verbatim — into a single markdown file, then call
 `scripts/build-report --repo <worktree> --slug <story-slug> --content
 <path>` (optionally `--date`; defaults to today, UTC). This writes
 `docs/studious/build-reports/YYYY-MM-DD-<story-slug>-build-report.md` — same
-class and naming shape as studious's own dated review reports. `build-report` only
-performs the mechanical write; it never drafts, summarizes, or judges the
-content itself — that assembly is this step's own job, not the script's.
+class and naming as studious's own dated review reports. `build-report` only
+performs the mechanical write; the assembly is this step's job, not the
+script's.
 
 `build-report` does not commit its own write. Commit the new report file
-yourself, as its own commit, distinct from Step 6's cleanup commit below —
-same "scripts write, the session commits" division this pipeline uses
-throughout.
+yourself, as its own commit, distinct from Step 6's cleanup commit below.
 
 Evidence needs no handling either way: the store is local and gitignored
 (`.studious/build-evidence/`), never committed, so there is nothing for Step
@@ -327,31 +297,26 @@ Report one of four tokens and perform the matching cleanup:
 | `KEEP` | Preserve the branch and its work without merging or opening a PR — e.g. paused work, or a spike worth keeping for reference. | Kept | Kept | None opened |
 | `DISCARD` | Abandon the work outright — e.g. an ESCALATE finding proved the direction wrong, or the branch is superseded. | Removed | Deleted | None opened |
 
-**Ask the human which token applies. Do not pick one.** This table is the
-direct answer to "a build/demo that only exercises one verdict path risks
-leaving the other three under-specified" — every token gets its own row,
-its own worktree/branch/PR handling, and none of the four is the silent
-default.
+**Ask the human which token applies. Do not pick one.** Every token gets its
+own row, its own worktree/branch/PR handling, and none of the four is the
+silent default.
 
 Every verdict shares the same cleanup step *before* whichever git action
-happens: remove `docs/design/<story-slug>.md` and `PLAN.md` (and any
-scratch `docs/design/demonstrations/` narrative, if used). A project that
-gitignores them the way this plugin does has nothing to commit — delete
-them from the worktree and say so. A project that tracks them needs a
-`git rm` commit whose message notes the promoted-elsewhere destination.
-Check which case you are in (`git ls-files -- <path>`) rather than
-assuming; the destination is the PR body, for `PR`;
-the dated build report's own full text, for `MERGE`/`KEEP`/`DISCARD` (no PR
-body exists to point to on those three, so the report is where the
-assembled evidence table actually lives once the design doc is gone).
-Design docs and `PLAN.md` are disposable scaffolding; they live on the
-branch and die at merge — what survives is the Done-means table + evidence
-(the PR body or the report) and any decision patches a human chose to
-apply by hand.
+happens: remove `docs/design/<story-slug>.md` and `PLAN.md` (and any scratch
+`docs/design/demonstrations/` narrative, if used). A project that gitignores
+them the way this plugin does has nothing to commit — delete them from the
+worktree and say so. A project that tracks them needs a `git rm` commit whose
+message notes the promoted-elsewhere destination. Check which case you are in
+(`git ls-files -- <path>`) rather than assuming; the destination is the PR
+body for `PR`, the dated build report's full text for
+`MERGE`/`KEEP`/`DISCARD` (no PR body exists on those three). Design docs and
+`PLAN.md` are disposable scaffolding that die at merge; what survives is the
+Done-means table + evidence (the PR body or the report) and any decision
+patches a human chose to apply by hand.
 
-`MERGE` and `PR` both require resolving a target/base branch. Resolve it,
-cheapest-and-most-confident signal first, rather than guessing silently
-toward `main`:
+`MERGE` and `PR` both require resolving a target/base branch. Resolve it
+cheapest-and-most-confident signal first — never guess silently toward
+`main`:
 
 1. If the current branch name follows the `<parent>--<story-slug>`
    convention (a literal `--` separator) and a local branch matching the
@@ -367,20 +332,3 @@ toward `main`:
    applies, or none do — **ask the human once, by name**, before acting.
    Never default silently to `main` or to the worktree's upstream if that
    isn't confidently the intended target.
-
-## Why this shape
-
-"Recommend one action; the human decides. Propose; never apply" is this
-skill's whole shape end to end: Step 3 confirms per-item before any `gh
-issue create`; Step 4 never applies regardless of confirmation; Step 6
-reports one verdict and waits — it does not pick one. "Nothing signs off
-on itself" is why Step 1 re-validates evidence against its own recorded
-commit rather than trusting `evidence-capture`'s past word forever, and why
-a missing evidence folder is reported, never fabricated. "Standalone-
-capable" is Step 2's explicit, named cctx-absent path. "Disposable
-scaffolding, durable decisions" is Step 6's cleanup contrasted with Step
-5's report and Step 1's evidence retention. "Judgment in the model,
-mechanics in scripts" is the freshness hold (`evidence-freshness`) and the
-report write (`build-report`) being scripts; the human's per-item
-accept/skip and the `MERGE`/`PR`/`KEEP`/`DISCARD` choice are the judgment
-calls no script makes.

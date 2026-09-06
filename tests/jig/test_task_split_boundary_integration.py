@@ -1,21 +1,17 @@
-"""Integration test binding jig's three independently-encoded task-
-splitting surfaces (story plan-lint-build-boundary-integration-test, issue
-#66; epic pre-dogfood-hardening): `scripts/plan-lint`'s own
-`split_tasks()`, `skills/build/SKILL.md` Step 1.4's boundary prose, and
-`reference/planning-contract.md` Step 6's `--split-on` pattern each separately claim
-to agree on where a `### Task N` block ends -- nothing before this story
-checked that mechanically, against the existing committed fixtures.
+"""Integration test binding jig's three task-splitting surfaces (story
+plan-lint-build-boundary-integration-test, issue #66; epic
+pre-dogfood-hardening) -- `scripts/plan-lint`'s `split_tasks()`,
+`skills/build/SKILL.md` Step 1.4's boundary prose, and
+`reference/planning-contract.md` Step 6's `--split-on` pattern -- and
+checks mechanically that they agree on where a `### Task N` block ends.
 
-Read-only against the two SKILL.md files: this module (via
-`tests/_task_split_boundary.py`) parses their *documented* pattern/rule
-out of the prose text; it never executes or dispatches either skill.
-`scripts/plan-lint` is code, not prose, and its `split_tasks()` is called
-for real, via an in-process import (`load_plan_lint_module`).
+Read-only against the two SKILL.md files: parses their *documented*
+pattern/rule out of the prose (via `tests/_task_split_boundary.py`)
+rather than executing either skill. `split_tasks()` itself is called for
+real via in-process import (`load_plan_lint_module`).
 
-Uses the two existing fixtures under `tests/fixtures/plan-lint/`
-(`clean-plan.md`, `broken-plan.md`) -- the same committed fixtures
-`test_plan_lint.py` already exercises -- rather than a synthetic
-stand-in.
+Uses the existing fixtures under `tests/fixtures/plan-lint/`
+(`clean-plan.md`, `broken-plan.md`), shared with `test_plan_lint.py`.
 
 Run with:
 
@@ -46,19 +42,16 @@ PLAN_SKILL_MD = REPO_ROOT / "reference" / "planning-contract.md"
 
 FIXTURE_NAMES = ("clean-plan.md", "broken-plan.md")
 
-# The doc's own literal --split-on value (reference/planning-contract.md Step 6) --
-# used only to locate it for the mutation demonstration below, not to
-# re-assert what the derivation should produce (that's
-# test_plan_step_6_split_on_pattern_matches_documented_flag_value's job).
+# Step 6's literal --split-on value, used only to locate it for the
+# mutation demo below (not re-asserted here; see
+# test_plan_step_6_split_on_pattern_matches_documented_flag_value).
 _STEP_6_SPLIT_ON_VALUE = r"(?i)^(Task \d+|Not-here follow-ups|Revision History)"
 
 
 class TestSurfaceDerivationsMatchDocumentedText(unittest.TestCase):
-    """Sanity checks (mirroring `test_vocabulary_derivation.py`'s "pulls
-    known terms" convention): confirms each derivation actually extracted
-    real content from the real, unmutated docs -- not a vacuous
-    always-true/always-false stand-in -- before the agreement tests below
-    are trusted to mean anything."""
+    """Confirms each derivation extracts real content from the real,
+    unmutated docs -- not a vacuous stand-in -- before the agreement
+    tests below are trusted to mean anything."""
 
     def setUp(self) -> None:
         self.build_skill_text = BUILD_SKILL_MD.read_text(encoding="utf-8")
@@ -68,9 +61,9 @@ class TestSurfaceDerivationsMatchDocumentedText(unittest.TestCase):
         self.assertEqual(derive_build_step_1_4_task_heading_level(self.build_skill_text), 3)
 
     def test_build_step_1_4_coarser_example_is_actually_coarser(self) -> None:
-        # The doc's own concrete example ("## Not-here follow-ups") must be
-        # coarser than its own stated task-heading level, or the prose's
-        # own example contradicts its own rule.
+        # The doc's own example ("## Not-here follow-ups") must be coarser
+        # than its stated task-heading level, or the example contradicts
+        # the rule.
         level = derive_build_step_1_4_task_heading_level(self.build_skill_text)
         example_level = derive_build_step_1_4_coarser_example_level(self.build_skill_text)
         self.assertLess(example_level, level)
@@ -106,10 +99,8 @@ class TestThreeSurfacesAgreeOnTaskBlockBoundaries(unittest.TestCase):
                 text = (FIXTURES / fixture_name).read_text(encoding="utf-8")
                 plan_lint_ends, build_ends, plan_ends = self._ends_by_surface(text)
 
-                # Sanity: fixtures actually have tasks to compare, and all
-                # three surfaces found the same set of task numbers -- an
-                # empty or partial dict would make the equality checks
-                # below vacuous.
+                # Non-vacuous: fixtures have tasks, and all three surfaces
+                # found the same set of task numbers.
                 self.assertTrue(plan_lint_ends)
                 self.assertEqual(set(plan_lint_ends), set(build_ends))
                 self.assertEqual(set(plan_lint_ends), set(plan_ends))
@@ -136,10 +127,9 @@ class TestThreeSurfacesAgreeOnTaskBlockBoundaries(unittest.TestCase):
         self.assertEqual(set(plan_lint_ends), {str(i) for i in range(1, 9)})
 
     def test_last_tasks_block_excludes_trailing_not_here_followups_on_every_surface(self) -> None:
-        """The specific M0-dogfood-bug case each surface's own prose calls
-        out by name: the last task's block must end before the trailing
-        '## Not-here follow-ups' section, on all three surfaces at once,
-        for both fixtures."""
+        """The M0-dogfood-bug case: the last task's block must end before
+        the trailing '## Not-here follow-ups' section, on all three
+        surfaces, for both fixtures."""
         for fixture_name in FIXTURE_NAMES:
             with self.subTest(fixture=fixture_name):
                 text = (FIXTURES / fixture_name).read_text(encoding="utf-8")
@@ -162,11 +152,9 @@ class TestThreeSurfacesAgreeOnTaskBlockBoundaries(unittest.TestCase):
 
 
 class TestMutationsAreCaughtAsMismatches(unittest.TestCase):
-    """The story's other required demonstration: a deliberate mismatch
-    introduced into any one of the three surfaces -- simulating the exact
-    coarser-heading-exclusion regression each surface's own prose or code
-    warns against -- makes the agreement check above fail, rather than
-    pass regardless of what any one surface actually says."""
+    """A deliberate mismatch in any one surface -- simulating the
+    coarser-heading-exclusion regression each surface warns against --
+    must make the agreement check above fail."""
 
     def setUp(self) -> None:
         self.plan_lint_module = load_plan_lint_module()
@@ -182,10 +170,8 @@ class TestMutationsAreCaughtAsMismatches(unittest.TestCase):
             1,
             "mutation assumption needs updating to match Step 1.4's current prose shape",
         )
-        # Drop the sentence's key clause entirely -- simulating a
-        # regression back to the naive "next task heading only" rule the
-        # sentence exists to prevent -- without touching plan-lint's own
-        # code or Step 6's pattern at all.
+        # Drop the clause -- simulating a regression to the naive "next
+        # task heading only" rule -- without touching plan-lint or Step 6.
         mutated_text = exclusion_re.sub("", self.build_skill_text, count=1)
         mutated_regex = derive_build_step_1_4_boundary_regex(mutated_text)
         self.assertNotEqual(
@@ -212,9 +198,8 @@ class TestMutationsAreCaughtAsMismatches(unittest.TestCase):
             1,
             "mutation assumption needs updating to match Step 6's current --split-on value",
         )
-        # Drop the "Not-here follow-ups" alternative -- the same class of
-        # regression as the build test above, this time in Step 6's own
-        # documented flag value.
+        # Drop the "Not-here follow-ups" alternative -- same regression
+        # class as the build test above, in Step 6's flag value instead.
         mutated_value = r"(?i)^(Task \d+|Revision History)"
         mutated_text = self.plan_skill_text.replace(f"'{_STEP_6_SPLIT_ON_VALUE}'", f"'{mutated_value}'", 1)
         mutated_pattern = derive_plan_step_6_split_on_pattern(mutated_text)
@@ -234,15 +219,10 @@ class TestMutationsAreCaughtAsMismatches(unittest.TestCase):
                 )
 
     def test_mutated_plan_lint_boundary_regex_is_caught(self) -> None:
-        # Simulate the same coarser-heading-exclusion regression directly
-        # in plan-lint's own (already-imported, in-memory) module -- code,
-        # not prose, so the "mutation" here is monkeypatching the module's
-        # own regex constant in place. split_tasks() reads this name as a
-        # module global at call time (Python resolves free variables from
-        # a function's __globals__, which is the module's own __dict__, at
-        # call time -- not at def time), so reassigning the module
-        # attribute changes what the very next call to split_tasks() does,
-        # without a second, hand-maintained reimplementation of it.
+        # Same regression, simulated in plan-lint's own module by
+        # monkeypatching its regex constant. split_tasks() resolves this
+        # name as a module global at call time, so reassigning the
+        # attribute changes the very next call's behavior.
         original_regex = self.plan_lint_module.HEADING_LEVEL_1_TO_3_RE
         self.assertEqual(original_regex.pattern, r"^(#{1,3})[ \t]")
         naive_regex = re.compile(r"^(#{3})[ \t]", re.MULTILINE)

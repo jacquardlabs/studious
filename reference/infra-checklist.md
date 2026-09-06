@@ -1,11 +1,9 @@
 # Infrastructure checklist — lookup data
 
-Not a detection crutch — a capable model already knows these misconfiguration classes.
-This file is the **lookup data** it won't recall verbatim: exact signatures, the
-workflow-injection sink list, and per-tool defaults. The five dimensions live inline in
-`agents/infra-auditor.md`; consult this for the specifics. CLAUDE.md's documented
-infrastructure posture overrides anything here. Severity stays exposure-gated: no path
-from an attacker or an outage to the resource → `Potential`, drop a tier.
+Lookup data a model won't recall verbatim: exact signatures, the workflow-injection sink
+list, per-tool defaults. Five dimensions live in `agents/infra-auditor.md`. CLAUDE.md's
+documented infrastructure posture overrides anything here. Severity is exposure-gated: no
+path from an attacker or an outage to the resource → `Potential`, drop a tier.
 
 ## Per-tool misconfiguration signatures (one line each)
 

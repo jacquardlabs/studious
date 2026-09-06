@@ -1,33 +1,24 @@
 """Regression tests for round-one scope-delta measurement on the epic-driven path
-(issue #244).
+(issue #244): a per-moment count (build exit, each audit/acceptance fix cycle) of
+files landing outside a story's design-time declaration. Round one is counting
+only, no verdict effect (see the design doc's "Out of scope").
 
-Before this story, nothing compared what a story's design declared it would touch
-against what its branch actually touched until the acceptance gate — by which point
-the branch was already thousands of lines. This story adds a per-moment count (build
-exit, each audit fix cycle, each acceptance fix cycle) of files landing outside a
-story's design-time declaration, with no verdict effect of its own (round one is
-counting only — see the design doc's "Out of scope").
+Following established precedent (`test_contract_injection.py`,
+`test_delta_scoped_reaudit.py`, `test_audit_first_round_routing.py`): pure functions
+(`scopeDeltaPhase`, `computeScopeDelta`, `scopeDeltaWorkLogFlags`) are extracted
+verbatim from `workflows/epic-driver.js` and run standalone in Node; scheduler-level
+behavior (which `gate-ledger work-log` flags reach a compile/worker/fixer prompt) is
+proven by running the real driver under `test_driver_crash_hardening.py`'s harness.
 
-Following this repo's established precedent (`test_contract_injection.py`,
-`test_delta_scoped_reaudit.py`, `test_audit_first_round_routing.py`): pure,
-explicitly-parameterized functions (`scopeDeltaPhase`, `computeScopeDelta`,
-`scopeDeltaWorkLogFlags`) are extracted verbatim from `workflows/epic-driver.js` and
-executed standalone in a plain Node process; the scheduler-level behavior (which
-literal `gate-ledger work-log` flags actually reach a compile/worker/fixer prompt) is
-proven by running the real, unmodified driver source under
-`test_driver_crash_hardening.py`'s documented harness shape.
+`reference/epic-orchestration.md`'s `### Scope-delta line (#244)` section embeds a
+second, independent `jq` filter (never reimplemented here) — covered the way
+`test_acceptance_retry_visibility.py` covers its duration-chain filter: extracted
+verbatim from its fenced block and run against fixtures via `jq` directly.
 
-The closing report's own `### Scope-delta line (#244)` section in
-`reference/epic-orchestration.md` embeds a second, independent `jq` filter (never
-reimplemented here) — covered the same way `test_acceptance_retry_visibility.py`
-covers that command's duration-chain filter: extracted verbatim from its fenced
-block and run against constructed fixtures via `jq` directly.
-
-Audit round 1 (FIX AND RE-AUDIT, Confirmed Critical — command injection via
-unescaped, model-relayed file paths interpolated into a prompt-embedded shell
-command): the boundary-validation fixtures below (`computeScopeDelta`) and the
-single-quote-escaping fixtures (`scopeDeltaWorkLogFlags`) are this round's fix,
-locked as regressions.
+Audit round 1 (Confirmed Critical — command injection via unescaped, model-relayed
+file paths interpolated into a prompt-embedded shell command): the boundary-
+validation fixtures below (`computeScopeDelta`) and the single-quote-escaping
+fixtures (`scopeDeltaWorkLogFlags`) are this round's fix, locked as regressions.
 """
 
 from __future__ import annotations

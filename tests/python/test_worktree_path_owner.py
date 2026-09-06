@@ -1,22 +1,13 @@
 """One owner for the `.studious/worktrees/<epic>/` layout (studious #166).
 
-`__epic` for the integration checkout, one directory per in-flight story. That
-shape used to be written out independently in three places — `bin/gate-ledger`'s
-`epic-reconcile`, `workflows/epic-driver.js`, and `reference/epic-orchestration.md`'s
-prose — so moving it meant three coordinated edits, and two consecutive audits
-flagged it.
+Previously duplicated in three places; now `bin/gate-ledger`'s `worktree_path()`
+is the only definition, exposed via the `worktree-path` verb. The driver has no
+filesystem/exec access, so `reference/epic-orchestration.md` resolves the layout
+once with `--json` and hands it over as `args.worktrees`.
 
-`bin/gate-ledger`'s `worktree_path()` is now the only definition, exposed to
-everyone else through the `worktree-path` verb. The driver is the interesting
-case: it runs on the Workflow substrate with no filesystem or exec access, so it
-cannot call the verb. `reference/epic-orchestration.md` calls it once with `--json` and
-hands the result over as `args.worktrees` — the layout crosses the args boundary
-as data, the same way `args.contract` does.
-
-The behavioral half here executes the driver's real, unmodified
-`requireWorktree()` (extracted verbatim by balanced-brace scan, following
-`test_contract_injection.py`'s precedent); the structural half asserts the
-literal is gone from the places that used to carry a copy.
+Behavioral half executes the driver's real, unmodified `requireWorktree()`
+(extracted verbatim, per `test_contract_injection.py`'s precedent); structural
+half asserts the literal is gone from the places that used to carry a copy.
 """
 from __future__ import annotations
 
@@ -35,14 +26,7 @@ LAYOUT_LITERAL = ".studious/worktrees"
 
 
 def _strip_full_line_comments(source: str) -> str:
-    """Drop whole-line ``//`` comments, keeping every line of executable code.
-
-    Deliberately does not touch trailing comments: stripping from the first
-    ``//`` on a line would also cut into any string holding a URL or a protocol
-    prefix. Whole-line stripping is enough here because the only thing this file
-    needs to see past is the block comment that *explains* the layout, and the
-    driver carries no trailing comment mentioning it (nor any ``://`` at all).
-    """
+    """Drop whole-line ``//`` comments; leave trailing ones (would cut URL strings)."""
     return "\n".join(
         line for line in source.splitlines() if not line.lstrip().startswith("//")
     )

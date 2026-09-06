@@ -1,19 +1,8 @@
-"""Routing regression tests for the agent-descriptions story (issue #90).
+"""Routing regression tests for agent-descriptions (issue #90).
 
-Agent frontmatter ``description`` is the auto-delegation routing surface. Two
-directions must stay disambiguated so plain-language requests land on the right
-agent:
-
-- A *periodic* request ("run my periodic frontend review") must not route to the
-  diff-scoped changeset specialists (``frontend-reviewer``, ``ux-reviewer``) —
-  those are invoked only by ``/review`` against a real diff, so a periodic
-  landing diffs a changeset that does not exist.
-- The changeset auditors (``code-auditor``, ``doc-auditor``, ``security-auditor``)
-  must state their diff-scoped, gate-invoked nature, matching the house style set
-  by ``architecture-auditor`` ("Reviews a changeset ..."), so a periodic request
-  routes to the ``review-*`` twin instead.
-
-These tests lock the description shape without a live model.
+Agent frontmatter ``description`` is the auto-delegation routing surface; these
+tests lock its shape so a periodic request never lands on a diff-scoped
+changeset specialist (and vice versa) without a live model.
 """
 
 from __future__ import annotations
@@ -50,11 +39,7 @@ def _description(agent: str) -> str:
 
 
 def test_changeset_agents_declare_diff_scope() -> None:
-    """Every changeset specialist names its diff scope, not just its checks.
-
-    "changeset" (or "diff-scoped") in the description is what routes a periodic
-    request away from these agents and onto the periodic ``review-*`` twin.
-    """
+    """Every changeset specialist names its diff scope, routing periodic requests to its review-* twin."""
     missing = [
         agent
         for agent in CHANGESET_AGENTS
@@ -74,13 +59,7 @@ def test_changeset_agents_name_gate_audit_invocation() -> None:
 
 
 def test_frontend_agents_do_not_claim_periodic_review() -> None:
-    """frontend-reviewer / ux-reviewer must not advertise a *periodic* review.
-
-    The periodic frontend review was renamed into ``review-interface-health``,
-    which has no Task tool and never dispatches them. A description that still
-    claims "periodic frontend review" misroutes "run my periodic frontend review"
-    onto a diff-scoped agent.
-    """
+    """frontend-reviewer / ux-reviewer must not advertise a *periodic* review — that's review-interface-health's job now."""
     offenders = {
         agent: _description(agent)
         for agent in ("frontend-reviewer", "ux-reviewer")
@@ -91,14 +70,7 @@ def test_frontend_agents_do_not_claim_periodic_review() -> None:
 
 
 def test_prompt_agents_disambiguate_gate_from_periodic() -> None:
-    """The two prompt agents split gate/periodic the same way the code pair does.
-
-    ``prompt-auditor`` is diff-scoped and gate-invoked (covered by the
-    CHANGESET_AGENTS tests above, which it is a member of); its periodic twin
-    ``review-prompt-health`` must claim the periodic whole-repo phrasing and must
-    NOT advertise the gate path, so "review my prompts' health" never lands on
-    the diff-scoped lane and a gate dispatch never lands on the periodic one.
-    """
+    """prompt-auditor (gate, diff-scoped) and review-prompt-health (periodic, whole-repo) must not cross-route."""
     auditor_desc = _description("prompt-auditor")
     assert "review-prompt-health" in auditor_desc, (
         "prompt-auditor's description no longer points periodic requests at "
@@ -116,12 +88,7 @@ def test_prompt_agents_disambiguate_gate_from_periodic() -> None:
 
 
 def test_periodic_interface_review_owns_frontend_routing() -> None:
-    """The periodic reviewer claims the "frontend review" phrasing as its own.
-
-    This is the positive half of the disambiguation: with the changeset agents
-    disclaiming periodic work, "run my periodic frontend review" must have a home,
-    and it is the whole-project ``review-interface-health``.
-    """
+    """review-interface-health claims the "periodic frontend review" phrasing as its home."""
     desc = _description("review-interface-health").lower()
     assert "periodic" in desc, "review-interface-health no longer marks itself periodic"
     assert "frontend" in desc, (

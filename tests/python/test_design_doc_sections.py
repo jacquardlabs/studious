@@ -1,22 +1,14 @@
-"""The design-doc section set has one authority and four copies (issue #211).
+"""One authority, four copies of the design-doc section set (#211).
 
-`reference/design-doc-contract.md`'s "Required sections" table is the authority.
-Four surfaces restate it, and before this test they had drifted apart: the
-contract required 8 sections (`Success metrics` added by #120), while
-`scripts/design-lint`, `skills/shape/SKILL.md`, and `DESIGN.md` all enforced or
-described 7 — so `scripts/design-lint` rejected `templates/design-doc.md`, the
-scaffold this plugin ships and points users at.
+`reference/design-doc-contract.md`'s Required sections table is authoritative.
+Before this test, `scripts/design-lint`, `skills/shape/SKILL.md`, and `DESIGN.md`
+had drifted to 7 sections vs. the contract's 8 (`Success metrics` added by #120),
+so design-lint rejected the shipped `templates/design-doc.md`. This test derives
+the list from the contract and asserts each copy agrees (same guard pattern as
+#115/#116); every extractor asserts its own anchor was found, to avoid a
+vacuous pass.
 
-Four independent encodings with nothing tying them together is how that stayed
-invisible for a week. This test is the tie. It derives the list from the contract
-and asserts each copy agrees, so adding or removing a section fails here first —
-the same guard pattern as #115 and #116.
-
-Every extractor asserts its own anchor was found. A parse that silently matches
-nothing would make this test vacuously green, which is the one failure mode a
-drift guard cannot have.
-
-Static text checks — no live model, no subprocess.
+Static text checks only — no live model, no subprocess.
 """
 
 from __future__ import annotations
@@ -99,11 +91,10 @@ def test_shipped_template_carries_every_required_section_in_order() -> None:
 
 
 def test_design_skill_step_4_lists_every_section_with_a_consumer() -> None:
-    """`/shape` writes the doc, so its Step 4 list is what actually determines
-    whether a produced doc passes. Each entry must also name a consumer — the
-    `Consumer:` line is what satisfies DESIGN.md's "named downstream consumer"
-    requirement, and a section with no reader is how `Success metrics` came to
-    be omitted in the first place."""
+    """`/shape`'s Step 4 list determines whether a produced doc passes. Each entry
+    must name a consumer — the `Consumer:` line satisfies DESIGN.md's "named
+    downstream consumer" requirement; a section with no reader is how
+    `Success metrics` was omitted originally."""
     text = DESIGN_SKILL.read_text(encoding="utf-8")
     step4 = re.search(r"^## Step 4 .*?\n(.*?)(?=^## )", text, re.MULTILINE | re.DOTALL)
     assert step4, "skills/shape/SKILL.md has no '## Step 4' section"

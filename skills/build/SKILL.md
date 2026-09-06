@@ -36,12 +36,11 @@ Four roles, never blurred:
   to the plan file are script outputs, never your own self-report.
 
 This is a single sequential for-loop — one Foreman, one fresh subagent (an
-executor, or — only on a load-bearing task, after its executor's own
-`verify` PASS — one inspector) dispatched at a time, never in parallel. The
-Inspector is not a step toward sprint ceremony or a resident coordinator:
-its own trigger is mechanical and narrow (load-bearing tasks only, three
-fixed lenses, see step 2.6) — the same anti-cleverness bar every other role
-in this loop already meets.
+executor, or, only on a load-bearing task after its executor's own `verify`
+PASS, one inspector) dispatched at a time, never in parallel. The
+Inspector's trigger is mechanical and narrow (load-bearing tasks only,
+three fixed lenses, see step 2.6), not a step toward sprint ceremony or a
+resident coordinator.
 
 **Task status**, tracked only by the suffix (or absence of one)
 `status-flip` writes onto a task's own heading: implicitly `todo` before
@@ -56,16 +55,15 @@ Every command `/build` runs — the baseline command `worktree-setup` reads
 from the target project's own `CLAUDE.md` (Step 1.3), and every
 `script`/`test-backed` `Done means` item `verify` re-runs (Step 2.5) — is
 executed verbatim via the shell (`subprocess.run(..., shell=True)`), with
-no allowlist, sandbox, or confirmation gate. This is by design, the same
-trust model as `make`/`npm test`/a CI runner, not a defect. Commands in a
-plan are executed verbatim via the shell; only run `/build` on
-plans you would run by hand. This holds for the whole dogfood scope (a developer's
-own hand-written `PLAN.md`); it becomes local code execution the moment a
+no allowlist, sandbox, or confirmation gate — the same trust model as
+`make`/`npm test`/a CI runner, not a defect. Commands in a plan are
+executed verbatim via the shell; only run `/build` on plans you would run
+by hand: this holds for the whole dogfood scope (a developer's
+own hand-written `PLAN.md`), but becomes local code execution the moment a
 task block is seeded from untrusted provenance — an external issue/PR
 body, or a `PLAN.md` carrying prompt-injection that steers the Foreman's
-own transcription — so treat any such plan the same way you'd treat
-running its commands by hand yourself, not as data `/build` can safely
-sandbox for you (issue #48).
+own transcription — so treat such a plan the same way, not as data
+`/build` can safely sandbox for you (issue #48).
 
 Each such command also runs under a generous `--timeout`
 (`worktree-setup`'s baseline, `verify`'s per-item commands) so a hung
@@ -182,45 +180,35 @@ may appear anywhere in the block. No `Risk:` line means `LOW` — see Cadence.
    blocks step 1.4 just read into memory: for every task N, task N is
    **load-bearing** iff *any other* task block's own `Rests on:` line names
    task N (its heading number, e.g. "Task 2", or an unambiguous title match
-   to task N's own heading) — otherwise task N is a **leaf**. This is a
-   mechanical read of prose already in hand, the same class of
-   judgment-free-but-not-code-parseable procedure step 1.4's own
-   trailing-heading exclusion already is — not a new script, and this
-   heuristic is explicitly provisional (a stand-in until `/build`'s (M3)
-   structured spine map replaces prose-matching entirely). Compute this
-   **once, for the whole run, before task 1 is ever dispatched** — it never
-   changes mid-loop, and no task's own executor ever gets a vote on whether
-   its own task belongs to it ("nothing signs off on itself," applied to
-   jurisdiction itself, not just `Done means`). State the computed set
-   plainly before proceeding (e.g. "load-bearing: Task 1 — leaf: Task 2")
-   — every one of step 2.6's skip notes and dispatches reasons from this
-   one fixed set, never a fresh per-task guess.
+   to task N's own heading) — otherwise task N is a **leaf**. This heuristic
+   is explicitly provisional — a stand-in until `/build`'s (M3) structured
+   spine map replaces prose-matching entirely. Compute this **once, for the
+   whole run, before task 1 is ever dispatched** — it never changes
+   mid-loop, and no task's own executor ever gets a vote on whether its own
+   task belongs to it. State the computed set plainly before proceeding (e.g.
+   "load-bearing: Task 1 — leaf: Task 2") — every one of step 2.6's skip
+   notes and dispatches reasons from this one fixed set, never a fresh
+   per-task guess.
 
-   **Plan growth mid-session.** The invariant above ("it never changes
-   mid-loop") governs the ordinary run; it does not leave undefined what
-   happens when `PLAN.md` itself grows after task 1 is ever dispatched — a
-   new task appended whose own `Rests on:` line names a task that already
-   reached `PASS`. That specific amendment is this run's one sanctioned
-   trigger for touching the load-bearing set again: the moment you read a
-   newly appended task block whose `Rests on:` line names an
-   already-`PASS`ed task, recompute the load-bearing set immediately, over
-   every task block now in hand, before dispatching that new task's own
-   executor — never a general "recompute on every step" habit, only this
-   one amendment-triggered case. Any task whose status flips from leaf to
-   load-bearing under that recompute, having already reached `PASS`
-   without an Inspector ever having been dispatched against it (a leaf
-   task skips step 2.6 entirely), gets a retroactive catch-up Inspector
-   dispatched now, scoped to exactly that task's own already-existing
-   commit(s) — the same three-lens jurisdiction step 2.6 already names —
-   run before the new dependent task's own executor is dispatched. Capture
-   that catch-up Inspector's report under its own sanctioned evidence-dir
-   naming convention, `<task>-retroactive-inspection`, never the task's
-   own original evidence folder: `evidence-capture` always stamps against
-   current `HEAD`, so reusing the task's own original evidence folder
-   would misdate the retroactive inspection against a later, unrelated
-   commit made after that task's own `PASS`. This call shares step 7's
-   exit-code-2 refusal on a resumed session — route it exactly the same
-   way (step 7, below), never a restated copy of that routing here.
+   **Plan growth mid-session.** If `PLAN.md` grows after task 1 is
+   dispatched — a new task appended whose own `Rests on:` line names a task
+   that already reached `PASS` — recompute the load-bearing set
+   immediately, over every task block now in hand, before dispatching that
+   new task's own executor. This is the one sanctioned trigger for
+   recomputing, never a general "recompute on every step" habit, only this
+   one amendment-triggered case. Any task
+   whose status flips from leaf to load-bearing under that recompute,
+   having already reached `PASS` without an Inspector ever having been
+   dispatched against it (a leaf task skips step 2.6 entirely), gets a
+   retroactive catch-up Inspector dispatched now, scoped to exactly that
+   task's own already-existing commit(s) — the same three-lens
+   jurisdiction step 2.6 already names — run before the new dependent
+   task's own executor is dispatched. Capture that report under
+   `<task>-retroactive-inspection`, never the task's own original evidence
+   folder: `evidence-capture` always stamps against current `HEAD`, so
+   reusing the task's own original evidence folder would misdate the
+   retroactive inspection against a later, unrelated commit. This call shares step 7's exit-code-2 refusal on a
+   resumed session — route it the same way (step 7), never a restated copy of that routing here.
 
 ## Step 2 — Per task, in spine order
 
@@ -246,13 +234,8 @@ For each task block, in order:
 
    Nothing else goes into the dispatch prompt — not the design doc, not
    `PLAN.md` in full, not a prior task's history, not this session's own
-   conversation. This is the load-bearing isolation guarantee the
-   acceptance criteria and the epic pre-mortem both name explicitly:
-   inspect a real dispatch prompt before trusting it, and confirm it
-   contains only these two things — the boundary line is one line of
-   Foreman-side procedural fact (step 2.3 already asserts the executor
-   commits its own change), not foreign context about the design doc,
-   `PLAN.md`, or another task.
+   conversation. Inspect a real dispatch prompt before trusting it and
+   confirm it contains only these two things.
 
    **Capture this attempt's dispatch timestamp** — the current UTC time,
    ISO-8601 (e.g. `date -u +%Y-%m-%dT%H:%M:%SZ`), noted the instant before
@@ -345,13 +328,10 @@ For each task block, in order:
 6. **Inspect — conditional on load-bearing status (issue #15).** Consult
    the fixed load-bearing set step 1.5 already computed.
 
-   **Leaf task (not in the load-bearing set): no dispatch, no dead step.**
-   Exactly the pass-through this step used to be unconditionally — except
-   now you state, in your own output, *why*: *"Task N is not load-bearing
-   (no other task's `Rests on:` names it) — inspector skipped."* A silent
-   skip and a stated skip are behaviorally identical to the plan's outcome,
-   but only the stated one is legible to the human reading the session.
-   Proceed straight to step 2.7.
+   **Leaf task (not in the load-bearing set): no dispatch.** State, in
+   your own output, why: *"Task N is not load-bearing (no other task's
+   `Rests on:` names it) — inspector skipped."* Proceed straight to step
+   2.7.
 
    **Load-bearing task: dispatch a fresh Inspector.** One fresh Task-tool
    subagent whose entire prompt is exactly:
@@ -419,9 +399,7 @@ For each task block, in order:
    a captured text artifact is quoted inline there, so the concern reaches
    the human's later `/review` pass with the rest of the task's evidence —
    no `gate-ledger` coupling, no auto-invoked `/review`, no dependency on
-   studious being installed at all (graceful even standalone). The
-   captured, self-describing report *is* the forward; it just travels in
-   the PR body now instead of the diff.
+   studious being installed at all (graceful even standalone).
 
    | Lens | Lane | Why this lane |
    |---|---|---|
@@ -650,32 +628,21 @@ check `command -v gate-ledger`:
 
 ## Why this shape
 
-"Judgment in the model, mechanics in scripts" is the whole structure here:
-you decide FIX-vs-RESAMPLE and REPLAN-vs-ESCALATE — judgment calls no
-script could make — while every PASS/FAIL determination, every evidence
-write, and every status flip's actual write to the plan file are script
-outputs. "Nothing signs off on itself" is why the checks `verify` runs
-come from this task's own checkpoint block, transcribed by you, never
-from the executor's self-report, and why `verify` always runs after,
-never inside, the executor's own turn. "Recommend one action; the human
-decides. Propose; never apply" is the Failure routine's and Cadence's
-whole posture — every REPLAN, ESCALATE, and risk-tagged pause blocks on
-the human, with no auto-continue past any of them.
+Judgment stays with the model (FIX-vs-RESAMPLE, REPLAN-vs-ESCALATE); every
+PASS/FAIL determination, evidence write, and status-flip write is a script
+output. Checks come from the task's own checkpoint block, never the
+executor's self-report, and `verify` always runs after, never inside, the
+executor's own turn. Every REPLAN, ESCALATE, and risk-tagged pause blocks
+on the human, with no auto-continue.
 
-Step 2.6's Inspector is the same three principles applied one boundary
-further out. "Nothing signs off on itself" is why a load-bearing task's own
-`verify` PASS isn't the last word: a fresh, diff-reading reviewer stands at
-exactly the boundary a script structurally can't reach (whether a test is
-self-dealing, whether a contract matches, whether a hold is gamed).
-"Judgment in the model, mechanics in scripts" is why `CLEAR`/`DEFECT`/
-`CONCERN` stay the Inspector's own judgment call while everything around
-it — evidence capture, the Failure-routine wiring, `status-flip`'s `PASS`
-derivation — stays exactly as mechanical and untouched as it already was.
-"Standalone-capable" is why a `CONCERN` forwards to `/review` by
-sitting, already committed and self-describing, in the diff a human's own
-later gate run reviews — never a new dependency on `gate-ledger` or on
-studious being installed at all. And the load-bearing gate itself — never
-inspecting a leaf task, regardless of how interesting it looks — is what
-keeps this one narrowly-triggered role from becoming the resident
-reviewer, sprint ceremony, or added persona the anti-cleverness tripwire
-rules out.
+Step 2.6's Inspector applies the same split one boundary further out: a
+load-bearing task's `verify` PASS isn't the last word, since a fresh,
+diff-reading reviewer catches what no script can (self-dealing tests,
+contract drift, a gamed hold), while `CLEAR`/`DEFECT`/`CONCERN` stay the
+Inspector's own call and everything around it (evidence capture, the
+Failure routine, `status-flip`'s `PASS` derivation) stays mechanical. A
+`CONCERN` forwards to `/review` by sitting, already committed and
+self-describing, in the diff a human's own later gate run reviews — no new
+dependency on `gate-ledger` or on studious being installed at all. The
+load-bearing gate — never inspecting a leaf task — keeps this role from
+becoming a resident reviewer or added persona.

@@ -1,40 +1,27 @@
 #!/usr/bin/env python3
 """jig's status-flip script (story build-skill, issue #14).
 
-Writes a task's terminal status back onto its own `### Task <label>` heading
-in a `PLAN.md`-shaped file, and commits that annotation — the mechanical
-write that makes `DESIGN.md`'s Vocabulary table ("flipped by scripts only, never the
-model") and `PRODUCT.md`'s "Judgment in the model, mechanics in scripts"
-principle are true in fact, not just in spirit. The Foreman decides *what*
-status a task reaches (PASS is derived here from `verify`'s own
-`results.json`, never accepted as a caller-supplied token; REPLAN/ESCALATE
-are the Foreman's own judgment calls, handed in already-decided); this script
-only performs the heading edit and the commit.
+Writes a task's terminal status onto its own `### Task <label>` heading in a
+`PLAN.md`-shaped file and commits it. PASS is derived here from `verify`'s
+`results.json` (never a caller-supplied token); REPLAN/ESCALATE are the
+Foreman's own already-decided diagnosis. This script only edits the heading
+and commits.
 
 Two call shapes:
 
   status-flip --plan PLAN.md --task 1 --results results.json
-      The PASS path. Reads `results.json`, derives the token itself: `PASS`
-      iff `overall == "PASS"`. Refuses (exit 2) otherwise -- a FAIL result
-      has no status-flip token of its own; a FAIL is the Foreman's failure
-      routine to react to, not a status this script writes.
+      PASS path: PASS iff `overall == "PASS"` in results.json, else refuses
+      (exit 2) -- a FAIL result is the Foreman's failure routine to react to.
 
   status-flip --plan PLAN.md --task 1 --status REPLAN --reason "..."
-      The failure-routine path (REPLAN or ESCALATE), the Foreman's own
-      diagnosis handed in as an already-decided token -- no script could
-      make this call.
+      Failure-routine path: REPLAN or ESCALATE, handed in already-decided.
 
-Idempotency: a heading already carrying a `PASS` or `ESCALATE` suffix
-refuses any further status-flip call (both close the task out for this
-session). A heading already carrying `REPLAN` does NOT refuse -- REPLAN is
-the failure routine's resumable, paused-not-closed state, and the human's
-ordinary resume path (revise the block by hand, re-invoke /build) needs the
-task's eventual PASS/ESCALATE to be able to overwrite it in place.
+Idempotency: a heading already at PASS or ESCALATE refuses further flips
+(terminal). REPLAN does not refuse -- it's resumable, so the human's normal
+resume path can still overwrite it with an eventual PASS/ESCALATE.
 
-Exit codes: 0 the flip was written and committed. 2 any usage error or
-refusal -- bad arguments, zero or more than one matching heading, a
-malformed/non-PASS `--results` document, or a heading already flipped to a
-terminal (PASS/ESCALATE) status.
+Exit codes: 0 flipped and committed. 2 usage error or refusal (bad args,
+zero/multiple matching headings, bad --results, or already-terminal status).
 """
 from __future__ import annotations
 
@@ -182,21 +169,15 @@ def main(argv: list[str]) -> int:
     if args.reason:
         commit_message += f"\n\n{args.reason}"
 
-    # -f: the plan file this script commits is routinely gitignored by the
-    # target project's own convention (jig's own .gitignore excludes
-    # `/PLAN.md` for exactly this reason -- disposable scaffolding that
-    # dies at merge, per decision 12). Without -f, a plain `git add` on a
-    # still-untracked, ignored path refuses outright, which would make this
-    # script's own documented job ("commits that annotation") structurally
-    # impossible on the one repo (jig itself) most likely to run it.
+    # -f: PLAN.md is routinely gitignored (disposable scaffolding, decision 12);
+    # without -f, `git add` on an ignored path would refuse outright.
     add_result = run(["git", "-C", str(repo), "add", "-f", "--", str(plan_path.resolve())])
     if add_result.returncode != 0:
         print(f"error: 'git add' failed: {add_result.stderr}", file=sys.stderr)
         return 2
 
-    # --allow-empty: a REPLAN-on-REPLAN re-flip (same token, a new --reason)
-    # can leave the plan file's own bytes unchanged while still being a real,
-    # distinct status-flip event worth its own commit.
+    # --allow-empty: a REPLAN-on-REPLAN re-flip (same token, new --reason) can
+    # leave the file's bytes unchanged but is still a distinct event worth a commit.
     commit_result = run(["git", "-C", str(repo), "commit", "-q", "--allow-empty", "-m", commit_message])
     if commit_result.returncode != 0:
         print(f"error: 'git commit' failed: {commit_result.stderr}", file=sys.stderr)

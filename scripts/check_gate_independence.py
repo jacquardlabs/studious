@@ -1,44 +1,33 @@
 #!/usr/bin/env python3
 """Assert Studious's judge doors never require a particular producer.
 
-The producer doors (`/shape`, `/build`, `/ship`) ship in this plugin alongside the judge
-doors (#150). That makes one promise easy to break by accident, and it is the promise
-PRODUCT.md's "the gates being a methodology" non-goal rests on: **a gate judges the work,
-never who produced it.** `reference/worker-contract.md` is normative — a human,
-Superpowers, or `/build` all satisfy it, and a judge must reach the same verdict either
-way.
+A gate judges the work, never who produced it — the invariant PRODUCT.md's "the gates
+being a methodology" non-goal rests on. `reference/worker-contract.md` is normative: a
+human, Superpowers, or `/build` must all satisfy a judge equally.
 
-Two ways a judge could quietly acquire that dependency, both checked here:
+Two ways a judge could quietly acquire a producer dependency:
 
-1. **Invoking a producer door.** A judge command or specialist agent telling the reader to
-   run `/build`, or routing a finding through `/shape`, only works for one kind of
-   producer — and reaching past the door straight to the executable it wraps
-   (`scripts/verify`, `scripts/design-lint`, ...) is the same dependency wearing a
-   third hat (#246).
-2. **Requiring a producer artifact.** A judge that reads `PLAN.md`'s checkpoint blocks or
-   expects `docs/jig/evidence/` has the same dependency wearing a different hat — the
-   evidence contract a judge may rely on is `reference/evidence-format.md`, which any
-   executor can satisfy.
+1. **Invoking a producer door** (`/build`, `/shape`) or the executable it wraps
+   (`scripts/verify`, `scripts/design-lint`, ...) — reaching past the door is the same
+   dependency (#246).
+2. **Requiring a producer artifact** (`PLAN.md`, `docs/jig/evidence/`) instead of the
+   executor-agnostic `reference/evidence-format.md`.
 
-Everything outside the guarded surface — `/next`, `/retro`, the worker contract, the
-README, the context docs — is free to name and route to the producer doors. That is the
-product working as intended, not a violation.
+Everything outside the guarded surface (`/next`, `/retro`, the worker contract, README,
+context docs) is free to route to producer doors — that's the product working as
+intended.
 
-**The surface is derived, never hardcoded.** `reference/personas.md`'s Doors table is the
-authority: its `judge` rows name the command files guarded here, and its `producer` rows
-name the invocations rule 1 forbids. Before the persona restructure this file carried a
-literal `commands/gate-*.md` glob and a hardcoded build-skill tuple, so a renamed judge
-door would have fallen off the guarded surface silently while CI stayed green.
+The surface is derived from `reference/personas.md`'s Doors table, never hardcoded:
+`judge` rows name the guarded command files, `producer` rows name the forbidden
+invocations. (Before the persona restructure this file hardcoded a `commands/gate-*.md`
+glob and a build-skill tuple, so a renamed judge door could fall off the surface
+silently.)
 
-**One file on the surface holds two roles.** `workflows/epic-driver.js` is a dispatcher
-that also builds the prompts compiling verdicts. Its dispatch half must be able to route
-work to `/build` exactly as `commands/next.md` does; its judge half must stay
-producer-agnostic. Taking the whole file off the surface would drop the guarantee for
-`auditFanIn` and `acceptanceFanIn`, which are the two functions that most need it — so
-instead a file may mark a *region* as worker dispatch, exempt from rule 1 only, and never
-containing verdict-compile machinery (#212). The markers are plain comments so the check
-stays a line scanner and the exemption is visible where it applies rather than in this
-file's config.
+`workflows/epic-driver.js` holds two roles: dispatch (must route to `/build` like
+`commands/next.md` does) and verdict-compiling (`auditFanIn`, `acceptanceFanIn`, which
+must stay producer-agnostic). Rather than exempt the whole file, a *region* can be
+marked worker-dispatch — exempt from rule 1 only, and never containing verdict-compile
+machinery (#212).
 
 Standard library only, to match the repo's other CI helpers.
 """
@@ -66,10 +55,8 @@ STRUCTURAL_SURFACE = (
     "bin/gate-ledger",
 )
 
-#: The producer doors' own executables (`scripts/<name>`). A judge that shells out to one
-#: of these directly has the same producer dependency as a judge that names the door that
-#: wraps it — the blind spot #246 closes: naming `/build` was already caught, but nothing
-#: stopped a judge from reaching straight past the door to `scripts/verify`.
+#: The producer doors' own executables (`scripts/<name>`) — shelling out to one directly
+#: is the same dependency as naming the door that wraps it (#246).
 BUILD_EXECUTABLES = (
     "plan-lint",
     "design-lint",
@@ -80,19 +67,18 @@ BUILD_EXECUTABLES = (
     "worktree-setup",
 )
 
-#: Artifacts only a producer run creates. A judge that reads one has the same dependency
-#: as a judge that invokes the door. `docs/jig/evidence` is the store's retired committed
-#: location — banned still, so prose reintroducing it fails the same way live paths do.
+#: Artifacts only a producer run creates; reading one is the same dependency as invoking
+#: the door. `docs/jig/evidence` is the retired committed location — still banned, so
+#: prose reintroducing it fails the same way live paths do.
 ARTIFACTS = re.compile(r"(?<![\w/-])(PLAN\.md|docs/jig/evidence|\.studious/build-evidence)")
 
 #: Sentinel comments bounding a worker-dispatch region. Exempt from INVOCATION only.
 REGION_OPEN = "gate-independence: begin worker-dispatch"
 REGION_CLOSE = "gate-independence: end worker-dispatch"
 
-#: Prompt builders that compile or scope a verdict. These judge work, so they may never
-#: sit inside a worker-dispatch region — that would move the exemption onto the machinery
-#: it exists to keep covered, and the check would still pass. Named here so the guard is a
-#: list to maintain rather than an inference from brace matching.
+#: Prompt builders that compile or scope a verdict — must never sit inside a
+#: worker-dispatch region, which would move the exemption onto the machinery it exists
+#: to cover. Listed explicitly rather than inferred from brace matching.
 GATE_COMPILERS = (
     "auditFanIn",
     "acceptanceFanIn",
@@ -136,10 +122,9 @@ def producer_names() -> list[str]:
 
 
 def invocation_re() -> re.Pattern:
-    """A slash-command invocation of a producer door, or a shell invocation of a producer
-    executable — not a path segment. The lookarounds are what keep
-    `templates/design-doc.md`, `docs/design/`, and "never run install/build/test" from
-    reading as invocations — all three appear on the guarded surface legitimately today."""
+    """A slash-command invocation of a producer door, or a shell invocation of its
+    executable — not a path segment. The lookarounds keep `templates/design-doc.md`,
+    `docs/design/`, and "never run install/build/test" from misreading as invocations."""
     return re.compile(
         r"(?<![\w/-])/(?P<door>{})(?![\w/-])".format("|".join(producer_names()))
         + r"|(?<![\w/-])scripts/(?P<executable>{})(?![\w/-])".format(
@@ -158,11 +143,10 @@ def surface_paths() -> list[Path]:
 
 def scan(rel: str, text: str, invocation: re.Pattern | None = None) -> tuple[list[str], int]:
     """Check one guarded file. Returns its problems and how many invocations the
-    worker-dispatch exemption actually absorbed.
+    worker-dispatch exemption absorbed.
 
-    `invocation` defaults to the charter-derived pattern. It is a parameter at all so
-    `main()` builds it once per run instead of once per file, and so a test can drive the
-    scanner with a pattern of its own.
+    `invocation` is a parameter so `main()` builds it once per run, not once per file,
+    and a test can drive the scanner with a pattern of its own.
     """
     if invocation is None:
         invocation = invocation_re()
@@ -241,8 +225,8 @@ def violations(
 def dead_regions(
     paths: list[Path] | None = None, invocation: re.Pattern | None = None
 ) -> list[str]:
-    """A declared region that exempts nothing is scaffolding for a future mistake.
-    Delete it rather than leaving an unused hole in the surface."""
+    """A region that exempts nothing is scaffolding for a mistake — delete it rather
+    than leave an unused hole in the surface."""
     if paths is None:
         paths = surface_paths()
     if invocation is None:
