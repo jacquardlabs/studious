@@ -26,7 +26,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _gitutil import run as _gitutil_run  # noqa: E402
+from _gitutil import run as _gitutil_run
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURES_DIR = REPO_ROOT / "tests" / "fixtures"

@@ -50,7 +50,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _gitutil import main_checkout_root as repo_root  # noqa: E402
+from _gitutil import main_checkout_root as repo_root
 
 #: Verdict tokens per `reference/gate-vocabulary.md`. A save is `gate-confirmed`
 #: when a fix-and-retry token was recorded at or after the finding was raised and
