@@ -88,15 +88,15 @@ Layers of the delivery discipline — story, epic, initiative, worker — are di
 
 Criterion (e) was added on 2026-07-24 when absorbing jig (#150) showed audience alone was the wrong test. jig had no independent audience, but neither did viva; what separated them was the *interface*. studious and jig coupled through undocumented format agreements — an evidence layout, a `PASS` token, a routing table, telemetry keys — each of which had to be renegotiated in two repos at once, and one of which (#148) blocked its own seam story from being real end-to-end while that story sat closed. viva publishes `docs/headless-contract.md`: a versioned contract with schema validators called at the boundary and tests around them. A boundary is affordable when crossing it means calling a contract, and expensive when it means agreeing on a convention.
 
-Decision records: `docs/initiative-altitude.md` (2026-07-07) — the brigade repo was absorbed under this rule; issue #150 (2026-07-24) — jig was absorbed under it, viva stays out under (e). winnow (a, b) and gauntlet (b) remain separate.
+Decision records: `docs/initiative-altitude.md` (2026-07-07) — the brigade repo was absorbed under this rule; issue #150 (2026-07-24) — jig was absorbed under it, viva stays out under (e). winnow (a, b) and gauntlet (b) remain separate — gauntlet a declared dependency since #334, an edge, not an absorption.
 
 ## The build skills, and the one rule that governs them
 
 jig was absorbed into this plugin (#150), not added beside it. `/shape`, `/build`,
 `/build`, `/ship`, and `/next` are `skills/` here like any other; their Python lives
 in `scripts/`, their unittest suite in `tests/jig/`. One manifest, one version line, one
-install. The manifest declares `dependencies: ["viva"]` — `/build` and `/shape` stop dead
-without it.
+install. The manifest declares `dependencies: ["viva", "gauntlet"]` — `/build` and `/shape`
+stop dead without viva; `/review` and `/retro` dispatch their judge lanes from gauntlet.
 
 Two plugins was considered and rejected: separate installability served an audience of
 zero while costing two version lines, two release paths, a `git-subdir` marketplace

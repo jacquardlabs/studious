@@ -147,6 +147,30 @@ def test_a_declared_dependencys_skill_is_not_a_broken_reference() -> None:
     assert "web-design-guidelines" in EXTERNAL_SKILLS
 
 
+def test_a_declared_dependencys_agent_is_not_a_broken_reference(tmp_path: Path) -> None:
+    """#334: judge lanes dispatch `gauntlet:<judge>`, which ships in gauntlet's
+    plugin, so `agents/<judge>.md` never exists here. Same manifest-derived
+    exemption as the skill case — the namespace must be a declared dependency."""
+    from check_references import EXTERNAL_PLUGINS
+
+    assert "gauntlet" in EXTERNAL_PLUGINS
+    _write(
+        tmp_path / "commands" / "review.md",
+        "dispatch `gauntlet:security-auditor` (@agent-gauntlet:security-auditor); "
+        "never @agent-nonexistent",
+    )
+    errors = find_broken(tmp_path)
+    assert len(errors) == 1
+    assert "agents/nonexistent.md missing" in errors[0]
+
+
+def test_an_undeclared_plugins_agent_is_still_broken(tmp_path: Path) -> None:
+    _write(tmp_path / "commands" / "review.md", "dispatch @agent-not-a-dependency:security-auditor")
+    errors = find_broken(tmp_path)
+    assert len(errors) == 1
+    assert "not-a-dependency is not a declared dependency" in errors[0]
+
+
 def test_an_undeclared_external_skill_is_still_broken(tmp_path: Path) -> None:
     """The exemption is scoped to declared dependencies — a typo or an undeclared
     plugin's skill must still fail."""

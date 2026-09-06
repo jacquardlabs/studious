@@ -14,7 +14,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 MANIFEST = REPO / ".claude-plugin" / "plugin.json"
 SCAN_DIRS = ("commands", "agents", "skills", "reference")
-AGENT_RE = re.compile(r"@agent-([a-z0-9-]+)")
+# A namespaced token (`@agent-gauntlet:security-auditor`) names another plugin's agent.
+AGENT_RE = re.compile(r"@agent-((?:[a-z0-9-]+:)?[a-z0-9-]+)")
 # Recognized skill-reference phrasings: "the `<name>` skill" (incl. possessive
 # "skill's"), "invoke [the] `<name>`", "skill `<name>`". Commands and agents use
 # their own prefixes, so a bare backtick token after "invoke"/"skill" is unambiguous.
@@ -73,11 +74,21 @@ def _declared_dependencies() -> set[str]:
         return set()  # validate_plugin.py owns manifest validity; don't double-report
 
 
-# Skills referenced by name but legitimately shipped elsewhere, not in this repo.
-# `web-design-guidelines` ships with Claude Code itself; the rest come from the
-# manifest's declared dependencies (`viva`, which /shape, /build, and the doctor's
-# tooling check all name).
-EXTERNAL_SKILLS = {"web-design-guidelines"} | _declared_dependencies()
+# Plugins whose skills and agents are citable here though they ship elsewhere: the
+# manifest's declared dependencies (`viva` for /shape and /build's sign-off rounds,
+# `gauntlet` for the judge lanes). An agent token namespaced `<plugin>:<name>` resolves
+# in that plugin, not in `agents/`.
+EXTERNAL_PLUGINS = _declared_dependencies()
+# `web-design-guidelines` ships with Claude Code itself.
+EXTERNAL_SKILLS = {"web-design-guidelines"} | EXTERNAL_PLUGINS
+
+
+def _agent_error(root: Path, token: str) -> str:
+    """Why `@agent-<token>` fails to resolve, or "" when it does."""
+    namespace, _, name = token.rpartition(":")
+    if namespace:
+        return "" if namespace in EXTERNAL_PLUGINS else f"{namespace} is not a declared dependency"
+    return "" if (root / "agents" / f"{name}.md").is_file() else f"agents/{name}.md missing"
 
 
 def find_broken(root: Path) -> list[str]:
@@ -90,9 +101,9 @@ def find_broken(root: Path) -> list[str]:
             text = md.read_text(encoding="utf-8")
             rel = md.relative_to(root)
             errors.extend(
-                f"@agent-{name} referenced in {rel} but agents/{name}.md missing"
+                f"@agent-{name} referenced in {rel} but {why}"
                 for name in sorted(set(AGENT_RE.findall(text)))
-                if not (root / "agents" / f"{name}.md").is_file()
+                if (why := _agent_error(root, name))
             )
             skill_names = {name for regex in SKILL_RES for name in regex.findall(text)}
             for name in sorted(skill_names):

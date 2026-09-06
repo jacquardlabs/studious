@@ -25,7 +25,9 @@ products. Repo boundaries follow license, audience, lifecycle, and — since #15
 quality of the interface across the boundary (the rule is recorded in CLAUDE.md).
 The initiative altitude — formerly the separate `brigade` design repo, now archived —
 is recorded at `docs/initiative-altitude.md` and becomes an entrypoint here if its
-entry gate fires.
+entry gate fires. Extended 2026-09-06 (#334, direction B): judge lanes are dispatched
+from `gauntlet`, a declared dependency; studious ships the consumers, the ledgers, and
+verdict derivation — never the judges.
 
 jig — the build-execution workflow (`/shape`, `/build`, `/ship`)
 — was absorbed into this plugin on 2026-07-25 under #150. Not as a second installable:
@@ -229,6 +231,9 @@ itself" violation this document states below.
   the build if any gate command, agent, driver, hook, or the ledger invokes a build
   skill or requires a build artifact. Superpowers, a human, or any other executor
   satisfies the same contract.
+- **Shipping our own judge fleet** — the judge lanes `/review` and `/retro` fan out to
+  are gauntlet's (#334, 2026-09-06). Studious keeps its three local agents and the verdict
+  derivation around every lane; it adds no judge of its own.
 - **A separate orchestration product** — the initiative altitude was chartered as a
   separate product (brigade) and deliberately absorbed as a future entrypoint
   (`docs/initiative-altitude.md`, 2026-07-07). Its build waits on its entry gate: a
