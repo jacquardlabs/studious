@@ -25,12 +25,16 @@ contains and how much runs dispatched versus supervised — never which doors ex
 - **Lanes stay separate.** Gate agents never build; worker agents never gate
   (`reference/worker-contract.md`); the two never share context. A gate judges the
   diff and the doc, never a worker's transcript.
-- **GitHub is read-only.** Never create or edit issues; never open PRs — after the
-  finale the branch is the user's (`gh pr create`). This binds every dispatched agent,
-  not just you: the driver stamps the invariant into each dispatch prompt it builds and
-  watches the open-issue/open-PR counts across the run, reporting any change as an
-  anomaly (#276). Dispatching by hand on the fallback path means carrying the same
-  sentence into the prompt yourself.
+- **GitHub is read-only, with one named exception.** Never create or edit issues;
+  never open, update, or merge a PR. This binds every dispatched agent, not just you:
+  the driver stamps the invariant into each dispatch prompt it builds and watches the
+  open-issue/open-PR counts across the run, reporting any change as an anomaly (#276).
+  Dispatching by hand on the fallback path means carrying the same sentence into the
+  prompt yourself. **The one exception (#253):** after the finale's audit and
+  acceptance gates both pass and `ready` is recorded, one dedicated dispatch — and
+  only that one — pushes the epic branch and opens its PR. See "Epic finale" below.
+  Every other dispatch, including every other finale lane, stays absolutely
+  read-only; the exception is scoped to that one dispatch, never generalized.
 - **Judgment verdicts always stop the story** and wait for the user. Autonomy never
   absorbs a RETHINK, NEEDS DISCUSSION, or HOLD; unknown verdicts park too, never
   advance.
@@ -65,6 +69,18 @@ milestone.
   Then run the plan piece.
 
 ## Plan piece — runs once, ends at approval
+
+**Two routes to the same approval, since #311.** Everything below describes the live,
+in-session interview — the only route until now. An agent may instead author the same
+plan as a written brief and open it in viva (`/viva-write`, headless contract v12); a
+human's sign-off there is the identical confirmation as answering live, recorded
+earlier rather than spoken now. **Every element this section produces is required
+either way** — the brief route answers steps 1–7 in writing instead of in conversation,
+never by omitting one. A brief missing a required element is rejected at intake
+(`scripts/intake`, #314) before it ever reaches a human to stamp — never approved by
+default, never inferred, never defaulted to the nearest guess. Step 8 below is where
+the two routes converge: the same `epic-set`/`epic-story-set` calls, with `--approval`
+recording which route produced this approval and when.
 
 1. Read PRODUCT.md, DESIGN.md, and CLAUDE.md.
 2. Propose a decomposition satisfying `reference/epic-plan-contract.md`: stories with
@@ -204,15 +220,38 @@ milestone.
    gate-ledger epic-set --slug "<slug>" --title "<title>" --source "<milestone M | issue #N | label L>" \
      --goal "<goal statement>" --branch "epic/<slug>" --concurrency <cap> --status approved \
      --appetite-tokens <approved tokens> --appetite-episodes <approved open episodes> \
-     --canary <on|off> --acceptance-altitude <per-story|delivery-boundary>
+     --canary <on|off> --acceptance-altitude <per-story|delivery-boundary> \
+     --approval <interactive|viva:round-ref>
    gate-ledger epic-story-set --epic "<slug>" --slug "<story>" --title "<story title>" \
      --source "issue #N" --criteria "<criteria>" --decisions "<answered forks>" \
-     --deps "<dep-a,dep-b>" --gates "<profile>"
+     --deps "<dep-a,dep-b>" --gates "<profile>" --merge-class "<auto-merge|human-approve|never-unattended>"
    ```
+
+   `--approval` (#311) is `interactive` for the live route this section describes, or
+   `viva:<round-ref>` when a brief was stamped instead — `epic-reconcile`'s payload
+   surfaces whichever was recorded, which is how the driver (and a human re-reading
+   this epic later) tells the two routes apart. Never omit it: an epic with no recorded
+   approval is exactly the state a status of `proposed` (below) is for, not `approved`.
+
+   **An agent authoring a brief for the viva route records `--status proposed`
+   first** — before any human has seen it — so `epic-reconcile` can see a pending
+   brief waiting on its stamp. The stamp-to-dispatch bridge (`scripts/intake`, #314;
+   the bridge itself, #315) then flips it: `epic-set --slug "<slug>" --status approved
+   --approval "viva:<round-ref>"`, at which point this is the same recorded state the
+   live route reaches directly. `commands/next.md`'s "do the next piece" selector
+   deliberately does not count a `proposed` epic as ready to drive — driving an
+   unstamped brief on an empty invocation would be the exact default-approval this
+   whole amendment exists to forbid.
 
    `--appetite-tokens` is a token count, never a dollar figure — the ledger rejects
    anything but a positive integer, and the driver compares it against a token budget.
    Record the numbers the user actually approved, not the ones step 5 proposed.
+
+   `--merge-class` (#312) records PRODUCT.md's "Merge authority" tier for the story —
+   `auto-merge`, `human-approve`, or `never-unattended` — decided here, at approval,
+   never inferred later at merge time. A story already classed `story-supervised` in
+   step 3 by the prompt-prose trigger is `never-unattended` by construction; state it
+   as the same fact under two names, not two separate judgment calls.
 
    `--acceptance-altitude` records the altitude the user approved in step 5 — pass
    `per-story` unless they explicitly chose `delivery-boundary`. This flag is the only
@@ -609,8 +648,17 @@ mode, run it in the `__epic` worktree):
 Verdicts record to the epic branch's ledger — the PR-time hook reads the same file.
 All pass → `gate-ledger epic-set --slug "<slug>" --status ready`, then release the
 integration checkout so the branch is checkoutable from the user's clone:
-`git worktree remove "$(gate-ledger worktree-path --slug "<slug>")"`. Recap every story's verdict
-trail and remind the user the PR is theirs (`gh pr create` from the epic branch).
+`git worktree remove "$(gate-ledger worktree-path --slug "<slug>")"`.
+
+**Only then, from the recorded fact of `ready` and never earlier (#253):** one
+dedicated dispatch — the one exception to "GitHub is read-only" above — pushes the
+epic branch and opens its PR, carrying the per-story verdict trail and the evidence
+`gate-ledger evidence-list --branch "epic/<slug>" --dedupe` returns
+(`reference/evidence-format.md`) as its body. This moved the human's part of exit
+earlier, to plan approval — what stays theirs is review and merge, not the `gh pr
+create` keystroke. A died or refused PR dispatch never un-records `ready`: the epic
+stays ready, and running `gh pr create` from the epic branch by hand is still exactly
+as available as it always was.
 
 A finale gate (audit or acceptance) whose fix cycles run out while it still holds its
 own retry token (`FIX AND RE-REVIEW`) does not end the run reading
@@ -1113,8 +1161,10 @@ work file yet, so its three sub-lines — the phase trail, the `<scope line>`, a
 `scope: unavailable (could not read the work file)` for a story that was never
 dispatched reports a read failure that didn't happen.
 
-When the epic reaches `ready`, the last line becomes the
-`gh pr create` handoff; `stopped` states what ended it. A parked story is always also
+When the epic reaches `ready`, the last line reports the PR the finale already opened
+(`finale.prUrl`) — or, if that one dispatch died or refused, that `ready` is recorded
+and `gh pr create` from the epic branch is still the user's to run by hand
+(`finale.notes`). `stopped` states what ended it. A parked story is always also
 a valid `/next` feature — say so when the queue is non-empty; taking a story over
 by hand usually happens inside its worktree (the story branch is checked out there),
 or after `git worktree remove` on it — except a `ledger-scope-check` park (above):

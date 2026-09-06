@@ -193,11 +193,42 @@ def test_every_dispatch_altitude_carries_the_invariant() -> None:
 
     Story-level dispatches inherit it through `ctx`; the finale builders never call
     `ctx`, which is exactly where `gh pr create` is closest at hand.
+
+    `finalePrPrompt` (#253) is the one deliberate exception, checked separately below
+    — it is the single dispatch licensed to push and open a PR, and it must never
+    receive the invariant that forbids exactly that.
     """
     source = DRIVER.read_text()
     for builder in ("ctx", "finaleAuditDispatchPrompt", "finaleClosurePrompt",
                     "finaleSeamPrompt", "premortemDispatchPrompt", "finaleFixerPrompt"):
         assert "githubReadOnlyInvariant()" in _extract_function(source, builder), builder
+
+
+def test_the_finale_pr_prompt_is_the_documented_exception() -> None:
+    """#253 — exactly one builder may open a PR, and it must carry its own narrow
+    posture rather than a carve-out threaded into the general invariant. Weakening
+    `githubReadOnlyInvariant()` itself instead of isolating the exception here would
+    quietly loosen every other dispatch too."""
+    source = DRIVER.read_text()
+    body = _extract_function(source, "finalePrPrompt")
+    assert "githubReadOnlyInvariant()" not in body
+    assert "git push" in body
+    assert "gh pr create" in body
+    assert "never merge" in body.lower()
+    for artifact in ("PLAN.md", "docs/jig/evidence", ".studious/build-evidence"):
+        assert artifact not in body, (
+            f"finalePrPrompt must not name {artifact!r} — it sits on "
+            "check_gate_independence.py's structural surface (workflows/*.js), whose "
+            "ARTIFACTS check is never exempted"
+        )
+
+
+def test_the_invariant_no_longer_claims_the_branch_is_the_users_alone() -> None:
+    """#253 makes the finale itself license one PR dispatch. The general invariant
+    must still forbid every OTHER dispatch from opening one, but it can no longer
+    assert unconditionally that opening the PR stays the human's act."""
+    text = _run(("githubReadOnlyInvariant",), "githubReadOnlyInvariant()")
+    assert "the branch is the user's to open a pr from" not in text.lower()
 
 
 def test_the_nudge_cap_lives_in_code_not_in_a_prompt() -> None:

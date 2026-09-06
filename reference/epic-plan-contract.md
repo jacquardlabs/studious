@@ -14,6 +14,7 @@ or unjudgeable story later.
 | Stories | Each: a short slug, a title, and its source issue(s). Splitting or merging GitHub issues is proposed here, never applied to GitHub. |
 | Stated file surface per story | The files the story expects to touch. The plan already carries this fact implicitly — criteria and dependency edges can't be written without it — so state it, because the story class below is computed from it. |
 | Story class per story | `epic-default` or `story-supervised`, plus the one clause that decided it. Shown next to the story in the plan the user approves, and overridable there like any other element. |
+| Merge class per story | `auto-merge`, `human-approve`, or `never-unattended` — PRODUCT.md's "Merge authority" (#312) names what each tier requires. Decided at plan approval and recorded via `epic-story-set --merge-class`, never inferred at merge time. `never-unattended` implies `story-supervised` story class; a story already classed `story-supervised` by the prompt-prose trigger below is `never-unattended` by construction, not a separate judgment call. |
 | Acceptance criteria per story | What the story's `/review --delivery` run must be able to verify — concrete and observable. "Works" is not a criterion. |
 | Settled forks per story | The product/scope questions answered at the plan piece's one interview, recorded per story as `decisions`. Every phase is dispatched to a subagent with no human in its loop, so an unanswered fork can only be guessed or parked — this is where the human answers instead. Distinct from acceptance criteria: criteria say what "done" means, decisions say which of two defensible designs was chosen. Absent for a story whose forks were all obvious. |
 | Dependency edges | The DAG the scheduler runs. Only real sequencing dependencies: an edge claims the downstream story cannot be designed or built until the upstream one lands. |
@@ -24,6 +25,7 @@ or unjudgeable story later.
 | Appetite | Two numbers the user approves alongside the scope: **tokens**, the ceiling `workflows/epic-driver.js` holds at runtime, and **open episodes**, the maximum stories that may be awaiting judgment or human action at once. Proposed from the estimate; recorded via `epic-set --appetite-tokens` / `--appetite-episodes`. |
 | Canary | Whether the first invocation dispatches exactly one story and waits for it to land before releasing the rest. On by default. Recorded via `epic-set --canary on\|off`. |
 | Acceptance altitude | Where product judgment runs: `per-story` (the default, and today's behavior) or `delivery-boundary`. **Not yet safe to set** — see below. Recorded via `epic-set --acceptance-altitude`. |
+| Approval | How this plan was approved: `interactive` (the live plan-piece interview) or `viva:<round-ref>` (a recorded sign-off on an agent-authored brief, #311). Every element in this table must be answerable from the brief either way — a brief missing one is rejected at intake (`scripts/intake`, #314), never approved by default. Recorded via `epic-set --approval`. |
 
 ## Story class — what the driver runs unattended, and what it hands back
 

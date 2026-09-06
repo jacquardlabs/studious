@@ -26,6 +26,15 @@ previous turn's closing block already named this exact piece and the user's mess
 advance ("next", "go", "keep going", a bare `/next`), that *is* the confirmation — run it
 without asking again.
 
+**A second exception, epic scale only (#311):** a recorded viva sign-off on a brief
+satisfying every element in `reference/epic-plan-contract.md` IS the user's word for
+that plan — the same confirmation as an in-turn "yes," recorded earlier rather than
+spoken now. It approves the plan it was stamped against and nothing else; it never
+licenses auto-advance past the piece that plan authorizes, and "Never auto-advance past
+the piece you ran" below still governs everything after. A brief missing any required
+element is rejected at intake — never approved by default, never inferred, never
+defaulted to the nearest guess.
+
 **Never auto-advance past the piece you ran.** When it finishes — pass, fail, or handoff —
 stop with the closing block below, even when the result is a clean pass and the next step is
 obvious. The user advances the flow; you never do.
@@ -51,7 +60,10 @@ writing the code) plus closeout. Studious hands over context and steps back; the
 the user's pick, and no episode cares which route produced the branch.
 
 After piece 7 the flow is `done`. Never open the PR yourself: the PR is the user's
-(`gh pr create` — the PR-time hook reads the same ledger).
+(`gh pr create` — the PR-time hook reads the same ledger). This is a story-scale rule.
+At epic scale the finale itself opens the epic's PR, once, after its gates pass
+(`reference/epic-orchestration.md`, "Epic finale") — that is not this door acting; see
+the closing-shape note below.
 
 No door is mandatory, only default. Skipping `/bet` means no appetite and no decision record
 exist — position still derives from repo evidence, and every later door runs regardless.
@@ -68,7 +80,10 @@ gate-ledger epic-list     # epics in flight
 
 - **`$ARGUMENTS` is empty — "do the next piece."** If a work file's branch matches the
   current branch, that's it. Otherwise, if exactly one epic is `approved`/`running`/`ready`,
-  drive that epic. Otherwise, if exactly one work file is active (phase not `done`/`stopped`),
+  drive that epic — **`proposed` deliberately does not count here** (#311): a brief awaiting
+  its viva stamp has not been approved yet, and driving it on an empty invocation would be
+  exactly the default-approval this door refuses everywhere else. Otherwise, if exactly one
+  work file is active (phase not `done`/`stopped`),
   use it. If several are active, list them and ask which — don't guess. **Cap that list at the
   5 most recently updated** (`updatedAt`), and say how many more there are rather than
   printing them all: a menu long enough to scroll is not a choice a user can make. If the list

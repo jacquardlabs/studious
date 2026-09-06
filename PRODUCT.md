@@ -12,8 +12,9 @@ Studious adds that judgment back as a **scale-invariant delivery discipline**: s
 doors named for the stages devs already know, entered through one navigator (`/next`)
 that answers "what's next" at story, list, and milestone scale alike. Scope changes how
 many stories a bet contains and how much runs dispatched versus supervised; it never
-changes which doors exist. Judgment remains the spine — nothing is auto-approved, and
-every altitude ends at a human — but the *how* is no longer deferred to a companion
+changes which doors exist. Judgment remains the spine — no *judgment* is auto-approved
+(see "Merge authority" below for the one place a *merge* runs unattended, and only on a
+class a human pre-approved) — but the *how* is no longer deferred to a companion
 product: it enters through `reference/worker-contract.md` (story brief in;
 implementation + evidence out), which any executor can satisfy — a dispatched agent,
 a human, or Superpowers where installed.
@@ -123,9 +124,10 @@ this section is your voice, not the extractor's.
   conservative" to avoid firing unbidden.
 - **Stay in your lane** — auditors are single-purpose and report rather than fix; each
   "stays in its lane." Composition over monolithic review.
-
-<!-- FILL IN: Add any principle the code can't reveal — e.g. a stance on how much the
-     workflow should ever block vs. only remind. -->
+- **Blocking is a tier, not a default** — how much the workflow blocks vs. only reminds
+  is answered per change class, not per gate's mood. See "Merge authority" below: the
+  human approves the class once, at plan approval; the tier then decides, mechanically,
+  whether a merge waits on a person or on a check.
 
 ## Feature tracker
 
@@ -136,11 +138,13 @@ The tracker owns individual features. PRODUCT.md owns strategic context only.
 **The roadmap lives in [milestones](https://github.com/jacquardlabs/studious/milestones), not here.** Restating it in this file is how it went stale
 before: the original A/M/X tiers were listed as the live roadmap long after every
 A-tier and M-tier issue had closed, and every gate reads this file as ground truth.
-**Milestone numbers carry delivery order** — M1 runs first. That is a convention for
-reading the tracker, not a roadmap: which milestones exist, what is in them, and what
-runs concurrently are the tracker's to answer, and each description states its own
-position and why. Numbering was reset on 2026-08-03, so a reference dated before then
-uses the old numbers; every current milestone names the one it was renumbered from.
+**Milestone numbers carry delivery order** — lowest runs first. That is a convention
+for reading the tracker, not a roadmap: which milestones exist, what is in them, and
+what runs concurrently are the tracker's to answer, and each description states its own
+position and why. Numbering was reset on 2026-08-03 (M1 ran first then); M0 was created
+2026-08-28 to run ahead of M1 without renumbering everything again — a reference dated
+before 2026-08-03 uses the pre-reset numbers, and every current milestone names the one
+it was renumbered from.
 
 The one durable point: **X-tier is the strategic bet.** Spec traceability (#31), the
 post-ship outcome gate (#32), and the self-tuning corpus (#33) are what turn a set of
@@ -171,6 +175,45 @@ Traced from the commands and the README's two-rhythm description.
    then flags resolved/obsolete/duplicated issues against the cycle's fixes, and
    `/retro outcomes` grades what shipped against the fixes that followed.
 
+## Merge authority
+
+Ratified 2026-09-05 (#312), answering the stance the "Product principles" FILL IN above
+pointed at: how much the workflow should ever block vs. only remind, stated as a matrix
+rather than left to whichever gate happens to notice.
+
+Every story and epic carries one of three classes, **decided at plan approval and
+recorded in the epic plan — never inferred at merge time** (the required-elements table
+in `reference/epic-plan-contract.md` is where it's recorded, next to story class):
+
+- **auto-merge** — dependency bumps, docs, lint, test-only changes. Requires green CI
+  **and** a gauntlet run at 0 critical findings. Nothing in this repo exercises this
+  tier yet (M0's S1 gate is "driven to green," not merged); it is declared here so the
+  class exists to assign, before anything needs it.
+- **human-approve** — features. The epic finale opens the PR (#253); Claude Code
+  auto-fix drives it to green; a code owner merges.
+- **never-unattended** — security, infrastructure, prompt-prose. Always classed
+  `story-supervised` in the epic plan. This third tier mostly restates a rule that
+  already exists: `reference/epic-plan-contract.md`'s prompt-prose trigger
+  (`reference/audit-routing-signals.md`'s Prompt signal list) already forces
+  `story-supervised` for that surface — this tier adds security and infrastructure
+  to the same never-unattended treatment, under the same mechanism.
+
+**Auto-merge is not auto-approval.** The human approved the *class* at plan approval,
+before any code existed to judge; what runs unattended afterward is mechanical
+verification that the pre-approved conditions still hold, never a judgment call. "The
+agent that wrote the code has no way to approve it" (the load-bearing constraint from
+Anthropic's AI-native SDLC playbook) holds in every tier: nothing approves in
+auto-merge, a code owner approves in human-approve, and never-unattended never runs
+unattended at all.
+
+**Enforcement is convention today, not GitHub.** `main`'s branch-protection ruleset
+(#182) requires all CI contexts but carries 0 required approvals and admin
+`bypassMode: ALWAYS` — nothing in GitHub actually blocks an unapproved merge yet. #316
+is where that gets closed, and it has to be closed with the auto-merge tier in view:
+a naive "require 1 approval" rule leaves nothing able to approve an auto-merge PR
+without a bot approving an agent's own PR, which is exactly the "nothing signs off on
+itself" violation this document states below.
+
 ## What we're NOT building
 
 **Explicitly out of scope (documented):**
@@ -198,7 +241,10 @@ Traced from the commands and the README's two-rhythm description.
   (criterion (e) in CLAUDE.md's repo-boundary rule). Absent an interface argument,
   the answer is no.
 - **Auto-applying changes** — reviews and gates propose; they never modify context
-  docs or fix code. The human approves every change.
+  docs or fix code. The human approves every change. "Merge authority"'s auto-merge
+  tier does not carve an exception into this: it never applies a change a human hasn't
+  already approved by class — what it automates is the mechanical check that the
+  pre-approved conditions held, not the approval itself.
 - **Replacing the issue tracker** — Studious works *with* GitHub Issues via `gh`; it
   does not own per-feature state in PRODUCT.md when a tracker is active.
 

@@ -2641,6 +2641,34 @@ check "the refused token left the recorded one untouched" "delivery-boundary" \
 check "the altitude rides through epic-reconcile to the driver" "delivery-boundary" \
   "$(cd "$dh" && "$LEDGER" epic-reconcile --slug altitude | jq -r '.epic.acceptanceAltitude')"
 
+# --- epic-set --approval (#311, async approval via a recorded viva stamp) ---
+( cd "$dh" && "$LEDGER" epic-set --slug approval-epic --title A ) >/dev/null
+check "an epic with no recorded approval carries none" "null" \
+  "$(jq -r '.approval // "null"' "$dh/.studious/epics/approval-epic.json")"
+( cd "$dh" && "$LEDGER" epic-set --slug approval-epic --approval "viva:r7" ) >/dev/null
+check "--approval records the viva round reference" "viva:r7" \
+  "$(jq -r '.approval' "$dh/.studious/epics/approval-epic.json")"
+check "recording the approval stamps approvedAt" "true" \
+  "$(jq -r '.approvedAt != null' "$dh/.studious/epics/approval-epic.json")"
+check "'interactive' is also a valid approval token" "interactive" \
+  "$(cd "$dh" && "$LEDGER" epic-set --slug approval-epic --approval interactive >/dev/null; jq -r '.approval' "$dh/.studious/epics/approval-epic.json")"
+check "an approval token that is neither is refused before any write" "2" \
+  "$(cd "$dh" && "$LEDGER" epic-set --slug approval-epic --approval "someone said so" >/dev/null 2>&1; echo $?)"
+check "the refused token left the recorded one untouched" "interactive" \
+  "$(jq -r '.approval' "$dh/.studious/epics/approval-epic.json")"
+
+# --- epic-story-set --merge-class (#312, decided at plan approval) ---
+( cd "$dh" && "$LEDGER" epic-story-set --epic altitude --slug s1 --title S1 ) >/dev/null
+check "a story with no recorded merge class carries none" "null" \
+  "$(jq -r '.stories.s1.mergeClass // "null"' "$dh/.studious/epics/altitude.json")"
+( cd "$dh" && "$LEDGER" epic-story-set --epic altitude --slug s1 --merge-class never-unattended ) >/dev/null
+check "--merge-class records the token" "never-unattended" \
+  "$(jq -r '.stories.s1.mergeClass' "$dh/.studious/epics/altitude.json")"
+check "an unrecognized merge-class token is refused before any write" "2" \
+  "$(cd "$dh" && "$LEDGER" epic-story-set --epic altitude --slug s1 --merge-class sometimes >/dev/null 2>&1; echo $?)"
+check "the refused token left the recorded one untouched" "never-unattended" \
+  "$(jq -r '.stories.s1.mergeClass' "$dh/.studious/epics/altitude.json")"
+
 # --- assignment-in-ledger (#295): work-assign ---
 di=$(sandbox)
 ( cd "$di" && "$LEDGER" work-assign --slug "asg-epic--s1" --phase design \
