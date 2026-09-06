@@ -1,16 +1,9 @@
 """Regression tests for the ux-reviewer IMPROVEMENT -> tier fix (issue #91).
 
-`reference/severity-rubric.md` is the canonical table `/review` consults when
-compiling a report; `agents/ux-reviewer.md` restates the same mapping in its own
-Output section so it can emit correctly-tiered rows when run standalone (outside
-`/review`, with no orchestrator-injected context). Both sites state the same
-mapping and must move together — the rubric's own tier definitions call `Important`
-"fix this cycle" and `Track` "not urgent; log it and revisit later", and ux-reviewer's
-own description of `IMPROVEMENT` ("would make the UI noticeably better, fix if time
-allows") is the rubric's definition of `Track`, not `Important`. `INCONSISTENCY` is a
-literal, checkable DESIGN.md violation and keeps `Important` in both places.
-
-These are static/textual checks — no live model required.
+`reference/severity-rubric.md` (canonical) and `agents/ux-reviewer.md` (restated for
+standalone runs outside `/review`) must agree: IMPROVEMENT matches the rubric's
+definition of Track, not Important, while INCONSISTENCY is a checkable DESIGN.md
+violation and stays Important in both.
 """
 
 from __future__ import annotations

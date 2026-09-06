@@ -1,19 +1,12 @@
-"""Nothing this repo declares disposable may be tracked (issue #181).
+"""Nothing this repo declares disposable may be tracked (#181).
 
-`.gitignore:12-15` states the rule for the build skills' scaffolding: design docs,
-`PLAN.md`, and demonstration evidence "live on the branch and die at merge." Thirty
-files were tracked anyway — each one added with an explicit `git add -f`, since the
-ignore rule matched them at the time.
+`.gitignore:12-15` marks design docs, `PLAN.md`, and demonstration evidence as
+dying at merge. Thirty files were tracked anyway via `git add -f`, and nothing
+ever stripped them back out — this is the missing mechanical safeguard.
 
-That is not a rule that failed to match. It is a rule with no consequence for
-breaking it: the design phase force-adds so the doc survives an agent handoff, and
-nothing downstream ever strips it back out, so "dies at merge" never happened and the
-files rode into `main`. #181 asked for the missing half — a mechanical safeguard.
-
-This is it, and it is deliberately general rather than a `docs/design/` special case:
-any path the repo ignores and also tracks is caught, including the next one nobody has
-thought of. Both ways of satisfying it are legitimate — delete the file, or decide the
-ignore rule was wrong and remove *that* — but doing neither now fails.
+Deliberately general, not a `docs/design/` special case: any tracked-and-ignored
+path fails, including ones not yet thought of. Fix by deleting the file or
+removing the stale ignore rule.
 """
 
 from __future__ import annotations
@@ -23,18 +16,14 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-#: Tracked-and-ignored paths accepted for now, each with the reason and the issue that
-#: will drain it. An entry here is a debt with a name on it, not an exemption: the
-#: staleness test below fails once a prefix stops matching anything, so a resolved
-#: entry cannot quietly persist.
+#: Tracked-and-ignored paths accepted for now, each with the issue that will drain
+#: it — a debt with a name, not an exemption: the staleness test below fails once a
+#: prefix stops matching anything.
 #:
-#: Empty since the evidence-store move drained the last entry:
-#: `docs/jig/demonstrations/` held the plan-skill story's required demonstration
-#: (issue #23), preserved tracked-while-ignored while its disposability was an open
-#: product call. The call was made with the store move — process residue is
-#: disposable, and the demonstration's durable half (the build report) survives —
-#: so the 21 files were deleted and the entry drained, exactly the way this
-#: allowlist is designed to shrink.
+#: Empty since the evidence-store move drained the last entry: `docs/jig/demonstrations/`
+#: held the plan-skill story's demonstration (issue #23), tracked-while-ignored while its
+#: disposability was undecided. Resolved: process residue is disposable, the build report
+#: survives, and the 21 files were deleted.
 ALLOWED_PREFIXES: tuple[str, ...] = ()
 
 

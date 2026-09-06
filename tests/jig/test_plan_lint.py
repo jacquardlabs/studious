@@ -1,20 +1,18 @@
 """Regression tests for scripts/plan-lint (story plan-lint, issue #12).
 
-Exercises the script against throwaway git repos (`tests/_tempgit.py`),
-never the real jig repo, plus the two committed fixtures under
-`tests/fixtures/plan-lint/` (this story's own required demonstration --
-the plan-lint story's "Operational readiness"), checking the
-acceptance criteria mechanically:
+Runs against throwaway git repos (`tests/_tempgit.py`) plus the two
+committed fixtures under `tests/fixtures/plan-lint/`. Acceptance criteria
+covered:
 
 1. Every task needs >=1 [cap], >=1 [hold], <=5 items total.
 2. Every item names a closed-enum tier (script|test-backed|probe); no
-   'judgment' tier is ever accepted, and a missing/malformed parenthetical
-   is the same 'invalid-tier' violation, not silently skipped.
+   'judgment' tier is accepted, and a missing/malformed parenthetical is
+   the same 'invalid-tier' violation, not silently skipped.
 3. A script/test-backed item's method path must exist on disk, or be named
    in an *earlier* task's own Do: line -- never a later one.
 4. Every Read-first backtick pointer must resolve to a real repo path; a
-   line-locator suffix is stripped first; no backtick span at all is its
-   own violation.
+   line-locator suffix is stripped first; no backtick span is its own
+   violation.
 5. A LOAD-BEARING task (derived from Rests-on references, never declared)
    needs a concrete (backtick) referent on every [cap] item; a non-
    load-bearing task's vague cap is not flagged.
@@ -67,20 +65,15 @@ def write(path: Path, text: str) -> Path:
 
 
 class TestPlanLintCommittedFixtures(unittest.TestCase):
-    """This story's own required demonstration (
-    'Operational readiness'): a clean fixture exits 0, and a deliberately
-    broken one exits 1 naming one distinct violation per category, in a
-    single run.
+    """Clean fixture exits 0; broken fixture exits 1 naming one distinct
+    violation per category, in a single run.
 
-    The fixtures name `scripts/`-relative paths that plan-lint resolves
-    against `git rev-parse --show-toplevel`, which is the consuming project's
-    root in the real case. These fixtures name paths relative to that root, so
-    each is staged into a throwaway repo carrying the two scripts it references —
-    matching this module's stated "never the real repo" convention.
+    plan-lint resolves paths against `git rev-parse --show-toplevel`, so
+    each fixture is staged into a throwaway repo carrying the scripts it
+    references.
     """
 
-    #: Fixture-referenced paths that must exist for a clean run. Everything
-    #: else the fixtures name is deliberately absent.
+    #: Paths the fixtures reference that must exist for a clean run.
     STAGED_SCRIPTS = ("_gitutil.py", "plan-lint")
 
     def stage(self, tmp: str, fixture: str) -> Path:
@@ -111,8 +104,7 @@ class TestPlanLintCommittedFixtures(unittest.TestCase):
         categories_seen = [line.split("]", 1)[0].lstrip("[") for line in lines]
 
         self.assertEqual(set(categories_seen), ALL_CATEGORIES)
-        # Every category appears on its own task -- none suppressed by an
-        # earlier failure on the same task (premortem risk #6).
+        # No category suppressed by an earlier failure on the same task (premortem risk #6).
         self.assertEqual(len(categories_seen), len(set(categories_seen)))
         self.assertEqual(len(lines), 8)
 
@@ -332,9 +324,8 @@ class TestPlanLintMethodExistence(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout)
 
     def test_method_named_only_in_a_later_tasks_do_line_still_fails(self) -> None:
-        """'Earlier' means document order, not any task -- a path a *later*
-        task promises to create doesn't yet exist when an earlier item names
-        it, so it must still fail (the design's own directionality)."""
+        """'Earlier' means document order: a path a later task promises to
+        create doesn't yet exist when an earlier item names it."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
             repo.mkdir()
@@ -462,11 +453,9 @@ class TestPlanLintLoadBearing(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout)
 
     def test_unambiguous_title_only_reference_makes_a_task_load_bearing(self) -> None:
-        """Issue #62's sibling gap: compute_load_bearing only matched by
-        heading number until now. SKILL.md step 1.5 promises a second,
-        independent path -- an unambiguous title match, no "Task N" number
-        anywhere in the Rests-on line -- mirroring tests/_load_bearing.py's
-        own reference implementation of the same rule."""
+        """Issue #62: compute_load_bearing must also match by unambiguous
+        title (no "Task N" number in the Rests-on line), per SKILL.md
+        step 1.5 and tests/_load_bearing.py's reference implementation."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
             repo.mkdir()
@@ -490,10 +479,8 @@ class TestPlanLintLoadBearing(unittest.TestCase):
             self.assertIn("[load-bearing-cap-vague] task 1:", result.stdout)
 
     def test_ambiguous_shared_title_never_counts_as_a_title_match(self) -> None:
-        """Two tasks sharing the exact same title can't uniquely identify
-        either one by title alone -- a Rests-on line naming that shared
-        title (no task number) must not mark either task load-bearing via
-        the title path."""
+        """A Rests-on line naming a title shared by two tasks (no task
+        number) must not mark either task load-bearing via the title path."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
             repo.mkdir()
@@ -571,9 +558,8 @@ class TestPlanLintNotHereFollowups(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout)
 
     def test_heading_located_by_text_regardless_of_depth(self) -> None:
-        """Deliberate defensive property (
-        'Not-here follow-ups'): issue #23's heading-*level* fix is a sibling
-        story's job; plan-lint matches the heading text at any # depth."""
+        """Issue #23's heading-level fix is a sibling story's job;
+        plan-lint matches the heading text at any # depth."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
             repo.mkdir()
@@ -611,9 +597,9 @@ class TestPlanLintTaskSplitting(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout)
 
     def test_trailing_not_here_followups_section_is_excluded_from_last_task(self) -> None:
-        """A naive parser that reads to EOF absorbs a closing '## Not-here
-        follow-ups' section into the preceding task card -- the real bug
-        the M0 dogfood surfaced (skills/build/SKILL.md Step 1.4)."""
+        """A naive EOF parser absorbs a closing '## Not-here follow-ups'
+        section into the preceding task card -- the bug M0 dogfooding
+        surfaced (skills/build/SKILL.md Step 1.4)."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
             repo.mkdir()
@@ -624,9 +610,6 @@ class TestPlanLintTaskSplitting(unittest.TestCase):
             )
             plan = write(repo / "PLAN.md", text)
             result = run_script([str(plan)])
-            # If the bogus "item" inside the follow-ups section were absorbed
-            # into Task 1's own Done-means list, it would trip invalid-tier
-            # (and push Task 1 to 3 items) — none of that should happen.
             self.assertEqual(result.returncode, 0, result.stdout)
 
     def test_two_tasks_are_split_independently(self) -> None:

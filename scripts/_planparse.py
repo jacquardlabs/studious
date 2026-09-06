@@ -1,19 +1,10 @@
 """Shared PLAN.md checkpoint-block parsing for jig's build scripts.
 
-`plan-lint` (story plan-lint, issue #12) and `verify`'s `--plan` mode each
-need the same grammar: split a `PLAN.md`-shaped file into `### Task N`
-blocks and parse each block's `Done means` items — exactly the checkpoint-
-block shape `skills/build/SKILL.md` documents. Previously that grammar
-lived only inside `plan-lint`; this module is the one place it lives now,
-mirroring `scripts/_gitutil.py`'s leading-underscore shared-module
-convention (and `tests/_frontmatter.py` / `tests/_vocabulary.py`'s
-"shared, not itself collected" precedent), so the two scripts can't drift
-apart on where a task block ends or what a tier parenthetical means.
+`plan-lint` and `verify`'s `--plan` mode share this grammar so they can't
+drift apart on where a task block ends or what a tier parenthetical means.
 
-Not a package, not importable from outside `scripts/` — each script adds
-its own directory to `sys.path` before importing this (see any script's
-top for the pattern). Deliberately dependency-free (standard library only)
-so each script stays a standalone CLI tool.
+Not a package: each script adds its own directory to `sys.path` before
+importing this. Standard-library only, so each script stays standalone.
 """
 from __future__ import annotations
 
@@ -23,20 +14,17 @@ from dataclasses import dataclass
 VALID_TIERS = frozenset({"script", "test-backed", "probe"})
 COMMAND_TIERS = frozenset({"script", "test-backed"})
 
-# `.*$` already tolerates a trailing `status-flip`-written suffix
-# (`[PASS]`/`[REPLAN]`/`[ESCALATE]`, scripts/status-flip's own SUFFIX_RE)
-# without special-casing it: re-parsing a plan `/build` has already partly
-# executed must not spuriously fail on the heading pattern. Neither
-# consumer validates the suffix itself -- that's status-flip's own contract.
+# `.*$` tolerates status-flip's trailing suffix (`[PASS]`/`[REPLAN]`/`[ESCALATE]`)
+# without special-casing, so re-parsing a partly-executed plan doesn't fail on
+# the heading. Suffix validation is status-flip's own contract, not this module's.
 TASK_HEADING_RE = re.compile(r"^### Task (\d+)\b.*$", re.MULTILINE)
 # Any heading at level 1-3: the next task heading, or a coarser section
 # (e.g. a closing `## Not-here follow-ups`), either one ends a task block.
 HEADING_LEVEL_1_TO_3_RE = re.compile(r"^(#{1,3})[ \t]", re.MULTILINE)
 
 # The heading's title half, and the suffix `status-flip` writes onto it.
-# Both moved here from `plan-lint` (#206) rather than left there: the
-# load-bearing derivation needs titles on two surfaces, and a second copy is
-# exactly how the task-heading grammar diverged in the first place.
+# Moved here from `plan-lint` (#206) after a second copy caused the
+# task-heading grammar to diverge.
 TASK_HEADING_TITLE_RE = re.compile(r"^### Task \d+(?:\s*—\s*(.*))?$", re.MULTILINE)
 STATUS_FLIP_SUFFIX_RE = re.compile(r"\s*\[(?:PASS|REPLAN|ESCALATE)\]\s*$")
 
@@ -90,15 +78,12 @@ def split_tasks_with_titles(
 ) -> list[tuple[str, str, str]]:
     """`split_tasks`, plus each block's heading title: (number, title, block).
 
-    Exists so every surface deriving the load-bearing set reads the same task
-    boundaries and the same titles (#206). `scripts/plan-lint` and the
-    test-side reference in `tests/jig/_load_bearing.py` previously each carried
-    their own heading regex, and disagreed on three inputs: a non-numeric label
-    (`Task 2a`), a hyphen where the em-dash belongs, and -- worst -- a trailing
-    coarser-level section, which the reference absorbed into the last task's
-    block. That last one is the naive-parser bug `skills/build/SKILL.md` Step
-    1.4 explicitly warns about, reproduced by the very module written to
-    demonstrate the rule.
+    Exists so every surface deriving the load-bearing set uses the same task
+    boundaries and titles (#206). `plan-lint` and the test reference in
+    `tests/jig/_load_bearing.py` used to carry separate heading regexes and
+    disagreed on several inputs, including absorbing a trailing coarser-level
+    section into the last task's block -- the naive-parser bug
+    `skills/build/SKILL.md` Step 1.4 warns about.
     """
     return [(num, task_title(block), block) for num, block in split_tasks(text, boundary_re)]
 

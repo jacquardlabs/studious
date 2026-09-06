@@ -2,11 +2,9 @@
 
 `hooks/evidence-capture.sh` and `bin/gate-ledger`'s `evidence-append` verb write one
 JSON object per line to `.studious/evidence/<branch-slug>.jsonl` for every verification
-command run while a story is armed. This file pins the exact shape so drift from what
-the hook actually writes is a visible diff against this doc, not a silent surprise —
-and pins how far this story goes into winnow's evidence format, so a later story
-extending it has one place to check against instead of re-deriving scope from the
-amendment itself.
+command run while a story is armed. This file pins the exact shape, and how far this
+story goes into winnow's evidence format, so a later story extending it has one place
+to check against instead of re-deriving scope from the amendment itself.
 
 ## Scope: winnow Amendment 006's early footprint only
 
@@ -17,8 +15,7 @@ nothing past them:
 
 1. **Capturer provenance**, recorded on every record — `capturer: "hook"` in v0, a
    constant, because Studious has no persistent daemon process the way winnow's design
-   assumes. Recording it now (as a constant) rather than waiting for a second capturer
-   type to exist is the "cheap now" half of the rule.
+   assumes.
 2. **in-toto predicate-shaped test-result records** — every captured command (test,
    lint, typecheck, or build) maps onto in-toto's existing `test-result` predicate
    (`https://in-toto.io/attestation/test-result/v0.1`), not a second, studious-invented
@@ -56,7 +53,7 @@ append-only log doesn't need `json_update`'s rename dance).
 |-------|--------|-------|
 | `capturedAt` | `now_iso()` inside `gate-ledger`, not a caller-supplied flag | UTC, `%Y-%m-%dT%H:%M:%SZ` |
 | `capturer` | Hardcoded `"hook"` inside `cmd_evidence_append` | Not a flag — no caller can write a different capturer value. The field that makes capturer ≠ claimant checkable, per the amendment. |
-| `origin` | `"subagent"` if the hook input's `agent_id` is present, else `"interactive"` | See "Open item: origin and /next's actual dispatch mechanism" below — this is a real, currently-unverified gap, not a settled fact. |
+| `origin` | `"subagent"` if the hook input's `agent_id` is present, else `"interactive"` | See "Open item: origin and /next's actual dispatch mechanism" below — a real, currently-unverified gap. |
 | `agentType` | Hook input's `agent_type`, when present | **Omitted entirely** (not `null`, not `""`) when absent — e.g. every `origin: "interactive"` record. |
 | `command` | `tool_input.command`, verbatim | Also becomes `predicate.configuration[0].name` — one source, not duplicated independently. |
 | `exitCode` | See "Resolved: PostToolUse vs PostToolUseFailure" below | `0` on the `PostToolUse` path; best-effort parsed (or a `1` sentinel) on the `PostToolUseFailure` path. |
@@ -72,11 +69,11 @@ against winnow's spec stays about winnow's fields only.
 
 ## Resolved: `PostToolUse` vs `PostToolUseFailure`
 
-The design doc's own open question — "the exact `tool_response` field for Bash exit
-status" — turned out to have no answer, because the premise was wrong. Verified against
+The design doc's open question — "the exact `tool_response` field for Bash exit
+status" — had no answer: the premise was wrong. Verified against
 `code.claude.com/docs/en/hooks` (the raw page content, not a summary): a Bash tool call
 does **not** always fire `PostToolUse`. It fires exactly one of two distinct events, with
-two distinct, non-overlapping input schemas:
+non-overlapping input schemas:
 
 - **`PostToolUse`** fires **only when the command exited zero**. `tool_response` has
   `stdout`, `stderr`, `interrupted`, and `isImage` — there is no exit-code field at all,
@@ -112,36 +109,29 @@ Consequences of the split, both load-bearing:
 ## Open item: `origin` and `/next`'s actual dispatch mechanism
 
 `agent_id`/`agent_type` are documented as present "only when the hook fires inside a
-subagent call" — i.e. a Claude Code Task-tool-dispatched subagent within one session.
-That's confirmed from the docs, not guessed.
+subagent call" — a Claude Code Task-tool-dispatched subagent within one session.
+Confirmed from the docs.
 
 **Not confirmed:** whether `/next`'s primary dispatch path populates these the
-same way. `workflows/epic-driver.js` dispatches workers through an `agent(...)` global
-provided by the Workflow tool substrate (`reference/epic-orchestration.md`, "Run the driver
-script (primary mode)") — a different, less-documented mechanism than the in-session
-Task tool the fallback driver uses directly (`reference/epic-orchestration.md`'s "Fallback
-driver" section explicitly dispatches via Task calls). Whether the Workflow tool's own
-`agent()` primitive is, under the hood, a Task-tool subagent call (in which case
-`agent_id` is populated and `origin` resolves to `"subagent"` correctly) or a separate
-process/session entirely (in which case `agent_id` would never be present, and a real
-dispatched worker's records would read `origin: "interactive"`) is not settled by
-anything this story could verify: this worker has no Task tool of its own to dispatch a
-real nested subagent and observe the hook input firsthand, and hot-reloading a live
-session's own hook configuration to self-test was judged too invasive an action for a
-story worker to take on its own runtime mid-task.
+same way. `workflows/epic-driver.js` dispatches workers through the Workflow tool
+substrate's `agent(...)` global (`reference/epic-orchestration.md`, "Run the driver
+script (primary mode)") — a less-documented mechanism than the in-session Task tool the
+fallback driver uses (`reference/epic-orchestration.md`'s "Fallback driver" section).
+Whether `agent()` is a Task-tool subagent call under the hood (`agent_id` populated,
+`origin` resolves to `"subagent"`) or a separate process/session (`agent_id` never
+present, `origin` reads `"interactive"`) is unverified: this worker has no Task tool to
+dispatch a real nested subagent and observe the hook input, and hot-reloading a live
+session's own hook config to self-test was judged too invasive mid-task.
 
-This is dogfood item zero's real remaining surface, not the mechanism-level question
-(already resolved above: `PostToolUse`/`PostToolUseFailure` do fire for Bash calls made
-inside a subagent, whichever dispatch path is in play). What this story's own tests
-verify instead — deterministically, in CI, per `tests/test_evidence_capture.sh` — is
-everything mechanically checkable without a live dispatch: that the hook correctly
-resolves the armed check and writes to the **shared main-tree** evidence store when its
-own process cwd is a **linked worktree** (mirroring a worker's actual cwd), and that
-`origin` resolves to `"subagent"` given an `agent_id`-bearing payload shaped exactly per
-the docs above. The one thing left unverified — does a real `/next` dispatch
-populate `agent_id` — is exactly what issue #97's own dogfood plan (studyengine #210,
-then #209) is the intended real-world validation loop for; a follow-up should update
-this section, not silently leave it stale, once that run produces a real answer.
+This is dogfood item zero's real remaining surface — the mechanism-level question
+(whether `PostToolUse`/`PostToolUseFailure` fire for Bash calls inside a subagent) is
+already resolved above. `tests/test_evidence_capture.sh` verifies everything
+mechanically checkable without a live dispatch: the hook resolves the armed check and
+writes to the **shared main-tree** evidence store from a **linked worktree** cwd
+(mirroring a worker's actual cwd), and `origin` resolves to `"subagent"` given an
+`agent_id`-bearing payload. Unverified: whether a real `/next` dispatch populates
+`agent_id` — issue #97's dogfood plan (studyengine #210, then #209) is the intended
+validation loop; update this section once that run produces an answer.
 
 ## Reading the log: `evidence-list`
 
@@ -153,23 +143,20 @@ it's absent — so no caller re-derives repo-root/slug anchoring on the read sid
 either. `gates-cite-evidence`, when it lands, reuses this verb rather than adding a
 second reader; see "Consumers that must stay in sync" below.
 
-**`--dedupe`** (added by story `evidence-list-dedupe`, issue #162) collapses the
-printed output to exactly one record per distinct `command` value — the one that was
-appended *last* — in the survivors' original chronological relative order. No record's
-shape is changed by this flag; it only changes which records are selected. This exists
-because a long-running branch's log grows one line per verification command per fix
-cycle, most of which are superseded by a later re-run of the same command — a
-test-auditor/premortem-auditor dispatch citing a stale, superseded record over the
-current one would be a mistake either way, and `--dedupe` removes that exposure without
-changing what a gate is allowed to conclude. **Requires `jq`** (unlike the plain,
-dependency-free read) and **fails closed**: no `jq`, or a malformed line in the file,
-means no stdout and a non-zero exit — never a plausible-looking partial result. Every
-existing caller of `evidence-list` already documents "treat an error identically to
-empty output, degrade silently," so a `--dedupe` failure needs no new caller-side
-handling. `commands/review.md`'s test-auditor/premortem-auditor dispatches and
-`commands/review.md`'s premortem dispatch use `--dedupe`;
-`reference/handback-contract.md` deliberately keeps reading the raw (non-deduped) form, since its
-manifest's job is a complete history, not current-state-only.
+**`--dedupe`** (added by story `evidence-list-dedupe`, issue #162) collapses output to
+one record per distinct `command` value — the *last*-appended one — in the survivors'
+original relative order; it only changes which records are selected, never a record's
+shape. Long-running branches accumulate one line per verification command per fix
+cycle, most superseded by a later re-run of the same command; `--dedupe` avoids a
+test-auditor/premortem-auditor dispatch citing a stale record, without changing what a
+gate is allowed to conclude. **Requires `jq`** (unlike the plain, dependency-free read)
+and **fails closed**: no `jq`, or a malformed line, means no stdout and a non-zero
+exit — never a plausible-looking partial result. Every `evidence-list` caller already
+treats an error identically to empty output, so a `--dedupe` failure needs no new
+caller-side handling. `commands/review.md`'s test-auditor/premortem-auditor and
+premortem dispatches use `--dedupe`; `reference/handback-contract.md` keeps reading the
+raw (non-deduped) form, since its manifest's job is a complete history, not
+current-state-only.
 
 ## Consumers that must stay in sync
 

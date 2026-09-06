@@ -5,7 +5,7 @@ allowed-tools: Read, Glob, Grep, Bash
 
 # Studious doctor
 
-A read-only health check for this Studious install, run in the consuming project. Gates and reviews assume tools, a registered agent/skill roster, and populated context docs are all present — when one is missing, nothing errors, it just quietly has less to work with. This command surfaces those gaps in one pass. It fixes nothing: recommend-only, same as every gate and review. It is not a gate — no verdict token, nothing recorded to `.studious/`.
+A read-only health check for this Studious install, run in the consuming project. Gates and reviews assume tools, a registered agent/skill roster, and populated context docs are all present — when one is missing, nothing errors, it just quietly has less to work with. This command surfaces those gaps in one pass. Recommend-only: it fixes nothing, and is not a gate — no verdict token, nothing recorded to `.studious/`.
 
 ## 1. Tooling
 
@@ -17,7 +17,7 @@ Run each check and classify the result:
 - **`python3` present** — run `command -v python3`. If it fails: **Critical** — "python3 missing: every build script (`plan-lint`, `design-lint`, `verify`, `status-flip`, `evidence-capture`, `evidence-freshness`, `build-report`, `worktree-setup`) is a Python CLI, so `/build` cannot lint a plan and `/build` cannot verify a single task — it would report success off nothing but the executor's own claim."
 - **`viva` available** — the plugin manifest's only declared dependency. Check the way `skills/shape/SKILL.md` already reasons about it: look for the `viva` skill in this session's registered skill listing. If absent: **Critical** — "viva missing: `/shape` and `/build` both end in a human sign-off round they cannot run, so neither completes."
 
-Report each check as **OK** when it succeeds. These five are the tools; the first three are gate-side, the last two are build-side — a Studious install missing either half degrades silently in exactly the way this command exists to catch.
+Report each check as **OK** when it succeeds. The first three are gate-side tools, the last two build-side.
 
 ## 2. Plugin health
 
@@ -57,14 +57,13 @@ Classify:
 - **1–10 active** — **OK**, with the active count (and the retained count, if nonzero).
 - **A work file whose branch no longer exists** — name it: `gc` will collect it outright on its next run, no retention window and no `--force` needed even if it carries a measured scope-delta cohort — that guard applies to a *finished* story's work file only, never to a still-in-flight one whose branch is gone (a parked story never reached acceptance, so there is no completed cohort to protect) — and until collected it is noise in every `work-list` read.
 
-Report the counts, never the full list — this is a health check, not an inventory. And recommend `gc`; never run it. Same recommend-only posture as every other check in this command.
+Report the counts, never the full list — this is a health check, not an inventory. Recommend `gc`; never run it.
 
 ## 5. Retired door names
 
 The door surface collapsed from eighteen names to nine (`reference/personas.md`). A
-consuming project's `CLAUDE.md`, its README, or a `.github/` workflow may still name a
-door that no longer exists — an instruction pointing at nothing, which reads as Studious
-being broken rather than as a stale reference.
+consuming project's `CLAUDE.md`, README, or `.github/` workflow may still name a door
+that no longer exists — reads as Studious being broken, not as a stale reference.
 
 Read `reference/personas.md`'s `Absorbed` column: each row lists the names that door took
 over. Grep the consuming project's `CLAUDE.md`, `README.md`, and `.github/workflows/*.yml`

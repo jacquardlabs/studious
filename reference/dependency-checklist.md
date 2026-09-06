@@ -1,13 +1,10 @@
 # Dependency checklist — lookup data
 
-Not a detection crutch — a capable model already knows these supply-chain risk classes.
-This file is the **lookup data** it won't recall verbatim: the per-ecosystem
-manifest↔lockfile pair table, advisory lookup command shapes with their read-only
-caveats, the license-family compatibility table, typosquat heuristics, and per-ecosystem
-drift signatures. The five dimensions live inline in `agents/dependency-auditor.md`;
-consult this for the specifics. CLAUDE.md's documented dependency or licensing posture
-overrides anything here. Severity stays reachability-gated: no plausible path from the
-codebase to the vulnerable API → `Potential`, drop a tier.
+**Lookup data**, not detection logic: manifest↔lockfile pairs, advisory lookup commands,
+license-family compatibility, typosquat heuristics, per-ecosystem drift signatures. The
+five dimensions live in `agents/dependency-auditor.md`. CLAUDE.md's documented
+dependency/licensing posture overrides anything here. Severity is reachability-gated: no
+plausible path from the codebase to the vulnerable API → `Potential`, drop a tier.
 
 ## Manifest ↔ lockfile pairs (per ecosystem)
 

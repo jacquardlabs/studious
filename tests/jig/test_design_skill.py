@@ -4,40 +4,9 @@ Standard library only, matching test_build_skill.py's convention. Run with:
 
     uv run --no-project python3 -m unittest discover -s tests -v
 
-Checks this story's acceptance criteria mechanically, by inspecting the
-prose `/shape`'s session actually reads (the same approach
-test_build_skill.py/test_finish_skill.py already take for their own
-sibling skills):
-
-1. `skills/shape/SKILL.md` has valid `name`/`description` frontmatter,
-   `name` matching the directory, and no longer reads as the M1 stub.
-2. Step 0's inventory names all three context docs in order (PRODUCT.md,
-   DESIGN.md, CLAUDE.md) plus the touched code, with no skip flag -- the
-   acceptance criteria's own first line.
-3. Step 2's batch interview names the 5-9 question count, the real
-   `viva-qa` schema, the four-tag taxonomy, and the schema-gap workaround
-   (tag prefixed onto `hint`) rather than an invented field.
-4. Round 2 is conditional (only a genuinely new fork), never a round-1
-   re-ask; a round-3-shaped situation reports `NEEDS RESEARCH` and drafts
-   nothing.
-5. Step 3's fork convention uses `recommended_choice`, never an improvised
-   `"(recommended)"` string in `text`/`hint`.
-6. Step 4 drafts `docs/design/<slug>.md` with the section names
-   `reference/design-doc-contract.md` requires -- derived from that file at
-   test time, never restated here (#211) -- and a named `Consumer:` line per
-   section.
-7. Step 5 calls the real `scripts/design-lint`, commits to the 0/1/2
-   exit-code contract, and never starts viva against a lint-failing doc.
-8. Step 6 names the three fresh-vs-resume cases explicitly, including the
-   `--prior-input`/`--prior-verdicts` flags on the resume path (case 3) and
-   the `## Revision History` detection signal -- the M0 friction report's
-   finding-3 trap this story exists to avoid falling into.
-9. Step 7's studious hand-off degrades explicitly (`command -v gate-ledger`)
-   rather than silently, in both directions.
-10. The body carries jig's own `/shape`-level verdict vocabulary
-    (`DESIGNED`/`NEEDS RESEARCH`/`REVISED`), derived from DESIGN.md at test
-    time (see `_vocabulary.py`), not hand-copied.
-11. No `SKILL.md` is nested deeper than the directory's top level.
+Checks the acceptance criteria mechanically against the prose `/shape`'s
+session actually reads, the same approach test_build_skill.py/
+test_finish_skill.py take for their own sibling skills.
 """
 from __future__ import annotations
 
@@ -59,12 +28,8 @@ DESIGN_VOCABULARY = derive_design_vocabulary(DESIGN_MD.read_text(encoding="utf-8
 
 
 def _contract_sections() -> list[str]:
-    """The required section names, read from the contract that owns them.
-
-    Same derive-don't-restate discipline as `derive_design_vocabulary` above:
-    `reference/design-doc-contract.md` is the sole authority, so this suite
-    reads it rather than keeping a copy that can drift out from under it (#211).
-    """
+    """Required section names, read from design-doc-contract.md so this
+    suite can't drift out of sync with it (#211)."""
     text = CONTRACT_MD.read_text(encoding="utf-8")
     table = re.search(
         r"^## Required sections\n(.*?)(?=\n^## |\Z)", text, re.MULTILINE | re.DOTALL
@@ -83,8 +48,7 @@ class TestDesignSkillFile(SkillFileCase):
 
 class TestDesignVocabularyDerivation(unittest.TestCase):
     def test_derived_vocabulary_is_non_empty(self) -> None:
-        # Guards against a parsing regression turning the vocabulary check
-        # below into a vacuous no-op.
+        # Guards against a parsing regression making the check below a no-op.
         self.assertGreaterEqual(
             len(DESIGN_VOCABULARY),
             3,
@@ -175,17 +139,14 @@ class TestDesignSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertPhraseIn("Eight required sections, each with a named consumer")
 
     def test_draft_uses_contract_canonical_section_headings(self) -> None:
-        # Derived from reference/design-doc-contract.md rather than restated, so
-        # this suite can't become the copy that drifts next (#211). The
-        # authority-to-copies pin lives in the other runner,
-        # tests/python/test_design_doc_sections.py; the two suites stay separate
-        # per CLAUDE.md, so this reads the contract itself instead of importing.
+        # Derived from design-doc-contract.md rather than restated (#211).
+        # The authority-to-copies pin lives in tests/python/test_design_doc_sections.py;
+        # the two suites stay separate per CLAUDE.md, so this reads the contract directly.
         for section in _contract_sections():
             with self.subTest(section=section):
                 self.assertIn(section, self.body)
-        # The handoff-literal headings this design doc's own fork rejected
-        # must not appear as the section list -- otherwise both conventions
-        # would ship at once, contradicting the ruling.
+        # These rejected handoff-literal headings must not appear, or both
+        # conventions would ship at once.
         for stale_heading in ("Intent", "Contracts", "Not doing"):
             with self.subTest(stale_heading=stale_heading):
                 self.assertNotIn(stale_heading, self.body)
@@ -249,11 +210,10 @@ class TestDesignSkillBody(PhraseInBodyMixin, unittest.TestCase):
     # -- Step 7: hand-off ------------------------------------------------------
 
     def test_handoff_is_unconditional(self) -> None:
-        # Was a `command -v gate-ledger` probe that skipped the hand-off when
-        # the binary was missing, labelled "studious not installed" (studious
-        # #150). Both halves are wrong now: /review ships in the
-        # same plugin as /shape, and gate-ledger's absence says nothing about
-        # whether the gate exists -- only whether it can record.
+        # Was a `command -v gate-ledger` probe that skipped hand-off when the
+        # binary was missing (studious #150) -- wrong on both counts: /review
+        # ships in the same plugin, and the binary's absence says nothing
+        # about whether the gate exists, only whether it can record.
         self.assertPhraseIn("tell the developer to run `/review`")
         self.assertPhraseIn("Unconditionally")
         self.assertNotIn("command -v gate-ledger", self.body)

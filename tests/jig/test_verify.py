@@ -1,58 +1,37 @@
 """Regression tests for scripts/verify (story build-scripts, issue #14).
 
-Checks this story's acceptance criteria mechanically:
+Covers:
+1. script/test-backed items re-run their named command and PASS/FAIL on exit code.
+2. probe items PASS only when the artifact exists, is non-empty, isn't older
+   than --since, and (if given) matches the pattern.
+3. Per-item results always reported; overall PASS requires every item to PASS.
+4. Fails closed: empty/malformed items doc is a usage error (exit 2), never a
+   vacuous PASS (docs/studious/premortems/build-scripts.md, risk #4).
+5. probe without --since is also a usage error — the recency floor is
+   verify's own, not delegated to evidence-capture (same doc, risk #5).
 
-1. `script` / `test-backed` items independently re-run their own named
-   command and PASS/FAIL on its exit code.
-2. `probe` items PASS only when the supplied artifact exists, is
-   non-empty, isn't older than `--since`, and (if given) matches the
-   expected pattern.
-3. Per-item results are always reported, not collapsed into one boolean;
-   overall PASS requires every item to PASS.
-4. Fails closed: an empty or malformed items document is a usage error
-   (exit 2), never a vacuous PASS (docs/studious/premortems/
-   build-scripts.md, risk #4).
-5. A `probe` item without `--since` is also a usage error — the recency
-   floor is verify's own, not merely delegated to `evidence-capture`
-   (same premortem doc, risk #5).
+subprocess-trust-and-timeout (#48, #49):
+6. A command-tier item outliving --timeout is killed, reported as a distinct
+   `TIMEOUT: ...` FAIL detail (never `exit code: ...`), FAIL toward overall.
+7. An item completing within --timeout is unaffected.
+8. Trust boundary is stated explicitly in the script's own docstring.
 
-Also covers story subprocess-trust-and-timeout (issues #48, #49):
+subprocess-timeout-process-group-kill (#61):
+9. A timed-out item's whole process group is killed, not just the shell.
 
-6. A command-tier item that outlives `--timeout` is killed and reported as
-   a distinct FAIL detail (`TIMEOUT: ...`), never conflated with an
-   ordinary non-zero-exit FAIL detail (`exit code: ...`), and still counts
-   as FAIL toward the overall result.
-7. A command-tier item that completes comfortably within `--timeout` is
-   unaffected by the flag's presence.
-8. The trust boundary is stated explicitly in the script's own docstring.
+--plan/--task mode (perf/verify-plan-and-skill-trim):
+10. --plan <path> --task <label> derives items mechanically from the task's
+    checkpoint block (shared grammar via scripts/_planparse.py) instead of a
+    hand-transcribed --items doc. script/test-backed items take their
+    backtick-quoted method path as `command`; probe items need a
+    --probe-spec supplement (missing one is a usage error naming the ids).
+    --plan+--task is mutually exclusive with --items; downstream behavior
+    is otherwise identical.
 
-Also covers story subprocess-timeout-process-group-kill (issue #61):
-
-9. A timed-out command-tier item's whole process group is killed, not just
-   the shell -- a backgrounded child is actually gone afterward, not merely
-   reported as killed.
-
-Also covers `--plan`/`--task` mode (perf/verify-plan-and-skill-trim):
-
-10. `--plan <path> --task <label>` derives the items list mechanically
-    from the named task's checkpoint block -- same grammar as
-    `scripts/plan-lint` (shared via `scripts/_planparse.py`) -- instead of
-    requiring a hand-transcribed `--items` document. `script`/`test-backed`
-    items take their backtick-quoted method path as `command`; `probe`
-    items (whose artifact/pattern the plan grammar doesn't carry) need a
-    `--probe-spec` supplement, and a task with probe items but no
-    supplement is a usage error naming exactly which item ids need it.
-    `--plan`+`--task` is mutually exclusive with `--items`; downstream
-    behavior (checks, output, --out, --since, exit codes) is identical.
-
-Also covers `--parallel` (perf/verify-plan-and-skill-trim):
-
-11. `--parallel` opts in to running command-tier (`script`/`test-backed`)
-    items concurrently -- proven by a marker-file handshake two items can
-    only complete when overlapped, and by the same handshake timing out
-    without the flag (the default stays sequential). Results still print
-    in item order regardless of completion order, and per-item timeout
-    semantics (`TIMEOUT: ...` detail, FAIL toward overall) are unchanged.
+--parallel (perf/verify-plan-and-skill-trim):
+11. --parallel opts command-tier items into concurrent execution (proven by
+    a marker-file handshake), default stays sequential. Output stays in
+    item order; per-item timeout semantics unchanged.
 
 Run with:
 
@@ -83,15 +62,13 @@ SCRIPT = REPO_ROOT / "scripts" / "verify"
 
 def _verify_module():
     """Import `verify` by path, under a non-`__main__` name so its CLI entry
-    point stays dormant. The loader is explicit because `verify` has no `.py`
-    suffix, so importlib cannot infer one from the filename.
+    point stays dormant. Explicit loader because `verify` has no `.py` suffix.
     """
     loader = importlib.machinery.SourceFileLoader("_verify_under_test", str(SCRIPT))
     spec = importlib.util.spec_from_file_location("_verify_under_test", SCRIPT, loader=loader)
     module = importlib.util.module_from_spec(spec)
-    # `verify` defines dataclasses, and `@dataclass` resolves annotations via
-    # `sys.modules[cls.__module__]` — absent that entry it raises on an
-    # unregistered module rather than importing.
+    # `@dataclass` resolves annotations via sys.modules[cls.__module__]; verify
+    # defines dataclasses, so it raises without this entry rather than importing.
     sys.modules[spec.name] = module
     try:
         spec.loader.exec_module(module)
@@ -101,12 +78,8 @@ def _verify_module():
 
 
 def _script_constant(name: str):
-    """Read a module-level constant out of `verify`.
-
-    The bound the probe tests exercise has to be the one `verify` actually
-    applies; restating the number here would let the two drift apart silently,
-    which is the failure `DEFAULT_TIMEOUT_SECONDS` was already filed for (#227).
-    """
+    """Read a module-level constant out of `verify` — restating the number
+    here would let the tests drift from the real bound (the #227 failure)."""
     return getattr(_verify_module(), name)
 
 
@@ -160,9 +133,8 @@ def write_probe_spec(tmp: Path, spec: dict) -> Path:
 
 
 def write_marker_waiter(tmp: Path, marker: Path, deadline_seconds: float = 8.0) -> str:
-    """A command that polls for `marker` until `deadline_seconds`, exiting 0
-    the moment it appears (1 if it never does) -- one half of a handshake
-    only concurrent execution can complete before the poll deadline."""
+    """Polls for `marker` until `deadline_seconds`, exiting 0 once it appears
+    (1 otherwise) -- half of a handshake only concurrent execution completes."""
     script = tmp / "wait_for_marker.py"
     script.write_text(
         "import pathlib, sys, time\n"
@@ -223,12 +195,9 @@ class TestVerifyCommandTiers(unittest.TestCase):
 
 
 class TestProbeArtifactReadIsBounded(unittest.TestCase):
-    """#223: the probe `pattern` is caller-supplied and `re` has no match
-    timeout, so an unbounded read handed a catastrophic-backtracking pattern an
-    unbounded input. `verify`'s job is to be the thing that cannot be talked out
-    of a verdict, and a silent hang defeats that more thoroughly than a wrong
-    answer — so an oversized artifact refuses loudly instead.
-    """
+    """#223: `pattern` is caller-supplied and `re` has no match timeout, so an
+    unbounded read handed a catastrophic-backtracking pattern can hang. An
+    oversized artifact refuses loudly instead of risking a silent hang."""
 
     def _run_probe(self, tmp: Path, size: int, pattern: str | None) -> subprocess.CompletedProcess[str]:
         since = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
@@ -247,24 +216,21 @@ class TestProbeArtifactReadIsBounded(unittest.TestCase):
         self.assertIn("too large to pattern-match safely", result.stdout)
 
     def test_the_refusal_names_both_the_size_and_the_limit(self) -> None:
-        """A verdict a reader can act on: the bound is a build-phase constant,
-        so the message has to say what it is rather than just 'too large'."""
+        """Message must say the actual bound, not just 'too large'."""
         with tempfile.TemporaryDirectory() as tmp:
             result = self._run_probe(Path(tmp), MAX_PROBE_ARTIFACT_BYTES + 1, "xxx")
         self.assertIn(str(MAX_PROBE_ARTIFACT_BYTES + 1), result.stdout)
         self.assertIn(str(MAX_PROBE_ARTIFACT_BYTES), result.stdout)
 
     def test_an_artifact_at_the_limit_is_still_matched(self) -> None:
-        """The bound is a ceiling on what is read, not a new failure mode for
-        ordinary artifacts — off-by-one here would reject a legitimate probe."""
+        """Off-by-one here would reject a legitimate probe."""
         with tempfile.TemporaryDirectory() as tmp:
             result = self._run_probe(Path(tmp), MAX_PROBE_ARTIFACT_BYTES, "x+")
         self.assertEqual(result.returncode, 0, result.stdout)
 
     def test_an_oversized_artifact_without_a_pattern_still_passes(self) -> None:
-        """The cap exists to bound the *match*. A probe that only asserts the
-        artifact exists, is non-empty, and is fresh never reads its contents,
-        so size is none of its business."""
+        """The cap bounds the *match* only -- a patternless probe never reads
+        contents, so size is irrelevant."""
         with tempfile.TemporaryDirectory() as tmp:
             result = self._run_probe(Path(tmp), MAX_PROBE_ARTIFACT_BYTES + 1, None)
         self.assertEqual(result.returncode, 0, result.stdout)
@@ -314,23 +280,17 @@ class TestVerifyProbeTier(unittest.TestCase):
 
 
 class TestVerifyProbeFreshnessFloor(unittest.TestCase):
-    """Regression coverage for issue #44: 'Probe-tier verify is structurally
-    unpassable: artifact mtime always predates the executor's commit'.
-
-    A probe artifact is always written to disk *before* it's committed, so
-    its mtime is always at or before that very commit's own timestamp.
-    `--since <the artifact-adding commit>` is therefore never a workable
-    freshness floor — `SKILL.md` step 2.5 now uses the dispatch timestamp
-    (or, equivalently, any revision that predates the artifact's own
-    commit, e.g. the pre-task baseline) instead. These tests exercise a
-    real git repo/commit, not just synthetic ISO timestamps, so they catch
-    a regression in the actual mtime-vs-commit-timestamp relationship, not
-    only in `resolve_since`'s parsing.
+    """Regression coverage for #44: a probe artifact's mtime always predates
+    its own commit, so `--since <that commit>` is never a workable freshness
+    floor. `SKILL.md` step 2.5 uses the dispatch timestamp (or any revision
+    predating the artifact's commit, e.g. the pre-task baseline) instead.
+    Exercises a real git repo/commit, not synthetic timestamps, to catch a
+    regression in the actual mtime-vs-commit relationship, not just parsing.
     """
 
     def test_probe_artifact_fails_against_its_own_commit_sha(self) -> None:
-        """Documents the exact bug: the executor's own final commit SHA is
-        never an acceptable --since floor for the artifact it just added."""
+        """The executor's own final commit SHA is never an acceptable
+        --since floor for the artifact it just added."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
             repo.mkdir()
@@ -341,9 +301,7 @@ class TestVerifyProbeFreshnessFloor(unittest.TestCase):
             artifact_mtime = datetime.now(UTC).timestamp()
             os.utime(artifact, (artifact_mtime, artifact_mtime))
 
-            # The commit always lands after the write in the real /build
-            # flow (executor writes, then commits as its last act). Forced
-            # here via GIT_*_DATE so the test doesn't depend on real
+            # Forced via GIT_*_DATE so the test doesn't depend on real
             # elapsed time landing on the wrong side of a second boundary.
             commit_epoch = int(artifact_mtime) + 5
             env = {
@@ -376,10 +334,8 @@ class TestVerifyProbeFreshnessFloor(unittest.TestCase):
             self.assertIn("stale", result.stdout)
 
     def test_probe_artifact_passes_against_dispatch_timestamp_floor(self) -> None:
-        """The corrected floor: a timestamp captured before dispatch (this
-        attempt's own task-start time, SKILL.md step 2.2) predates
-        anything the executor writes, so a freshly-written, freshly
-        committed probe artifact passes."""
+        """A timestamp captured before dispatch (SKILL.md step 2.2) predates
+        anything the executor writes, so a fresh committed artifact passes."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
             repo.mkdir()
@@ -389,14 +345,12 @@ class TestVerifyProbeFreshnessFloor(unittest.TestCase):
 
             artifact = repo / "probe-evidence.txt"
             artifact.write_text("no orphaned process found\n", encoding="utf-8")
-            # Pin the mtime rather than racing the clock. This read
-            # `dispatch_time = datetime.now(UTC)` immediately before the write,
-            # so on a filesystem whose timestamp granularity is coarser than
-            # `datetime.now()`'s, a write that genuinely happened *after* the
-            # floor quantizes down to a tick *before* it and the item reads as
-            # stale — observed once on CI, passing on rerun of the same commit.
-            # The real gap is the executor's own runtime, seconds at minimum,
-            # which is why the sibling test above forces its dates too.
+            # Pin the mtime rather than racing the clock: on a filesystem with
+            # coarser timestamp granularity than datetime.now(), a write that
+            # genuinely happened after dispatch_time can quantize down to a
+            # tick before it and read as stale (observed once on CI, passed
+            # on rerun) -- the sibling test above forces its dates for the
+            # same reason.
             write_epoch = (dispatch_time + timedelta(minutes=1)).timestamp()
             os.utime(artifact, (write_epoch, write_epoch))
             commit_all(repo, "task work")
@@ -419,9 +373,8 @@ class TestVerifyProbeFreshnessFloor(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_probe_artifact_passes_against_baseline_commit_floor(self) -> None:
-        """The other acceptable floor issue #44 names: the pre-task
-        baseline commit (captured once, before any task's executor ever
-        ran) also predates the artifact and passes."""
+        """The other floor #44 names: the pre-task baseline commit also
+        predates the artifact and passes."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
             repo.mkdir()
@@ -514,16 +467,13 @@ class TestVerifyTimeout(unittest.TestCase):
 
 
 class TestVerifyTimeoutKillsWholeProcessGroup(unittest.TestCase):
-    """Issue #61: a timed-out command-tier item's *whole process group* is
-    killed, not just the shell -- proven by an actually-gone backgrounded
-    child, not merely that the shell/item was reported TIMEOUT.
-
-    Pre-fix, `check_command_item` relied on `subprocess.run`'s own timeout
-    handling, which signals only the one process it manages directly. A
-    command that forks a real child (a backgrounded job, a pipeline stage)
-    left that child running, reparented, past the reported timeout -- the
-    exact gap `os.killpg(process.pid, signal.SIGKILL)` (launched via
-    `start_new_session=True`) closes.
+    """Issue #61: a timed-out item's *whole process group* is killed, not
+    just the shell -- proven by an actually-gone backgrounded child, not
+    merely a reported TIMEOUT. Pre-fix, `subprocess.run`'s own timeout
+    handling signaled only the process it managed directly, leaving forked
+    children (a backgrounded job, a pipeline stage) running past the
+    reported timeout; `os.killpg(process.pid, signal.SIGKILL)` via
+    `start_new_session=True` closes that gap.
     """
 
     def test_backgrounded_child_is_actually_gone_after_timeout(self) -> None:
@@ -575,9 +525,8 @@ class TestVerifyOutput(unittest.TestCase):
 
 class TestVerifyPlanModeDerivation(unittest.TestCase):
     """`--plan`/`--task` derives command-tier items mechanically from the
-    named task's checkpoint block: the backtick-quoted method path after
-    the tier word becomes the item's `command`, run exactly as an --items
-    entry would be."""
+    task's checkpoint block: the backtick-quoted method path after the tier
+    word becomes the item's `command`."""
 
     def test_derives_command_items_from_task_block_and_passes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -664,8 +613,7 @@ class TestVerifyPlanModeDerivation(unittest.TestCase):
     def test_trailing_coarser_heading_is_excluded_from_last_task(self) -> None:
         """Same boundary rule as plan-lint's split_tasks: a closing
         '## Not-here follow-ups' section is never absorbed into the last
-        task's block -- a numbered pseudo-item inside it (with a tier the
-        grammar rejects) must not surface as a derived item or an error."""
+        task's block."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
             write_method_script(repo, "scripts/ok", exit_code=0)
@@ -750,9 +698,8 @@ class TestVerifyPlanModeDerivation(unittest.TestCase):
 
 
 class TestResolveCommandForMethod(unittest.TestCase):
-    """`resolve_command_for_method` (#208) — the mechanical, never-a-guess
-    mapping from a cited method path to a runnable command. Pure-function
-    tests against the loaded module, no subprocess: what these check is the
+    """`resolve_command_for_method` (#208) — the mechanical mapping from a
+    cited method path to a runnable command. Pure-function tests: checks the
     derivation itself, not whether a shell can run the result."""
 
     def setUp(self) -> None:
@@ -789,9 +736,8 @@ class TestResolveCommandForMethod(unittest.TestCase):
             )
 
     def test_a_non_executable_py_file_outside_either_test_tree_is_unchanged(self) -> None:
-        """Out of this fix's scope, deliberately: a plan-authoring problem
-        scripts/plan-lint should catch, not something this script rescues by
-        guessing an interpreter."""
+        """Out of scope deliberately: a plan-authoring problem plan-lint
+        should catch, not something this script rescues by guessing."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
             target = repo / "scripts" / "helper.py"
@@ -815,8 +761,7 @@ class TestResolveCommandForMethod(unittest.TestCase):
 
     def test_a_path_that_does_not_exist_on_disk_is_unchanged(self) -> None:
         """The do-line fallback case (plan-lint's check_item_tier): a method
-        the plan promises an earlier task will create. Not yet resolvable
-        either way -- unchanged, same as a path outside both test trees."""
+        an earlier task promises to create. Not yet resolvable -- unchanged."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
             self.assertEqual(
@@ -826,13 +771,11 @@ class TestResolveCommandForMethod(unittest.TestCase):
 
 
 class TestVerifyPlanModeMethodPathResolutionEndToEnd(unittest.TestCase):
-    """#208's actual regression, reproduced and fixed end to end: a
-    `test-backed` item citing a real, non-executable test file under
-    `tests/jig/` used to fail every time with exit 126 ("Permission
-    denied"), regardless of whether the cited test passed. Exercised
-    through `tests/jig/` specifically because stdlib `unittest` needs no
-    extra dependency in whatever environment runs this suite; the
-    `tests/python/` (pytest) mapping is covered at the unit level above."""
+    """#208's regression, end to end: a `test-backed` item citing a real,
+    non-executable test file under `tests/jig/` used to fail every time with
+    exit 126 ("Permission denied"), regardless of the cited test's outcome.
+    Uses `tests/jig/` since stdlib `unittest` needs no extra dependency here;
+    the `tests/python/` (pytest) mapping is covered at the unit level above."""
 
     def test_a_passing_test_under_tests_jig_now_passes_instead_of_126(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -862,8 +805,8 @@ class TestVerifyPlanModeMethodPathResolutionEndToEnd(unittest.TestCase):
             self.assertNotIn("Permission denied", result.stdout)
 
     def test_a_failing_test_under_tests_jig_reports_fail_not_a_permission_error(self) -> None:
-        """Proves the fix actually runs the cited test rather than
-        vacuously passing every non-executable path."""
+        """Proves the fix runs the cited test rather than vacuously
+        passing every non-executable path."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
             target = repo / "tests" / "jig" / "test_regression.py"
@@ -891,9 +834,8 @@ class TestVerifyPlanModeMethodPathResolutionEndToEnd(unittest.TestCase):
             self.assertNotIn("Permission denied", result.stdout)
 
     def test_a_non_test_tree_non_executable_method_still_behaves_as_before(self) -> None:
-        """Out of #208's scope, deliberately unchanged: this is the honest
-        signal that the plan cited a file this script has no mechanical way
-        to run, not a silently swallowed gap."""
+        """Out of #208's scope, deliberately unchanged: honest signal that
+        the plan cited a file this script has no mechanical way to run."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
             target = repo / "docs" / "note.md"
@@ -1008,10 +950,9 @@ class TestVerifyPlanModeUsageErrors(unittest.TestCase):
 
 
 class TestVerifyPlanModeProbeSupplement(unittest.TestCase):
-    """Only probe-tier items ever need hand-authoring: their artifact and
-    pattern aren't in the plan grammar, so they come from `--probe-spec` --
-    and a task whose block has probe items but no supplement for them is a
-    usage error naming exactly which item ids need it."""
+    """Only probe-tier items need hand-authoring: their artifact/pattern
+    come from `--probe-spec`. A task with probe items but no supplement is
+    a usage error naming exactly which item ids need it."""
 
     def test_probe_items_without_spec_exit_two_naming_exact_item_ids(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1117,10 +1058,9 @@ class TestVerifyPlanModeProbeSupplement(unittest.TestCase):
 
 
 class TestVerifyParallel(unittest.TestCase):
-    """`--parallel` (opt-in) runs command-tier items concurrently; the
-    default stays exactly sequential. Proven by a marker-file handshake --
-    item 1 polls for a marker only item 2 creates -- which completes only
-    when the two commands overlap, never under sequential in-order runs."""
+    """`--parallel` (opt-in) runs command-tier items concurrently; default
+    stays sequential. Proven by a marker-file handshake -- item 1 polls for
+    a marker only item 2 creates -- which completes only when overlapped."""
 
     def test_parallel_runs_command_items_concurrently(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1139,9 +1079,8 @@ class TestVerifyParallel(unittest.TestCase):
             self.assertIn("[PASS] item 2", result.stdout)
 
     def test_default_remains_sequential(self) -> None:
-        """The same handshake without --parallel: item 1 runs alone first,
-        the marker never appears, and the item is killed at --timeout --
-        exactly what strictly-in-order execution must do."""
+        """Same handshake without --parallel: item 1 runs alone, the marker
+        never appears, and it's killed at --timeout."""
         with tempfile.TemporaryDirectory() as tmp:
             marker = Path(tmp) / "marker"
             wait_cmd = write_marker_waiter(Path(tmp), marker)

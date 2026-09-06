@@ -1,28 +1,18 @@
 """Regression tests for scripts/evidence-freshness (story finish-skill, issue #20).
 
-Exercises the script against a throwaway git repo (`tests/_tempgit.py`),
-never the real jig repo, checking this story's freshness-hold acceptance
-criteria (evidence timestamp >= last code commit) and
-the finish-skill story's Step 1 mechanically:
+Runs against a throwaway git repo (`tests/_tempgit.py`), never the real jig repo.
 
-1. Happy path: a folder whose manifest.json's commit_sha is an ancestor of
-   the repo's current HEAD, and whose artifact mtimes are all >= the
-   manifest's own commit_timestamp, PASSes.
-2. The floor is the folder's own recorded commit, not the branch's current
-   HEAD (epic pre-mortem risk #1 / issue #44's bug shape) -- a folder
-   captured several commits ago still PASSes even though HEAD has since
-   advanced through unrelated commits.
-3. A manifest whose commit_sha is NOT an ancestor of HEAD (a since-rewritten
-   or orphaned commit, e.g. after a rebase) FAILs by name (pre-mortem
-   risk #2).
-4. An artifact file touched/replaced after capture (mtime now < the
-   manifest's own commit_timestamp) FAILs by name, even though the
-   ancestor check alone would pass (pre-mortem risk #2's "stale
-   copy-forward" case).
-5. Multiple folders are each reported independently; overall is PASS only
-   if every folder PASSes.
-6. Fails closed on usage errors (missing --evidence path, missing/malformed
-   manifest.json) -- exit 2, never a vacuous PASS.
+1. Happy path: manifest's commit_sha is an ancestor of HEAD, artifact mtimes
+   are all >= commit_timestamp -> PASS.
+2. Floor is the folder's own recorded commit, not current HEAD (pre-mortem
+   risk #1 / issue #44's bug shape) -- PASSes even after HEAD advances.
+3. commit_sha not an ancestor of HEAD (rewritten/orphaned, e.g. post-rebase)
+   -> FAIL (pre-mortem risk #2).
+4. Artifact touched/replaced after capture (mtime < commit_timestamp) -> FAIL
+   even though the ancestor check alone would pass ("stale copy-forward").
+5. Multiple folders reported independently; overall PASS only if all PASS.
+6. Usage errors (missing --evidence path, missing/malformed manifest.json)
+   exit 2, never a vacuous PASS.
 
 Run with:
 
@@ -100,9 +90,7 @@ class TestEvidenceFreshnessHappyPath(unittest.TestCase):
             self.assertIn("overall=PASS", result.stdout)
 
     def test_floor_is_the_folders_own_commit_not_current_head(self) -> None:
-        # issue #44's bug shape one layer up: a folder captured against an
-        # earlier commit must still PASS after HEAD has advanced through
-        # later, unrelated commits -- the floor never moves to HEAD.
+        # issue #44's bug shape one layer up: the floor never moves to HEAD.
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
             repo.mkdir()

@@ -1,24 +1,11 @@
-"""The build skills must not treat the gates as optional (studious #150).
+"""Mirror of `scripts/check_gate_independence.py`, other direction: no build skill
+(shape/build/ship) may condition a hand-off to a studious gate on studious being
+installed. It ships *inside* studious now (studious #150) — a session hitting
+"if studious is installed, run `/review`" finds no separate plugin, takes the
+otherwise-branch, and silently drops the audit hand-off on the happy path.
 
-Mirror image of `scripts/check_gate_independence.py`. That check enforces the
-rule in one direction — no gate may require a build skill. This one enforces
-the other: now that the build skills ship *inside* studious, none of them may
-condition a hand-off to a studious gate on studious being installed.
-
-The failure this catches is not cosmetic naming. A session running `/build`
-reads "if studious is installed, tell the developer to run `/review`",
-looks for a separate plugin named studious, does not find one (it is the
-host), takes the otherwise-branch, and terminates without ever naming the
-audit gate. The seam between the build loop and the gates — the whole point
-of the merge — silently disappears on the happy path.
-
-`coach` is covered too, and was the awkward one. It keeps its `command -v
-gate-ledger` probe — whether recorded verdicts are *readable* is a real
-question — but the probe used to answer a different one, labelling a missing
-binary "studious not installed" and then skipping the gate recommendation
-that hangs off it. The predicate survived; the conclusion drawn from it did
-not. An unreadable ledger now resolves toward recommending the gate rather
-than around it.
+`coach` keeps its `command -v gate-ledger` probe (an unreadable ledger is a real
+concern) but must now resolve toward recommending the gate, not skipping it.
 """
 from __future__ import annotations
 
@@ -32,11 +19,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # The skills whose hand-offs cross into studious's gates.
 HANDOFF_SKILLS = ("shape", "build", "ship")
 
-# Any phrasing that makes studious's presence a question the skill must answer.
-# The bare `studious installed` alternative matters: the first version of this
-# guard required an intervening "is" and so walked straight past a live
-# parenthetical — "(studious installed, `gate-ledger` on `PATH`)" — in the same
-# file whose hand-off it was checking.
+# Matches any phrasing that makes studious's presence conditional. The bare
+# `studious installed` branch matters: an earlier version required an "is" and
+# missed a live parenthetical — "(studious installed, `gate-ledger` on `PATH`)" —
+# in the same file it was checking.
 CONDITIONAL = re.compile(
     r"studious\s+(is\s+)?(not\s+)?(installed|present|available|absent|missing)"
     r"|studious\s+isn't\s+installed",

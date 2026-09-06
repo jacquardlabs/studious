@@ -8,7 +8,7 @@ effort: high
 
 # Architecture audit
 
-Review the architectural decisions in a changeset. You evaluate structure and fit only — other auditors handle security, code quality, docs, and product. Stay in your lane.
+Review the architectural decisions in a changeset. You evaluate structure and fit only.
 
 Read CLAUDE.md first for the project's intended architecture and conventions.
 

@@ -1,15 +1,14 @@
 """Golden-fixture behavioral eval for /review.
 
 For each directory under tests/fixtures/, builds an ephemeral git repo from
-its base/ (committed as the tip of a faked origin/main) and changeset/
-(overlaid and committed as the branch under review), wires this repo's own
-commands/agents in as project-level Claude Code config, runs `/review`
-headless via the `claude` CLI, and checks the resulting report's verdict
-token and finding categories against the fixture's expected.json.
+its base/ (faked origin/main tip) and changeset/ (the branch under review),
+wires this repo's commands/agents in as project-level Claude Code config,
+runs `/review` headless via the `claude` CLI, and checks the report's
+verdict and finding categories against the fixture's expected.json.
 
-The git setup and the report-parsing/assertion logic are pure and unit
-tested (tests/python/test_run_gate_audit_fixtures.py). Only the `claude -p`
-invocation itself requires a live model and is not exercised outside CI.
+Git setup and report parsing/assertion are pure and unit tested
+(tests/python/test_run_gate_audit_fixtures.py); only the `claude -p`
+invocation needs a live model and only runs in CI.
 """
 
 from __future__ import annotations
@@ -75,12 +74,9 @@ class ParsedReport:
 def extract_section(text: str, heading: str) -> str | None:
     """Return a markdown section's body, up to the next heading at the same or a shallower level.
 
-    Stopping at *any* subsequent heading is wrong and silently so. A real audit
-    report nests one `###` subheading per finding inside its `## Critical
-    findings` section, so an any-heading terminator returns the blank line
-    between the two — which reads as "this section is empty" and scores a
-    correctly-filed Critical as missing. Synthetic reports that list findings as
-    flat bullets never surfaced it.
+    Must stop at same-or-shallower, not *any* heading: a real report nests
+    `###` findings under `## Critical findings`, so an any-heading terminator
+    would stop at the first finding and read the section as empty.
     """
     start = re.compile(
         rf"^(#{{1,6}})\s*{re.escape(heading)}\b.*$",
@@ -98,11 +94,9 @@ def extract_section(text: str, heading: str) -> str | None:
 def count_findings(section: str | None) -> int:
     """Count findings in a section body, across both shapes reports use.
 
-    `/review` emits one `###` subheading per finding with prose beneath it;
-    shorter reports use a flat bullet list. Count subheadings when any are
-    present — bullets under a subheading are that finding's supporting detail,
-    not separate findings — and fall back to bullets otherwise. Counting only
-    bullets scores a real report's findings section as empty.
+    Prefer subheadings when present (`/review`'s shape: one `###` per finding,
+    bullets beneath are detail, not separate findings); fall back to counting
+    bullets for shorter flat-list reports.
     """
     if not section:
         return 0
@@ -118,11 +112,9 @@ def count_findings(section: str | None) -> int:
 def extract_verdict(text: str) -> str | None:
     """Find the assigned verdict token, preferring the bolded one.
 
-    commands/review.md's own rubric text lists all three tokens, and surrounding
-    prose can mention a token in passing (e.g. "not safe to PASS"), so a
-    naive substring search is unreliable. The agent's actual verdict is
-    bolded (`**FIX AND RE-REVIEW**`); fall back to the first plain occurrence
-    only if no bolded token is present.
+    Rubric prose can mention a token in passing (e.g. "not safe to PASS"), so
+    a naive substring search is unreliable; the actual verdict is bolded
+    (`**FIX AND RE-REVIEW**`). Fall back to first plain occurrence otherwise.
     """
     section = extract_section(text, "Verdict") or text
     bolded = re.search(
@@ -220,11 +212,10 @@ def setup_fixture_repo(
 ) -> Path:
     """Build an ephemeral git repo: base/ as the fake origin/main, changeset/ overlaid as HEAD.
 
-    ``source_root`` is the plugin root whose commands/agents/skills get wired in.
-    It defaults to this repo; ``run_ab_eval`` passes a shadow root instead so an
-    arm can vary a prompt or a model pin without mutating the checked-in files.
-
-    Returns the repo path (== workdir).
+    ``source_root`` is the plugin root whose commands/agents/skills get wired
+    in; ``run_ab_eval`` passes a shadow root so an arm can vary a prompt or
+    model pin without mutating checked-in files. Returns the repo path (==
+    workdir).
     """
     workdir.mkdir(parents=True, exist_ok=True)
     _copy_tree_overlay(fixture_dir / "base", workdir)
@@ -252,16 +243,11 @@ def setup_fixture_repo(
 def _wire_plugin_config(workdir: Path, source_root: Path = REPO_ROOT) -> None:
     """Expose this repo's commands/agents/skills as project-level Claude Code config.
 
-    Deliberately does NOT symlink reference/ into the fixture repo. Under the
-    contract-injection design, the fan-out command reads the shared prompt
-    contract from ``${CLAUDE_PLUGIN_ROOT}/reference/`` (set to REPO_ROOT in
-    run_claude_headless) and injects the four contract blocks into each agent
-    dispatch — so a dispatched auditor receives the shared posture inline, with
-    no dependency on the plugin's reference/ resolving from the repo it audits.
-    That mirrors a real consuming project, which has no such symlink. Wiring
-    reference/ here would re-introduce the filesystem coincidence that masked
-    the runtime gap and let a gate pass its fixtures while silently dropping the
-    posture in users' repos.
+    Deliberately does NOT symlink reference/: the fan-out command reads the
+    shared prompt contract from ``${CLAUDE_PLUGIN_ROOT}/reference/`` and
+    injects it into each agent dispatch, so a dispatched auditor needs no
+    reference/ on disk — matching a real consuming project. Symlinking it here
+    would mask a runtime gap where the posture silently drops in users' repos.
     """
     claude_dir = workdir / ".claude"
     for name in ("commands", "agents", "skills"):
@@ -284,16 +270,13 @@ def run_claude_headless_json(
 ) -> tuple[str, float | None]:
     """Invoke `/review` headless; return (report text, cost in USD if reported).
 
-    ``plugin_root`` becomes ``CLAUDE_PLUGIN_ROOT``, which is what the fan-out
-    command resolves ``reference/`` against when it injects the shared prompt
-    contract. Pointing it at a shadow root is how an A/B arm swaps that
-    contract for a variant.
+    ``plugin_root`` becomes ``CLAUDE_PLUGIN_ROOT``, which the fan-out command
+    resolves ``reference/`` against; a shadow root is how an A/B arm swaps
+    that contract for a variant.
 
-    Never raises for a failed/timed-out/missing `claude` invocation — the
-    failure detail is returned as the "report" so it lands in the uploaded
-    artifact and evaluate() reports it as a normal (failing) mismatch instead
-    of crashing the whole fixture loop before other fixtures' results are
-    saved.
+    Never raises on a failed/timed-out/missing `claude` invocation — the
+    failure detail is returned as the "report" so evaluate() scores it as a
+    normal failing mismatch instead of aborting the whole fixture loop.
     """
     env = os.environ.copy()
     env["CLAUDE_PLUGIN_ROOT"] = str(plugin_root)
@@ -332,12 +315,10 @@ def run_claude_headless_json(
 def parse_cli_json(stdout: str) -> tuple[str, float | None]:
     """Pull (final text, cost) out of `claude -p --output-format json` stdout.
 
-    Claude Code 2.1.x emits a JSON **array** of stream events whose last
-    ``type: "result"`` element carries the text and `total_cost_usd`; older
-    builds emitted a single object with a `result` key. Handle both, and fall
-    back to the raw stdout when neither shape matches — an unexpected payload
-    belongs in the artifact as a readable report, not as a crash that loses
-    every fixture still queued behind it.
+    Claude Code 2.1.x emits a JSON array of stream events (last `type:
+    "result"` element carries text + `total_cost_usd`); older builds emit a
+    single object with a `result` key. Handle both; fall back to raw stdout
+    on an unrecognized shape rather than crashing the fixture loop.
     """
     try:
         payload = json.loads(stdout)

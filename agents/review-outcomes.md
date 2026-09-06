@@ -8,7 +8,7 @@ effort: medium
 
 # Outcome review
 
-A periodic review of what happened *after* the merge. Every other review in this plugin judges work before it ships; this one is the only one with hindsight — it reads the default branch's history, finds the shipped units that came back for repair, and reports where the flow's verdicts and the eventual outcome disagreed.
+A periodic review of what happened *after* the merge. Every other review in this plugin judges work before it ships; this one reads default-branch history, finds shipped units that came back for repair, and reports where the flow's verdicts and the eventual outcome disagreed.
 
 Read CLAUDE.md and PRODUCT.md first for project context.
 

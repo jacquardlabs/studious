@@ -1,84 +1,71 @@
 #!/usr/bin/env bash
 # gate-ledger — read/write Studious's local, gitignored .studious/ state.
 #
-# Six stores in the consuming project:
-#   .studious/gates/<branch-slug>.json  — per-branch gate verdicts. Written by the
-#     gate commands (via `record`); read by the PR-time hook (via `status`) and by
-#     /next's evidence check (via `gate-get`) — never read as a raw file by callers.
-#     The same file also carries `episodes` (#289): one bounded gate episode per
-#     gate, written via `episode-open`/`episode-round`/`episode-verdict` — see
-#     those verbs for the record's schema. `status` and every other legacy reader
-#     branch only on `.branch`/`.gates`, so the object rides along inertly.
-#     A gate's entry optionally carries `blockingLanes` (delta-scoped re-audit, #130):
-#     set via `record --gate audit --blocking-lanes L1,L2` — or through
-#     `episode-verdict`'s passthrough of the same flag (#289) — when the audit verdict
-#     is the retry token; read back via `gate-get` by commands/review.md and
-#     workflows/epic-driver.js to narrow the *next* round's dispatch width. Absent on
-#     every other verdict and on every record written before this field existed —
-#     indistinguishable from "malformed," which both readers fail closed on (full audit).
+# Stores in the consuming project:
+#   .studious/gates/<branch-slug>.json  — per-branch gate verdicts. Written via
+#     `record`; read via `status` (PR-time hook) and `gate-get` (/next's evidence
+#     check), never as a raw file. Also carries `episodes` (#289): one bounded
+#     gate episode per gate, written via `episode-open`/`-round`/`-verdict` (schema
+#     at those verbs); legacy readers branch only on `.branch`/`.gates`, so it
+#     rides along inertly. A gate's entry optionally carries `blockingLanes`
+#     (delta-scoped re-audit, #130), set via `record --blocking-lanes` or
+#     `episode-verdict`'s passthrough, when the verdict is the retry token —
+#     read by commands/review.md and epic-driver.js to narrow the next round's
+#     dispatch. Absent on every other verdict and on pre-#130 records —
+#     indistinguishable from malformed, which both readers fail closed on (full audit).
 #   .studious/work/<feature-slug>.json  — per-feature flow position for /next
-#     (written via `work-set` / `work-log`; read via `work-get` / `work-list`).
-#     Optional scope-delta measurement fields (#244), epic-driven path only:
-#     `declaredFiles` — the design worker's own forecast of exact files this story
-#     expects to touch, set alongside `--design-doc` via `work-set --declared-files`;
-#     absent means no declaration was ever recorded (measured as `unmeasured`, never
-#     zero). `scopeDelta` — an append-only array, one entry per moment the driver
-#     measured (`{phase, unmeasured, outsideFiles, sha, at}`, plus `reason` —
-#     `dispatch-failed`/`no-declaration`/`unsafe-path` — on an unmeasured entry
-#     only, fix-and-retry finding 3, #244), written via `work-log
+#     (`work-set`/`work-log` write, `work-get`/`work-list` read). Scope-delta
+#     fields (#244), epic-driven path only: `declaredFiles` — the design worker's
+#     forecast of exact files the story touches (`work-set --declared-files`);
+#     absent means never declared (measured as `unmeasured`, never zero).
+#     `scopeDelta` — append-only, one entry per measured moment
+#     (`{phase, unmeasured, outsideFiles, sha, at}`, plus `reason` — fix-and-retry
+#     finding 3, #244 — on an unmeasured entry only), written via `work-log
 #     --scope-delta-phase P (--scope-delta-files F1,F2 | --scope-delta-unmeasured
-#     [--scope-delta-reason R])`. `amendments` — a separate append-only array
-#     (`{file, phase, reason, at}`) attaching a one-line justification to a file some
-#     `scopeDelta` entry already counted as outside the declaration; an amendment
-#     never removes or edits a `scopeDelta` entry and never changes any count — see
-#     the design doc this story's SHA cites for the full mechanism.
-#     Assignment fields (#295), written via `work-assign`: `assignment` — the current
-#     dispatch's own phase, brief, contracted artifacts, branch, and worktree, computed
-#     by the dispatcher and recorded before the work starts, so a successor to a
-#     crashed, stalled, or parked worker rehydrates from data instead of from a fresh
-#     re-briefing. It carries no file set of its own on purpose: `declaredFiles` above
-#     is that fact's one owner, and the same `work-get` read returns both.
-#     `assignments` — the append-only history of every assignment written for this
-#     feature, which is what makes "what was this worker told" auditable after the fact.
-#   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /next (written via epic-set / epic-story-set / epic-run-log; read via epic-get / epic-reconcile / epic-list).
-#     Alongside the plan it carries the epic's approved appetite (`appetite.tokens`,
-#     `appetite.openEpisodes`), its canary flag, and `runs` — one record per driver
-#     invocation with the count of stories that landed, which is what arms the
-#     zero-landed stop-loss epic-reconcile computes (#268, #144, #297).
+#     [--scope-delta-reason R])`. `amendments` — separate append-only array
+#     (`{file, phase, reason, at}`) justifying a file some `scopeDelta` entry
+#     already counted outside the declaration; never edits that entry or its
+#     count (full mechanism: the design doc this story's SHA cites).
+#     Assignment fields (#295), via `work-assign`: `assignment` — the current
+#     dispatch's phase, brief, contracted artifacts, branch, worktree, recorded
+#     before work starts so a successor to a crashed/stalled/parked worker
+#     rehydrates from data instead of a fresh briefing. Carries no file set of
+#     its own — `declaredFiles` owns that fact, and `work-get` returns both.
+#     `assignments` — append-only history of every assignment, for auditing
+#     what a worker was told.
+#   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /next
+#     (epic-set/-story-set/-run-log write; epic-get/-reconcile/-list read).
+#     Carries approved appetite (`appetite.tokens`, `appetite.openEpisodes`),
+#     canary flag, and `runs` — one record per driver invocation with stories
+#     landed, which arms the zero-landed stop-loss (#268, #144, #297).
 #   .studious/epics/<epic-slug>.events.jsonl — append-only status-transition and
-#     verdict-recording trail for stories running under that epic (one JSON object
-#     per line, appended by the shared `append_event()` helper from `record`,
-#     `epic-set`, `epic-story-set`, `work-set`, and `work-log` — see
-#     reference/events-format.md). Epic/story attribution is derived from the
-#     branch name or the epic-qualified `--slug` convention those verbs already
-#     use, never a new flag. Best-effort: a failure appending a line signals on
-#     stderr but never fails the calling verb's own exit code.
-#     The same file also carries the per-epic findings ledger (#281): `finding`
-#     and `attestation` lines, written by `epic-finding`/`epic-attest` and read
-#     back by `epic-findings` — the first reader this store has had. Those two
-#     kinds are primary writes and fail loudly (see append_epic_record), unlike
-#     the best-effort transition kinds above.
-#   .studious/evidence/<branch-slug>.jsonl — append-only, harness-captured record
-#     of verification commands run while a story is armed (one JSON object per
-#     line; written via `evidence-append` by hooks/evidence-capture.sh; read via
-#     `evidence-list` — see reference/evidence-format.md).
+#     verdict trail for an epic's stories (one JSON object per line, appended by
+#     `append_event()` from `record`, `epic-set`, `epic-story-set`, `work-set`,
+#     `work-log` — reference/events-format.md). Epic/story attribution derives
+#     from the branch name or epic-qualified `--slug`, never a new flag.
+#     Best-effort: an append failure signals on stderr but never fails the
+#     calling verb. Also carries the per-epic findings ledger (#281): `finding`
+#     and `attestation` lines from `epic-finding`/`epic-attest`, read by
+#     `epic-findings`. Those two are primary writes and fail loudly
+#     (append_epic_record), unlike the best-effort transition kinds above.
+#   .studious/evidence/<branch-slug>.jsonl — append-only, harness-captured
+#     verification commands run while a story is armed (`evidence-append` by
+#     hooks/evidence-capture.sh writes; `evidence-list` reads —
+#     reference/evidence-format.md).
 #   .studious/telemetry/<branch-slug>.jsonl — append-only routing telemetry: one
-#     `dispatch` line per review agent sent out (written via `telemetry-dispatch`
-#     by hooks/dispatch-telemetry.sh and by workflows/epic-driver.js's fan-out
-#     prompts) and one `outcome` line per gate verdict (written by `record` as a
-#     side effect). Joined, they tie a model choice at dispatch time to the verdict
-#     it produced — see reference/telemetry-format.md, which is the contract.
-#     A sidecar `.studious/telemetry/<branch-slug>.run` holds the last run id seen
-#     on that branch, so `record` can attribute a verdict to a run without any
-#     prompt carrying the id. No reader in this plugin; nothing branches on it.
-# All six stores are anchored to the MAIN working tree (see repo_root), so
-# agents running in linked worktrees (e.g. /next story worktrees)
-# share one .studious/ store instead of fragmenting it per worktree.
+#     `dispatch` line per review agent sent (`telemetry-dispatch`, by
+#     hooks/dispatch-telemetry.sh and epic-driver.js's fan-out) and one
+#     `outcome` line per gate verdict (`record`, as a side effect). Joined, they
+#     tie a dispatch-time model choice to its verdict — reference/telemetry-format.md
+#     is the contract. Sidecar `.studious/telemetry/<branch-slug>.run` holds the
+#     last run id seen on that branch, so `record` attributes a verdict without
+#     any prompt carrying the id. No reader in this plugin yet.
+# All stores are anchored to the MAIN working tree (see repo_root), so agents in
+# linked worktrees (e.g. /next story worktrees) share one .studious/ store.
 #
-# Alongside the five stores, .studious/worktrees/<epic-slug>/ holds /next's
-# checkouts — `__epic` for the integration worktree, one directory per in-flight
-# story. This script owns that layout (worktree_path); everyone else asks for a
-# path via the `worktree-path` verb rather than composing one.
+# .studious/worktrees/<epic-slug>/ holds /next's checkouts — `__epic` for the
+# integration worktree, one directory per in-flight story. worktree_path owns
+# this layout; everyone else asks via the `worktree-path` verb.
 # Degrades silently when git or jq is unavailable.
 set -uo pipefail
 
@@ -102,9 +89,8 @@ repo_root() {
 }
 
 ledger_dir() {
-  # Anchor to the main working tree root so the ledger location doesn't
-  # depend on the caller's CWD or which linked worktree it's running in.
-  # Degrade to a CWD-relative path if we're not in a git repo at all.
+  # Anchor to the main working tree so the ledger location doesn't depend on
+  # the caller's CWD or worktree; degrade to CWD-relative outside a git repo.
   local root
   if root=$(repo_root); then
     printf '%s/.studious/gates' "$root"
@@ -114,12 +100,10 @@ ledger_dir() {
 }
 
 store_dir() { # name -> .studious/<name>, root-anchored like ledger_dir
-  # Same root-anchoring as ledger_dir, one function for every other store
-  # instead of a copy per name — a store name is data, not a mode flag. A
-  # story worker running in a linked worktree (its own cwd) still lands its
-  # records in the MAIN tree's .studious/<name>/, e.g. evidence and
-  # telemetry: one branch's dispatches and its verdicts share a file and can
-  # be joined without a cross-worktree read.
+  # Same root-anchoring as ledger_dir, one function for every store instead of
+  # a copy per name. A worker in a linked worktree still lands records in the
+  # MAIN tree's .studious/<name>/ — e.g. evidence and telemetry share a file
+  # joinable without a cross-worktree read.
   local name="$1"
   local root
   if root=$(repo_root); then
@@ -130,28 +114,23 @@ store_dir() { # name -> .studious/<name>, root-anchored like ledger_dir
 }
 
 worktree_path() { # <repo-root> <epic-slug> [<story-slug>] -> that worktree's absolute path
-  # THE owner of /next's worktree layout: `.studious/worktrees/<epic>/`
+  # Sole owner of /next's worktree layout (#166): `.studious/worktrees/<epic>/`
   # holds one checkout per in-flight story plus `__epic`, the integration
-  # checkout the stories merge into. Everything that needs one of these paths
-  # goes through here — cmd_epic_reconcile's designDocExists lookup below, the
-  # `worktree-path` verb, and (via that verb, across the args boundary)
-  # workflows/epic-driver.js and reference/epic-orchestration.md — so the layout has
-  # one definition to change instead of four to keep in step (#166).
+  # checkout stories merge into. cmd_epic_reconcile, the `worktree-path` verb,
+  # and (via that verb) epic-driver.js and reference/epic-orchestration.md all
+  # go through here rather than re-deriving the layout.
   #
-  # Pure string composition: no git, no epic file, no filesystem check. Callers
-  # resolving a path for a worktree that may not exist yet — `git worktree add`
-  # in reference/epic-orchestration.md's step 5 runs before any of this exists on disk — depend
-  # on that.
+  # Pure string composition: no git, no epic file, no filesystem check — a
+  # worktree may not exist yet (`git worktree add` in
+  # reference/epic-orchestration.md's step 5 runs after this resolves the path).
   #
   # `__epic` cannot collide with a story: slugify()'s `tr -cs 'a-z0-9' '-'`
-  # rewrites every non-alphanumeric character, so an underscore survives nowhere
-  # in a story key — `__epic` itself would slugify to `epic`. The sentinel and
-  # the story keys share a namespace safely.
+  # rewrites every non-alphanumeric character, so no story key can contain an
+  # underscore — `__epic` itself would slugify to `epic`.
   #
-  # Neither slug is normalized here. Slugify happens at the verb boundary
-  # (cmd_worktree_path), exactly as it does for every sibling verb; the two
-  # in-process callers pass keys read straight out of the stored epic file,
-  # which epic-set and epic-story-set already slugified on the way in.
+  # Neither slug is normalized here; slugify happens at the verb boundary
+  # (cmd_worktree_path). The two in-process callers pass keys already slugified
+  # by epic-set/epic-story-set on the way into the stored epic file.
   local root="$1" epic_slug="$2" story="${3:-__epic}"
   printf '%s/.studious/worktrees/%s/%s' "$root" "$epic_slug" "$story"
 }
@@ -163,10 +142,9 @@ slugify() {
 }
 
 epic_context_from_branch() { # branch name -> prints "epicSlug<TAB>storySlug", nothing if not epic-shaped
-  # workflows/epic-driver.js's storyBranch() names the convention: epic/<slug>--<story>
-  # for a story branch, epic/<slug> for the epic's own integration branch. Both halves
-  # were already slugified before the branch was created, so splitting the remainder on
-  # the *first* "--" is unambiguous (see reference/events-format.md).
+  # epic-driver.js's storyBranch() convention: epic/<slug>--<story> for a story
+  # branch, epic/<slug> for the epic's own integration branch. Both halves are
+  # already slugified, so splitting on the first "--" is unambiguous (reference/events-format.md).
   local b="$1" rest
   case "$b" in
     epic/*) rest="${b#epic/}" ;;
@@ -179,9 +157,8 @@ epic_context_from_branch() { # branch name -> prints "epicSlug<TAB>storySlug", n
 }
 
 epic_context_from_slug() { # raw (pre-slugify) --slug value -> prints "epicSlug<TAB>storySlug", nothing if not epic-qualified
-  # Must run on the RAW argument, before the caller's own slug=$(slugify "$slug")
-  # reassignment: slugify() collapses "--" to a single "-", which would make this
-  # split a silent, permanent no-op if run after (see reference/events-format.md).
+  # Must run on the RAW argument, before the caller's slugify: slugify() collapses
+  # "--" to "-", which would silently make this split a permanent no-op run after (reference/events-format.md).
   case "$1" in
     *--*) printf '%s\t%s' "${1%%--*}" "${1#*--}" ;;
     *)    return 0 ;;  # never-epic-qualified /next feature slug: silent no-op
@@ -189,10 +166,9 @@ epic_context_from_slug() { # raw (pre-slugify) --slug value -> prints "epicSlug<
 }
 
 ensure_gitignore() {
-  # Self-heal: keep .studious/ out of the user's git status, even for projects
-  # initialized before the ledger existed. Anchored to the main working tree
-  # (see repo_root) so a linked worktree self-heals the main .gitignore, not
-  # its own.
+  # Self-heal: keep .studious/ out of git status even for projects initialized
+  # before the ledger existed. Anchored to the main tree so a linked worktree
+  # heals the main .gitignore, not its own.
   local root gi
   root=$(repo_root) || return 0
   gi="$root/.gitignore"
@@ -202,29 +178,21 @@ ensure_gitignore() {
 }
 
 json_update() { # file, jq filter, then any --arg name value ... pairs for jq
-  # Shared writer for every mutating verb: run jq against $file into a
-  # same-directory temp file, then rename the temp file over $file on
-  # success. Same all-or-nothing outcome as a hand-written block — $file is
-  # either untouched or fully replaced with valid jq output — and the same
-  # failure behavior: a failing filter leaves $file untouched and the real
-  # (non-zero) exit code propagates to the caller.
+  # Shared writer for every mutating verb: jq into a same-directory temp file,
+  # then rename over $file — all-or-nothing, same as a hand-written block.
   #
-  # Deliberately no RETURN trap here: a trap armed inside this function
-  # doesn't stay scoped to it — bash re-fires it when the *calling* verb
-  # itself returns, and by then this function's own $tmp has gone out of
-  # scope. Under this script's `set -u`, that's an "unbound variable" abort
-  # that would clobber the verb's real (already-succeeded) exit status.
-  # Cleanup below is an explicit branch instead, so nothing fires after this
-  # function has already returned.
+  # Deliberately no RETURN trap: a trap armed here doesn't stay scoped to this
+  # function — bash re-fires it when the *calling* verb returns, by which point
+  # this function's own $tmp is out of scope, and under `set -u` that's an
+  # unbound-variable abort that clobbers the verb's real exit status. Cleanup
+  # below is an explicit branch instead.
   local file="$1" filter="$2"
   shift 2
   local dir tmp rc
   dir=$(dirname -- "$file")
   tmp=$(mktemp "$dir/.tmp.XXXXXX")
-  # Capture $? from the compound command as its own statement, not as the
-  # condition of an `if`: POSIX defines the exit status of an `if` with no
-  # executed branch (condition false, no `else`) as zero, which would
-  # silently discard a real jq/mv failure here and report success.
+  # Capture $? as its own statement, not an `if` condition: POSIX defines a
+  # no-branch-taken `if` as exit 0, which would silently swallow a jq/mv failure.
   jq "$@" "$filter" "$file" > "$tmp" && mv "$tmp" "$file"
   rc=$?
   if [ "$rc" -eq 0 ]; then
@@ -235,10 +203,8 @@ json_update() { # file, jq filter, then any --arg name value ... pairs for jq
 }
 
 _epic_events_append() { # epic, story, kind, jq-object filter for the kind's own fields, then --arg/--argjson pairs for it -> jq's own exit status
-  # The record body append_event() and append_epic_record() both write —
-  # dir/file/jq template only, no failure policy. The two callers differ
-  # solely in what a write failure means to them (a secondary log's
-  # best-effort miss vs. a finding that must fail loud), so that stays theirs.
+  # Shared write body for append_event() and append_epic_record() — dir/file/jq
+  # template only, no failure policy; each caller owns what a write failure means to it.
   local epic="$1" story="$2" kind="$3" fields="$4"
   shift 4
   local dir; dir=$(store_dir epics)
@@ -251,13 +217,11 @@ _epic_events_append() { # epic, story, kind, jq-object filter for the kind's own
 }
 
 append_event() { # epic, story, kind, jq-object filter for the kind's own fields, then --arg/--argjson pairs for it
-  # The append-only counterpart to json_update()'s role: one jq -nc object per
-  # call, >> the epic's shared .events.jsonl — same precedent as
-  # cmd_evidence_append, no read-modify-write. Best-effort and silent on the
-  # happy path: called only after the caller's own primary snapshot write has
-  # already succeeded, and a failure here signals on stderr but always returns
-  # 0 — this is a secondary, additive log, never a precondition for the
-  # primary write it follows (see reference/events-format.md).
+  # Append-only counterpart to json_update(): one jq -nc object per call, >>
+  # the epic's shared .events.jsonl, no read-modify-write. Best-effort: called
+  # only after the caller's primary write already succeeded, and a failure
+  # here signals on stderr but always returns 0 — never a precondition for the
+  # write it follows (reference/events-format.md).
   local epic="$1" story="$2" kind="$3"
   if ! have jq || ! have git; then return 0; fi
   if ! _epic_events_append "$@"; then
@@ -267,16 +231,11 @@ append_event() { # epic, story, kind, jq-object filter for the kind's own fields
 }
 
 append_telemetry() { # capturer, kind, jq-object filter for the kind's own fields, then --arg/--argjson pairs for it
-  # The routing store's shared writer, modelled on append_event(): one jq -nc
-  # object per call, >> the branch's .jsonl, no read-modify-write, best-effort
-  # and silent on the happy path. `capturer` comes from the calling verb, and
-  # what that proves differs by verb: cmd_record hardcodes "ledger" for its
-  # outcome lines, but cmd_telemetry_dispatch forwards its own --capturer flag
-  # after validating it against the closed hook|driver set — so a dispatch
-  # line's capturer is always a documented value, yet remains the caller's
-  # CLAIM; nothing here can prove which code path actually invoked the verb
-  # (contrast cmd_evidence_append, which hardcodes its capturer and exposes no
-  # flag). See reference/telemetry-format.md.
+  # Routing store's writer, modelled on append_event(). `capturer` is the
+  # caller's CLAIM, not a proven fact: cmd_record hardcodes "ledger", while
+  # cmd_telemetry_dispatch forwards its own --capturer after validating it
+  # against the closed hook|driver set (contrast cmd_evidence_append, which
+  # hardcodes it with no flag). See reference/telemetry-format.md.
   local capturer="$1" kind="$2" fields="$3"
   shift 3
   if ! have jq || ! have git; then return 0; fi
@@ -328,15 +287,12 @@ cmd_record() {
   local branch sha rc
   branch="$(branch_name)"
   sha="$(head_sha)"
-  # blockingLanes (delta-scoped re-audit, #130): a comma-separated
-  # --blocking-lanes list is trimmed/deduped into a JSON array and added to
-  # this gate's entry ONLY when given non-empty — every `record` call fully
-  # replaces the gate's entry (see .gates[$g] = {...} below), so a verdict
-  # recorded WITHOUT --blocking-lanes (a PASS, or a caller that never
-  # computed one) correctly leaves the field absent rather than carrying a
-  # stale list forward. Absence is exactly the "malformed/unavailable" signal
-  # commands/review.md's and workflows/epic-driver.js's re-audit-scope
-  # readers already fail closed on.
+  # blockingLanes (delta-scoped re-audit, #130): --blocking-lanes is
+  # trimmed/deduped into a JSON array, added only when non-empty. Every
+  # `record` call fully replaces the gate's entry, so a verdict recorded
+  # without the flag correctly leaves the field absent rather than carrying a
+  # stale list forward — absence is the malformed/unavailable signal
+  # review.md's and epic-driver.js's re-audit-scope readers fail closed on.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
@@ -357,14 +313,12 @@ cmd_record() {
       append_event "$epicSlug" "$storySlug" "gate-verdict" '{gate: $gate, verdict: $verdict, sha: $sha}' \
         --arg gate "$gate" --arg verdict "$verdict" --arg sha "$sha"
     fi
-    # Outcome label (#133): the gate-time right side of the routing join, written
-    # here — the one site every verdict already passes through — rather than asked
-    # of four dispatch prompts that would each have to remember it. Unconditional:
-    # a verdict recorded in a run that emitted no dispatch telemetry still gets a
-    # label, with an empty run_id, because there is nothing for it to join to
-    # anyway. run_id comes from the branch's own run file, so no prompt carries an
-    # id; step_id defaults to the gate step every dispatch line's parent_step_id
-    # already points at. See reference/telemetry-format.md.
+    # Outcome label (#133): the gate-time side of the routing join, written here
+    # — the one site every verdict passes through — rather than by four dispatch
+    # prompts. Unconditional: a verdict from a run with no dispatch telemetry
+    # still gets a label with an empty run_id, nothing to join to. run_id comes
+    # from the branch's run file; step_id defaults to the gate step every
+    # dispatch line's parent_step_id points at. See reference/telemetry-format.md.
     local run_id="" run_file
     run_file=$(telemetry_run_file)
     [ -f "$run_file" ] && run_id=$(head -n 1 "$run_file" 2>/dev/null)
@@ -394,22 +348,19 @@ cmd_status() {
   # verdicts, report as if nothing was ever recorded for this branch.
   [ "$stored_branch" = "$cur_branch" ] || branch_mismatch=1
 
-  # Gate→pass-token→mode table: "gate:PASS_TOKEN:MODE" entries, audit-then-
-  # acceptance-then-pre-mortem order preserved.
-  #   required — near-universal; absence itself is worth flagging ("never ran"),
-  #     and a clean verdict at HEAD joins the "proceed" summary.
+  # Gate→pass-token→mode table: "gate:PASS_TOKEN:MODE", audit-then-acceptance-
+  # then-pre-mortem order preserved.
+  #   required — near-universal; absence flags ("never ran"), clean verdict at
+  #     HEAD joins the "proceed" summary.
   #   advisory — most branches never record one. The epic finale is the only
-  #     intended writer of `pre-mortem`, on an epic's integration branch, but
-  #     that write side is not yet wired into workflows/epic-driver.js — this
-  #     read side is dormant on every branch until a follow-up adds it (see
-  #     docs/studious/premortems/2026-07-09-premortem-hook-awareness-design.md
-  #     for that story's own record of the gap). The CLEAR/REALIZED vocabulary read
-  #     here has its canonical home in reference/gate-vocabulary.md, distinct
-  #     from the per-item REALIZED / NOT REALIZED / CAN'T VERIFY vocabulary
-  #     agents/premortem-auditor.md emits. Absence means "not applicable
-  #     here," not "should have run and didn't," so an advisory gate stays
-  #     silent both when absent AND when clean at HEAD; it only speaks up to
-  #     flag a stale or non-passing verdict.
+  #     intended writer of `pre-mortem`, but its write side isn't yet wired into
+  #     epic-driver.js, so this read side is dormant until a follow-up adds it
+  #     (docs/studious/premortems/2026-07-09-premortem-hook-awareness-design.md).
+  #     CLEAR/REALIZED vocabulary lives in reference/gate-vocabulary.md, distinct
+  #     from agents/premortem-auditor.md's per-item REALIZED/NOT REALIZED/CAN'T
+  #     VERIFY. Absence means not-applicable, not should-have-run — an advisory
+  #     gate stays silent both absent and clean, speaking up only when stale or
+  #     non-passing.
   local gates=("audit:PASS:required" "acceptance:SHIP:required" "pre-mortem:CLEAR:advisory")
   local msgs=()
   local pass_parts=()
@@ -423,9 +374,8 @@ cmd_status() {
       v=""
       s=""
     else
-      # Use --arg + bracket index: dot-syntax (.gates.$gate) parses '-' as
-      # subtraction and compile-errors on hyphenated gate names (e.g. the
-      # planned should-we-build / design-review gates).
+      # Bracket index, not dot-syntax: .gates.$gate parses '-' as subtraction
+      # and compile-errors on hyphenated gate names (e.g. should-we-build).
       v=$(jq -r --arg g "$gate" '.gates[$g].verdict // empty' "$file")
       s=$(jq -r --arg g "$gate" '.gates[$g].sha // empty' "$file")
     fi
@@ -483,40 +433,33 @@ cmd_gate_get() {
 }
 
 # Gate episodes (#289): one bounded run of a gate on a branch — opened at a sha,
-# advanced by at most one fix round, closed by a verdict. The record lives in the
-# same per-branch gates file as `.gates`, under `.episodes[<gate>]`:
+# advanced by at most one fix round, closed by a verdict. Lives in the same
+# per-branch gates file as `.gates`, under `.episodes[<gate>]`:
 #
 #   {sha, round, openedAt}              after episode-open (round is always 1)
 #   {sha, round, openedAt, verdict, verdictAt}  after episode-verdict
 #   + findings: {<fingerprint>: {lane, severity, round, status, ...}} once
-#     episode-finding records against the episode (full shape at
-#     cmd_episode_finding below)
-#   + blockingByRound: {"<round>": <count>} — the blocking-finding count each
-#     round left behind, snapshotted by episode-round (#291)
+#     episode-finding records (full shape at cmd_episode_finding below)
+#   + blockingByRound: {"<round>": <count>} — blocking-finding count each round
+#     left behind, snapshotted by episode-round (#291)
 #   + escalated: {round, blocking, priorBlocking, at} — set when episode-round
 #     refuses a non-converging round (#291); the human decides from there
 #
-# `sha` is the code state the episode's latest judgment saw: HEAD at open, then
-# refreshed by episode-verdict so the episode record and the dual-written legacy
-# `.gates` entry always carry the same verdict and sha. The round cap below
-# bounds ONE episode, never the branch — a fresh `episode-open` replaces the
-# gate's episode at round 1, which is what makes the cap a stop-and-rethink
-# point rather than a permanent lockout. "Closed by exactly one verdict" is
-# enforced, not assumed — and "verdict" there means a TERMINAL one. The shared
-# retry token (reference/gate-vocabulary.md) is a round OUTCOME, not a closing
-# verdict: an episode carrying it is awaiting its re-review, so episode-round
-# re-enters it (clearing the round outcome, keeping the findings) while any
-# other verdict refuses episode-round and episode-finding, and episode-verdict
-# refuses to overwrite. Two doors stay open while the retry outcome rides, so
-# the refusals around it never wedge (each one's message otherwise prescribes
-# an act another verb refuses): episode-finding accepts a set-aside
-# disposition of an already-recorded finding, and — at the round cap only,
-# where re-entry is refused in code — episode-verdict accepts a TERMINAL
-# verdict over the riding outcome. Reopening past a terminal verdict is always the
-# explicit episode-open act, which archives the prior episode (findings,
-# waivers, verdict and all) under `.episodeHistory[<gate>]` so the
-# accountability trail survives the fresh start — readable back via
-# `episode-get --history`, never only by hand-written jq (#300).
+# `sha` is the code state the episode's latest judgment saw: HEAD at open,
+# refreshed by episode-verdict so the episode record and the dual-written
+# legacy `.gates` entry always agree. The round cap bounds ONE episode, never
+# the branch — a fresh `episode-open` replaces it at round 1, making the cap a
+# stop-and-rethink point, not a lockout. "Closed by exactly one verdict" means
+# one TERMINAL verdict: the shared retry token (reference/gate-vocabulary.md)
+# is a round OUTCOME, so episode-round re-enters it (clears the outcome, keeps
+# findings) while every other verdict refuses episode-round/-finding, and
+# episode-verdict refuses to overwrite. Two doors stay open while the retry
+# outcome rides, so neither refusal's prescribed fix is itself refused:
+# episode-finding accepts a set-aside disposition of an already-recorded
+# finding, and — at the round cap only — episode-verdict accepts a TERMINAL
+# verdict over the riding outcome. Reopening past a terminal verdict is always
+# the explicit episode-open act, which archives the prior episode under
+# `.episodeHistory[<gate>]`, readable via `episode-get --history` (#300).
 EPISODE_ROUND_CAP=2
 # The one fix-and-retry spelling every episode gate shares — canonical source
 # reference/gate-vocabulary.md; tests/python/test_episode_contract.py pins the
@@ -536,9 +479,9 @@ episode_verdict_get() { # gate → prints the episode's verdict if closed, nothi
 }
 
 episode_blocking_count() { # gate → how many findings the episode currently carries in a
-  # merge-blocking state: status `open` at Critical or Important (Track never blocks, per
-  # reference/severity-rubric.md; carried/waived/rejected-as-noise are all set aside). Always
-  # prints a number — 0 when there is no episode, no findings, or no readable file.
+  # merge-blocking state: status `open` at Critical or Important (Track never
+  # blocks, reference/severity-rubric.md; carried/waived/rejected-as-noise are
+  # set aside). Always prints a number, 0 if there's no episode/findings/file.
   local file count; file="$(ledger_dir)/$(branch_slug).json"
   count=""
   if [ -f "$file" ]; then
@@ -555,11 +498,10 @@ episode_blocking_count() { # gate → how many findings the episode currently ca
 }
 
 episode_open_critical_count() { # gate → how many Criticals the episode still carries `open`
-  # Deliberately NOT episode_blocking_count with a filter bolted on: that one is the
-  # convergence metric (Critical + Important, the set a round must shrink), this one is
-  # the verdict guard's metric. Only a Critical blocks a verdict — an Important may ride
-  # out a terminal PASS still `open` (reference/gate-vocabulary.md), and conflating the
-  # two would refuse verdicts that vocabulary explicitly permits. Always prints a number.
+  # Deliberately not episode_blocking_count with a filter bolted on: that is the
+  # convergence metric (Critical + Important), this is the verdict guard's —
+  # only a Critical blocks a verdict, an Important may ride out a terminal PASS
+  # still `open` (reference/gate-vocabulary.md). Always prints a number.
   local file count; file="$(ledger_dir)/$(branch_slug).json"
   count=""
   if [ -f "$file" ]; then
@@ -594,29 +536,23 @@ cmd_episode_open() {
 
   ensure_gitignore
   local file; file=$(gates_file_init)
-  # An unparseable gates file stops HERE, named, rather than reaching the jq
-  # below and surfacing a bare `jq: parse error: Invalid numeric literal ...`
-  # under an exit code no door branch documents. This verb is where a corrupt
-  # ledger lands: `episode-round`/`-verdict`/`-finding` all read the round
-  # through `episode_round_get`, whose `2>/dev/null` turns a parse failure into
-  # "no open episode" — exit 2, which commands/review.md's branch table
-  # reads as "a ledger written before episodes existed: treat it as a fresh
-  # entry" and routes straight to episode-open. Exit 1 is the state-refusal
-  # code `epic-reconcile` already uses for a corrupted stored file, and both
-  # doors read a non-zero episode-open as "stop and tell the user". Nothing is
-  # repaired or removed here — what the file was supposed to hold is a human's
-  # call, and overwriting it would destroy the only copy of the answer.
+  # Fail named HERE on an unparseable gates file, rather than reaching the jq
+  # below and surfacing a bare `jq: parse error` under an undocumented exit
+  # code: `episode-round`/`-verdict`/`-finding` all read the round through
+  # `episode_round_get`, whose `2>/dev/null` turns a parse failure into "no
+  # open episode" (exit 2), which commands/review.md routes straight to
+  # episode-open as if the ledger predated episodes. Exit 1 is the same
+  # state-refusal code `epic-reconcile` uses for a corrupted file; nothing is
+  # repaired here since only a human can say what the file should hold.
   if [ -f "$file" ] && ! jq empty "$file" 2>/dev/null; then
     echo "gate-ledger: episode-open: the gates file at $file is not valid JSON —" \
          "repair or remove it before continuing" >&2
     return 1
   fi
-  # Reopening starts a fresh episode at round 1, but never silently discards
-  # the prior one: an existing episode (its findings, waivers, and verdict) is
-  # archived under `.episodeHistory[<gate>]` first, so a carried Critical's
-  # waiver reason survives the reopen (see the schema comment above). A prior
-  # episode's dual-written `.gates` entry survives too, exactly as if a plain
-  # `record` had written it.
+  # Reopening starts fresh at round 1 without discarding the prior episode: it
+  # is archived under `.episodeHistory[<gate>]` first (findings, waivers,
+  # verdict), so a carried Critical's waiver reason survives. The prior
+  # episode's dual-written `.gates` entry survives too.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     '.schemaVersion = (.schemaVersion // 1)
@@ -667,21 +603,19 @@ cmd_episode_round() {
     ''|*[!0-9]*) prior="" ;;
   esac
   # Convergence, checked BEFORE the cap (#291): the cap bounds the loop but
-  # cannot tell "converged" from "gave up" — both exit the same way. So a round
-  # that failed to strictly reduce the blocking set is refused here, in code,
-  # and the episode is marked escalated: a human decides, rather than the loop
-  # spending its last round. Exit 3 keeps that distinct from the cap's exit 1,
-  # because the two put different choices to the operator.
+  # can't tell "converged" from "gave up" — both exit the same way. A round
+  # that failed to strictly reduce the blocking set is refused here and the
+  # episode marked escalated, so a human decides rather than the loop spending
+  # its last round. Exit 3 keeps this distinct from the cap's exit 1.
   #
-  # A prior count of 0 is not a convergence signal — nothing strictly decreases
-  # from none — so the comparison runs only against a non-zero predecessor.
+  # A prior count of 0 is not a convergence signal, so the comparison runs only
+  # against a non-zero predecessor.
   #
-  # This fires on the natural round-2 boundary — it is NOT latent under the
-  # current cap. The check runs BEFORE the cap check below, and the first
-  # `episode-round` call banks `blockingByRound["1"]` on its way past, so the
-  # second call reads a real predecessor and refuses at exit 3 whenever the
-  # blocking set failed to shrink. Only a converging round (or one with a zero
-  # predecessor) ever reaches the cap's exit 1. Do not delete this as dead code.
+  # This fires on the natural round-2 boundary, not latent under the current
+  # cap: the first `episode-round` call banks `blockingByRound["1"]`, so the
+  # second reads a real predecessor and refuses at exit 3 whenever the
+  # blocking set failed to shrink. Only a converging round (or a zero
+  # predecessor) reaches the cap's exit 1. Do not delete this as dead code.
   if [ -n "$prior" ] && [ "$prior" -gt 0 ] && [ "$blocking" -ge "$prior" ]; then
     # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
     json_update "$file" \
@@ -689,15 +623,11 @@ cmd_episode_round() {
                                   priorBlocking: ($p | tonumber), at: $t}' \
       --arg g "$gate" --arg r "$round" --arg b "$blocking" --arg p "$prior" --arg t "$(now_iso)"
     rc=$?
-    # The escalation record IS this branch's product — the durable thing the
-    # human comes back to. If the write failed (read-only store, full disk,
-    # mktemp failure), say so instead of announcing a record that does not
-    # exist: returning 3 here would tell the door "the episode is marked
-    # escalated" over an untouched file. Exit 1 instead — both doors read 1 as
-    # "stop before dispatching anyone, put the choice to the user", which is
-    # right either way, and the message names which fact it is. Same rc-capture
-    # discipline cmd_episode_verdict already applies to its own writes; the
-    # round is still refused, it is only the bookkeeping that is missing.
+    # The escalation record IS this branch's durable product. If the write
+    # failed, say so instead of announcing a record that doesn't exist:
+    # returning 3 would claim "marked escalated" over an untouched file. Exit 1
+    # instead — both doors read 1 as "stop, put the choice to the user" either
+    # way; the round is still refused, only the bookkeeping is missing.
     if [ "$rc" -ne 0 ]; then
       echo "gate-ledger: episode-round: the escalation record for gate '$gate' could NOT be written" \
            "to $file (write failed, exit $rc) — round $round carries $blocking blocking finding(s)" \
@@ -712,21 +642,18 @@ cmd_episode_round() {
          "episode — before spending another round" >&2
     return 3
   fi
-  # The cap is enforced HERE, in code, never left to a prompt's own counting
-  # ("code owns bookkeeping"): round 1 is the gate's first run, round 2 its one
-  # fix-and-re-check, and a third round is refused — exit 1 (a state refusal,
-  # distinct from the arg-validation 2s above) so a driver can branch on it.
+  # Enforced HERE, in code, never left to a prompt's own counting ("code owns
+  # bookkeeping"): round 1 is the first run, round 2 the one fix-and-re-check,
+  # a third round is refused — exit 1, distinct from the arg-validation 2s above.
   if [ "$round" -ge "$EPISODE_ROUND_CAP" ]; then
     echo "gate-ledger: episode-round refused for gate '$gate' — round $round is already recorded and" \
          "the ${EPISODE_ROUND_CAP}-round cap allows no third round; record a verdict, or episode-open a fresh episode" >&2
     return 1
   fi
-  # Re-entering clears the round outcome (the retry token), never the findings:
-  # the episode is open again, awaiting the re-review's own verdict. The
-  # dual-written legacy `.gates` entry keeps the retry token untouched — that is
-  # what the door's re-entry condition and the narrowing read. The round being
-  # left behind banks its blocking count first: that snapshot is the only thing
-  # the next round's convergence check has to compare against.
+  # Re-entering clears the round outcome (retry token), never the findings; the
+  # dual-written legacy `.gates` entry keeps the retry token untouched, which
+  # is what the door's re-entry condition reads. The round left behind banks
+  # its blocking count first, for the next round's convergence check.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     '.episodes[$g].round = (.episodes[$g].round + 1)
@@ -762,18 +689,15 @@ cmd_episode_verdict() {
   local prior; prior=$(episode_verdict_get "$gate")
   if [ -n "$prior" ]; then
     if [ "$prior" = "$EPISODE_RETRY_VERDICT" ]; then
-      # The retry outcome awaits its re-review, so the next verdict normally
-      # arrives through episode-round's re-entry. At the round cap that
-      # re-entry is refused in code — and pointing there anyway wedged the
-      # operator between refusals: episode-round's cap message says "record a
-      # verdict" while this refusal said "run episode-round". So the cap is
-      # exactly where a TERMINAL verdict may land over the riding outcome:
-      # the retry token is a round outcome, never a closing verdict, so
-      # "closed by exactly one verdict" still holds, and rule 2 below still
-      # refuses to close over an open Critical (waive it first — the
-      # episode-finding disposition door stays open for exactly that).
-      # Below the cap the re-entry is actionable and stays the only path; a
-      # corrupt round fails closed, keeping this door shut.
+      # Normally the next verdict arrives through episode-round's re-entry. At
+      # the round cap that re-entry is refused in code, and pointing there
+      # anyway wedged the operator between two refusals (cap says "record a
+      # verdict", this one said "run episode-round"). So the cap is exactly
+      # where a TERMINAL verdict may land over the riding outcome — the retry
+      # token is a round outcome, not a closing verdict, so "closed by exactly
+      # one verdict" still holds, and rule 2 below still refuses to close over
+      # an open Critical (waive it first via episode-finding). Below the cap
+      # the re-entry stays the only path; a corrupt round fails closed.
       local at_cap=0
       case "$round" in
         *[!0-9]*) ;;
@@ -798,20 +722,17 @@ cmd_episode_verdict() {
       return 1
     fi
   fi
-  # Rule 2, at the verdict: an unfixed Critical needs the operator's explicit word
-  # before an episode closes on it. `episode-finding` already refuses to set a
-  # Critical aside without --waiver, but nothing stopped a caller from simply
-  # leaving it `open` and recording the verdict over the top — the same outcome
-  # (a Critical riding through unfixed) with none of the accountability. So the
-  # findings ledger is consulted here too, in code, never left to the compiling
-  # prompt's own reading of it.
+  # Rule 2, at the verdict: an unfixed Critical needs the operator's explicit
+  # word before an episode closes on it. `episode-finding` already refuses to
+  # set a Critical aside without --waiver, but nothing stopped a caller
+  # leaving it `open` and recording the verdict over the top — same outcome,
+  # none of the accountability — so the findings ledger is consulted here too.
   #
-  # The retry verdict is exempt by construction: `FIX AND RE-REVIEW` is the round
-  # outcome that MEANS "these Criticals are open, go fix them" — refusing it would
-  # refuse the documented main path. Every other token closes the episode, and a
-  # close is what needs the word. This stays gate-agnostic rather than keying on a
-  # per-gate proceed token, so it fails closed for the doors that adopt the
-  # episode verbs later, not open.
+  # The retry verdict is exempt by construction: `FIX AND RE-REVIEW` IS "these
+  # Criticals are open, go fix them" — refusing it would refuse the documented
+  # main path. Every other token closes the episode, and a close needs the
+  # word. Gate-agnostic rather than a per-gate proceed token, so it fails
+  # closed for doors that adopt the episode verbs later.
   local open_criticals; open_criticals=$(episode_open_critical_count "$gate")
   if [ "$open_criticals" -gt 0 ] && [ "$verdict" != "$EPISODE_RETRY_VERDICT" ]; then
     echo "gate-ledger: episode-verdict refused for gate '$gate' — $open_criticals Critical" \
@@ -823,33 +744,28 @@ cmd_episode_verdict() {
     return 1
   fi
   local file rc; file="$(ledger_dir)/$(branch_slug).json"
-  # Merge, not replace: the episode keeps its round/openedAt and gains the
-  # verdict; `sha` is refreshed to HEAD — the code state this verdict judged —
-  # so it always equals the sha the dual-write below stamps.
+  # Merge, not replace: keeps round/openedAt, gains the verdict; `sha` is
+  # refreshed to HEAD so it matches the sha the dual-write below stamps.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     '.episodes[$g] = (.episodes[$g] + {verdict: $v, sha: $s, verdictAt: $t})' \
     --arg g "$gate" --arg v "$verdict" --arg s "$(head_sha)" --arg t "$(now_iso)"
   rc=$?
   [ "$rc" -eq 0 ] || return "$rc"
-  # Dual-write the legacy per-gate record through cmd_record itself — not a
-  # reimplementation of its jq — so `status`/`gate-get` readers (the PR-time
-  # hook, the epic driver) see a record indistinguishable from one a
-  # gate command wrote directly, events append included. Same process, same
-  # HEAD: the sha cmd_record stamps is the sha written just above.
-  # --blocking-lanes passes through untouched (#289): the lane profile is
-  # legacy-record data cmd_record already owns, never a new episode field.
+  # Dual-write the legacy per-gate record through cmd_record itself, not a
+  # reimplementation of its jq, so `status`/`gate-get` see a record
+  # indistinguishable from one a gate command wrote directly, events append
+  # included. --blocking-lanes passes through untouched (#289): cmd_record
+  # already owns that field.
   if [ -n "$blocking_lanes" ]; then
     cmd_record --gate "$gate" --verdict "$verdict" --blocking-lanes "$blocking_lanes"
   else
     cmd_record --gate "$gate" --verdict "$verdict"
   fi
   rc=$?
-  # The episode write above already landed, so a re-run of episode-verdict now
-  # refuses this gate as already closed — the only repair for the half-written
-  # state is cmd_record's own verb, so the failure message names that exact
-  # command rather than leaving the operator between a refusal and a stale
-  # legacy record nothing points at.
+  # The episode write already landed, so a re-run of episode-verdict now
+  # refuses this gate as closed — the only repair is cmd_record's own verb, so
+  # the failure message names that exact command.
   if [ "$rc" -ne 0 ]; then
     # shellcheck disable=SC2016 # the quotes around $verdict are for the operator to copy-paste, not an expansion
     echo "gate-ledger: episode-verdict: the episode for gate '$gate' closed (verdict '$verdict'" \
@@ -860,10 +776,9 @@ cmd_episode_verdict() {
   return "$rc"
 }
 
-# Findings ledger (episode convergence): a finding lives on the gate's open
-# episode under .episodes[<gate>].findings[<fingerprint>] — the fingerprint IS
-# the finding's identity across rounds, chosen by the caller and never
-# normalized here:
+# Findings ledger (episode convergence): a finding lives at
+# .episodes[<gate>].findings[<fingerprint>] — the fingerprint IS the finding's
+# identity across rounds, chosen by the caller and never normalized here:
 #
 #   {lane, severity, status, round, recordedAt, updatedAt}
 #   + {regressionOf: <fp>}  when first recorded on round 2 as a regression of a
@@ -872,68 +787,54 @@ cmd_episode_verdict() {
 #
 # `severity` is the canonical three-tier ladder (reference/severity-rubric.md):
 # Critical | Important | Track — callers map per-auditor labels into these
-# BEFORE recording, exactly as /review's orchestrator already does. A
-# Critical must cite the objective anchor its tier rests on (the anchors table
-# in that same rubric); a Critical filed with no anchor is recorded Important
-# instead — that judgment happens before the write, since severity is fixed at
-# first record here.
+# before recording, as /review's orchestrator already does. A Critical must
+# cite that rubric's objective anchor; one with no anchor is recorded
+# Important instead, before the write, since severity is fixed at first record.
 # `status` is open | closed | carried | waived | rejected-as-noise. The last is
-# the disposition memory (#292): the human or the compile step ruled the finding
-# non-actionable, and that ruling is durable — later rounds read it back through
-# `episode-get --findings` and suppress findings similar to it (same lane, same
-# fingerprint) instead of re-manufacturing them. `round` is stamped from the
-# episode's current round at first record and never moves — it is the fact
-# --regression-of validates against. `lane`/`severity` are fixed at first
-# record: re-recording a fingerprint at a different tier is refused, so a
-# Critical can never be laundered down to dodge the waiver rule below.
+# disposition memory (#292): a non-actionable ruling that's durable — later
+# rounds read it via `episode-get --findings` and suppress similar findings
+# (same lane, same fingerprint) instead of re-manufacturing them. `round` is
+# stamped from the episode's current round at first record and never moves —
+# it's what --regression-of validates against. `lane`/`severity` are fixed at
+# first record: reclassifying a fingerprint is refused, so a Critical can
+# never be laundered down to dodge the waiver rule below.
 #
-# Two convergence rules enforced HERE, in code, never left to a prompt's own
-# counting (same posture as the round cap above):
+# Two convergence rules enforced HERE, in code (same posture as the round cap):
 #
-#   1. On round 2 a NEW blocking finding below Critical — status `open`,
-#      severity Important (Track never blocks, per the rubric) — is refused
-#      unless --regression-of names a round-1 finding of this episode. Round 2
-#      exists to fix round 1, not to widen the blocking set; a new Critical
-#      stays recordable because it is the stop signal.
-#   2. A Critical reaches any set-aside status — `carried`, `waived`, or
-#      `rejected-as-noise` — only with --waiver <reason>, and the reason lands
-#      on the finding record. Setting an unfixed Critical aside is an
-#      accountable act, never a silent one.
+#   1. On round 2 a NEW blocking finding below Critical (`open`, Important —
+#      Track never blocks) is refused unless --regression-of names a round-1
+#      finding. Round 2 fixes round 1, it doesn't widen the blocking set; a
+#      new Critical stays recordable as the stop signal.
+#   2. A Critical reaches any set-aside status only with --waiver <reason>,
+#      recorded on the finding. Setting it aside unfixed is accountable, never silent.
 #
 # Which agent judges whether something IS a regression stays in prose; this
 # verb only refuses the write shapes those judgments must not produce.
 finding_status_is_set_aside() { # status → true when it rides through the verdict unfixed
-  # The three statuses that dispose of a finding without resolving it. `closed`
-  # is resolved and `open` is unresolved; these three are the accountable middle,
-  # and they share one guard so no sibling word can dodge it.
   case "$1" in
     carried|waived|rejected-as-noise) return 0 ;;
     *) return 1 ;;
   esac
 }
 
-# Both findings verbs render their fields into line- and tab-structured reads
-# (`episode-get --findings`, `episode-get --history`, `epic-findings`), and
-# `/review` injects those lines verbatim into the next round's lane dispatch
-# prompts. A value that can carry a newline or a tab can therefore forge an extra
-# line in a downstream prompt — so identity fields are guarded on the way IN, at
-# the boundary, exactly as `--fingerprint` already is.
+# Both findings verbs render fields into line- and tab-structured reads
+# (`episode-get --findings/--history`, `epic-findings`), which `/review`
+# injects verbatim into the next round's lane dispatch prompts. A value
+# carrying a newline or tab could forge an extra line, so identity fields are
+# guarded at the boundary, same as `--fingerprint`.
 finding_field_is_token() { # value → true when empty or a single whitespace-free token
-  # For the identity fields (`--lane`): same guard as --fingerprint. These are
-  # `security-auditor`-shaped names, never prose. Empty passes — the callers that
-  # allow an omitted lane check for that themselves.
+  # For identity fields (`--lane`): `security-auditor`-shaped names, never
+  # prose. Empty passes — callers that allow an omitted lane check for that themselves.
   case "$1" in
     *[[:space:][:cntrl:]]*) return 1 ;;
     *) return 0 ;;
   esac
 }
 finding_reason_is_single_line() { # value → true when empty or free of control characters
-  # For the prose field (`--waiver`): deliberately WEAKER than the token guard
-  # above — a waiver is the operator's own sentence ("the exact word they typed",
-  # #300), so spaces must survive. `[[:cntrl:]]` is the whole attack surface for a
-  # line- and tab-structured read; it covers both newline and tab. Do not
-  # "unify" this with finding_field_is_token: rejecting spaces here would reduce
-  # every documented waiver reason to a single token.
+  # Deliberately WEAKER than the token guard above: a waiver is the operator's
+  # own sentence (#300), so spaces must survive; `[[:cntrl:]]` covers the whole
+  # attack surface (newline and tab). Do not unify with finding_field_is_token
+  # — rejecting spaces would reduce every waiver reason to a single token.
   case "$1" in
     *[[:cntrl:]]*) return 1 ;;
     *) return 0 ;;
@@ -1012,18 +913,14 @@ cmd_episode_finding() {
   if [ -n "$closed" ]; then
     if [ "$closed" = "$EPISODE_RETRY_VERDICT" ]; then
       # The one door left open while the retry outcome rides: a set-aside
-      # disposition (carried, waived, or rejected-as-noise — the same trio
-      # finding_status_is_set_aside guards) of a fingerprint ALREADY on the
-      # episode. This is what the escalation and cap refusals prescribe
-      # ("waive what will not be fixed"; episode-verdict's Critical guard
-      # names `--status carried --waiver` verbatim) — without it those
-      # messages pointed at a verb that refused right back here, leaving
-      # episode-open, which archives the very findings a waiver must land
-      # on, as the only exit. Everything else still refuses: a fingerprint
-      # not on the episode (no NEW finding enters through this door), and
-      # any non-set-aside status (open/closed are round work, owned by the
-      # re-review). What the door admits still runs every downstream guard —
-      # severity/lane fixed at first record, rule 2's Critical-needs-waiver.
+      # disposition (carried, waived, rejected-as-noise) of a fingerprint
+      # ALREADY on the episode — what the escalation and cap refusals
+      # prescribe ("waive what will not be fixed"). Without it those messages
+      # pointed back at this same refusal, leaving episode-open — which
+      # archives the very findings a waiver must land on — as the only exit.
+      # Everything else still refuses: a fingerprint not on the episode, or
+      # any non-set-aside status (open/closed are round work). What the door
+      # admits still runs every downstream guard.
       local disposition_ok=""
       if finding_status_is_set_aside "$status"; then
         # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
@@ -1052,8 +949,8 @@ cmd_episode_finding() {
     '.episodes[$g].findings[$fp] // empty' "$file" 2>/dev/null)
 
   if [ -n "$existing" ]; then
-    # Update path: identity (lane, severity, round) is fixed at first record;
-    # only the status moves, and regression classification is not relitigated.
+    # Update path: identity (lane, severity, round) fixed at first record; only
+    # status moves, regression classification is not relitigated.
     stored_severity=$(printf '%s' "$existing" | jq -r '.severity // ""')
     stored_lane=$(printf '%s' "$existing" | jq -r '.lane // ""')
     first_round=$(printf '%s' "$existing" | jq -r '.round // ""')
@@ -1103,19 +1000,17 @@ cmd_episode_finding() {
 
   # Rule 1: round 2 may not widen the blocking set below Critical.
   #
-  # Keyed on the round the finding was FIRST recorded in, never on the round
-  # doing the recording, and checked on BOTH paths — because a finding reaches
-  # `open` in two calls as easily as in one. Recording a round-2 finding
-  # `carried` and then re-recording the same fingerprint `open` used to land it
-  # unrefused: the first call dodged the rule on its status, the second dodged it
-  # by being an update. That is a widened blocking set on round 2 with no
-  # --regression-of behind it, and it defeats the convergence guard downstream,
-  # which counts exactly these open findings.
+  # Keyed on the round the finding was FIRST recorded, never the round doing
+  # the recording, and checked on BOTH paths — a finding reaches `open` in two
+  # calls as easily as one. Recording a round-2 finding `carried` then
+  # re-recording it `open` used to land unrefused: the first call dodged the
+  # rule on status, the second by being an update — a widened blocking set with
+  # no --regression-of, defeating the convergence guard downstream.
   #
-  # `classified` carries the regression classification made at first record, so a
-  # finding legitimately admitted on round 2 as a regression stays updatable; a
-  # round-1 finding restated as still-standing has first_round 1 and is never in
-  # scope here, which is the case this rule must not touch.
+  # `classified` carries the regression classification from first record, so a
+  # finding legitimately admitted round-2-as-regression stays updatable; a
+  # round-1 finding restated as still-standing has first_round 1 and is out of
+  # scope here.
   if [ "$first_round" -ge 2 ] && [ "$status" = "open" ] && [ "$severity" = "Important" ] \
      && [ -z "$classified" ]; then
     echo "gate-ledger: episode-finding refused — round $round fixes round 1, it does not widen the" \
@@ -1124,22 +1019,20 @@ cmd_episode_finding() {
     return 1
   fi
 
-  # Rule 2: a Critical is set aside — `carried`, `waived`, or
-  # `rejected-as-noise`, all three meaning it rides through the verdict unfixed
-  # — only under a recorded waiver. Checked against the STORED severity on an
-  # update (see above), so it cannot be dodged by restating the finding at a
-  # lower tier, and guarded on every set-aside status so it cannot be dodged by
-  # a sibling word either — dismissing a Critical as noise is the same
-  # accountable act as carrying it.
+  # Rule 2: a Critical set aside (`carried`, `waived`, `rejected-as-noise` —
+  # all ride through the verdict unfixed) needs a recorded waiver. Checked
+  # against the STORED severity on an update, so it can't be dodged by
+  # restating at a lower tier, and guarded on every set-aside status so no
+  # sibling word dodges it either.
   if [ "$severity" = "Critical" ] && finding_status_is_set_aside "$status" && [ -z "$waiver" ]; then
     echo "gate-ledger: episode-finding refused — a Critical reaches '$status' only with" \
          "--waiver <reason>; fix it, or record why it is being set aside" >&2
     return 1
   fi
 
-  # First record keeps its identity fields and round forever (the `//` default
-  # object only materializes when the fingerprint is new); an update merges
-  # status/updatedAt — and waiver, when given — over the stored record.
+  # First record keeps its identity fields and round forever (`//` default only
+  # materializes when the fingerprint is new); an update merges status/updatedAt
+  # — and waiver, when given — over the stored record.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     '.episodes[$g].findings[$fp] =
@@ -1154,28 +1047,23 @@ cmd_episode_finding() {
 }
 
 cmd_episode_get() { # --gate G [--findings | --history] -> one line a prose surface can quote verbatim: "round R of C — N open, M carried"
-  # The findings ledger's read side. Only `open` and `carried` are counted —
-  # they are the two states a verdict has to answer for (`closed` is resolved,
-  # `waived` and `rejected-as-noise` are explicitly set aside). Prints nothing
-  # when no episode is recorded for the gate, mirroring gate-get/epic-get.
+  # Findings ledger's read side. Counts only `open`/`carried` — what a verdict
+  # has to answer for (`closed` resolved, `waived`/`rejected-as-noise` set
+  # aside). Prints nothing when no episode is recorded, mirroring gate-get/epic-get.
   #
-  # --findings (#289, the re-entry read /review injects into lane
-  # dispatches) follows the summary line with two fingerprint-sorted, tab-
-  # separated blocks — compaction (#298) is what keeps a later round's
-  # inheritance a digest rather than a transcript:
+  # --findings (#289, injected into /review's next-round lane dispatches)
+  # follows the summary with two fingerprint-sorted, tab-separated blocks —
+  # compaction (#298) keeps inheritance a digest, not a transcript:
   #
   #   detail (open, carried):   <status>\t<severity>\t<lane>\t<fingerprint>
   #   digest (everything else): digest\t<lane>\t<fingerprint>\t<status>\t<round>
   #
-  # A round-2 dispatch inherits full detail only for what is still live; a
-  # disposed finding costs one line, which is all the suppression contract
-  # needs to match a re-manufactured finding against it (#292) — lane and
-  # fingerprint, the two match keys, both as fields rather than as a naming
-  # convention a reader has to parse out of the fingerprint.
+  # A disposed finding costs one line — lane and fingerprint, the suppression
+  # contract's (#292) two match keys, as fields rather than parsed out of a
+  # naming convention.
   #
-  # --history (#300) is the accountability read: every archived episode plus the
-  # current one, each with its verdict, counts, escalation, and the reason text
-  # behind every waiver — the word the operator typed, shown back to them.
+  # --history (#300): every archived episode plus the current one, each with
+  # verdict, counts, escalation, and the waiver text the operator typed.
   local gate="" findings=0 history=0
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -1275,21 +1163,16 @@ cmd_work_set() {
   local file; file=$(work_file_init "$slug")
   local rc
   # Scope-delta measurement (#244): --declared-files is the design worker's own
-  # forecast of the exact files this story expects to touch — a distinct
-  # work-file field (declaredFiles), never parsed from the design doc itself
-  # (reference/design-doc-contract.md puts file layout outside that doc's
-  # scope) and never a directory prefix (exact paths only, per the design's
-  # own "Alternatives considered"). An explicitly empty --declared-files
-  # ("") is a real declaration of zero files, not "not provided" — csv_trim
-  # maps it to []; distinguishing that from "never declared" (the field
-  # simply absent) is what lets a later reader tell "declared nothing" apart
-  # from "no declaration exists," so unlike every other optional field on
-  # this verb, it is written whenever the flag is present at all (tracked by
-  # `declared_given`, set in the arg-parsing loop above), not only when
-  # non-empty. `| unique` matches the report side's own treatment of
-  # `outsideFiles` (reference/epic-orchestration.md's jq) — a repeated path in the
-  # declaration must not inflate `declared \(N)` against a set that "one file
-  # counts once" already keeps disjoint on the outside-files side.
+  # forecast of exact files the story touches — a distinct field
+  # (declaredFiles), never parsed from the design doc itself
+  # (reference/design-doc-contract.md excludes file layout) and never a
+  # directory prefix (exact paths only). An explicitly empty --declared-files
+  # is a real declaration of zero files, not "not provided" — csv_trim maps it
+  # to [] — so unlike every other optional field here, it's written whenever
+  # the flag is present at all (`declared_given`), not only when non-empty,
+  # letting a reader tell "declared nothing" from "never declared." `| unique`
+  # matches the report side's treatment of `outsideFiles`
+  # (reference/epic-orchestration.md) — a repeated path must not inflate `declared \(N)`.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
@@ -1320,23 +1203,17 @@ cmd_work_set() {
 }
 
 validate_work_log_args() { # step outcome sdPhase sdFilesGiven sdUnmeasured amendFile amendReason sdReason ->
-  # cmd_work_log's own seven argument-combination rules, extracted so the verb's
-  # body reads as one parse loop, one validation pass, one jq write — not seven
-  # sequential branches ahead of the write they gate. Pure: reads only its own
-  # positional args, echoes at most one error to stderr, and returns non-zero
-  # on the FIRST rule a caller's flag combination violates. `slug` is checked
-  # by the caller before this runs (it gates work_file_init below, not the
-  # flag-combination rules this function owns).
+  # cmd_work_log's seven argument-combination rules, extracted so the verb body
+  # reads as one parse loop, one validation pass, one jq write. Pure: reads
+  # only its positional args, returns non-zero on the FIRST violated rule.
+  # `slug` is checked by the caller, not here.
   local step="$1" outcome="$2" sd_phase="$3" sd_files_given="$4" sd_unmeasured="$5" \
         amend_file="$6" amend_reason="$7" sd_reason="$8"
-  # --step/--outcome are paired (both or neither) — the flow-position history
-  # entry they write is optional on this verb only because scope-delta
-  # measurement (#244) needs a work-log call that records nothing but a
-  # moment's outside-file count or a fixer's amendment, with no step of its
-  # own to log (a fixer never had one — it only ever bumped a retry counter
-  # via epic-story-set). At least one of a step/outcome pair, a scope-delta
-  # write, or an amendment must be present; a call that would do nothing is
-  # a caller error, not a silent no-op.
+  # --step/--outcome are paired (both or neither) — optional on this verb
+  # because scope-delta measurement (#244) needs a call recording nothing but
+  # an outside-file count or an amendment, with no step of its own (a fixer
+  # never had one). At least one of a step/outcome pair, a scope-delta write,
+  # or an amendment must be present.
   if { [ -n "$step" ] && [ -z "$outcome" ]; } || { [ -z "$step" ] && [ -n "$outcome" ]; }; then
     echo "gate-ledger: --step and --outcome must be given together" >&2
     return 1
@@ -1354,9 +1231,8 @@ validate_work_log_args() { # step outcome sdPhase sdFilesGiven sdUnmeasured amen
     return 1
   fi
   # Fix-and-retry finding 3 (#244): --scope-delta-reason names WHY a moment is
-  # unmeasured — meaningless on anything else. Reject it standing alone or
-  # paired with --scope-delta-files, the same "reject the impossible
-  # combination" posture as the mutual-exclusion rule just above.
+  # unmeasured, meaningless otherwise — reject it alone or paired with
+  # --scope-delta-files.
   if [ -n "$sd_reason" ] && [ "$sd_unmeasured" -ne 1 ]; then
     echo "gate-ledger: --scope-delta-reason requires --scope-delta-unmeasured" >&2
     return 1
@@ -1393,14 +1269,14 @@ cmd_work_log() {
   fi
   validate_work_log_args "$step" "$outcome" "$sd_phase" "$sd_files_given" "$sd_unmeasured" \
     "$amend_file" "$amend_reason" "$sd_reason" || return 2
-  # Per-step outcome vocabulary. Only a step whose *reader* branches on the token is
-  # constrained here; gate steps carry verdicts owned by reference/gate-vocabulary.md
-  # and stay free-form, as do markers like run-boundary. `build` is constrained because
-  # commands/next.md's "Executor-reported build status" check branches on exactly these, and
-  # three writers had drifted into two dialects with nothing to catch it (#213). This
-  # vocabulary governs `--outcome` alone — scope-delta measurement (#244) rides its own
-  # dedicated fields (`--scope-delta-*`/`--amend-*`) precisely so it never has to widen
-  # (or smuggle a composite value through) this closed list.
+  # Per-step outcome vocabulary. Only a step whose *reader* branches on the
+  # token is constrained; gate steps carry verdicts owned by
+  # reference/gate-vocabulary.md and stay free-form, as do markers like
+  # run-boundary. `build` is constrained because commands/next.md's
+  # "Executor-reported build status" check branches on exactly these, and
+  # three writers had drifted into two dialects with nothing to catch it
+  # (#213). Scope-delta measurement (#244) rides its own dedicated fields so
+  # it never has to widen this closed list.
   #   BUILT | PAUSED | ESCALATED  executor-reported terminal status (worker-contract.md)
   #   HANDED-OFF | SKIPPED        /next's own non-terminal flow markers
   if [ "$step" = "build" ]; then
@@ -1415,11 +1291,8 @@ cmd_work_log() {
     esac
   fi
   # Fix-and-retry finding 3 (#244): --scope-delta-reason's own closed
-  # vocabulary — mirrors the --step build --outcome check above, same
-  # posture (reject a token outside the set, name the accepted values).
-  # Optional: an omitted reason still writes a valid unmeasured entry (a
-  # caller that predates this flag, or one that has nothing more specific to
-  # say), so this only fires when a value was actually given.
+  # vocabulary, same posture as --step build --outcome above. Optional: an
+  # omitted reason still writes a valid unmeasured entry, so this fires only when given.
   if [ -n "$sd_reason" ]; then
     case "$sd_reason" in
       dispatch-failed|no-declaration|unsafe-path) ;;
@@ -1447,23 +1320,16 @@ cmd_work_log() {
   local sha rc
   sha="$(head_sha)"
   # Scope-delta measurement (#244): `.scopeDelta` is an append-only log of
-  # per-moment measurements (one entry per work-log call that carries
-  # --scope-delta-phase with either --scope-delta-files or
-  # --scope-delta-unmeasured) — never rewritten, never summed here (the
-  # reader, reference/epic-orchestration.md, does that from the verbatim entries).
-  # `.amendments` is a separate append-only list keyed by file: a one-line
-  # justification attached to a file some moment already counted as
-  # outside the declaration. Neither ever removes or edits a prior entry in
-  # either array, and neither ever touches `.history` or `$outcome` — see
-  # the closed-vocabulary comment above. `unmeasured: true` carries an empty
-  # `outsideFiles` so every entry has the same shape; the boolean, not the
-  # (possibly coincidentally empty) array, is what a reader must branch on —
-  # "unmeasured" and "measured zero" are different facts. `reason` (fix-and-
-  # retry finding 3, #244) is present only on an unmeasured entry whose
-  # caller gave `--scope-delta-reason` — a measured entry never carries the
-  # key at all, and an unmeasured entry from before this flag existed, or
-  # from a caller that omitted it, has no key either; a reader must treat a
-  # missing key the same as "unspecified," never as a parse failure.
+  # per-moment measurements — never rewritten, never summed here (the reader,
+  # reference/epic-orchestration.md, does that from the entries). `.amendments`
+  # is a separate append-only list keyed by file, justifying a file some moment
+  # already counted outside the declaration. Neither ever edits a prior entry
+  # in either array, or touches `.history`/`$outcome`. `unmeasured: true`
+  # carries an empty `outsideFiles` so every entry has the same shape — the
+  # boolean, not the array, is what a reader branches on; "unmeasured" and
+  # "measured zero" are different facts. `reason` (fix-and-retry finding 3,
+  # #244) is present only on an unmeasured entry that gave
+  # `--scope-delta-reason`; a missing key means "unspecified," never a parse failure.
   local sd_write=0
   if [ "$sd_files_given" -eq 1 ] || [ "$sd_unmeasured" -eq 1 ]; then
     sd_write=1
@@ -1491,11 +1357,9 @@ cmd_work_log() {
     --arg s "$sha" --arg t "$(now_iso)"
   rc=$?
 
-  # Event trail: only a call that actually logged a step (`--step`/`--outcome`
-  # given) writes a "step" event — a scope-delta-only or amendment-only call
-  # (no step of its own) has nothing analogous to log here yet, matching this
-  # append's existing contract (reference/events-format.md) of one event per
-  # recorded step, never a spurious empty one.
+  # Only a call that logged a step writes a "step" event — a scope-delta-only
+  # or amendment-only call has nothing to log here, per the one-event-per-step
+  # contract (reference/events-format.md).
   if [ "$rc" -eq 0 ] && [ -n "$step" ]; then
     local ctx epicSlug storySlug
     ctx=$(epic_context_from_slug "$raw_slug")
@@ -1510,19 +1374,16 @@ cmd_work_log() {
   return "$rc"
 }
 
-# Assignment-in-ledger (#295): a dispatch is a ledger write, and the work file is
-# where it lands. `.assignment` is the CURRENT assignment — what the phase now in
-# flight was told — and is what a successor rehydrates from after a crash, a stall,
-# or a park, instead of being re-briefed by a fresh prompt that may have drifted.
-# `.assignments` is the append-only history of every assignment ever written for
-# this feature, which is what makes "what was this worker actually told" answerable
-# after the fact rather than only from a transcript nobody kept.
+# Assignment-in-ledger (#295): a dispatch is a ledger write. `.assignment` is
+# the CURRENT assignment — what the phase now in flight was told — so a
+# successor to a crashed/stalled/parked worker rehydrates from data instead of
+# a fresh, possibly-drifted briefing. `.assignments` is the append-only history
+# of every assignment written for this feature.
 #
-# The payload is the DISPATCHER's, never the worker's: every value here is computed
-# by the caller before the dispatch and typed verbatim by the agent that runs the
-# command, the same posture the driver already uses for its pre-computed
-# `--scope-delta-*` flags. Nothing in this verb interprets, defaults, or judges a
-# field — it records four strings and two lists exactly as handed over.
+# The payload is the DISPATCHER's, never the worker's: every value is computed
+# by the caller before dispatch and typed verbatim, same posture as the
+# driver's pre-computed `--scope-delta-*` flags. This verb records four
+# strings and two lists exactly as handed over — no interpretation.
 cmd_work_assign() {
   local slug="" phase="" brief="" artifacts="" artifacts_given=0 branch="" worktree=""
   while [ $# -gt 0 ]; do
@@ -1540,11 +1401,10 @@ cmd_work_assign() {
     echo "gate-ledger: --slug required" >&2
     return 2
   fi
-  # --phase and --brief are both required, unlike every optional field on
-  # `work-set`: an assignment that names no phase cannot be matched to the
-  # dispatch it describes, and one that carries no brief is a record of nothing.
-  # A half-written assignment is worse than none — a successor would rehydrate
-  # from it and silently resume with less than the first worker had.
+  # --phase and --brief are both required, unlike work-set's optional fields:
+  # an unphased assignment can't be matched to its dispatch, and one with no
+  # brief records nothing. A half-written assignment is worse than none — a
+  # successor would rehydrate with less than the first worker had.
   if [ -z "$phase" ] || [ -z "$brief" ]; then
     echo "gate-ledger: --phase and --brief are both required" >&2
     return 2
@@ -1563,14 +1423,11 @@ cmd_work_assign() {
   ensure_gitignore
   local file; file=$(work_file_init "$slug")
   local sha; sha="$(head_sha)"
-  # The declared file set is deliberately not a field here. It already has one owner —
-  # `.declaredFiles`, written by `work-set --declared-files` — and the same `work-get`
-  # call that reads an assignment back returns it, so copying it into the assignment
-  # would create a second copy of one fact and a drift surface with it.
-  # `artifacts` follows `work-set --declared-files`'s own present-vs-absent rule: an
-  # explicitly empty flag records an empty list (a real contract for no artifact), an
-  # omitted flag leaves the key off entirely (nothing was contracted). A reader must be
-  # able to tell those apart.
+  # The declared file set is deliberately not a field here — `.declaredFiles`
+  # already owns that fact, and `work-get` returns both, so copying it in would
+  # create a drift surface. `artifacts` follows `--declared-files`'s
+  # present-vs-absent rule: an explicitly empty flag records an empty list, an
+  # omitted flag leaves the key off entirely.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
@@ -1616,14 +1473,13 @@ epic_file_init() { # slug → ensures the epic file exists, echoes its path
   printf '%s' "$file"
 }
 
-# Zero-landed stop-loss (#268). Two consecutive invocations that landed nothing
-# arm the refusal; the third dispatch is the one refused. The threshold lives
-# here, not in reference/epic-orchestration.md — a prompt comparing a counter against a
-# literal is the retry-counting-in-prose defect CLAUDE.md names. epic-reconcile
-# computes the boolean; the prose reads it.
+# Zero-landed stop-loss (#268). Two consecutive invocations that landed
+# nothing arm the refusal; the third dispatch is refused. The threshold lives
+# here, not in reference/epic-orchestration.md — a prompt comparing a counter
+# to a literal is the retry-counting-in-prose defect CLAUDE.md names.
+# epic-reconcile computes the boolean; the prose reads it.
 EPIC_ZERO_LANDED_LIMIT=2
-# How many run records an epic file keeps. The stop-loss only ever reads the
-# tail, so an unbounded array would grow for no reader.
+# How many run records an epic file keeps. The stop-loss only reads the tail.
 EPIC_RUN_HISTORY_CAP=20
 
 cmd_epic_set() {
@@ -1647,11 +1503,10 @@ cmd_epic_set() {
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
-  # #311 — how the plan was approved: in-turn ("interactive"), or a recorded viva
-  # sign-off ("viva:<round-ref>") on a brief satisfying reference/epic-plan-contract.md.
-  # A typo here silently reads as "never approved" to epic-reconcile's every caller, so
-  # it fails closed like --acceptance-altitude and --merge-class above rather than
-  # accepting free text.
+  # #311 — how the plan was approved: "interactive" or a recorded viva sign-off
+  # ("viva:<round-ref>") on a brief satisfying reference/epic-plan-contract.md.
+  # A typo would silently read as "never approved" to every epic-reconcile
+  # caller, so this fails closed rather than accepting free text.
   case "$approval" in
     ''|interactive|viva:*) ;;
     *) echo "gate-ledger: --approval must be 'interactive' or 'viva:<round-ref>'" >&2; return 2 ;;
@@ -1677,13 +1532,11 @@ cmd_epic_set() {
     *) echo "gate-ledger: --canary must be 'on' or 'off'" >&2; return 2 ;;
   esac
   # #269, DEFAULT OFF AND NOT YET SAFE TO ENABLE. `delivery-boundary` moves
-  # product judgment to the epic finale and reduces per-story acceptance to
-  # criteria conformance. #269's own text refuses to ship that before the
-  # counter-evidence check it names — #281's findings ledger (the verbs above)
-  # and #133's outcome labels — and that evidence does not exist yet, because
-  # both were built in the same change as this flag. The token is validated
-  # here so a typo can never be mistaken for an opt-in; absence means
-  # `per-story`, today's behavior, unchanged.
+  # product judgment to the epic finale, reducing per-story acceptance to
+  # criteria conformance — gated on counter-evidence (#281's findings ledger,
+  # #133's outcome labels) that doesn't exist yet, since both were built in
+  # the same change as this flag. Validated here so a typo can't be mistaken
+  # for an opt-in; absence means `per-story`, unchanged.
   case "$acceptance_altitude" in
     ''|per-story|delivery-boundary) ;;
     *) echo "gate-ledger: --acceptance-altitude must be 'per-story' or 'delivery-boundary'" >&2; return 2 ;;
@@ -1733,21 +1586,17 @@ cmd_epic_set() {
 }
 
 cmd_epic_run_log() { # --slug E --landed N [--tokens-spent N] -> appends one per-invocation record
-  # The write half of the zero-landed stop-loss (#268). Separate verb rather than
-  # an epic-set flag for the same reason work-log is separate from work-set: this
-  # appends an event, it does not set a field. reference/epic-orchestration.md calls it
-  # once at the close of every driver invocation, with the count the driver
-  # returned — the only number a run report can be wrong about without the
-  # stop-loss ever arming, which is why tests/test_gate_ledger.sh pins it.
+  # Write half of the zero-landed stop-loss (#268). Separate verb, not an
+  # epic-set flag, same reason work-log is separate from work-set: it appends
+  # an event, not a field. reference/epic-orchestration.md calls it once at
+  # the close of every driver invocation — the count is the only thing a run
+  # report can get wrong without the stop-loss ever arming, so
+  # tests/test_gate_ledger.sh pins it.
   #
-  # `--tokens-spent` (#316) is optional and honestly so: nothing in
-  # `workflows/epic-driver.js` returns a per-run spent figure to `/next` today
-  # (only `budget.remaining()`, read internally to decide whether to keep
-  # dispatching, per the same "no usable primitive" honesty
-  # `reference/epic-orchestration.md`'s `budget.note` already states elsewhere).
-  # Recorded when a caller has one to give, summed by a reader
-  # (`scripts/epic-supervisor`, #316) against `.appetite.tokens` — absent runs
-  # contribute 0, never treated as "unknown, so don't stop."
+  # `--tokens-spent` (#316) is optional: nothing in `workflows/epic-driver.js`
+  # returns a per-run spent figure today (only `budget.remaining()`, used
+  # internally). Recorded when given, summed by `scripts/epic-supervisor`
+  # (#316) against `.appetite.tokens` — absent runs contribute 0.
   local slug="" landed="" tokens_spent=""
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -1843,9 +1692,8 @@ cmd_epic_story_set() {
     echo "gate-ledger: --epic and --slug required" >&2
     return 2
   fi
-  # PRODUCT.md's "Merge authority" (#312): decided at plan approval, never inferred
-  # at merge time, so a typo can never be mistaken for a valid class the way
-  # --acceptance-altitude's own validation guards against the same failure above.
+  # PRODUCT.md's "Merge authority" (#312): decided at plan approval, never
+  # inferred at merge time; validated the same way --acceptance-altitude is above.
   case "$merge_class" in
     ''|auto-merge|human-approve|never-unattended) ;;
     *) echo "gate-ledger: --merge-class must be 'auto-merge', 'human-approve', or 'never-unattended'" >&2; return 2 ;;
@@ -1916,42 +1764,35 @@ cmd_epic_story_set() {
 # ---------------------------------------------------------------------------
 #
 # The branch-scoped episode ledger above answers "is this gate's loop
-# converging?" for one branch. This one answers a different question the epic
-# finale used to re-derive from scratch by re-fanning every auditor across the
-# whole integration diff: *what did this epic find, and did it close?*
+# converging?" for one branch. This answers what the epic finale used to
+# re-derive from scratch by re-fanning every auditor across the whole
+# integration diff: what did this epic find, and did it close?
 #
-# Three verbs, all keyed by `--epic` (the same flag `epic-story-set` already
-# uses for the epic, so a story-attributed epic write reads the same way
-# everywhere):
+# Three verbs, all keyed by `--epic` (same flag epic-story-set uses):
 #
-#   epic-finding   one finding's identity + its current state, at a sha
+#   epic-finding   one finding's identity + current state, at a sha
 #   epic-attest    one lane's clean read of one story, at a sha (#130's
-#                  carry-forward attestation: a lane that returned zero
-#                  findings at sha X)
+#                  carry-forward attestation: zero findings at sha X)
 #   epic-findings  the READER — folds the append-only trail into current state
 #
-# **Where it lives, and why.** These land in `.studious/epics/<slug>.events.jsonl`
-# — the same append-only trail `reference/events-format.md` pins — rather than in
-# `<slug>.json`. That is a concurrency requirement, not a filing preference: every
-# `<slug>.json` write goes through `json_update()`, which is read-modify-write, and
-# findings are recorded by story agents running concurrently under one epic. An
-# `O_APPEND` write of one small line never interleaves; a read-modify-write of a
-# shared snapshot silently loses one of two concurrent findings.
+# **Where it lives.** `.studious/epics/<slug>.events.jsonl`, not
+# `<slug>.json` — a concurrency requirement: `<slug>.json` writes go through
+# `json_update()` (read-modify-write), and findings are recorded by story
+# agents running concurrently under one epic. An `O_APPEND` line never
+# interleaves; a read-modify-write of a shared snapshot silently loses one of
+# two concurrent findings.
 #
-# **These two kinds are PRIMARY writes, unlike every other line in that file.**
-# `append_event()` is best-effort by contract — it swallows its own failure and
-# returns 0, because a lost transition line never changes a verdict. A lost
-# *finding* line does: the finale's closure check would see nothing to verify and
-# report clean, which is exactly the rigor property #130 says narrowing must
-# preserve. So these two verbs write through `append_epic_record()` instead,
-# which fails loudly and non-zero, and they refuse to no-op when jq/git are
-# missing rather than degrading like their transition-trail siblings.
+# **These two kinds are PRIMARY writes**, unlike every other line in that
+# file. `append_event()` is best-effort by contract because a lost transition
+# line never changes a verdict; a lost *finding* line does — the finale's
+# closure check would report clean with nothing to verify, violating #130's
+# rigor property. So these two write through `append_epic_record()`, which
+# fails loudly, and refuse to no-op when jq/git are missing.
 #
 # **Identity is the fingerprint, epic-wide**, chosen by the caller and never
-# normalized here — same contract as `episode-finding`'s. The fold below takes a
-# finding's identity fields (lane, story, severity, raised sha) from its FIRST
-# recorded line and its state from its LAST, so a later line cannot launder a
-# Critical down to a lower tier by restating it.
+# normalized — same contract as `episode-finding`. The fold below takes
+# identity fields from the FIRST recorded line and state from the LAST, so a
+# later line can't launder a Critical down by restating it.
 append_epic_record() { # epic, story, kind, jq-object filter for the kind's own fields, then --arg/--argjson pairs
   local epic="$1" story="$2" kind="$3"
   if ! _epic_events_append "$@"; then
@@ -2007,9 +1848,8 @@ cmd_epic_finding() {
       return 2
       ;;
   esac
-  # Same five-word status vocabulary as `episode-finding`, deliberately: one
-  # findings vocabulary in this tool, not two that drift. `closed` is the
-  # resolved state — the line carrying it also carries the resolved sha.
+  # Same status vocabulary as `episode-finding`, deliberately: one findings
+  # vocabulary in this tool. `closed` is resolved — its line also carries the resolved sha.
   case "$status" in
     open|closed|carried|waived|rejected-as-noise) ;;
     *)
@@ -2022,12 +1862,11 @@ cmd_epic_finding() {
     echo "gate-ledger: --waiver requires --status carried, waived, or rejected-as-noise" >&2
     return 2
   fi
-  # The episode ledger's rule 2, at epic scope: setting an unfixed Critical aside
-  # is an accountable act, never a silent one. This line-local check is only half
-  # the guard: alone it was dodged by restating the same fingerprint at a lower
-  # tier (the fold takes status from the LAST line), so the severity-restatement
-  # refusal below — which does read the trail — is what actually pins the tier
-  # this check judges against.
+  # Episode ledger's rule 2, at epic scope: setting an unfixed Critical aside
+  # is accountable, never silent. This line-local check is only half the
+  # guard — alone it's dodged by restating the fingerprint at a lower tier (the
+  # fold takes status from the LAST line) — so the severity-restatement
+  # refusal below, which reads the trail, is what actually pins the tier.
   if [ "$severity" = "Critical" ] && finding_status_is_set_aside "$status" && [ -z "$waiver" ]; then
     echo "gate-ledger: epic-finding refused — a Critical reaches '$status' only with" \
          "--waiver <reason>; fix it, or record why it is being set aside" >&2
@@ -2047,16 +1886,13 @@ cmd_epic_finding() {
   fi
   [ -n "$sha" ] || sha=$(head_sha)
 
-  # Severity is fixed by the fingerprint's FIRST recorded line, epic-wide — the
-  # same "a Critical can never be laundered down" rule episode-finding enforces
-  # on its update path. The fold in cmd_epic_findings already takes severity
-  # from the first line, but folding alone let a restated line dodge rule 2
-  # above: `--severity Critical --status waived` without --waiver is refused
-  # per-line, while the same fingerprint restated `--severity Important
-  # --status waived` was accepted — and the fold then reported a waived
-  # Critical with no waiver on record, with `--unresolved` reading 0. So the
-  # trail is consulted here, one read before the append, skipping malformed
-  # lines exactly as the fold does (`fromjson? // empty`).
+  # Severity is fixed by the fingerprint's FIRST recorded line, epic-wide —
+  # same "no laundering" rule episode-finding enforces. Folding alone let a
+  # restated line dodge rule 2: `--severity Critical --status waived` without
+  # --waiver is refused per-line, but the same fingerprint restated
+  # `--severity Important --status waived` was accepted, and the fold then
+  # reported a waived Critical with no waiver on record. So the trail is
+  # consulted here before the append, skipping malformed lines like the fold does.
   local trail stored_severity
   trail="$(store_dir epics)/$epic.events.jsonl"
   stored_severity=""
@@ -2083,11 +1919,10 @@ cmd_epic_finding() {
 }
 
 cmd_epic_attest() {
-  # #130 mechanism 2's write half. One line per (lane, story) clean read: this
-  # lane ran against this story's changeset at this sha and returned zero
-  # findings. What a reader may CONCLUDE from a set of these is the reader's
-  # problem (workflows/epic-driver.js's finale carries a lane forward only when
-  # every landed story attested it) — this verb records the fact, nothing more.
+  # #130 mechanism 2's write half: one line per (lane, story) clean read — this
+  # lane ran against this story's changeset at this sha and found nothing.
+  # epic-driver.js's finale carries a lane forward only when every landed
+  # story attested it; this verb only records the fact.
   local epic="" story="" lane="" sha=""
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -2123,25 +1958,20 @@ cmd_epic_attest() {
 }
 
 cmd_epic_findings() { # --epic E [--unresolved | --attestations] -> one summary line, then one line per record
-  # The reader `reference/events-format.md` has been waiting for. Folds the
-  # append-only trail — every other kind on those lines is ignored — into current
-  # state, in the same quotable, tab-separated style `episode-get` uses:
+  # Folds the append-only trail into current state, same quotable, tab-
+  # separated style as `episode-get`:
   #
   #   epic <slug> — N finding(s), U unresolved, A attestation(s)
   #   <status>\t<severity>\t<story>\t<lane>\t<fingerprint>\t<raisedSha>\t<resolvedSha>
   #
-  # `--unresolved` keeps only `open` and `carried` — the two states a verdict has
-  # to answer for, exactly as `episode-get` counts them (`closed` is resolved;
-  # `waived`/`rejected-as-noise` are explicitly set aside, with their reason on
-  # the record). `--attestations` prints the clean-lane trail instead:
+  # `--unresolved` keeps only `open`/`carried`, same states `episode-get`
+  # counts. `--attestations` prints the clean-lane trail instead:
   #
   #   attestation\t<lane>\t<story>\t<sha>
   #
-  # A malformed line is skipped (`fromjson? // empty`) rather than failing the
-  # whole read: one corrupt append must not blind the finale to every other
-  # finding. Ordering within one fingerprint is by `at`, which has one-second
-  # resolution — two lines in the same second keep their physical order, which is
-  # their write order.
+  # A malformed line is skipped (`fromjson? // empty`) so one corrupt append
+  # doesn't blind the finale to every other finding. Ordering within a
+  # fingerprint is by `at` (one-second resolution); same-second lines keep write order.
   local epic="" unresolved=0 attestations=0
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -2186,26 +2016,23 @@ cmd_epic_findings() { # --epic E [--unresolved | --attestations] -> one summary 
 }
 
 cmd_worktree_path() { # --slug E [--story S | --json] -> one path, or the epic's whole layout as JSON
-  # The read side of worktree_path() above — what makes it the layout's owner
-  # for callers that aren't this script.
+  # Read side of worktree_path() above.
   #
   #   --slug E             the epic's `__epic` integration checkout
   #   --slug E --story S   story S's checkout
   #   --slug E --json      {"epic": "…", "stories": {"<story>": "…", …}} over
   #                        every story recorded in the epic file
   #
-  # The --json form has exactly one caller, and it needs the whole map rather
-  # than one path per call for a structural reason: workflows/epic-driver.js
-  # runs on the Workflow substrate with no filesystem or exec access, so it can
-  # never invoke this verb itself. reference/epic-orchestration.md calls it once and
-  # hands the result to the driver as args.worktrees. The layout crosses that
-  # boundary as data — the only way the driver can reference the owner instead
-  # of re-deriving the layout a fourth time (#166).
+  # --json has one caller: epic-driver.js runs on the Workflow substrate with
+  # no filesystem/exec access, so it can't invoke this verb itself.
+  # reference/epic-orchestration.md calls it once and hands the result to the
+  # driver as args.worktrees, letting the driver reference the layout as data
+  # instead of re-deriving it (#166).
   #
   # The two plain forms compose a path without consulting the epic file, so
-  # they answer for a worktree that doesn't exist yet — reference/epic-orchestration.md's step 5
-  # runs `git worktree add` at a path this verb resolved before there was an
-  # epic file to read.
+  # they answer for a worktree that doesn't exist yet —
+  # reference/epic-orchestration.md's step 5 runs `git worktree add` at a path
+  # this verb resolves first.
   local slug="" story="" as_json=""
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -2272,19 +2099,16 @@ cmd_worktree_path() { # --slug E [--story S | --json] -> one path, or the epic's
 }
 
 reconcile_story() { # <epic-slug> <story-slug> <epic-json> <repo-root> -> that story's object for .stories[<story>]
-  # One story's reconciled record: its work file, its gate verdicts at the story
-  # branch's HEAD, and the two mechanical checks epic-reconcile adds on top
-  # (designDocExists, landedButUnmerged). Extracted from cmd_epic_reconcile's
-  # loop body (#165) so the per-story shape has one place to grow a field; the
-  # caller owns iteration and accumulation, this owns exactly one story.
+  # One story's reconciled record: work file, gate verdicts at the story
+  # branch's HEAD, and two mechanical checks (designDocExists,
+  # landedButUnmerged). Extracted from cmd_epic_reconcile's loop (#165) so the
+  # per-story shape has one place to grow a field.
   #
-  # Every input arrives as an argument — nothing is read out of the caller's
-  # scope — so this reads as a function of its inputs rather than of whatever
-  # `local` the loop happens to be standing in.
+  # Every input arrives as an argument, nothing read from caller scope.
   #
-  # Returns 1, printing its diagnostic to stderr and nothing to stdout, when a
-  # stored file this story depends on is corrupted. The caller MUST propagate
-  # that: swallowing it emits a partial payload under a zero exit code.
+  # Returns 1, diagnostic to stderr, nothing to stdout, when a stored file this
+  # story depends on is corrupted — the caller MUST propagate that; swallowing
+  # it emits a partial payload under a zero exit code.
   local slug="$1" s="$2" epic_json="$3" root="$4"
   local work_json gate_json story_status design_doc story_sha wt_base design_exists landed_unmerged
 
@@ -2303,17 +2127,15 @@ reconcile_story() { # <epic-slug> <story-slug> <epic-json> <repo-root> -> that s
   story_status=$(printf '%s' "$epic_json" | jq -r --arg s "$s" '.stories[$s].status // ""')
   story_sha=$(git rev-parse --short "refs/heads/epic/$slug--$s" 2>/dev/null || echo "")
 
-  # designDocExists: null when no designDoc is recorded, or when the
-  # worktree it would live in is already gone (degrade, don't crash or
-  # false-flag — see the design doc's open question on this).
+  # designDocExists: null when no designDoc is recorded, or its worktree is
+  # already gone (degrade, don't crash or false-flag).
   design_doc=""
   [ -n "$work_json" ] && design_doc=$(printf '%s' "$work_json" | jq -r '.designDoc // ""')
   if [ -z "$design_doc" ]; then
     design_exists="null"
   else
-    # A landed story's own worktree is removed at merge, so its doc is looked up
-    # in the integration worktree instead — both paths from worktree_path(), the
-    # one owner of this layout.
+    # A landed story's worktree is removed at merge, so its doc is looked up
+    # in the integration worktree instead.
     if [ "$story_status" = "landed" ]; then
       wt_base=$(worktree_path "$root" "$slug")
     else
@@ -2329,9 +2151,9 @@ reconcile_story() { # <epic-slug> <story-slug> <epic-json> <repo-root> -> that s
   fi
 
   # landedButUnmerged: only meaningful for a story recorded `landed`.
-  # merge-base --is-ancestor collapses "never merged", "branch doesn't
-  # exist", and "not an ancestor yet" to the same non-zero exit — exactly
-  # "not verified merged," which is the fail-closed answer this wants.
+  # merge-base --is-ancestor collapses "never merged", "branch doesn't exist",
+  # and "not an ancestor yet" to the same non-zero exit — the fail-closed
+  # answer this wants.
   landed_unmerged="false"
   if [ "$story_status" = "landed" ] && ! git merge-base --is-ancestor \
       "refs/heads/epic/$slug--$s" "refs/heads/epic/$slug" 2>/dev/null; then
@@ -2347,24 +2169,20 @@ reconcile_story() { # <epic-slug> <story-slug> <epic-json> <repo-root> -> that s
 }
 
 cmd_epic_reconcile() { # --slug E -> one JSON payload replacing work-through's ~15-20 sequential reads
-  # Composes cmd_epic_get / cmd_work_get / cmd_gate_get as in-process bash calls
-  # (reuse, not re-derivation of their path/slug logic — see the design doc),
-  # then adds two mechanical, non-judgment checks per story: whether its
-  # recorded designDoc exists on disk, and whether a story recorded `landed`
-  # is actually an ancestor of the epic branch. This verb only aggregates and
-  # computes; it never corrects a mismatch or decides a story's next phase —
-  # that judgment stays in reference/epic-orchestration.md's prose.
+  # Composes cmd_epic_get/cmd_work_get/cmd_gate_get as in-process bash calls,
+  # then adds two mechanical checks per story: whether its recorded designDoc
+  # exists on disk, and whether a `landed` story is actually an ancestor of the
+  # epic branch. This verb only aggregates and computes; deciding a story's
+  # next phase stays in reference/epic-orchestration.md's prose.
   local slug="" override="false"
   while [ $# -gt 0 ]; do
     case "$1" in
       --slug) slug="$2"; shift 2 ;;
-      # The operator's explicit consent to dispatch past the zero-landed stop-loss,
-      # for this one invocation (#268). It belongs here because this is where
-      # `.stopLoss.refuse` is computed — reference/epic-orchestration.md strips the same flag
-      # off `$ARGUMENTS` and passes it through, so the instruction that refusal prints
-      # ("re-invoke with --override-stop-loss") reaches a receiver that exists. It
-      # suppresses the refusal for this read and nothing else: no state is written, the
-      # streak keeps counting, and the next invocation without the flag refuses again.
+      # Operator's explicit consent to dispatch past the zero-landed stop-loss,
+      # for this one invocation (#268) — belongs here because `.stopLoss.refuse`
+      # is computed here; reference/epic-orchestration.md passes the same flag
+      # through. Suppresses the refusal for this read only: no state is written,
+      # the streak keeps counting, the next invocation without the flag refuses again.
       --override-stop-loss) override="true"; shift ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
@@ -2399,8 +2217,7 @@ cmd_epic_reconcile() { # --slug E -> one JSON payload replacing work-through's ~
   while IFS= read -r s; do
     [ -n "$s" ] || continue
     # Assignment first, status test second: `local x=$(…)` would mask the
-    # helper's exit code, turning a corrupted stored file into a silent partial
-    # payload. The helper prints its own diagnostic to stderr before failing.
+    # helper's exit code, turning a corrupted file into a silent partial payload.
     story_obj=$(reconcile_story "$slug" "$s" "$epic_json" "$root") || return 1
     # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
     stories_json=$(jq -n \
@@ -2410,19 +2227,15 @@ cmd_epic_reconcile() { # --slug E -> one JSON payload replacing work-through's ~
 
   # Zero-landed stop-loss (#268), computed here rather than compared in prose.
   # `consecutiveZeroLanded` counts the trailing run of invocations that landed
-  # nothing; `refuse` is true once that run reaches the limit, meaning the
-  # dispatch this reconcile is preparing would be the (limit + 1)th consecutive
-  # zero-landed one. An epic with no `runs` yet (recorded before this field
-  # existed, or never driven) reads 0 / false — absence is not evidence of a
-  # stalled epic.
+  # nothing; `refuse` is true once that run reaches the limit. An epic with no
+  # `runs` yet reads 0/false — absence isn't evidence of a stalled epic.
   #
-  # `--override-stop-loss` suppresses `refuse` and sets `overridden` in its place, so a
-  # reader can tell "never refused" from "refused, and the operator consented anyway."
-  # `overridden` is true only when the flag was passed AND the streak had actually
-  # reached the limit: a flag passed at a healthy epic is a no-op that must not read as
-  # a suppressed refusal in the run report. `consecutiveZeroLanded` is reported
-  # unchanged either way — the override is consent to dispatch, never a reset of the
-  # count, so the next invocation without the flag refuses again.
+  # `--override-stop-loss` suppresses `refuse` and sets `overridden` instead,
+  # so a reader can tell "never refused" from "refused, operator consented."
+  # `overridden` is true only when the flag was passed AND the streak had
+  # actually hit the limit — a flag at a healthy epic must not read as a
+  # suppressed refusal. `consecutiveZeroLanded` is reported unchanged either
+  # way: the override is consent to dispatch, never a reset.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   jq -n --argjson epic "$epic_json" --argjson stories "$stories_json" \
     --arg limit "$EPIC_ZERO_LANDED_LIMIT" --argjson override "$override" \
@@ -2463,22 +2276,15 @@ cmd_work_list() {
 # Scope-delta measurement (#244) acceptance fix-and-retry: how long cmd_gc's
 # measured-scope-delta guard (below) keeps a work file before collecting it
 # regardless. Bounded, not permanent — the guard's first cut (`kept ... unless
-# --force`) had no terminating condition, so it never released a file to the
-# default (no-`--force`) path at all, silently re-disabling #237's fix on the
-# exact epic-driven files it was written for. Three mechanisms were on the
-# table: read-marking, bounded retention, per-slug opt-out. Read-marking is
-# rejected because `work-get` is called constantly by the driver's own
-# in-flow fact-checks (workflows/epic-driver.js) — marking "read" there would
-# defeat the guard before a human ever saw the cohort, the same failure this
-# guard exists to prevent, just relocated to a different call site. A
-# per-slug opt-out is rejected because it is `--force` at file granularity —
-# still a new action a human must remember to take, per file, rather than the
-# guard ever releasing on its own. Bounded retention needs neither: the same
-# plain `gc` a user already runs collects on its own once the window lapses,
-# so a batch run stops being a permanent trap without adding a second way to
-# lose data early. Not a flag — a configurable threshold is exactly the
-# round-one-deferred "no threshold" surface this story's epic-planning
-# decisions ruled out; the constant below is the whole knob for now.
+# --force`) had no terminating condition, silently re-disabling #237's fix on
+# the exact files it was written for. Read-marking was rejected: `work-get` is
+# called constantly by the driver's in-flow fact-checks (epic-driver.js), so
+# marking "read" there would defeat the guard before a human ever saw the
+# cohort. A per-slug opt-out was rejected as `--force` at file granularity —
+# still a manual action per file. Bounded retention needs neither: plain `gc`
+# collects on its own once the window lapses. Not a flag — a configurable
+# threshold is the "no threshold" surface epic-planning decisions ruled out;
+# this constant is the whole knob.
 SCOPE_DELTA_RETENTION_DAYS=14
 
 scope_delta_retention_lapsed() { # file -> true (exit 0) once its last write is older than the keep window; false (exit 1) otherwise, and fail toward keeping (false) on any read failure or missing timestamp
@@ -2494,18 +2300,14 @@ cmd_gc() {
   # Scope-delta measurement (#244), pre-mortem register item 7 (REALIZED): a
   # work file is the only copy of `declaredFiles`/`scopeDelta`/`amendments` —
   # collecting it discards that story's measurement cohort for good. `--force`
-  # opts back into the old unconditional-collect behavior; without it, a work
-  # file that would otherwise be collected but still carries at least one
-  # *measured* `.scopeDelta` moment (an entry with `unmeasured: true` carries
-  # no file data by construction — see work-log above — so an all-unmeasured cohort has
-  # nothing this guard exists to save; narrowing on measured entries, rather
-  # than widening to `declaredFiles != null`, keeps a fallback-driven epic's
-  # own --scope-delta-unmeasured-only moments from pinning every work file it
-  # touches) is kept instead, named in the output, so a batch `gc` run can't
-  # silently erase a cohort the same run it's needed for (success metric 1
-  # wants 5-10 stories' worth, the same order of magnitude as the doctor's own
-  # "more than 10 work files" gc recommendation). The keep itself is bounded
-  # by SCOPE_DELTA_RETENTION_DAYS above — see that constant's comment for why.
+  # opts back into unconditional collection; without it, a work file that
+  # would otherwise be collected but still carries at least one *measured*
+  # `.scopeDelta` moment (`unmeasured: true` carries no file data by
+  # construction, so an all-unmeasured cohort has nothing to save; narrowing on
+  # measured entries rather than `declaredFiles != null` keeps a
+  # fallback-driven epic's unmeasured-only moments from pinning every file it
+  # touches) is kept instead, named in the output. The keep is bounded by
+  # SCOPE_DELTA_RETENTION_DAYS above.
   local force=0
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -2529,47 +2331,32 @@ cmd_gc() {
   # Work files: two independent collection rules, either one sufficient.
   #
   #   1. The branch is gone. The flow it tracked cannot be resumed.
-  #   2. The phase is terminal (`done`/`stopped`). The file is flow *position*,
-  #      and a finished flow has none; the durable record is the commit history,
-  #      the PR, and the pre-mortem register.
+  #   2. The phase is terminal (`done`/`stopped`). A finished flow has no
+  #      position left to track; the durable record is commit history, the PR,
+  #      and the pre-mortem register.
   #
-  # Rule 2 exists because rule 1 alone could not fire on the epic path (#237):
-  # a landed story's branch is deliberately kept, so its work file was pinned
-  # forever at phase `merge` and `/next` counted it as an active feature. Once
-  # the driver writes a terminal phase, this is what actually collects it.
+  # Rule 2 exists because rule 1 alone couldn't fire on the epic path (#237): a
+  # landed story's branch is deliberately kept, so its work file stayed pinned
+  # at phase `merge` and `/next` counted it active. A work file with no branch
+  # yet (decide/design) is kept unless its phase is terminal.
   #
-  # A work file with no branch yet (decide/design happen before one exists) is
-  # kept unless its phase is terminal.
-  # Scope-delta measurement (#244) acceptance fix-and-retry, finding 2: the
-  # measured-scope-delta guard below applies to rule 2 (terminal phase) ONLY —
-  # never to rule 1 (branch gone), a deliberate asymmetry, not an oversight.
-  # A story a human parked and then abandoned (deleted its branch, per
-  # `reference/epic-orchestration.md`'s own parked-story instructions) never reached
-  # acceptance, so its cohort is incomplete by construction and can never feed
-  # the success-metric read the guard exists to protect (design doc's
-  # "Success metrics" scopes that read to *landed* stories). Guarding rule 1
-  # too was tried and reverted: `commands/next.md`'s resolve-the-feature
-  # step selects by phase alone, never branch existence, so a rule-1 file the
-  # guard kept pinned stayed counted Active in `commands/doctor.md`'s
-  # own >10 threshold — silently reintroducing the #237 symptom rule 2 exists
-  # to avoid, to protect data nothing reads. Scoping the guard to rule 2 alone
-  # keeps that command's Active count, and its "gc will collect it" promise
-  # for a branch-gone file, both true as written.
-  # This guard reads `.scopeDelta` — a field only `work-set --declared-files`
-  # and `work-log --scope-delta-*` (below, and cmd_work_log above) ever
-  # populate. A rollback that deletes just those two writers leaves this
-  # guard, and the three scope-delta-conditional `printf` sites it feeds (one
-  # `kept:` message, one past-retention-window `removed` message, and one
-  # `--force discarded` message, all in rule 2's branch below), reading a
-  # field nothing populates anymore: every file's `sd_len` computes to 0, the
-  # guard never arms, and `gc` silently reverts to always collecting rule-2
-  # files on first pass — the pre-#237 regression, with no visible symptom.
-  # Roll back this whole block (`scope_delta_retention_lapsed` above included)
-  # and the five `.scopeDelta`-describing spots in `commands/studious-
-  # doctor.md` — its Retained bullet, both Classify thresholds that mention
-  # retained files, the branch-gone bullet (finding 2's own asymmetry note),
-  # and the Flow state output line — in the same change, or
-  # the rollback is incomplete.
+  # Scope-delta measurement (#244) fix-and-retry, finding 2: the
+  # measured-scope-delta guard below applies to rule 2 ONLY, never rule 1 — a
+  # deliberate asymmetry. A story parked and then abandoned (branch deleted)
+  # never reached acceptance, so its cohort is incomplete and can't feed the
+  # success-metric read the guard protects. Guarding rule 1 too was tried and
+  # reverted: commands/next.md selects by phase alone, so a rule-1 file the
+  # guard kept pinned stayed counted Active in commands/doctor.md's >10
+  # threshold — reintroducing #237's symptom to protect data nothing reads.
+  #
+  # This guard reads `.scopeDelta`, populated only by `work-set
+  # --declared-files` and `work-log --scope-delta-*`. Rolling back just those
+  # two writers leaves this guard and its three conditional printf messages
+  # reading a field nothing populates: `sd_len` computes to 0 everywhere, the
+  # guard never arms, and `gc` silently reverts to the pre-#237 regression with
+  # no visible symptom. Roll back this whole block
+  # (`scope_delta_retention_lapsed` included) and the five `.scopeDelta` spots
+  # in `commands/studious-doctor.md` together, or the rollback is incomplete.
   local wdir; wdir=$(store_dir work)
   local phase sd_len slug
   for f in "$wdir"/*.json; do
@@ -2579,8 +2366,7 @@ cmd_gc() {
     sd_len=$(jq -r '(.scopeDelta // []) | map(select(.unmeasured != true)) | length' "$f" 2>/dev/null)
     slug=$(basename "$f" .json)
     if [ "$phase" = "done" ] || [ "$phase" = "stopped" ]; then
-      # Fix-and-retry finding 4 (#244 round 9): the read verb the retention
-      # exists for, not just the two ways to destroy it.
+      # Fix-and-retry finding 4 (#244 round 9): the read path the retention exists for.
       if [ "$force" -ne 1 ] && [ -n "$sd_len" ] && [ "$sd_len" != "0" ] && ! scope_delta_retention_lapsed "$f"; then
         printf 'kept: %s still holds %s measured scope-delta moment(s) — gate-ledger work-get --slug "%s" to read it, gc --force to collect now, or plain gc collects it %s days after its last write\n' \
           "$slug" "$sd_len" "$slug" "$SCOPE_DELTA_RETENTION_DAYS"
@@ -2605,16 +2391,13 @@ cmd_gc() {
     fi
   done
 
-  # Epic state: collect an epic the driver finished (`epic-set --status ready`,
-  # its finale step) once its integration branch is gone — which is what merging
-  # the epic PR and deleting the branch leaves behind. `ready` alone is not
-  # enough: it means "ready for you to open the PR", so the branch is still live
-  # and the epic is still the answer to "what is in flight". Both conditions
-  # together mean the epic shipped.
+  # Epic state: collect an epic the driver finished (`epic-set --status ready`)
+  # once its integration branch is gone — what merging the epic PR and
+  # deleting the branch leaves behind. `ready` alone isn't enough: it means
+  # "ready for you to open the PR", branch still live. Both together mean shipped.
   #
-  # An epic still `running`, or one whose branch survives, is left alone — that
-  # includes an epic parked on a story, which is exactly the state a user needs
-  # to still be able to see.
+  # An epic still `running`, or one whose branch survives — including one
+  # parked on a story — is left alone; a user needs to still see that state.
   local edir; edir=$(store_dir epics)
   local status eslug
   for f in "$edir"/*.json; do
@@ -2630,18 +2413,14 @@ cmd_gc() {
     fi
   done
 
-  # Telemetry: a branch's routing lines (`<branch-slug>.jsonl`) and its
-  # last-run sidecar (`<branch-slug>.run`) are keyed by branch SLUG, not
-  # branch name — branch_slug() collapses '/' to '-' and neither file carries
-  # a `.branch` field to read back. So "the branch is gone" is tested against
-  # the slugs of the branches that still exist: a telemetry file whose name
-  # matches no live branch's slug belongs to a deleted branch, the same fact
-  # rule 1 tests for gates and work files above. A slug shared by a live branch (feat/foo
-  # vs feat-foo) keeps the file — the same collision posture the gates
-  # ledger's branch-mismatch read already takes. Unconditional like the other
-  # per-branch rules: `--force` neither widens nor narrows this (it only
-  # governs the measured-scope-delta keep above), and the current branch's
-  # files survive by being a live branch's, never by a special case.
+  # Telemetry: keyed by branch SLUG, not name — branch_slug() collapses '/' to
+  # '-' and neither file carries a `.branch` field. So "branch gone" is tested
+  # against the slugs of branches that still exist: a file matching no live
+  # slug belongs to a deleted branch. A slug shared by a live branch (feat/foo
+  # vs feat-foo) keeps the file — same collision posture as the gates ledger's
+  # branch-mismatch read. Unconditional: `--force` doesn't affect this (only
+  # the scope-delta keep above), and the current branch's files survive by
+  # being a live branch's, not a special case.
   local tdir; tdir=$(store_dir telemetry)
   local live_slugs tslug
   live_slugs=$(git for-each-ref refs/heads --format='%(refname:short)' 2>/dev/null | tr '/' '-')
@@ -2689,11 +2468,9 @@ cmd_evidence_append() { # append-only: one jq -nc object per call, >> the branch
   mkdir -p "$dir"
   local file; file="$dir/$(branch_slug).jsonl"
 
-  # capturer is hardcoded, never a caller-supplied flag: only this verb may
-  # write "hook" as the capturer, so a caller can't spoof a different one.
-  # predicateType/predicate.configuration are fixed to the one in-toto
-  # test-result shape this story maps every captured command onto (see
-  # reference/evidence-format.md) — not exposed as flags in v0.
+  # capturer is hardcoded, never a caller-supplied flag, so a caller can't
+  # spoof a different one. predicateType/predicate.configuration are fixed to
+  # the one in-toto test-result shape (reference/evidence-format.md), not exposed as flags in v0.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   jq -nc \
     --arg capturedAt "$(now_iso)" --arg origin "$origin" --arg agentType "$agent_type" \
@@ -2734,14 +2511,12 @@ cmd_telemetry_dispatch() { # append-only: one `dispatch` line per review agent s
     hook|driver) ;;
     *) echo "gate-ledger: --capturer must be 'hook' or 'driver'" >&2; return 2 ;;
   esac
-  # routing_reason is a closed prefix set, validated here rather than trusted:
-  # a free-text reason makes the column unqueryable, which is the one thing this
-  # record exists for. `override` covers anything that displaced the static
-  # roster (a narrowed re-audit round is the case today). The two prefixed
-  # forms carry a real remainder check, not a glob that stops at the first
-  # character: `classifier:v` takes digits ONLY after the v, and an `ab:` arm
-  # is a single token under the same whitespace/control guard the finding
-  # identity fields use — reference/telemetry-format.md pins this grammar.
+  # routing_reason is a closed prefix set, validated here: free text would make
+  # the column unqueryable, the one thing this record exists for. `override`
+  # covers anything that displaced the static roster (a narrowed re-audit round
+  # today). The two prefixed forms carry a real remainder check: `classifier:v`
+  # takes digits only after the v, and an `ab:` arm is a single token under the
+  # same guard the finding identity fields use — reference/telemetry-format.md pins this grammar.
   case "$routing_reason" in
     static|override) ;;
     classifier:v*)
@@ -2759,13 +2534,12 @@ cmd_telemetry_dispatch() { # append-only: one `dispatch` line per review agent s
       fi ;;
     *) echo "gate-ledger: --routing-reason must be static, override, classifier:v<N>, or ab:<arm>" >&2; return 2 ;;
   esac
-  # --role is the one field that becomes a filesystem path below
-  # ("$CLAUDE_PLUGIN_ROOT/agents/<role>.md", read for its model:/effort: pins),
-  # so it is validated at the boundary exactly like every sibling field above.
-  # A role is an agent's own `name` — `security-auditor`-shaped — never a path:
-  # `--role ../CLAUDE` otherwise resolves to and reads a file outside agents/.
-  # hooks/dispatch-telemetry.sh's roster check happens to exclude these today,
-  # but the verb accepts a role from any caller, so the guard belongs here.
+  # --role becomes a filesystem path below
+  # ("$CLAUDE_PLUGIN_ROOT/agents/<role>.md"), so it's validated at the
+  # boundary: a role is an agent's `name`, never a path — `--role ../CLAUDE`
+  # would otherwise read a file outside agents/. hooks/dispatch-telemetry.sh's
+  # roster check happens to exclude these today, but this verb accepts a role
+  # from any caller.
   case "$role" in
     */*|*..*|-*)
       echo "gate-ledger: --role must be an agent name, not a path" \
@@ -2777,13 +2551,10 @@ cmd_telemetry_dispatch() { # append-only: one `dispatch` line per review agent s
     return 0
   fi
 
-  # model/effort resolve from the agent's own frontmatter when the caller didn't
-  # state them, so both write paths get the pin from ONE place instead of each
-  # re-deriving it — the hook has no reason to know how an agent file is shaped,
-  # and the driver only states a tier for the lanes it pins itself. `inherit` is
-  # recorded verbatim; it is the live signal for #136, not a value to normalize
-  # away. A role with no agent file (e.g. the driver's fix-delta pass) simply
-  # leaves both empty unless flags supplied them.
+  # model/effort resolve from the agent's own frontmatter when the caller
+  # didn't state them, so both write paths get the pin from ONE place. `inherit`
+  # is recorded verbatim — it's the live signal for #136, not normalized away.
+  # A role with no agent file (e.g. the driver's fix-delta pass) leaves both empty.
   local agent_file="${CLAUDE_PLUGIN_ROOT:-}/agents/${role}.md"
   if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$agent_file" ]; then
     [ -n "$model" ]  || model=$(sed -n 's/^model:[[:space:]]*//p' "$agent_file" | head -n 1)
@@ -2816,9 +2587,9 @@ cmd_telemetry_dispatch() { # append-only: one `dispatch` line per review agent s
     --arg model "$model" --arg effort "$effort" --arg routing_reason "$routing_reason" \
     --argjson features "$feature_json"
 
-  # Remember this run for the branch, so cmd_record's outcome line can join to it
-  # without any prompt having to carry a run id (reference/telemetry-format.md,
-  # "How a verdict finds its run"). Best-effort like every write in this verb.
+  # Remember this run for the branch, so cmd_record's outcome line can join to
+  # it without any prompt carrying a run id (reference/telemetry-format.md).
+  # Best-effort like every write in this verb.
   printf '%s\n' "$run_id" > "$(telemetry_run_file)" 2>/dev/null || true
   return 0
 }
@@ -2832,12 +2603,10 @@ cmd_evidence_list() { # optional --branch B: print that branch's evidence .jsonl
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
-  # Same store_dir(evidence)/branch_slug() anchoring evidence-append already uses,
-  # so a caller never re-derives repo-root or slug logic itself — one place
-  # this store's location lives, reused by both the writer and this reader.
-  # Named generically on purpose: this file is shared bookkeeping on the
-  # guarded surface, so it never names a producer door. Mirrors cmd_gate_get's shape: resolve one
-  # branch's file, print it verbatim, nothing if it doesn't exist yet.
+  # Same store_dir(evidence)/branch_slug() anchoring evidence-append uses.
+  # Named generically on purpose: shared bookkeeping on the guarded surface
+  # never names a producer door. Mirrors cmd_gate_get's shape: resolve one
+  # branch's file, print it verbatim, nothing if absent.
   local slug; slug=$(branch_slug "$branch")
   local file; file="$(store_dir evidence)/$slug.jsonl"
   [ -f "$file" ] || return 0
@@ -2848,17 +2617,13 @@ cmd_evidence_list() { # optional --branch B: print that branch's evidence .jsonl
     return 0
   fi
 
-  # --dedupe: keep exactly one record per distinct `command` value — the one
-  # appended last — printed in the survivors' original (chronological)
-  # relative order. Index-based (to_entries/reduce over a command->last-index
-  # map), deliberately not unique_by (which sorts by the grouping key and
-  # would reorder output alphabetically by command) or whole-object equality
-  # (a latent bug for two records byte-identical in every field, including
-  # capturedAt — both would match and both would survive). See
-  # docs/studious/premortems/2026-07-21-evidence-list-dedupe-design.md.
-  # Fails closed: no jq, or a malformed line, means no stdout and a non-zero
-  # exit — every existing caller already treats an evidence-list error
-  # identically to empty output.
+  # --dedupe: keep one record per distinct `command` value (the one appended
+  # last), in original chronological order. Index-based (to_entries/reduce
+  # over a command->last-index map), deliberately not unique_by (reorders
+  # alphabetically) or whole-object equality (latent bug: two records
+  # byte-identical in every field, capturedAt included, would both survive).
+  # See docs/studious/premortems/2026-07-21-evidence-list-dedupe-design.md.
+  # Fails closed: no jq or a malformed line means no stdout, non-zero exit.
   if ! have jq; then
     echo "gate-ledger: evidence-list --dedupe requires jq" >&2
     return 1

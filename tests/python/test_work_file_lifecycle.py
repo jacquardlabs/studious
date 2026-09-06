@@ -1,20 +1,13 @@
-"""A landed story must close its work file out (issue #237).
+"""A landed story must close its work file out (#237).
 
-`.studious/work/` had 35 files and 34 were "active" — 33 pinned at phase `merge`.
-`commands/next.md` lists every active feature and asks which one you mean, so
-"do the next piece" became a 34-item menu.
+Root cause: landing a story keeps the branch, so `gate-ledger gc`'s
+branch-gone rule never fires — `.studious/work/` accumulated 35 files, 34
+still "active" in `commands/next.md`'s menu.
 
-The cause was not worktree leakage: of those 34, only 2 were pinned by a live
-worktree. It was that **the epic path has no terminal write**. Landing a story sets
-`epic-story-set --status landed` and deliberately *keeps the branch*, so
-`gate-ledger gc`'s branch-gone rule could never fire — it collected 1 of 35.
-
-Two things had to change together, and either one alone is useless:
-
-- the driver writes a terminal phase when a story lands (both execution modes), and
-- `gc` collects on terminal phase, not only on a missing branch.
-
-These tests pin the first. The second is covered by `tests/test_gate_ledger.sh`.
+Fix requires both: the driver writes a terminal phase on landing (both
+execution modes), and `gc` collects on terminal phase, not only a missing
+branch. These tests pin the first; `tests/test_gate_ledger.sh` covers the
+second.
 
 Static text checks — no live model, no subprocess.
 """
@@ -60,9 +53,8 @@ def test_driver_writes_a_terminal_phase_when_a_story_lands() -> None:
 
 
 def test_the_prompt_fallback_writes_it_too() -> None:
-    """`reference/epic-orchestration.md` is the execution mode used where the Workflow tool
-    isn't available. It has identical semantics by contract, so a fix that lands in
-    only one mode is a fix that leaks on the other."""
+    """`reference/epic-orchestration.md` is the fallback mode when the Workflow tool
+    isn't available; a fix landing in only one mode leaks on the other."""
     text = WORK_THROUGH.read_text(encoding="utf-8")
     assert "--status landed" in text
     match = re.search(r"work-log --slug \"<slug>--<story>\" --step merge --outcome (\w+) --phase (\w+)", text)
@@ -96,9 +88,8 @@ def test_gc_collects_on_terminal_phase() -> None:
 
 
 def test_gc_will_not_collect_an_epic_that_has_not_shipped() -> None:
-    """`ready` is the driver's finale status and means "ready for you to PR" — the
-    branch is live and the epic is still the answer to "what's in flight". Collecting
-    on status alone would delete state for an epic the user hasn't merged yet."""
+    """`ready` means "ready for you to PR" — branch still live. Collecting on
+    status alone would delete state for an epic the user hasn't merged yet."""
     text = LEDGER.read_text(encoding="utf-8")
     match = re.search(r'\[ "\$status" = "ready" \] \|\| continue(.*?)fi', text, re.DOTALL)
     assert match, "gc's epic rule no longer keys on ready"
@@ -114,9 +105,8 @@ def test_work_on_caps_the_disambiguation_menu() -> None:
 
 
 def test_doctor_reports_flow_state_but_does_not_collect_it() -> None:
-    """`/doctor` is where a user finds out the store needs collecting — it
-    is the command for silent degradation. It stays recommend-only like everything
-    else there."""
+    """`/doctor` surfaces that the store needs collecting; it stays
+    recommend-only like everything else there."""
     text = DOCTOR.read_text(encoding="utf-8")
     assert "## 4. Flow-state hygiene" in text
     assert "gate-ledger gc" in text
@@ -124,12 +114,10 @@ def test_doctor_reports_flow_state_but_does_not_collect_it() -> None:
 
 
 def test_doctor_menu_threshold_is_keyed_on_active_not_total() -> None:
-    """An acceptance fix-and-retry round found the '>10 work files' threshold counted
-    *every* work file, including scope-delta-retained ones sitting at a terminal
-    phase — files `commands/next.md`'s own menu (phase not `done`/`stopped`)
-    never lists. The threshold must be stated against the active count, not the
-    raw `work-list` count, or the doctor's consequence is false for exactly the
-    cohort #244 introduced."""
+    """The '>10 work files' threshold once counted every work file, including
+    scope-delta-retained ones at a terminal phase that `commands/next.md`'s
+    menu never lists. Must key on the active count, not raw `work-list`, or
+    the doctor's consequence is false for the cohort #244 introduced."""
     text = DOCTOR.read_text(encoding="utf-8")
     assert "More than 10 active work files" in text
     assert "phase not `done`/`stopped`" in text

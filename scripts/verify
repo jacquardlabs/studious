@@ -3,84 +3,64 @@
 
 Independently re-runs a task's Done-means items — one PASS/FAIL per item,
 never a single suite-level boolean — instead of trusting the executor's
-claim that they're satisfied (PRODUCT.md's "Nothing signs off on itself"
-principle). Takes its
-item list from exactly one of two sources:
+claim that they're satisfied (PRODUCT.md's "Nothing signs off on itself").
+Item list comes from exactly one of two sources:
 
-- `--items <json>`: an already-extracted item list (a small JSON document
-  — see the module-level `ITEMS_SCHEMA` note below), hand-transcribed by
-  the orchestrating model from a `PLAN.md` task block.
-- `--plan <path> --task <label>`: derives the items mechanically from the
-  named task's checkpoint block — the same grammar `scripts/plan-lint`
-  validates and `skills/build/SKILL.md` documents, parsed by the shared
-  `scripts/_planparse.py` module so the two scripts can't drift apart.
-  `--task` names the task by its heading number (`3` or `Task 3`).
-  A `script`/`test-backed` item's backtick-quoted repo-relative method
-  path becomes its `command`, resolved mechanically (issue #208, never a
-  guess): verbatim when the path is itself executable; run through
-  whichever test runner owns its tree when it is a `.py` file under
-  `tests/python/` (`pytest`) or `tests/jig/` (`unittest discover`,
-  narrowed to that one filename) — see `resolve_command_for_method`'s own
-  docstring below for the full rule. A `probe` item's artifact/pattern isn't in the plan grammar
-  at all, so it comes from the optional `--probe-spec <json>` supplement
-  (see `PROBE_SPEC_SCHEMA` below) — a task whose block has probe items
-  but no supplement entry for them is a usage error (exit 2) naming
-  exactly which item ids need one; a task with no probe items needs no
-  supplement. Everything downstream (checks, output, --out, --since,
-  exit codes) behaves identically in both modes.
+- `--items <json>`: an already-extracted item list (`ITEMS_SCHEMA` below),
+  hand-transcribed by the orchestrating model from a `PLAN.md` task block.
+- `--plan <path> --task <label>`: derives items mechanically from the
+  named task's checkpoint block — the grammar `scripts/plan-lint` validates
+  and `skills/build/SKILL.md` documents, parsed via shared `scripts/_planparse.py`
+  so the two scripts can't drift. `--task` names the task by heading number
+  (`3` or `Task 3`). A `script`/`test-backed` item's backtick-quoted
+  repo-relative method path becomes its `command`, resolved mechanically
+  (issue #208, never a guess) — see `resolve_command_for_method`'s docstring.
+  A `probe` item's artifact/pattern isn't in the plan grammar, so it comes
+  from the optional `--probe-spec <json>` supplement (`PROBE_SPEC_SCHEMA`
+  below) — a task with probe items but no supplement entry for them is a
+  usage error (exit 2) naming which item ids need one.
 
 Each item names a verification tier (`script` | `test-backed` | `probe` —
 DESIGN.md's closed enum; no `judgment` tier permitted):
 
-- `script` / `test-backed`: runs the item's own named `command` via the
-  shell and checks its exit code.
+- `script` / `test-backed`: runs the item's `command` via the shell, checks
+  exit code.
 - `probe`: confirms a caller-supplied `artifact` file exists, is non-empty,
   and (if given) matches an expected `pattern` — verify never takes the
-  screenshot or runs `ps` on the executor's behalf, since choosing what
-  observation proves a capability is the checkpoint-block author's call,
-  not a generic script's to invent.
+  screenshot or runs `ps` itself; choosing what observation proves a
+  capability is the checkpoint-block author's call.
 
-Every item — `cap` and `hold` alike — must PASS for the overall result to
-be PASS; per-item results are always reported, even on an overall PASS, so
-a caller can tell whether a repeat failure lands on the *same* item as
-before.
+Every item — `cap` and `hold` alike — must PASS for overall PASS; per-item
+results always print, even on overall PASS, so a repeat failure can be
+matched to the same item as before.
 
-Fails closed rather than passing vacuously: an empty or malformed item list
-is a usage error (exit 2), never a PASS (docs/studious/premortems/
-build-scripts.md, risk #4). A `probe` item also needs `--since` — an
-ISO-8601 timestamp or a git revision — so a stale artifact copied forward
-from a prior attempt can't pass just because no `pattern` was supplied
-(same premortem doc, risk #5); this recency floor is verify's own, not
-merely delegated to the downstream `evidence-capture` freshness check.
+Fails closed: an empty or malformed item list is a usage error (exit 2),
+never a vacuous PASS (docs/studious/premortems/build-scripts.md, risk #4).
+A `probe` item also needs `--since` (ISO-8601 timestamp or git revision) so
+a stale artifact copied forward from a prior attempt can't pass silently
+(same doc, risk #5) — this recency floor is verify's own, not delegated to
+the downstream `evidence-capture` freshness check.
 
-Trust boundary (issue #48): each `script`/`test-backed` item's `command` is
-plan-supplied (transcribed by `/build`'s Foreman from `PLAN.md`'s Done-means
-prose) and is executed verbatim via the shell -- `shell=True`, no
-allowlist, sandbox, or confirmation gate. Commands in a plan are executed
-verbatim via the shell; only run /build on plans you would run by hand.
+Trust boundary (issue #48): a `script`/`test-backed` item's `command` is
+plan-supplied (transcribed by `/build`'s Foreman from Done-means prose) and
+executed verbatim via the shell — `shell=True`, no allowlist, sandbox, or
+confirmation gate. Commands in a plan are executed verbatim via the shell;
+only run /build on plans you would run by hand.
 
-Timeout (issue #49): each command-tier item runs under `--timeout` seconds
-(a generous default -- suites legitimately run minutes). A hung command
-(waiting on stdin, deadlocked, a network-bound test with no timeout of its
-own) is killed and reported as a distinct FAIL detail (`TIMEOUT: ...`),
-never conflated with the item's own non-zero-exit FAIL detail (`exit
-code: ...`) -- a hang produces no exit code at all, so the two cases must
-read differently. A timed-out item still counts as FAIL toward the overall
-result, same as any other failing item. The kill takes down the command's
-whole process group, not just the shell (issue #61) -- via
-`_gitutil.run_shell_with_timeout`, launched with `start_new_session=True`
-and killed on timeout with `os.killpg(process.pid, signal.SIGKILL)` -- so a
-backgrounded or piped child can't outlive the shell that was reported
-killed.
+Timeout (issue #49): each command-tier item runs under `--timeout` seconds.
+A hung command is killed and reported as a distinct `TIMEOUT: ...` FAIL
+detail, never conflated with an ordinary non-zero-exit FAIL (`exit code:
+...`) — a hang produces no exit code at all. Still counts as FAIL overall.
+The kill takes down the whole process group, not just the shell (issue
+#61), via `_gitutil.run_shell_with_timeout` (`start_new_session=True`,
+`os.killpg(process.pid, signal.SIGKILL)`) — so a backgrounded/piped child
+can't outlive the shell reported killed.
 
 Parallelism (opt-in): `--parallel` runs command-tier items concurrently in
-a thread pool (each thread just waits on its own subprocess, so the GIL is
-no constraint); the default stays exactly sequential. `probe` items are
-cheap stat/regex checks and stay in-line on the main thread either way.
-Results are printed in item order regardless of completion order -- the
-report reads identically with or without the flag -- and per-item timeout
-semantics are unchanged (each command still gets the full `--timeout`, and
-a hang is still the same distinct `TIMEOUT: ...` FAIL detail).
+a thread pool (each thread waits on its own subprocess, no GIL constraint);
+default stays sequential. `probe` items are cheap stat/regex checks and
+stay in-line either way. Results print in item order regardless of
+completion order; per-item timeout semantics unchanged.
 
 ITEMS_SCHEMA (JSON):
     {
@@ -94,9 +74,8 @@ ITEMS_SCHEMA (JSON):
 
 PROBE_SPEC_SCHEMA (JSON, `--probe-spec`, plan mode only): item id (the
 block's own list number, as a string) -> the probe fields the plan grammar
-doesn't carry. Only probe-tier items ever appear here; an entry naming a
-non-probe or absent item id is a usage error (a transcription bug, not a
-check to silently drop).
+doesn't carry. An entry naming a non-probe or absent item id is a usage
+error, not a check to silently drop.
     {
       "3": {"artifact": "path/to/evidence.txt", "pattern": "no orphaned process"}
     }
@@ -127,25 +106,18 @@ from _planparse import COMMAND_TIERS, TIER_BODY_RE, VALID_TIERS, Item, parse_ite
 VALID_KINDS = frozenset({"cap", "hold"})
 
 # Ceiling on a probe artifact read before its `pattern` is matched (#223).
-# The pattern is caller-supplied from the probe spec and `re` has no match
-# timeout, so an unbounded read hands a catastrophic-backtracking pattern an
-# unbounded input -- and `verify`'s whole job is to be the thing that cannot
-# be talked out of a verdict, which a silent hang defeats more thoroughly
-# than a wrong answer would. Refuse loudly above this instead.
-#
-# 8 MiB is far above any real probe artifact (build logs, coverage summaries,
-# generated manifests) and far below the size at which reading is itself the
-# problem. Residual, deliberately accepted: a pathological pattern can still
-# backtrack badly on a *small* input. Bounding that needs either a match
-# timeout (`regex`, a third-party dependency these scripts cannot take --
-# they ship to consuming projects and run on stock `python3`) or SIGALRM,
-# which is main-thread-only and `--parallel` runs items in a ThreadPoolExecutor.
+# The pattern is caller-supplied and `re` has no match timeout, so an
+# unbounded read hands a catastrophic-backtracking pattern unbounded input;
+# refuse loudly above this instead of risking a silent hang. 8 MiB is well
+# above any real probe artifact and well below where reading itself is a
+# problem. Residual risk: a pathological pattern can still backtrack badly
+# on a small input — bounding that needs a match-timeout regex engine (a
+# dependency these scripts can't take) or SIGALRM (main-thread-only, but
+# `--parallel` runs items in a ThreadPoolExecutor).
 MAX_PROBE_ARTIFACT_BYTES = 8 * 1024 * 1024
 
-# --task names a task by its heading number: a bare "3" or the "Task 3"
-# label form, matching TASK_HEADING_RE's own capture. Never by title --
-# titles need the ambiguity rules plan-lint's load-bearing derivation
-# carries, and a mechanical transcription already knows the number.
+# --task names a task by heading number ("3" or "Task 3"), never by title --
+# a mechanical transcription already knows the number.
 TASK_LABEL_RE = re.compile(r"(?:task\s+)?(\d+)", re.IGNORECASE)
 
 
@@ -246,29 +218,21 @@ def resolve_command_for_method(method_path: str, repo_root: Path) -> str:
     """Turn a `script`/`test-backed` item's cited method path into a runnable shell
     command, mechanically -- never a guess (issue #208).
 
-    `scripts/plan-lint`'s own `check_item_tier` requires only that the path *exist*
-    on disk; most of what satisfies that -- every test file, every `SKILL.md`, every
-    markdown report -- carries no execute bit and no shebang. Treating the path
-    itself as the command (this repo's behavior before this fix) fails every one of
-    those deterministically with exit 126 ("Permission denied"), regardless of
-    whether the underlying claim is true.
+    `plan-lint` only requires the path *exist* on disk; most files that satisfy that
+    (test files, SKILL.md, markdown reports) carry no execute bit or shebang, so
+    treating the path itself as the command fails deterministically (exit 126).
 
     Two cases get a real command:
-    - The path is executable on disk: unchanged, verbatim -- this is jig's own
-      handful of directly-runnable scripts (`scripts/plan-lint`, `scripts/verify`,
-      ...).
-    - The path is a `.py` file under one of this repo's two test trees
-      (CLAUDE.md's "Two test runners, deliberately"): the command runs that ONE
-      file through whichever runner already owns its tree -- `pytest <path> -q`
-      for `tests/python/`, `python3 -m unittest discover -s <dir> -p <basename>`
-      for `tests/jig/` (unittest has no single-file invocation; `-p` narrows
-      discovery to one filename so the rest of the tree isn't swept in).
+    - Executable on disk: unchanged, verbatim.
+    - A `.py` file under one of this repo's two test trees (CLAUDE.md's "Two test
+      runners, deliberately"): runs that one file through the runner owning its
+      tree -- `pytest <path> -q` for `tests/python/`, `python3 -m unittest
+      discover -s <dir> -p <basename>` for `tests/jig/` (unittest has no
+      single-file invocation; `-p` narrows discovery to that one filename).
 
-    Anything else falls through to the path itself, unchanged -- the same
-    behavior as before this fix, and out of its scope: a `test-backed` item
-    citing neither an executable nor a file under either test tree is a plan-
-    authoring problem `scripts/plan-lint` should catch, not something this
-    script can rescue by guessing an interpreter.
+    Anything else falls through to the path itself, unchanged -- a `test-backed`
+    item citing neither case is a plan-authoring problem for `plan-lint` to catch,
+    not something to rescue by guessing an interpreter.
     """
     full = repo_root / method_path
     if os.access(full, os.X_OK):

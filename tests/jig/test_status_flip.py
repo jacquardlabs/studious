@@ -1,26 +1,16 @@
 """Regression tests for scripts/status-flip (story build-skill, issue #14).
 
-Exercises the script against a throwaway git repo (`tests/_tempgit.py`),
-never the real jig repo, checking this story's acceptance criteria and
-`skills/build/SKILL.md`'s status-flip contract
-mechanically:
-
-1. The PASS path derives its token solely from `verify`'s own `results.json`
-   `overall` field -- never from a caller-supplied status string -- and
-   refuses (exit 2) on anything but `overall == "PASS"` (premortem risk #2:
-   a FAIL must never be recordable as PASS).
-2. The REPLAN/ESCALATE path writes the Foreman's already-decided token,
-   requires a `--reason`, and rejects mixing `--results` with `--status`.
-3. `PASS` and `ESCALATE` flip exactly once: a second status-flip call
-   against an already-`PASS`/`ESCALATE`-suffixed heading refuses.
-4. `REPLAN` is the one resumable suffix: a status-flip call against an
-   already-`REPLAN`-suffixed heading overwrites it in place rather than
-   refusing (premortem risk #3 -- the human's ordinary resume path must not
-   dead-end).
-5. Locating the heading refuses (exit 2) on zero or more than one match,
-   never guesses.
-6. Every successful flip writes the file and creates its own commit,
-   distinct from any other commit in the repo's history.
+Runs against a throwaway git repo (`tests/_tempgit.py`), never the real jig
+repo. Covers: PASS derives its token only from verify's `results.json`
+`overall` field, never a caller-supplied string, and refuses non-PASS (exit
+2; premortem risk #2 -- a FAIL must never record as PASS). REPLAN/ESCALATE
+write the Foreman's already-decided token, require --reason, and reject
+mixing --results with --status. PASS and ESCALATE flip exactly once; a
+second call against an already-suffixed heading refuses. REPLAN alone is
+resumable -- overwritten in place rather than refused (premortem risk #3:
+the human's resume path must not dead-end). Heading lookup refuses on zero
+or multiple matches. Every successful flip commits, distinct from prior
+history.
 
 Run with:
 
@@ -263,10 +253,9 @@ class TestStatusFlipIdempotency(unittest.TestCase):
             self.assertIn("already flipped", second.stderr)
 
     def test_replan_is_overwritable_by_a_later_pass(self) -> None:
-        # The demonstrated resume path (docs/studious/premortems/build-skill.md
-        # risk #3): REPLAN -> human revises the block by hand -> re-invoke
-        # /build -> the retried task's eventual PASS must not dead-end
-        # against the stale REPLAN suffix.
+        # Resume path (premortem risk #3, docs/studious/premortems/build-skill.md):
+        # REPLAN -> human revises -> re-invoke /build -> eventual PASS must
+        # not dead-end on the stale REPLAN suffix.
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
             repo.mkdir()
@@ -362,16 +351,11 @@ class TestStatusFlipCommits(unittest.TestCase):
 
 
 class TestStatusFlipGitignoredPlan(unittest.TestCase):
-    """Regression test for a real gap the M5 finish-skill epic's own required
-    /build demonstration surfaced: jig's own repo gitignores `/PLAN.md`
-    (decision 12 -- disposable scaffolding that dies at merge), so a fresh,
-    still-untracked PLAN.md is exactly the ignored-and-untracked shape a
-    plain `git add` refuses outright. Without `-f`, this script's own
-    documented job ("commits that annotation") is structurally impossible
-    on the one repo (jig itself) most likely to run it -- every existing
-    test above sidesteps this because `write_plan` pre-commits PLAN.md
-    before status-flip ever runs, which an already-tracked path never
-    triggers."""
+    """Regression test: jig's own repo gitignores `/PLAN.md` (decision 12 --
+    disposable scaffolding that dies at merge), so a fresh untracked PLAN.md
+    is exactly what plain `git add` refuses, making status-flip's commit job
+    impossible on the one repo most likely to run it. Every test above
+    sidesteps this because `write_plan` pre-commits PLAN.md first."""
 
     def test_commits_a_plan_file_gitignored_by_the_target_repo(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -382,9 +366,8 @@ class TestStatusFlipGitignoredPlan(unittest.TestCase):
             subprocess.run(["git", "add", ".gitignore"], cwd=repo, check=False, capture_output=True)
             subprocess.run(["git", "commit", "-q", "-m", "ignore PLAN.md"], cwd=repo, check=False, capture_output=True)
 
-            # Deliberately does NOT call write_plan (which pre-commits PLAN.md,
-            # masking this exact bug) -- PLAN.md is written fresh and left
-            # untracked, matching a real /build session's own PLAN.md.
+            # Skips write_plan (its pre-commit would mask this bug); left
+            # untracked, matching a real /build session's PLAN.md.
             plan_path = repo / "PLAN.md"
             plan_path.write_text(PLAN_TEXT, encoding="utf-8")
             results = write_results(Path(tmp), "PASS")

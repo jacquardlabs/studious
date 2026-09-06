@@ -1,14 +1,9 @@
 """Shared process-group-kill proof helper for the timeout tests (issue #61).
 
-`test_verify.py` and `test_worktree_setup.py` both need to prove that a
-timed-out shell command's *entire process group* is gone afterward, not
-just that the shell process was signaled -- the gap the pre-fix code left
-(`process.kill()`/`subprocess.run`'s own default only ever signals the
-shell `Popen` manages directly). This module is the one place that proof
-helper lives, mirroring the `tests/_tempgit.py` / `tests/_frontmatter.py`
-"shared, not itself collected" convention already established in this repo.
-
-Not a test module — nothing here is collected by `unittest discover`.
+Proves a timed-out command's *entire process group* dies, not just the
+signaled shell process (the gap `process.kill()`/`subprocess.run` defaults
+left pre-fix). Shared per the `_tempgit.py` / `_frontmatter.py` convention;
+not collected by `unittest discover`.
 """
 from __future__ import annotations
 
@@ -18,19 +13,14 @@ from pathlib import Path
 
 
 def orphan_spawning_command(tmp: Path) -> tuple[str, Path]:
-    """Write a helper script that backgrounds a real child process (`sleep
-    5`) under its own pid, records that child's pid to a marker file, then
-    blocks on it — and return `(shell_command, marker_path)`.
+    """Write a helper script that backgrounds `sleep 5`, records its pid to
+    a marker file, then blocks on it. Returns `(shell_command, marker_path)`.
 
-    The outer shell execs this single `python3 ...` invocation directly (a
-    shell's own tail-call optimization for a lone simple command), so the
-    process `Popen`/`run_shell_with_timeout` manages *is* this script's own
-    process. It is the *grandchild* `sleep` — sharing that process's
-    process group, not its pid — that proves whether the whole group was
-    killed or only the one process the caller manages directly: killing
-    only that one process (the pre-fix behavior) leaves `sleep` running,
-    reparented, for the rest of its 5 seconds; killing the whole process
-    group (`os.killpg`) takes both down together, immediately.
+    The shell execs this lone `python3 ...` invocation directly (tail-call
+    optimization), so the process the caller manages *is* this script. The
+    grandchild `sleep` shares its process group but not its pid, so it
+    proves whether the whole group was killed (`os.killpg`) or only the
+    managed process (pre-fix behavior, which leaves `sleep` running orphaned).
     """
     script = tmp / "spawn_orphan.py"
     marker = tmp / "child.pid"
@@ -46,8 +36,7 @@ def orphan_spawning_command(tmp: Path) -> tuple[str, Path]:
 
 
 def wait_for_marker(marker: Path, timeout: float = 5.0) -> int:
-    """Poll for `marker` (written almost immediately by the spawned script,
-    well before its own 5s sleep) and return the child pid recorded in it."""
+    """Poll for `marker` and return the child pid recorded in it."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if marker.exists():
@@ -59,8 +48,7 @@ def wait_for_marker(marker: Path, timeout: float = 5.0) -> int:
 
 
 def process_is_gone(pid: int, timeout: float = 3.0) -> bool:
-    """Poll until `pid` no longer exists (`os.kill(pid, 0)` raises
-    `ProcessLookupError`) or `timeout` elapses without that happening."""
+    """Poll until `pid` no longer exists, or `timeout` elapses."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
@@ -68,8 +56,7 @@ def process_is_gone(pid: int, timeout: float = 3.0) -> bool:
         except ProcessLookupError:
             return True
         except PermissionError:
-            # Exists but isn't ours to signal -- shouldn't happen for our
-            # own child, but treat as "still there" rather than misreport.
+            # Exists but unsignalable -- treat as "still there", not gone.
             pass
         time.sleep(0.05)
     return False

@@ -194,12 +194,8 @@ check "hook reason on a plain branch with no pre-mortem key never mentions pre-m
   "$(case "$hook_plain" in (*pre-mortem*) echo yes ;; (*) echo no ;; esac)"
 
 # --- command prompts invoke the ledger by its bare name, not via ${CLAUDE_PLUGIN_ROOT} ---
-# ${CLAUDE_PLUGIN_ROOT} only expands in JSON-config-driven processes (hooks.json,
-# MCP/LSP configs) that the harness spawns directly — never in commands/*.md body
-# text, which the model runs verbatim through the Bash tool (upstream Claude Code
-# limitation, anthropics/claude-code#9354). A plugin's bin/ IS added to the Bash
-# tool's PATH while the plugin is enabled, so the bare name is what actually
-# resolves at runtime (see #83).
+# ${CLAUDE_PLUGIN_ROOT} only expands in JSON-config-driven processes, not in commands/*.md
+# body text the model runs verbatim (claude-code#9354); a plugin's bin/ is on PATH instead (#83).
 prefixed=$(grep -rnF "\${CLAUDE_PLUGIN_ROOT}/bin/gate-ledger" "$ROOT/commands" 2>/dev/null || true)
 check "no command invokes gate-ledger via \${CLAUDE_PLUGIN_ROOT}" "" "$prefixed"
 
@@ -694,13 +690,10 @@ check "self-heal touched only the main .gitignore" "no" \
   "$([ -f "$d17/.studious/worktrees/e/s/.gitignore" ] && echo yes || echo no)"
 contains "main .gitignore self-healed" ".studious/" "$(cat "$d17/.gitignore")"
 
-# --- json_update regression (#102): a mutating verb's exit code is 0
-# immediately after a successful write. The written JSON's content alone
-# doesn't prove this — a RETURN trap armed inside a shared writer function
-# would still produce correct file content (the write happens before the
-# trap could re-fire) while nonetheless corrupting the caller's exit status
-# once the trap re-fires in the *calling* verb's frame under `set -u`. Also
-# confirms the shared writer's temp file never survives a successful write.
+# --- json_update regression (#102): exit code isn't provable by file content alone —
+# a RETURN trap in a shared writer could produce correct output yet still corrupt the
+# calling verb's exit status when it re-fires in the caller's frame under `set -u`.
+# Also confirms no temp file survives a successful write.
 drc=$(sandbox)
 ( cd "$drc" && "$LEDGER" record --gate audit --verdict PASS ); rc=$?
 check "record exits 0 on a successful write" "0" "$rc"
@@ -719,16 +712,12 @@ check "no stray temp files left in the work store after successful writes" "" \
 check "no stray temp files left in the epics store after successful writes" "" \
   "$(find "$drc/.studious/epics" -name '.tmp.*' 2>/dev/null)"
 
-# --- json_update regression (fix-and-re-audit on #102): a mutating verb's
-# exit code is nonzero when the underlying jq/mv write actually fails. The
-# original `if jq ... && mv ...; then return 0; fi` compound read $? on the
-# statement right after the `if`/`fi` — but POSIX defines the exit status of
-# an `if` whose condition is false and has no `else` as zero, not the
-# condition's own status, so that read always saw 0 and every mutating verb
-# reported success even when jq failed. Corrupting the on-disk JSON before a
-# second write is a deterministic, permission-independent way to force jq to
-# fail (a parse error), without relying on filesystem permission checks that
-# root can bypass in CI.
+# --- json_update regression (fix-and-re-audit on #102): the original
+# `if jq ... && mv ...; then return 0; fi` always read exit 0 — POSIX defines a
+# no-else `if` with a false condition as exit 0, not the condition's own status —
+# so every mutating verb reported success even when jq failed. Corrupting the
+# on-disk JSON forces a deterministic jq parse-error, independent of filesystem
+# permissions (which root bypasses in CI).
 dfail=$(sandbox)
 
 ( cd "$dfail" && "$LEDGER" record --gate audit --verdict PASS )
@@ -1178,10 +1167,9 @@ check "every concurrently-written line has a stamped at timestamp" "12" \
   "$(jq -r 'select(.at != null and .at != "") | .at' "$evf36" | wc -l | tr -d ' ')"
 
 # --- work-log validates the build step's outcome vocabulary (#213) ---
-# Three writers had drifted into two dialects: the epic driver wrote DONE, /build and
-# the worker contract wrote BUILT|PAUSED|ESCALATED, and commands/next.md branched on exactly
-# the latter three — so an epic story branch read back a token with no case. The slot
-# was a free string with nothing to catch it. It is now checked at the write.
+# Three writers had drifted into two dialects (epic driver: DONE; /build and the worker
+# contract: BUILT|PAUSED|ESCALATED) and commands/next.md branched on only the latter three,
+# leaving epic story branches with an uncaught token. Now checked at the write.
 d37=$(sandbox)
 
 for ok_outcome in BUILT PAUSED ESCALATED HANDED-OFF SKIPPED; do
@@ -1195,11 +1183,9 @@ check "work-log rejects the superseded DONE dialect for --step build" "2" "$rc"
 ( cd "$d37" && "$LEDGER" work-log --slug enum-work --step build --outcome built ) >/dev/null 2>&1; rc=$?
 check "the build outcome check is case-sensitive" "2" "$rc"
 
-# The rejection names the accepted set and where it is specified — a caller that hits
-# this is a mis-authored prompt, and the message is what points at the fix.
-# grep, not a `case` inside `$( )`: bash 3.2 (what macOS ships, and what CI's
-# macos-latest runner uses) fails to parse a case statement inside command
-# substitution. This suite has to pass on both runners.
+# The rejection names the accepted set — a caller that hits this mis-authored a prompt.
+# grep, not `case` inside `$( )`: bash 3.2 (macOS's shipped bash, and CI's macos-latest
+# runner) fails to parse a case statement inside command substitution.
 msg37=$( ( cd "$d37" && "$LEDGER" work-log --slug enum-work --step build --outcome DONE ) 2>&1 )
 check "the rejection names the accepted set" "yes" \
   "$(printf '%s' "$msg37" | grep -q 'BUILT.*PAUSED.*ESCALATED' && echo yes || echo no)"
@@ -1339,9 +1325,8 @@ check "an unmeasured entry with no --scope-delta-reason given carries no reason 
   "$(jq -r '.scopeDelta[0].reason // "absent"' "$wf45u")"
 
 # --- gc collects finished flow state, not only branch-orphaned state (#237) ---
-# The epic path deliberately keeps a story's branch after landing it, so the
-# branch-gone rule alone could never fire: 34 of 35 work files sat pinned at phase
-# `merge` forever, and /next counted every one as an active feature.
+# The epic path keeps a story's branch after landing it, so the branch-gone rule alone
+# never fired: 34 of 35 work files sat pinned at phase `merge`, all counted as active by /next.
 d38=$(sandbox)
 
 ( cd "$d38" && "$LEDGER" work-set --slug done-feature --title "finished" --branch "$(git -C "$d38" rev-parse --abbrev-ref HEAD)" --phase "done" ) >/dev/null 2>&1
@@ -1362,10 +1347,9 @@ check "gc keeps a branchless non-terminal work file" "yes" \
 check "gc names the phase it collected on" "yes" \
   "$(printf '%s' "$out38" | grep -q 'removed finished work file.*phase done' && echo yes || echo no)"
 
-# --- gc keeps, rather than collects, a finished work file with a measured
-# scope-delta cohort (#244, pre-mortem register item 7): the work file is the
-# only copy of declaredFiles/scopeDelta/amendments, so an unconditional
-# collect discards a story's measurement cohort for good. ---
+# --- gc keeps a finished work file with a measured scope-delta cohort (#244,
+# pre-mortem register item 7): it's the only copy of declaredFiles/scopeDelta/amendments,
+# so an unconditional collect would discard the measurement cohort for good. ---
 d46=$(sandbox)
 ( cd "$d46" && "$LEDGER" work-set --slug sd-done --title "finished with scope-delta" --phase "done" ) >/dev/null 2>&1
 ( cd "$d46" && "$LEDGER" work-log --slug sd-done --scope-delta-phase build --scope-delta-files "a.py" ) >/dev/null 2>&1
@@ -1377,11 +1361,9 @@ check "gc keeps a finished work file with a measured scope-delta cohort" "yes" \
 check "gc names the kept file and its scope-delta moment count" "yes" \
   "$(printf '%s' "$out46" | grep -q 'kept: sd-done still holds 1 measured scope-delta moment' && echo yes || echo no)"
 
-# --- Acceptance round 9 (fix-and-retry): the "kept:" message's day-count must
-# be driven by SCOPE_DELTA_RETENTION_DAYS, not a hardcoded literal — round 7's
-# fix for the "reads as a clock starting now" finding regressed this by
-# hardcoding "14" in the message text instead of interpolating the constant
-# it had replaced. Fix-and-retry finding 2 (#244 round 9) scoped the guard to
+# --- Acceptance round 9 (fix-and-retry): the "kept:" message must interpolate
+# SCOPE_DELTA_RETENTION_DAYS, not hardcode it — round 7's fix regressed this by
+# hardcoding "14". Fix-and-retry finding 2 (#244 round 9) scoped the guard to
 # the terminal-phase path only, so there is exactly one kept: site left. ---
 check "the kept: message site interpolates SCOPE_DELTA_RETENTION_DAYS rather than hardcoding its value" "1" \
   "$(grep -c 'collects it %s days after its last write' "$LEDGER")"
@@ -1396,20 +1378,16 @@ check "the kept: message names gate-ledger work-get as the read verb" "yes" \
 out46f=$( cd "$d46" && "$LEDGER" gc --force 2>&1 )
 check "gc --force collects it anyway" "no" \
   "$([ -f "$wf46" ] && echo yes || echo no)"
-# Fix-and-retry finding 1: the destroying path used to print only the generic
-# "removed finished work file:" line, with no hint anything measured was lost
-# — unlike the keeping path's own "kept: ... still holds N measured
-# scope-delta moment(s)" message just above. --force must name what it threw
-# away.
+# Fix-and-retry finding 1: the destroying path used to print only the generic "removed
+# finished work file:" line with no hint anything measured was lost. --force must name
+# what it threw away.
 check "gc --force names the measured scope-delta moment(s) it discarded" "yes" \
   "$(printf '%s' "$out46f" | grep -q 'removed finished work file: sd-done.json (phase done, --force discarded 1 measured scope-delta moment(s))' && echo yes || echo no)"
 
-# --- Fix-and-retry finding 2 (#244 round 9): the measured-scope-delta guard
-# applies to the terminal-phase rule only — a parked, non-terminal-phase story
-# whose branch the user deleted never reached acceptance, so its cohort is
-# incomplete by construction and gets no keep. Plain gc (no --force) collects
-# it outright, same as before #244 ever touched this path — this is the
-# regression pin for the option chosen over widening the guard to both rules. ---
+# --- Fix-and-retry finding 2 (#244 round 9): the measured-scope-delta guard applies
+# to the terminal-phase rule only — a parked story whose branch was deleted never
+# reached acceptance, so its cohort is incomplete by construction and gets no keep.
+# Plain gc still collects it outright, as before #244. ---
 d46b=$(sandbox)
 git -C "$d46b" branch "epic/gone-branch" >/dev/null 2>&1
 ( cd "$d46b" && "$LEDGER" work-set --slug sd-branch-gone --title "branch gone, measured, still in flight" --branch "epic/gone-branch" ) >/dev/null 2>&1
@@ -1431,12 +1409,10 @@ wf47="$d47/.studious/work/sd-done-clean.json"
 check "gc still collects a finished work file with no scope-delta data at all, force or not" "no" \
   "$([ -f "$wf47" ] && echo yes || echo no)"
 
-# --- gc's guard only arms on a MEASURED scope-delta entry (fix-and-retry finding
-# 2): a scope check that dies or can't resolve a diff on the script path writes
-# --scope-delta-unmeasured (`computeScopeDelta`'s dead-end path, workflows/
-# epic-driver.js) — the fallback driver (reference/epic-orchestration.md) writes no
-# scope-delta entries at all — so a work file whose cohort is only that must
-# not be pinned by a cohort it never actually measured. ---
+# --- gc's guard only arms on a MEASURED scope-delta entry (fix-and-retry finding 2):
+# a dead scope check writes --scope-delta-unmeasured (`computeScopeDelta`'s dead-end
+# path, workflows/epic-driver.js); a work file whose cohort is only that must not be
+# pinned by a cohort never actually measured. ---
 d46u=$(sandbox)
 ( cd "$d46u" && "$LEDGER" work-set --slug sd-unmeasured-only --title "died scope check, never measured" --phase "done" ) >/dev/null 2>&1
 ( cd "$d46u" && "$LEDGER" work-log --slug sd-unmeasured-only --scope-delta-phase audit --scope-delta-unmeasured ) >/dev/null 2>&1
@@ -1456,19 +1432,15 @@ wf46m="$d46m/.studious/work/sd-mixed.json"
 check "gc still keeps a work file with at least one measured entry, even alongside an unmeasured one" "yes" \
   "$([ -f "$wf46m" ] && echo yes || echo no)"
 
-# --- gc's keep is bounded by SCOPE_DELTA_RETENTION_DAYS (fix-and-retry finding
-# 1, BLOCKER): the guard's first cut had no terminating condition, so a batch gc
-# never released a landed epic story's work file back to the default (no-`--force`)
-# path at all. A work file whose last write is older than the retention window
-# collects on the next plain `gc`, no `--force` needed. ---
+# --- gc's keep is bounded by SCOPE_DELTA_RETENTION_DAYS (fix-and-retry finding 1,
+# BLOCKER): the guard's first cut had no terminating condition, so a landed story's
+# work file never released back to plain gc. Now collects once past the retention window. ---
 d46r=$(sandbox)
 ( cd "$d46r" && "$LEDGER" work-set --slug sd-stale --title "past its keep window" --phase "done" ) >/dev/null 2>&1
 ( cd "$d46r" && "$LEDGER" work-log --slug sd-stale --scope-delta-phase build --scope-delta-files "a.py" ) >/dev/null 2>&1
 wf46r="$d46r/.studious/work/sd-stale.json"
-# A fixed, far-past timestamp — not `date` arithmetic — keeps this
-# deterministic and portable across the BSD/GNU `date` divide (no precedent
-# for `date -d`/`date -j` elsewhere in this suite) without depending on
-# whichever OS runs it.
+# A fixed, far-past timestamp (not `date` arithmetic) avoids the BSD/GNU `date -d`/`-j`
+# divide this suite has no precedent for.
 tmp46r=$(mktemp)
 jq '.updatedAt = "2020-01-01T00:00:00Z"' "$wf46r" > "$tmp46r" && mv "$tmp46r" "$wf46r"
 out46r=$( cd "$d46r" && "$LEDGER" gc 2>&1 )
@@ -1478,8 +1450,7 @@ check "gc names the retention-window collection distinctly from an ordinary fini
   "$(printf '%s' "$out46r" | grep -q 'removed work file past its 14-day scope-delta keep window: sd-stale.json' && echo yes || echo no)"
 
 # --- gc collects epic state only once the epic actually shipped ---
-# `ready` is the driver's finale status and means "ready for you to PR" — the
-# branch is still live and the epic is still the answer to "what's in flight".
+# `ready` means "ready for you to PR" — branch still live, epic still "in flight".
 # Shipped means ready AND the integration branch is gone.
 d39=$(sandbox)
 git -C "$d39" branch "epic/shipped-epic" >/dev/null 2>&1
@@ -1585,10 +1556,8 @@ contains "episode-verdict requires --gate and --verdict" "--gate and --verdict r
 contains "episode-verdict without --verdict exits 2" "rc=2" "$err"
 
 # --- a corrupt gates file is named by episode-open, not leaked as a raw jq error ---
-#
-# This is the path a corrupt ledger actually takes: the read verbs swallow the parse
-# failure and report "no open episode" (exit 2), which the door reads as a pre-episode
-# ledger and routes to episode-open. So episode-open is where the diagnostic has to land.
+# Read verbs swallow the parse failure and report "no open episode" (exit 2), which
+# the door routes to episode-open — so that's where the diagnostic has to land.
 dcor=$(sandbox)
 mkdir -p "$dcor/.studious/gates"
 echo "not json" > "$dcor/.studious/gates/feat-foo.json"
@@ -1989,10 +1958,9 @@ out=$(cd "$dcap" && "$LEDGER" episode-get --gate audit)
 check "episode-get names the bound in its readout" "round 2 of 2 — 0 open, 0 carried" "$out"
 
 # --- convergence (#291), the natural path: episode-open, findings, then two plain
-# episode-round calls. The first banks blockingByRound["1"] on its way past, so the
-# second reads a real predecessor and the check fires at the round-2 boundary with no
-# hand-seeding at all. This arm is reachable under the current cap, which is why the
-# guard is not dead code; the synthetic-seed cases below cover the arms this one can't.
+# episode-round calls. The first banks blockingByRound["1"], so the second reads a
+# real predecessor and fires at round 2 with no hand-seeding — proof the guard isn't
+# dead code. Synthetic-seed cases below cover arms this path can't reach.
 dnat=$(sandbox)
 fnat="$dnat/.studious/gates/feat-foo.json"
 ( cd "$dnat" && "$LEDGER" episode-open --gate audit ) >/dev/null
@@ -2034,10 +2002,8 @@ check "natural path: a converging round records no escalation" "null" \
 
 # --- convergence (#291): a round that does not strictly reduce the blocking set is
 # refused and the episode is marked escalated, ahead of the cap ---
-#
-# The synthetic seeds below drive the comparison at rounds the cap does not permit an
-# episode to reach on its own (round 3), covering the arms the natural sequence above
-# cannot — the guard's behavior once the cap moves.
+# Synthetic seeds drive the comparison at round 3, past what the cap lets an episode
+# reach naturally — the guard's behavior once the cap moves.
 dcv=$(sandbox)
 fcv="$dcv/.studious/gates/feat-foo.json"
 ( cd "$dcv" && "$LEDGER" episode-open --gate audit ) >/dev/null
@@ -2083,10 +2049,8 @@ contains "a zero prior count leaves the cap as the bound, not escalation" "2-rou
 contains "that refusal is still the cap's exit 1" "rc=1" "$err"
 
 # --- a failed escalation write is reported as a failed write, never as an escalation ---
-#
-# The store is made read-only (dir r-x: the file still reads, json_update's mktemp cannot
-# write) so the convergence branch is reached with real counts and only its write fails.
-# Skipped when the test runs as a user that ignores the mode bits (root).
+# The store is made read-only (dir r-x; mktemp can't write) so the convergence branch
+# runs with real counts but its write fails. Skipped when the test runs as root.
 dwf=$(sandbox)
 fwf="$dwf/.studious/gates/feat-foo.json"
 ( cd "$dwf" && "$LEDGER" episode-open --gate audit ) >/dev/null
@@ -2188,13 +2152,11 @@ contains "--history renders an escalation line" \
   "$(printf 'escalated\tround 2\t1 blocking, prior round 1')" \
   "$(cd "$dhi" && "$LEDGER" episode-get --gate audit --history)"
 
-# --- the escalated-state wedge has a real exit: while the retry outcome rides,
-# a set-aside disposition of a recorded finding lands, and at the cap a terminal
-# verdict closes the episode. Before this, the escalation's own prescription
-# ("waive what will not be fixed") was refused by episode-finding, which pointed
-# at episode-round, which re-refused at exit 3, which pointed back — three
-# refusals with no exit but episode-open, which archives the findings a waiver
-# must land on. ---
+# --- the escalated-state wedge has a real exit: while the retry outcome rides, a
+# set-aside disposition lands, and at the cap a terminal verdict closes the episode.
+# Before this, "waive what will not be fixed" bounced in a circular refusal —
+# episode-finding pointed at episode-round, which re-refused at exit 3, pointing back —
+# with no exit but episode-open, which archives the findings a waiver must land on. ---
 dwedge=$(sandbox)
 fwedge="$dwedge/.studious/gates/feat-foo.json"
 ( cd "$dwedge" && "$LEDGER" episode-open --gate audit ) >/dev/null
@@ -2271,11 +2233,9 @@ contains "below the cap a verdict over the retry outcome still points at episode
 contains "and still refuses" "rc=1" "$err"
 
 # --- episode-verdict names the exact repair when the legacy dual-write fails ---
-#
-# A jq shim fails exactly the legacy-record write (cmd_record's filter is the
-# only one on this path that touches `.gates[$g]`), so the episode write lands
-# and the dual-write does not — the half-written state whose re-run refuses as
-# "already closed" and whose repair the message must name.
+# A jq shim fails only the legacy-record write (the one filter touching `.gates[$g]`),
+# so the episode write lands but the dual-write doesn't — leaving half-written state
+# whose re-run refuses as "already closed," and whose repair the message must name.
 ddw=$(sandbox)
 fdw="$ddw/.studious/gates/feat-foo.json"
 ( cd "$ddw" && "$LEDGER" episode-open --gate audit ) >/dev/null
@@ -2549,10 +2509,10 @@ contains "severity folds from the first recorded line, and the refused line neve
   "closed	Critical	alpha	security-auditor	sec-token-leak" \
   "$(cd "$df" && "$LEDGER" epic-findings --epic ledgered)"
 
-# The exact two-line laundering dodge (rule 2 at epic scope): line 1 records a
-# Critical open; line 2 used to restate it Important + waived — the per-line
-# guard passed it, the fold then reported a waived Critical with no waiver, and
-# --unresolved read 0. Both lines of the dodge are refused now.
+# The exact two-line laundering dodge (rule 2 at epic scope): line 1 records a Critical
+# open; line 2 used to restate it Important + waived, passing the per-line guard while
+# the fold reported a waived Critical with no waiver and --unresolved read 0. Both
+# lines are refused now.
 ( cd "$df" && "$LEDGER" epic-finding --epic launder --story alpha --lane security-auditor \
     --severity Critical --fingerprint sec-hole --status open ) >/dev/null
 check "the dodge's honest form is still refused per-line (Critical waived, no waiver)" "1" \

@@ -1,25 +1,18 @@
 """Regression tests for delta-scoped re-audit, mechanism 1 (issue #130).
 
-Before this story, every FIX AND RE-AUDIT retry — on `commands/review.md`'s
-standalone surface and on `workflows/epic-driver.js`'s epic-driven surface alike —
-unconditionally re-dispatched the full, fixed lane roster, even when only one or two
-lanes had actually blocked. This story narrows a retry's dispatch to the previously-
-blocking lane(s) plus one cheap, ad hoc-prompted fix-delta cross-lane pass scoped to
-the diff since the prior round, carrying every other lane forward as a PASS-status
-line rather than re-deriving or dropping it — while failing closed to a full,
-unnarrowed round whenever the prior verdict, its sha, or its blocking-lane list is
-missing or malformed.
+A FIX AND RE-AUDIT retry now narrows dispatch to the previously-blocking lane(s)
+plus one fix-delta cross-lane pass scoped to the diff since the prior round,
+carrying every other lane forward as a PASS-status line instead of re-deriving or
+dropping it — failing closed to a full, unnarrowed round whenever the prior
+verdict, its sha, or its blocking-lane list is missing or malformed.
 
-Following this repo's own established precedent (test_contract_injection.py,
-test_driver_crash_hardening.py): pure, explicitly-parameterized functions
-(`resolveReauditScope`, `joinReports`) are extracted verbatim from
-`workflows/epic-driver.js` and executed standalone in a plain Node process; the
-scheduler-level acceptance criteria (which lanes actually get dispatched across a
-multi-round retry) are proven by running the real, unmodified driver source under
-the documented harness shape, reusing `test_driver_crash_hardening.py`'s
-`_run_driver` (extended there to also capture every `agent()` call's label and
-prompt, so a test here can assert on both *which* lanes were dispatched and *what*
-the compile step's own prompt actually said).
+Per this repo's precedent (test_contract_injection.py,
+test_driver_crash_hardening.py): `resolveReauditScope` and `joinReports` are
+extracted verbatim from `workflows/epic-driver.js` and run standalone in Node;
+scheduler-level acceptance criteria are proven by running the real driver source
+via `test_driver_crash_hardening.py`'s `_run_driver` (extended to capture each
+`agent()` call's label and prompt, so tests can assert on which lanes were
+dispatched and what the compile prompt said).
 """
 
 from __future__ import annotations
@@ -56,7 +49,7 @@ console.log(JSON.stringify(resolveReauditScope(priorResult, {AUDITORS_JS}, 'FIX 
 
 
 def test_no_prior_result_never_narrows() -> None:
-    """No prior round at all (a cycle's very first round) is never narrowed."""
+    """A cycle's very first round is never narrowed."""
     result = _resolve_scope("null")
     assert result["narrowed"] is False
     assert result["blockingAuditors"] == []
@@ -64,8 +57,7 @@ def test_no_prior_result_never_narrows() -> None:
 
 
 def test_prior_pass_verdict_never_narrows() -> None:
-    """A prior PASS (or any non-retry verdict) never narrows the next round —
-    narrowing only ever follows a FIX AND RE-AUDIT."""
+    """Narrowing only ever follows a FIX AND RE-AUDIT."""
     result = _resolve_scope('{ verdict: "PASS", sha: "abc123", summary: "ok" }')
     assert result["narrowed"] is False
 
@@ -89,9 +81,7 @@ def test_non_string_blocking_lane_entry_fails_closed() -> None:
 
 
 def test_unknown_lane_name_fails_closed() -> None:
-    """A blocking-lane entry outside the current 9-lane roster (a typo, a retired
-    lane, or a lane this mechanism deliberately never tracks like
-    web-design-guidelines/premortem-auditor) fails closed."""
+    """A blocking-lane entry outside the current roster fails closed."""
     result = _resolve_scope(
         '{ verdict: "FIX AND RE-AUDIT", sha: "abc123", summary: "s", blockingLanes: ["web-design-guidelines"] }'
     )
@@ -107,9 +97,7 @@ def test_missing_sha_fails_closed() -> None:
 
 
 def test_well_formed_prior_result_narrows() -> None:
-    """The happy path: a well-formed prior FIX AND RE-AUDIT with a recognized
-    blocking-lane list and a sha narrows, mapping short lane names to the driver's
-    full `studious:<lane>` auditor identifiers."""
+    """Happy path: narrows and maps short lane names to `studious:<lane>` ids."""
     result = _resolve_scope(
         '{ verdict: "FIX AND RE-AUDIT", sha: "deadbeef", summary: "s", '
         'blockingLanes: ["security-auditor", "test-auditor"] }'
@@ -142,8 +130,7 @@ console.log(JSON.stringify(result))
 
 
 def test_join_reports_unnarrowed_round_is_unchanged_shape() -> None:
-    """An unnarrowed round (every lane dispatched, nothing carried forward, no
-    fix-delta pass) reads exactly as it did before this story."""
+    """An unnarrowed round reads exactly as it did before this story."""
     result = _join_reports(
         dispatched=["studious:security-auditor", "studious:code-auditor"],
         reports=[{"findings": "clean"}, {"findings": "clean"}],
@@ -173,8 +160,7 @@ def test_join_reports_marks_a_dispatched_died_lane_as_unaudited() -> None:
 
 
 def test_join_reports_carries_forward_a_skipped_lane_distinctly_from_died() -> None:
-    """A carried-forward lane is never AGENT DIED, and vice versa — the two must
-    always be visibly distinct labels, never inferred from one another."""
+    """Carried-forward and AGENT DIED must stay visibly distinct labels."""
     result = _join_reports(
         dispatched=["studious:security-auditor"],
         reports=[{"findings": "clean"}],
@@ -204,9 +190,8 @@ def test_join_reports_folds_in_a_successful_fix_delta_pass() -> None:
 
 
 def test_join_reports_a_died_fix_delta_pass_is_unaudited_not_silently_absent() -> None:
-    """A died fix-delta pass must show up as UNAUDITED and be counted in `missing`
-    — never simply absent from the joined report, which would silently drop the
-    one narrow safety net a narrowed round relies on."""
+    """A died fix-delta pass must show up as UNAUDITED and count in `missing`,
+    never silently absent — it's the one safety net a narrowed round relies on."""
     result = _join_reports(
         dispatched=["studious:security-auditor"],
         reports=[{"findings": "clean"}],
@@ -226,9 +211,7 @@ def test_gate_result_schema_gains_an_optional_blocking_lanes_field() -> None:
     source = DRIVER.read_text()
     gr = source[source.index("const GATE_RESULT"):source.index("const WORKER_RESULT")]
     assert "blockingLanes" in gr
-    # Optional: the required list must stay exactly what it was before this story
-    # (verdict/sha/summary) — a non-audit gate (design-review, acceptance) never
-    # populates blockingLanes and must not be forced to.
+    # Optional: non-audit gates (design-review, acceptance) never populate it.
     assert "required: ['verdict', 'sha', 'summary']" in gr
 
 
@@ -236,10 +219,9 @@ def test_gate_result_schema_gains_an_optional_blocking_lanes_field() -> None:
 
 
 def test_gate_audit_md_and_epic_driver_agree_on_the_ten_lane_roster() -> None:
-    """The 10-lane roster commands/review.md's re-audit-scope step names must
-    match workflows/epic-driver.js's AUDITORS exactly — a future auditor added to
-    one and not the other would let the two surfaces silently narrow differently,
-    exactly the drift acceptance criterion 5 forbids."""
+    """commands/review.md's re-audit-scope roster must match AUDITORS exactly, or
+    a future auditor added to one and not the other lets the surfaces silently
+    narrow differently — the drift acceptance criterion 5 forbids."""
     driver_source = DRIVER.read_text()
     auditors_match = re.search(r"const AUDITORS = \[(.*?)\]", driver_source, re.DOTALL)
     assert auditors_match, "AUDITORS constant not found"
@@ -251,10 +233,9 @@ def test_gate_audit_md_and_epic_driver_agree_on_the_ten_lane_roster() -> None:
     assert len(driver_lanes) == 11
 
     gate_audit_text = GATE_AUDIT_MD.read_text()
-    # Since the episode-door story (#289, Task 4) the narrowing roster lives in
-    # commands/review.md's episode step (which also tracks a twelfth lane,
-    # product-reviewer, that the driver doesn't dispatch — the driver fails
-    # closed to a full round on any entry outside its own eleven).
+    # Since #289 Task 4, the roster lives in review.md's episode step, which also
+    # tracks a twelfth lane (product-reviewer) the driver doesn't dispatch — the
+    # driver fails closed to a full round on any entry outside its own eleven.
     start = gate_audit_text.index("## Open or re-enter the episode")
     end = gate_audit_text.index("## Launch the lane profile")
     scope_section = gate_audit_text[start:end]
@@ -266,9 +247,8 @@ def test_gate_audit_md_and_epic_driver_agree_on_the_ten_lane_roster() -> None:
 
 
 def test_both_dispatch_surfaces_cite_the_identical_blocking_lanes_flag() -> None:
-    """Both surfaces read/write the same ledger-backed shape via the same CLI
-    flag — the mechanism acceptance criterion 5 rests on, not two independent
-    reimplementations that could quietly diverge."""
+    """Both surfaces read/write the same ledger-backed shape via one CLI flag,
+    not two independent reimplementations that could quietly diverge."""
     assert "--blocking-lanes" in DRIVER.read_text()
     assert "--blocking-lanes" in GATE_AUDIT_MD.read_text()
 
@@ -283,14 +263,10 @@ def _full_roster_pass_rules(story: str) -> list[dict]:
     ]
 
 
-# A single story that lands automatically runs the epic finale (every story
-# settled landed/dropped) — these tests are about the STORY-level audit gate, not
-# the finale, so a single-story epic that's expected to land needs the finale
-# mocked all the way through clean, the same way
+# A landed single-story epic auto-runs the finale, so a test expecting the story
+# to land needs the finale mocked clean too (as in
 # test_driver_crash_hardening.py's `test_needs_you_is_empty_on_an_unremarkable_
-# two_story_run` does. A story that instead exhausts its retries and PARKS never
-# reaches the finale (`landedCount + droppedCount === allSettled.length` fails),
-# so tests where the story parks don't need this.
+# two_story_run`). Parked stories never reach the finale and don't need this.
 _FINALE_CLEAN_RULES = [
     {"match": rf"^finale:{name}$", "result": {"findings": "clean"}} for name in AUDITOR_SHORT_NAMES
 ] + [
@@ -304,9 +280,8 @@ _FINALE_CLEAN_RULES = [
 
 
 def test_first_round_is_always_full_never_narrowed_even_with_no_prior_context() -> None:
-    """The very first audit round on a changeset is untouched — full lane set, no
-    fix-delta pass, and (since retries start at 0) no ledger-scope-check dispatch
-    either: a true first round never pays any narrowing-related cost."""
+    """A true first round pays no narrowing-related cost: full lane set, no
+    fix-delta pass, no ledger-scope-check dispatch."""
     epic = {
         "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
         "stories": {"a": {"title": "A", "criteria": "c", "gates": ["audit"]}},
@@ -332,10 +307,9 @@ def test_first_round_is_always_full_never_narrowed_even_with_no_prior_context() 
 
 
 def test_retry_narrows_to_blocking_lanes_and_fix_delta_pass_only() -> None:
-    """Acceptance criterion 1, decisively: across a full MAX_FIX_CYCLES retry
-    sequence, the two previously-blocking lanes are re-dispatched every round while
-    the other seven are dispatched exactly once (round 1) — never again — and the
-    fix-delta cross-lane pass runs only on the narrowed (retry) rounds."""
+    """Acceptance criterion 1: across a full MAX_FIX_CYCLES retry sequence, the
+    two blocking lanes are re-dispatched every round, the rest run once (round 1)
+    only, and the fix-delta pass runs only on narrowed (retry) rounds."""
     story = "a"
     epic = {
         "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
@@ -365,11 +339,10 @@ def test_retry_narrows_to_blocking_lanes_and_fix_delta_pass_only() -> None:
             f"{name} was re-dispatched on a narrowed retry — only the "
             "previously-blocking lanes should ever run again"
         )
-    # The fix-delta pass runs only on the narrowed rounds (every round after the
-    # first), never on round 1 itself.
+    # Fix-delta runs every round after the first, never on round 1.
     assert labels.count(f"audit:fix-delta:{story}") == MAX_FIX_CYCLES
 
-    # Retries exhaust the cap still blocked — the story parks, never lands.
+    # Retries exhaust the cap still blocked — story parks, never lands.
     needs_you = {e["story"]: e for e in out["result"]["needsYou"]}
     assert "epx--a" in needs_you
     assert needs_you["epx--a"]["gate"] == "audit"
@@ -378,9 +351,8 @@ def test_retry_narrows_to_blocking_lanes_and_fix_delta_pass_only() -> None:
 
 def test_retry_compile_prompt_carries_forward_non_blocking_lanes_and_never_confuses_them_with_died() -> None:
     """Acceptance criterion 3: a narrowed round's compile prompt states a
-    PASS-status carry-forward line for every lane not re-dispatched — proven by
-    inspecting the actual prompt text the compile agent received (captured via
-    `_run_driver`'s `calls`), not merely the final compiled verdict."""
+    PASS-status carry-forward line for every non-dispatched lane — proven from
+    the actual prompt text (via `_run_driver`'s `calls`), not the final verdict."""
     story = "a"
     epic = {
         "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
@@ -402,18 +374,16 @@ def test_retry_compile_prompt_carries_forward_non_blocking_lanes_and_never_confu
     compile_prompts = [c["prompt"] for c in out["calls"] if c["label"] == f"audit:compile:{story}"]
     assert len(compile_prompts) == 1 + MAX_FIX_CYCLES
 
-    # Round 1 (unnarrowed): every one of the 9 lanes has its own full report block,
-    # nothing carried forward. (auditFanIn's own general instructional preamble
-    # always mentions the phrase "carried forward" to explain the concept — the
-    # real signal is a specific per-lane carried-forward *block*, not the bare
-    # phrase anywhere in the prompt.)
+    # Round 1 (unnarrowed): every lane has its own full report block, nothing
+    # carried forward. (auditFanIn's preamble always mentions "carried forward"
+    # generically — the real signal is a per-lane carried-forward block.)
     round_one = compile_prompts[0]
     for name in AUDITOR_SHORT_NAMES:
         assert f"--- studious:{name} ---\nclean" in round_one
         assert f"studious:{name} --- (carried forward" not in round_one
 
-    # Every retry round (narrowed): the 8 non-blocking lanes are carried forward,
-    # never re-reported in full, and never shown as AGENT DIED.
+    # Every retry round: non-blocking lanes are carried forward, never re-reported
+    # in full, and never shown as AGENT DIED.
     for retry_prompt in compile_prompts[1:]:
         assert "fix-delta-cross-lane-pass" in retry_prompt
         for name in AUDITOR_SHORT_NAMES:
@@ -426,10 +396,10 @@ def test_retry_compile_prompt_carries_forward_non_blocking_lanes_and_never_confu
 
 
 def test_a_died_lane_strips_blocking_lanes_and_forces_needs_discussion_even_if_the_compiler_said_pass() -> None:
-    """Belt and braces: JS strips a compiling agent's blockingLanes and downgrades
-    an (incorrect) PASS to NEEDS DISCUSSION whenever any lane this round was
-    UNAUDITED — never trusting prompt compliance alone. A lane's death must never
-    let a later round narrow off an unreliable list (acceptance criterion 4)."""
+    """Belt and braces: JS strips blockingLanes and downgrades an incorrect PASS
+    to NEEDS DISCUSSION whenever any lane was UNAUDITED, never trusting prompt
+    compliance alone — a lane's death must never let a later round narrow off an
+    unreliable list (acceptance criterion 4)."""
     story = "a"
     epic = {
         "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
@@ -441,8 +411,8 @@ def test_a_died_lane_strips_blocking_lanes_and_forces_needs_discussion_even_if_t
         if name != "doc-auditor"
     ]
     rules.append({"match": rf"^audit:doc-auditor:{story}$", "result": None})  # died gracefully
-    # A naughty/mistaken compiler ignores the AGENT DIED instruction and returns
-    # PASS with a blockingLanes list anyway — the JS override must win regardless.
+    # Compiler ignores the AGENT DIED instruction and returns PASS anyway — the
+    # JS override must win regardless.
     rules.append({
         "match": rf"^audit:compile:{story}$",
         "result": {"verdict": "PASS", "sha": "s1", "summary": "all clear", "blockingLanes": ["security-auditor"]},
@@ -459,11 +429,9 @@ def test_a_died_lane_strips_blocking_lanes_and_forces_needs_discussion_even_if_t
 
 
 def test_resumed_process_with_no_narrowable_ledger_verdict_runs_full() -> None:
-    """Acceptance criterion 4, resumed-process path: `attempts > 0` at the top of a
-    fresh `runGate` call (a story whose audit gate already burned a fix cycle in an
-    earlier, now-gone process) triggers a ledger-scope-check dispatch; when that
-    check reports no narrowable verdict, the round runs full, exactly the
-    fail-closed default."""
+    """Acceptance criterion 4, resumed-process path: `attempts > 0` at the top of
+    a fresh `runGate` call triggers a ledger-scope-check dispatch; when it reports
+    no narrowable verdict, the round runs full — the fail-closed default."""
     story = "a"
     epic = {
         "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
@@ -487,19 +455,18 @@ def test_resumed_process_with_no_narrowable_ledger_verdict_runs_full() -> None:
 
 
 def test_resumed_process_with_a_narrowable_ledger_verdict_narrows() -> None:
-    """The success half of the resumed-process path: the ledger-scope-check
-    reports a narrowable prior verdict, and the very first round in this fresh
-    process narrows accordingly — proven the same way as the in-run case, by the
-    absence of any dispatch for the 8 non-blocking lanes (an unmocked label would
-    reject the whole run)."""
+    """Success half of the resumed-process path: the ledger-scope-check reports a
+    narrowable prior verdict, and the first round in this fresh process narrows —
+    proven by the absence of dispatch for non-blocking lanes (an unmocked label
+    would reject the whole run)."""
     story = "a"
     epic = {
         "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
         "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"], "retries": {"audit": 1}}},
     }
-    # resolvedBranch matches this story's own branch (epic/<slug>--<story>) — since
-    # the round-3 fix-and-recheck fix, a narrowed verdict is trusted only when this
-    # confirms the read happened in this story's own worktree.
+    # resolvedBranch matches this story's own branch — since the round-3
+    # fix-and-recheck fix, a narrowed verdict is trusted only when confirmed to
+    # have been read from this story's own worktree.
     ledger_findings = json.dumps(
         {"hasNarrowableVerdict": True, "sha": "deadbeef", "blockingLanes": ["security-auditor"], "resolvedBranch": "epic/epx--a"}
     )
@@ -524,9 +491,8 @@ def test_resumed_process_with_a_narrowable_ledger_verdict_narrows() -> None:
 
 
 def test_ledger_scope_check_death_fails_closed_to_a_full_round_not_a_crash() -> None:
-    """A died ledger-scope-check agent must never crash the story — it degrades
-    gracefully to `priorAuditResult = null`, which resolveReauditScope already
-    treats as "no prior verdict," so the round runs full."""
+    """A died ledger-scope-check agent must degrade to `priorAuditResult = null`
+    (which resolveReauditScope treats as "no prior verdict"), never crash."""
     story = "a"
     epic = {
         "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,

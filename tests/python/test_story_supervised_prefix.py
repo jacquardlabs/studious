@@ -1,26 +1,17 @@
 """Regression test for the `story-supervised:` park-reason prefix.
 
-Story class is the one plan element with no ledger field of its own
-(`reference/epic-plan-contract.md`: "`story-supervised` is carried by the
-`status`/`reason` the plan piece records the story with"). The whole class
-therefore travels as a free-text prefix inside a park reason, across three
-surfaces that have to agree on the literal string:
+Story class has no ledger field of its own (`reference/epic-plan-contract.md`),
+so it travels as a free-text prefix inside a park `--reason`, and three
+surfaces must agree on the literal string: the writer
+(`epic-orchestration.md`'s park block), the reader (its closing-report rule,
+which identifies the gateless "Needs you" entry by this prefix), and the
+contract (which records why there's no ledger field instead). `#116` guards
+against this kind of drift generally; nothing pinned this specific string
+until now.
 
-1. the writer — `reference/epic-orchestration.md`'s `epic-story-set --status parked
-   --reason` block in the plan piece;
-2. the reader — the same file's closing-report rule, which says the recorded
-   reason *starts* with the prefix and renders the gateless "Needs you" entry
-   from it;
-3. the contract — `reference/epic-plan-contract.md`, which is where the
-   no-ledger-field decision is recorded and why the prefix is load-bearing.
-
-Nothing pinned the string itself, which is exactly the drift `#116` guards
-against for prose counts. One constant here, asserted in all three places:
-rename the prefix on one surface and this fails.
-
-Runtime pass-through — that a story parked with this reason stays in "Needs
-you" and is never reclassified as held — is already covered by
-`test_epic_appetite_canary.py`; it is not re-tested here.
+Runtime pass-through — a story parked with this reason stays in "Needs you"
+and is never reclassified as held — is covered by
+`test_epic_appetite_canary.py`, not here.
 """
 from __future__ import annotations
 
@@ -35,8 +26,8 @@ PREFIX = f"{TOKEN}:"
 
 
 def test_the_plan_piece_writes_the_prefix_into_the_park_reason() -> None:
-    """The writer. Without this exact string on the `--reason` flag, the class is
-    recorded nowhere at all — there is no field to fall back to."""
+    """The writer: without this exact string on `--reason`, the class is
+    recorded nowhere else — there's no field to fall back to."""
     text = WORK_THROUGH.read_text()
     recorded = [
         line for line in text.splitlines()
@@ -53,8 +44,8 @@ def test_the_plan_piece_writes_the_prefix_into_the_park_reason() -> None:
 
 
 def test_the_closing_report_reads_the_same_prefix() -> None:
-    """The reader. It renders the one 'Needs you' entry with no gate and no verdict,
-    and it identifies that entry by this prefix alone."""
+    """The reader: identifies the one gateless, verdict-less "Needs you" entry
+    by this prefix alone."""
     text = WORK_THROUGH.read_text()
     assert f"reason starts `{PREFIX}`" in text, (
         f"{WORK_THROUGH.name}'s closing-report rule no longer pins the {PREFIX!r} "
@@ -63,9 +54,8 @@ def test_the_closing_report_reads_the_same_prefix() -> None:
 
 
 def test_the_contract_records_why_the_prefix_carries_the_class() -> None:
-    """The contract. It is the reason there is no ledger field to test instead — so
-    the clause is asserted as a unit, not as two substrings that a file mentioning
-    the token five other times would satisfy however the park reason was renamed."""
+    """The contract: asserted as one clause, not two substrings a file
+    mentioning the token elsewhere could satisfy after the prefix was renamed."""
     text = PLAN_CONTRACT.read_text()
     clause = f"`{TOKEN}` is carried by the `status`/`reason`"
     assert clause in text, (

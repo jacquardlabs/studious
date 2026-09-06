@@ -1,43 +1,30 @@
 #!/usr/bin/env python3
 """park-packet -- write a viva QA round for every gate-parked story (issue #317).
 
-`/next`'s "Needs you" queue (`reference/epic-orchestration.md`) renders to a
-terminal, and under a supervisor (#316) nobody is reading one. This script
-is the browser-facing half: one viva `QAInput` round
-(`docs/headless-contract.md` v12, `--mode qa`) per gate-parked story,
-written fresh from the ledger every time it runs -- never from a prior
-run's own memory, the same durability reasoning `/ship --epic`'s reads
-already follow (a transient report is not the record; the ledger is).
+Browser-facing half of `/next`'s "Needs you" queue: under a supervisor (#316)
+nobody reads the terminal render, so this writes one viva `QAInput` round
+(`docs/headless-contract.md` v12, `--mode qa`) per gate-parked story, always
+fresh from the ledger (never from a prior run's own output).
 
-**A park is a decision, not a document to review section-by-section** --
-QA mode, never review mode. One question per park: `id` is the
-epic-qualified slug, `text` is the story's own recorded `reason` (already
-`"<gate>: <verdict> -- <one clause>"` per the Judgment-park convention),
-`hint` carries the evidence pointers a human needs to actually decide
-(branch sha, the `work-get`/`evidence-list` commands, any unresolved
-findings recorded against this story), `context` is the epic goal plus
-which stories this one blocks. **No `recommended_choice`** -- this script
-carries no judgment, only assembly. `choices` is the three ledger-backed
-resolutions `reference/epic-orchestration.md`'s "Skips, amendments, and
-un-parking" section actually supports: `waive` (accept the risk, closing
-any open finding recorded against this story), `amend` (carry a note
-forward as guidance and retry), `drop` (abandon the story).
+QA mode, not review mode -- a park is a decision, not a document. One
+question per park: `id` is the epic-qualified slug, `text` is the story's
+recorded `reason`, `hint` carries evidence pointers (branch sha,
+`work-get`/`evidence-list` commands, unresolved findings), `context` is the
+epic goal plus blocked dependents. No `recommended_choice` -- this script
+assembles, it doesn't judge. `choices` are the three ledger-backed
+resolutions from `reference/epic-orchestration.md`'s "Skips, amendments, and
+un-parking": `waive` (accept the risk, close open findings), `amend` (retry
+with a note), `drop` (abandon the story).
 
-**A `story-supervised` park gets no packet.** It was parked before
-anything ever dispatched -- no branch, no worktree, no gate verdict to
-show -- and its own resolution is `/next "<slug>--<story>"` at a terminal,
-exactly as `reference/epic-orchestration.md` already documents. Never its
-business, the same line #316's supervisor draws for the same reason.
+A `story-supervised` park gets no packet -- it never dispatched (no branch,
+no verdict), and its resolution is `/next "<slug>--<story>"` at a terminal.
 
-**Layout.** `.viva/parks/<slug>--<story>/qa-input.json` -- one subdirectory
-per park, not one flat `.viva/qa-input.json`, because viva's `server.url`
-(headless contract §4) is written to `Path(--output).parent`, and two
-parks sharing one directory would collide on it the moment both are open
-at once.
+Layout: `.viva/parks/<slug>--<story>/qa-input.json`, one subdir per park --
+viva's `server.url` (headless contract §4) writes to `Path(--output).parent`,
+so parks sharing a directory would collide on it.
 
-Exit codes: 0 = ran (zero packets written is a complete answer -- nothing
-parked); 2 = usage error, no such epic, or `gate-ledger` missing. Python
-3.9 floor, stdlib only.
+Exit codes: 0 = ran (zero packets is a valid answer); 2 = usage error, no
+such epic, or missing `gate-ledger`. Python 3.9 floor, stdlib only.
 """
 from __future__ import annotations
 

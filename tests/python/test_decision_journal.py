@@ -1,18 +1,13 @@
 """Structural regression tests for the decision-journal story (issue #94).
 
-`/bet` gains a memory: it appends each verdict (with rationale and
-revisit condition) to `docs/studious/decisions.jsonl` in the consuming project, and
-both `/bet` and `@agent-backlog-priorities` read that journal before
-evaluating, surfacing prior verdicts with their dates. The record shape is pinned in
-`reference/decision-journal-format.md`, mirroring how `reference/evidence-format.md`
-pins the evidence log.
+`/bet` appends each verdict to `docs/studious/decisions.jsonl`; `/bet` and
+`@agent-backlog-priorities` read it before evaluating. Format pinned in
+`reference/decision-journal-format.md` (mirrors `reference/evidence-format.md`).
 
-These tests lock the story's contract, not the model's judgment: the pinned format
-file and the command's inline append snippet must match byte-for-byte (the story
-pre-mortem's risk #6 — no code choke point exists, review-checked prose is the
-drift defense), the informs-never-decides and untrusted-data guardrails must be
-present in both consumers (risks #3 and #7), and the existing gate-ledger write
-must survive untouched (two writes, two jobs).
+Locks the story's contract, not model judgment: format file and command's
+append snippet must match byte-for-byte (no code choke point exists — risk
+#6), informs-never-decides and untrusted-data guardrails present in both
+consumers (risks #3, #7), existing gate-ledger write survives untouched.
 """
 
 from __future__ import annotations

@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
-# Studious gate reminder — a PreToolUse hook that fires before `gh pr create`.
-#
-# Non-blocking by design: it always returns an "ask" decision so a human confirms
-# before the PR opens. When a gate ledger exists for the current branch
-# (.studious/gates/<branch>.json, written by /review and /review --delivery) it
-# makes the reason SPECIFIC — naming a missing, stale, or non-passing gate — instead
-# of asking blindly. With no ledger (or no jq) it falls back to the generic prompt.
+# Studious gate reminder — PreToolUse hook for `gh pr create`.
+# Always returns "ask" (non-blocking). If a gate ledger exists for the branch
+# (.studious/gates/<branch>.json, from /review and /review --delivery), names the
+# specific missing/stale/failing gate; otherwise falls back to the generic prompt.
 
 input=$(cat)
 

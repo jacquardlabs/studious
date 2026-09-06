@@ -184,8 +184,7 @@ literally `### Task N — <title>` -- Step 6's own `--split-on` pattern
 anchors on `^Task \d+`, and a task heading worded any other way (a
 numberless heading, a `Step N` variant, a translated label) silently
 desyncs the two and reopens issue #23's own absorption bug against
-`/build`'s *own* output. Don't improvise the heading shape; this is the one
-piece of grammar Step 6 depends on verbatim.
+`/build`'s *own* output.
 
 **Write each block for one review card.** Step 6 puts one task per card in
 front of the human, and `/build` hands the same block verbatim to a fresh
@@ -305,20 +304,12 @@ second one.
 
 ## Why this shape
 
-"Judgment in the model, mechanics in scripts" is the whole shape: Steps 1-4
-and 6's rewrite-on-`changes`/`info` loop are you reading, inferring, and
-deciding; Step 5's pass/fail is `plan-lint`'s alone, never self-reported,
-and Step 6's `approved`/`changes`/`pending` per section is the human's
-alone, mediated by viva's own server, never inferred from "looks fine."
-"Nothing signs off on itself" is Step 1b's whole reason to exist --
-issue #13's "script the probes, don't self-attest" resolution *is* this
-principle applied to one specific verification tier, and Step 5 gating
-Step 6 is the same principle applied to draft quality: a plan never reaches
-a human review round with a mechanically-known defect already sitting in
-it. "Recommend one action; the human decides" is why `DESIGN GAP` and
-`TOO BIG` both name one concrete resume action rather than three hedged
-options, and why the input-doc-ambiguity case above asks once rather than
-guessing. "Standalone-capable" doesn't have a gap to degrade here -- `/build`
-has a hard dependency on viva for Step 6 (no "skip review if viva isn't
-installed" path exists) and reports that dependency by name, never a
-silent hang, rather than inventing a degraded path that doesn't exist.
+Judgment in the model, mechanics in scripts: Steps 1-4 and 6 are reading,
+inferring, and deciding; Step 5's pass/fail is `plan-lint`'s alone; Step 6's
+per-section verdict is the human's alone, via viva. "Nothing signs off on
+itself" is why Step 1b exists at all -- issue #13's "script the probes,
+don't self-attest" resolution applies that principle to one verification
+tier, and Step 5 gating Step 6 applies it to draft quality. `DESIGN GAP` and
+`TOO BIG` each name one concrete resume action, never hedged options, for
+the same reason the input-doc-ambiguity case above asks once rather than
+guessing.

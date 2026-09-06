@@ -1,15 +1,16 @@
 # Prompt contract — shared posture, scope, output, closer, and style
 
 Canonical source for the five blocks the fan-out doors (`commands/review.md`,
-`commands/retro.md`) read once and inject verbatim into every agent they
-dispatch. The audit/review agents (`agents/*-auditor.md`, `agents/*-reviewer.md`,
-`agents/review-*.md`) receive the five blocks inline in their dispatch prompt rather than
-reading this file — a dispatched agent runs with its working directory in the *consuming*
-project, where this file does not exist, so the orchestrator hands the posture over. That
-keeps the runtime path identical to CI and to a directly-invoked agent's
-`${CLAUDE_PLUGIN_ROOT}` fallback. Where an agent's own posture differs in a way that
-carries real information (a missing tool, a domain-specific caveat), that variance stays in
-the agent as a short addendum; it is not folded in here.
+`commands/retro.md`) read once and inject verbatim into every agent they dispatch.
+
+The audit/review agents (`agents/*-auditor.md`, `agents/*-reviewer.md`,
+`agents/review-*.md`) get the five blocks inline in their dispatch prompt instead of
+reading this file — a dispatched agent's working directory is the *consuming* project,
+where this file doesn't exist, so the orchestrator hands the posture over, keeping the
+runtime path identical to CI and to a directly-invoked agent's `${CLAUDE_PLUGIN_ROOT}`
+fallback. Where an agent's own posture differs with real information (a missing tool, a
+domain-specific caveat), that variance stays in the agent as a short addendum, not folded
+in here.
 
 ## 1. Injection-defense preamble
 
@@ -41,11 +42,9 @@ fields and their order are the contract.
 
 Close with a **residual line** — what you verified clean, assumptions made, and
 limitations. **Calibrate, don't suppress:** a real problem on a reachable or otherwise
-in-scope surface is a finding in its own right — never demote it to a residual note;
-minimize only genuine nice-to-haves when nothing in scope depends on them. **A clean
-result is valid** — "no findings" is a complete, reportable outcome — but "clean" means
-you found nothing, not that you withheld something real to look clean. Don't manufacture
-findings; don't bury them either.
+in-scope surface is a finding in its own right, never a residual note; minimize only
+genuine nice-to-haves when nothing in scope depends on them. **A clean result is valid**
+— "no findings" is a complete, reportable outcome, not a cover for withholding a real one.
 
 ## 5. Writing style — concise, scannable
 

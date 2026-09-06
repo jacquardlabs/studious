@@ -30,13 +30,12 @@ Read CLAUDE.md, PRODUCT.md, and DESIGN.md first.
 Bare `/review` reads repo state to choose; `--delivery` is always explicit, because
 delivery is a boundary someone decides they have reached, never one inferred from a diff.
 **When the signals disagree — a design doc changed *and* implementation landed in the
-same changeset — stop and name the disagreement rather than guessing.** Ask which episode
-the user means. Guessing here picks the wrong rubric for the whole round.
+same changeset — stop and name the disagreement rather than guessing;** ask which episode
+the user means.
 
-`--lane` and `--conformance` are the operator's own narrowing: "skip the checks the risk
-doesn't warrant" survives as lane selection, so a one-line change convenes a one-lane
-episode priced like a single check rather than the full fan-out. Narrowing changes *which*
-lanes run, never *what* a running one does.
+`--lane` and `--conformance` are the operator's own narrowing — "skip the checks the risk
+doesn't warrant" survives as lane selection. Narrowing changes *which* lanes run, never
+*what* a running one does.
 
 ## Assemble the shared contract (before dispatching)
 
@@ -84,11 +83,9 @@ an explicit file list instead.
 
 **At or above 400 changed lines**, skip this step entirely — no block is added to any
 dispatch prompt, and every specialist discovers the diff itself exactly as it does today.
-The byte cost of a large
-diff is identical either way (each context is isolated, so it pays those bytes once
-regardless of who fetches them); above this size, the round-trips saved no longer offset
-the readability cost of a sprawling diff dropped whole into a dispatch prompt. 400 is a
-starting number, not a tuned constant.
+The byte cost is identical either way; above this size, the round-trips saved no longer
+offset the readability cost of a sprawling diff dropped whole into a dispatch prompt. 400
+is a starting number, not a tuned constant.
 
 ## Resolve the branch's evidence log (before dispatching)
 
@@ -546,9 +543,6 @@ and compile the unified report and one of the three verdict tokens — per
 exit — after the work episode has closed `PASS`, before the PR opens. It runs once, at the
 delivery boundary, never once per fix cycle. Tokens: `SHIP` · `FIX AND RE-REVIEW` · `HOLD`
 (`reference/gate-vocabulary.md`).
-
-Clean code that ships a bad feature is still a bad feature. This episode is where that gets
-caught.
 
 ### Part 0 — Establish scope
 

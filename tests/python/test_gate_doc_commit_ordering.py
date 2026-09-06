@@ -1,21 +1,12 @@
 """Structural regression tests for the gate-doc-commit-ordering story (issue #99).
 
-`cmd_record` (`bin/gate-ledger`) stamps a verdict's sha from `git rev-parse --short
-HEAD` at the moment it runs; `cmd_status` later flags the verdict stale whenever the
-stored sha differs from current HEAD, however trivial the intervening commit. When a
-gate's own run writes a doc (the pre-mortem register `/review` persists on
-PROCEED TO PLAN, or an emergent note/reconciliation doc an acceptance run produces) and
-commits it *after* `gate-ledger record` already ran, every later reader of that
-verdict — the PR-time hook, `/next`'s finale ready-check — sees it as stale
-over a commit that changed nothing substantive (issue #99's observed incident: the
-finale acceptance dispatch committing its reconciliation notes after recording SHIP).
-
-The fix states one ordering rule — commit every file this gate's run wrote or
-modified before running `gate-ledger record` — explicitly in the three places that
-record a gate verdict on a doc-write-capable path: `commands/review.md`,
-`commands/review.md`, and the finale acceptance dispatch in
-`workflows/epic-driver.js`. No change to any gate's verdict vocabulary or decision
-logic — these tests lock the ordering statement, not the verdicts themselves.
+`cmd_record` stamps a verdict's sha from HEAD at record time; a doc committed after
+record (e.g. the finale acceptance dispatch committing reconciliation notes post-SHIP)
+makes `cmd_status` flag the verdict stale over a no-op commit. Fix: state one ordering
+rule (commit everything the run wrote before `gate-ledger record`) in the three
+doc-write-capable record sites: `commands/review.md` (x2) and the finale acceptance
+dispatch in `workflows/epic-driver.js`. Verdict vocabulary/decision logic unchanged —
+these tests lock the ordering statement only.
 """
 
 from __future__ import annotations
@@ -34,8 +25,7 @@ def _record_section(text: str) -> str:
 
 
 def test_gate_design_review_states_commit_before_record() -> None:
-    """commands/review.md's Record section states the ordering rule up front,
-    ahead of the `gate-ledger record` invocation, and points at the Part 3 register."""
+    """Record section states the ordering rule before the record invocation, pointing at the Part 3 register."""
     text = GATE_DESIGN_REVIEW.read_text()
     section = _record_section(text)
 
@@ -59,8 +49,7 @@ def test_gate_design_review_states_commit_before_record() -> None:
 
 
 def test_gate_design_review_no_longer_defers_the_register_commit() -> None:
-    """The Part 3 'committing the file is their call' language contradicted the new
-    rule (the agent commits it automatically, before recording) — it must be gone."""
+    """Part 3's 'committing the file is their call' contradicts the commit-before-record rule — must be gone."""
     text = GATE_DESIGN_REVIEW.read_text()
     assert "committing the file is their call" not in text, (
         "Part 3 still defers the register commit to the user's discretion, which "
@@ -69,11 +58,7 @@ def test_gate_design_review_no_longer_defers_the_register_commit() -> None:
 
 
 def test_gate_acceptance_states_commit_before_record() -> None:
-    """commands/review.md's Record section states the ordering rule up front, ahead
-    of the recording invocation — generic, since there is no prescribed write on
-    this gate (issue #99's observed emergent-doc case). The gate records via
-    `episode-verdict` since the delivery-episode rewrite (#289, Task 5); the
-    ordering rule is unchanged — commit first, then record."""
+    """Record section states the ordering rule before the `episode-verdict` invocation (renamed from `record` by #289 Task 5)."""
     text = GATE_ACCEPTANCE.read_text()
     section = _record_section(text)
 
@@ -91,12 +76,7 @@ def test_gate_acceptance_states_commit_before_record() -> None:
 
 
 def test_verdict_vocab_unchanged() -> None:
-    """Acceptance criteria: no change to verdict vocabulary or decision logic.
-
-    The acceptance retry token here is `FIX AND RE-REVIEW`, not this story's
-    original `FIX AND RE-CHECK` — #289 (Tasks 3 and 5) renamed it in
-    reference/gate-vocabulary.md, which is canonical. This test still locks
-    that the commit-ordering story's surfaces carry a full three-token set."""
+    """Locks the full three-token verdict set per surface; retry token is `FIX AND RE-REVIEW` (renamed from `FIX AND RE-CHECK` by #289, canonical in reference/gate-vocabulary.md)."""
     design_text = GATE_DESIGN_REVIEW.read_text()
     for token in ("PROCEED TO PLAN", "REVISE", "RETHINK"):
         assert token in design_text, f"gate-design-review lost verdict token {token!r}"
@@ -107,10 +87,7 @@ def test_verdict_vocab_unchanged() -> None:
 
 
 def test_driver_finale_acceptance_states_commit_before_record() -> None:
-    """The finale acceptance dispatch in epic-driver.js carries its own literal
-    commit-before-record instruction — the driver's own text is the last thing the
-    dispatched agent reads before acting, so referencing commands/review.md's copy of
-    the rule isn't enough (per the design doc's rationale for this third location)."""
+    """The finale acceptance dispatch carries its own literal commit-before-record instruction, since it's the last text the dispatched agent reads before acting."""
     source = DRIVER.read_text()
 
     anchor = "Run Studious's acceptance gate against the WHOLE epic"
@@ -132,9 +109,7 @@ def test_driver_finale_acceptance_states_commit_before_record() -> None:
 
 
 def test_driver_out_of_scope_dispatches_untouched() -> None:
-    """The finale audit-compile and premortem-verification dispatches carry no
-    Write-capable agents (per the design doc's scope check) and are explicitly out of
-    scope for this story — this locks that the story didn't drift into touching them."""
+    """Locks that the audit-compile and premortem-verification dispatches (no Write-capable agents, out of scope) weren't touched."""
     source = DRIVER.read_text()
     assert "Audit the FULL epic diff per your role." in source, (
         "finale audit dispatch prompt changed unexpectedly"

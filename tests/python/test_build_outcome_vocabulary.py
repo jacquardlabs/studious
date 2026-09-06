@@ -1,19 +1,17 @@
-"""The build step's outcome is one vocabulary with one authority (issue #213).
+"""Build-step outcome has one vocabulary, one authority (issue #213).
 
-`work-log --step build --outcome <X>` had five writers using two dialects and no
-validation. `workflows/epic-driver.js` wrote `DONE`; `skills/build/SKILL.md` and
-`reference/worker-contract.md` wrote `BUILT | PAUSED | ESCALATED`; `commands/next.md`
-wrote its own `HANDED-OFF` and `SKIPPED` markers and then branched on exactly three
-tokens — none of them `DONE`.
+Five writers used two dialects with no validation: `epic-driver.js` wrote `DONE`;
+`skills/build/SKILL.md` and `reference/worker-contract.md` wrote
+`BUILT | PAUSED | ESCALATED`; `commands/next.md` wrote its own `HANDED-OFF`/`SKIPPED`
+and branched on neither.
 
-That was reachable, not theoretical. `epic-driver.js` records the story *branch* on the
-work file, and `/next` resolves a feature by branch, so running `/next` on an epic
-story branch read back `DONE` and fell through every case.
+Reachable, not theoretical: `epic-driver.js` records the story *branch* on the work
+file, `/next` resolves a feature by branch, so an epic story branch read back `DONE`
+and fell through every case.
 
-`reference/worker-contract.md`'s "Status reporting" section is now the authority: it is
-what a third-party executor reads, and `bin/gate-ledger` enforces it at the write. These
-tests derive the vocabulary from that file and assert every writer and its one reader
-agree — so a sixth dialect fails here rather than in a live epic run.
+`reference/worker-contract.md`'s "Status reporting" section is now the authority;
+`bin/gate-ledger` enforces it at the write. These tests derive the vocabulary from
+that file and assert every writer and its one reader agree.
 
 Static text checks — no live model, no subprocess.
 """
@@ -32,8 +30,8 @@ BUILD_SKILL = REPO_ROOT / "skills" / "build" / "SKILL.md"
 WORK_ON = REPO_ROOT / "commands" / "next.md"
 DESIGN_MD = REPO_ROOT / "DESIGN.md"
 
-#: Reserved for `/next`'s own bookkeeping — a worker never writes these, but the
-#: ledger must accept them, since `/next` is a writer too.
+#: `/next`'s own bookkeeping markers — a worker never writes these, but the ledger
+#: must accept them since `/next` is a writer too.
 FLOW_MARKERS = ("HANDED-OFF", "SKIPPED")
 
 
@@ -51,8 +49,7 @@ def executor_statuses() -> list[str]:
 
 
 def test_contract_defines_the_three_terminal_statuses() -> None:
-    """Anchors the authority. Change this assertion first if the vocabulary changes;
-    the rest of this file then names every surface that has to follow."""
+    """Anchors the authority; change here first if the vocabulary changes."""
     assert executor_statuses() == ["BUILT", "PAUSED", "ESCALATED"]
 
 
@@ -64,8 +61,7 @@ def test_contract_reserves_the_flow_markers_without_giving_them_to_workers() -> 
 
 
 def test_ledger_validates_exactly_the_contract_vocabulary() -> None:
-    """`bin/gate-ledger` is where the enum stops being advice. Its accepted set must be
-    the contract's statuses plus the two flow markers — no more, no fewer."""
+    """Accepted set must be the contract's statuses plus the two flow markers, exactly."""
     text = LEDGER.read_text(encoding="utf-8")
     case = re.search(r"^\s*([A-Z|-]+)\) ;;$", text, re.MULTILINE)
     assert case, "gate-ledger has no build-outcome case arm"
@@ -85,8 +81,7 @@ def test_the_driver_reports_a_contract_status_not_its_own_dialect() -> None:
 
 def test_the_driver_names_the_in_box_route_first() -> None:
     """#212: the epic path named Superpowers as the only executor while `/next`
-    named `/build` + `/build` freely. Both are legitimate; the one that ships in the
-    box should not be the one left out."""
+    named `/build` freely; the one that ships in the box shouldn't be left out."""
     text = DRIVER.read_text(encoding="utf-8")
     build_prompt = re.search(r"const build = `(.*?)`\n", text, re.DOTALL)
     assert build_prompt, "epic-driver.js has no build worker prompt"
@@ -105,8 +100,8 @@ def test_build_skill_reports_the_same_three_statuses() -> None:
 
 
 def test_work_on_branches_on_every_token_it_can_be_handed() -> None:
-    """The reader. It must have a case for each terminal status, for its own markers,
-    and — because records written before the ledger check exist — for anything else."""
+    """The reader: a case for each terminal status, its own markers, and anything else
+    (records written before the ledger check still exist)."""
     text = WORK_ON.read_text(encoding="utf-8")
     section = re.search(r"\*\*Executor-reported build status\*\*(.*?)\n\n", text, re.DOTALL)
     assert section, "commands/next.md has no 'Executor-reported build status' bullet"

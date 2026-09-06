@@ -1,32 +1,22 @@
 #!/usr/bin/env bash
-# Studious dispatch telemetry — a PreToolUse hook on the `Task` tool (wired in
-# hooks.json) that silently appends one `dispatch` record per Studious review
-# agent sent out, to .studious/telemetry/<branch-slug>.jsonl via gate-ledger.
-# reference/telemetry-format.md is the contract; this script is one caller of
-# `telemetry-dispatch`, never a second writer or a second schema.
+# PreToolUse hook on `Task` (wired in hooks.json): appends one `dispatch`
+# record per Studious review agent sent out, to
+# .studious/telemetry/<branch-slug>.jsonl via gate-ledger. Contract:
+# reference/telemetry-format.md; this script only calls `telemetry-dispatch`.
 #
-# Fully silent by design, on every path: no stdout, no permission decision,
-# never blocks, never adds a decision Claude Code would surface — same posture
-# as hooks/gate-reminder.sh and hooks/evidence-capture.sh. A dispatch this
-# script does not recognize produces no record and no side effect.
+# Fully silent: no stdout, no permission decision, never blocks — same
+# posture as hooks/gate-reminder.sh and hooks/evidence-capture.sh. An
+# unrecognized dispatch produces no record.
 #
-# What the hook input actually carries, verified against
-# code.claude.com/docs/en/hooks (Common input fields; PreToolUse), not guessed:
-#   - every hook gets session_id, transcript_path, cwd, permission_mode,
-#     hook_event_name; PreToolUse adds tool_name, tool_input, tool_use_id.
-#   - agent_id/agent_type are present ONLY when the hook fires inside a subagent
-#     call — which is exactly the nesting this record's parent_step_id wants.
-#   - PreToolUse matchers match the TOOL NAME, so "Task" is a valid matcher.
-# NOT verified, because the docs do not enumerate it: the `Task` tool's own
-# tool_input field names. This script reads `subagent_type` and `prompt` and
-# exits silently when subagent_type is absent or empty, so a wrong assumption
-# here degrades to zero telemetry rather than to wrong telemetry.
+# Per code.claude.com/docs/en/hooks: agent_id/agent_type appear only when the
+# hook fires inside a subagent call (used for parent_step_id below). The
+# `Task` tool's own tool_input field names (`subagent_type`, `prompt`) are
+# NOT documented; a wrong assumption there degrades to zero telemetry, not
+# wrong telemetry.
 #
-# Deliberately NO armed-branch check, unlike evidence-capture.sh: /retro
-# runs on main against no story with no work file, and an armed check would
-# silence half of what this store exists to record. The roster table below is
-# the whole filter — a dispatch of a named Studious reviewer is itself the
-# signal.
+# No armed-branch check (unlike evidence-capture.sh): /retro runs on main
+# with no story/work file, and an armed check would silence half of what
+# this store exists to record. The roster table below is the whole filter.
 
 input=$(cat)
 
@@ -36,18 +26,14 @@ command -v git >/dev/null 2>&1 || exit 0
 ledger="${CLAUDE_PLUGIN_ROOT:-}/bin/gate-ledger"
 [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -x "$ledger" ] || exit 0
 
-# --- one jq spawn, not six. This hook fires on EVERY Task dispatch in the
-# session, most of which are not Studious reviewers at all; evidence-capture.sh's
-# own comment is explicit that the common rejected call must not pay a per-field
-# process each. Everything the decision needs comes out of one @tsv row: the
-# prompt itself never crosses the boundary, only its byte length (jq's
-# utf8bytelength, not bash's character count) and whether it carries the driver's
-# sentinel. A malformed payload fails the parse and exits silently.
+# --- one jq spawn, not six: fires on every Task dispatch, most not
+# Studious reviewers. The prompt itself never crosses the boundary, only
+# its byte length (utf8bytelength) and whether it carries the driver's
+# sentinel. Malformed payload fails the parse and exits silently.
 #
-# Joined on US (), NOT @tsv: bash treats tab as IFS *whitespace*, which
-# collapses a run of delimiters, so a single absent field (agent_id, present only
-# inside a subagent call — the common case) would silently shift every field after
-# it by one. A non-whitespace separator preserves empty fields positionally.
+# Joined on US (), not @tsv: bash's IFS treats tab as whitespace and
+# collapses consecutive delimiters, so an absent field (agent_id, empty
+# outside a subagent call) would shift every later field by one.
 fields=$(printf '%s' "$input" | jq -r '
   [.tool_name // "", .tool_input.subagent_type // "", .session_id // "",
    .tool_use_id // "", .agent_id // "",
@@ -60,33 +46,28 @@ IFS=$'\037' read -r tool subagent run_id step_id parent_step_id prompt_bytes sel
 [ "${tool:-}" = "Task" ] || exit 0
 [ -n "${subagent:-}" ] || exit 0
 
-# --- self-report suppression: workflows/epic-driver.js stamps the ledger call
-# into its own dispatch prompts with values no hook can observe (which round,
-# whether the roster was narrowed). A driver-stamped prompt carries the sentinel
-# matched above; recording it here too would double-count the dispatch. The token
-# is deliberately unlikely in ordinary prose — matching on "telemetry-dispatch"
-# would suppress on any prompt that happened to quote reference/telemetry-format.md.
+# --- self-report suppression: epic-driver.js stamps the ledger call into its
+# own dispatch prompts with values no hook can observe (round, narrowed
+# roster); recording here too would double-count. Matching on
+# "telemetry-dispatch" instead would false-positive on any prompt quoting
+# reference/telemetry-format.md.
 [ "${self_report:-}" = "true" ] && exit 0
 
 role="${subagent#studious:}"   # the agent's own `name`, never the qualified dispatch string
 
-# --- roster: which dispatch surface each agent belongs to. Two short exception
-# lists plus a pattern, deliberately not a fourth hand-maintained copy of the
-# auditor roster — epic-driver.js's AUDITORS comment already names three copies of
-# that list as a standing drift risk (#271), and a lane added tomorrow would go
-# silently unrecorded here. The pattern self-heals; the exceptions are the two
-# facts a pattern cannot carry. Backed by an agents/<role>.md existence check, so
-# an unrelated general-purpose Task never lands in this store.
+# --- roster: which dispatch surface each agent belongs to. Two exception
+# lists plus a pattern, not a fourth hand-maintained copy of the auditor
+# roster (epic-driver.js's AUDITORS comment already names three as a drift
+# risk, #271) — the pattern self-heals, the exceptions carry what it can't.
+# Guarded by an agents/<role>.md existence check.
 #
-# ORDER IS LOAD-BEARING: product-reviewer, premortem-auditor, and code-auditor all
-# match the *-reviewer/*-auditor pattern, so both exception lists must be tested
-# before it, and review-outcomes matches review-* but is dispatched by its own
-# /retro outcomes mode, which runs OUTSIDE the full /retro sweep — its case
-# branch must precede that pattern. The one genuine ambiguity is recorded as an
-# ambiguity, not guessed — code-auditor serves both /review's lane 2 and
-# /retro's idiom feedback step, and the hook cannot see which command
-# dispatched it, so its lines carry an empty `skill`
-# (reference/telemetry-format.md says how a joiner resolves them).
+# ORDER IS LOAD-BEARING: product-reviewer, premortem-auditor, and
+# code-auditor all match *-reviewer/*-auditor, so both exception lists must
+# be tested first; review-outcomes matches review-* but runs outside the
+# /retro sweep, so its case must precede that pattern too. code-auditor
+# serves both /review lane 2 and /retro's idiom step and the hook can't see
+# which dispatched it, so its lines carry an empty `skill`
+# (reference/telemetry-format.md says how a joiner resolves that).
 [ -f "${CLAUDE_PLUGIN_ROOT}/agents/${role}.md" ] || exit 0
 ACCEPTANCE_ROLES="product-reviewer premortem-auditor"
 AMBIGUOUS_ROLES="code-auditor"
@@ -102,18 +83,15 @@ else
   esac
 fi
 
-# --- identity. run_id is the session; step_id is the harness's own id for this
-# tool call, unique by construction and needing no invention here. parent_step_id
-# is the enclosing subagent when there is one (agent_id is documented as present
-# only inside a subagent call) and empty at top level.
+# --- identity. run_id is the session; step_id is the harness's own id for
+# this tool call. parent_step_id is the enclosing subagent, if any.
 [ -n "${run_id:-}" ] || exit 0
 [ -n "${step_id:-}" ] || step_id="$run_id:$role:$(date -u +%s)"
 
-# model/effort are deliberately NOT read here: the Task input carries no model
-# field, and resolving them from agents/<role>.md belongs in one place, which is
-# `telemetry-dispatch` itself. routing_reason is `static` because every
-# interactive fan-out dispatches from a fixed roster in the command's own prose;
-# only the driver can narrow one, and the driver reports its own dispatches.
+# model/effort not read here: Task input carries no model field, and
+# resolving from agents/<role>.md belongs in `telemetry-dispatch` itself.
+# routing_reason is `static`: interactive fan-out always dispatches a fixed
+# roster; only the driver narrows one, and it reports its own dispatches.
 args=(--run-id "$run_id" --step-id "$step_id" --role "$role" --skill "$skill"
       --routing-reason static --capturer hook
       --feature "prompt_bytes=${prompt_bytes:-0}")

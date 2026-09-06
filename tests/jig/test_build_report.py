@@ -1,16 +1,9 @@
 """Regression tests for scripts/build-report (story finish-skill, issue #20).
 
-Checks this story's acceptance criteria mechanically
-(the finish-skill story, Step 5):
-
-1. Happy path: writes `docs/studious/build-reports/YYYY-MM-DD-<slug>-build-report.md`
-   with the caller-supplied content copied in verbatim -- this script is a
-   mechanical write, never a summarizer or judge of that content.
-2. `--date` defaults to today (UTC) when omitted.
-3. Refuses to overwrite an existing report at the same date+slug without
-   `--force`.
-4. Fails closed on usage errors: a slug containing `/` or `..`, a missing
-   `--content` file, a malformed `--date`.
+Covers: writes docs/studious/build-reports/YYYY-MM-DD-<slug>-build-report.md
+with content copied verbatim (never summarized/judged); --date defaults to
+today (UTC); refuses to overwrite same date+slug without --force; fails
+closed on bad slug (/ or ..), missing --content file, malformed --date.
 
 Run with:
 

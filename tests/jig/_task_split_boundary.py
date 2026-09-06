@@ -1,28 +1,24 @@
-"""Derives, from each of jig's three independently-encoded task-splitting
-surfaces, a function computing where a `### Task N` block ends -- so a
-test can check the three actually agree, instead of trusting they do by
-inspection (story plan-lint-build-boundary-integration-test, issue #66,
-epic pre-dogfood-hardening).
+"""Derives a function computing where a `### Task N` block ends from each of
+jig's three independently-encoded task-splitting surfaces, so a test can
+check the three actually agree (story plan-lint-build-boundary-integration-test,
+issue #66, epic pre-dogfood-hardening).
 
 The three surfaces:
 
 1. `scripts/plan-lint`'s own `split_tasks()` -- code, executed for real via
    `load_plan_lint_module`; see `surface_1_plan_lint_ends`.
-2. `skills/build/SKILL.md` Step 1.4's boundary prose -- read-only: this
-   module extracts the *documented rule* out of the prose text (the
-   backtick-quoted heading marker it names, e.g. "### ", and whether the
-   coarser-heading-exclusion sentence is still present), never executes
-   or dispatches the skill; see `derive_build_step_1_4_boundary_regex` and
-   `surface_2_build_ends`.
-3. `reference/planning-contract.md` Step 6's `--split-on` pattern -- read-only: this
-   module extracts the literal regex string from the documented
-   invocation and applies it exactly as viva's own flag does (heading
-   title text, any depth), never executes `/build` or viva; see
-   `derive_plan_step_6_split_on_pattern` and `surface_3_plan_ends`.
+2. `skills/build/SKILL.md` Step 1.4's boundary prose -- read-only: extracts
+   the documented rule (heading marker, and whether the coarser-heading-
+   exclusion sentence is still present), never executes the skill; see
+   `derive_build_step_1_4_boundary_regex` and `surface_2_build_ends`.
+3. `reference/planning-contract.md` Step 6's `--split-on` pattern -- read-only:
+   extracts the literal regex from the documented invocation and applies it
+   as viva's flag does (heading title text, any depth), never executes
+   `/build` or viva; see `derive_plan_step_6_split_on_pattern` and
+   `surface_3_plan_ends`.
 
 Not a test module -- nothing here is collected by `unittest discover`,
-matching the `_vocabulary.py` / `_load_bearing.py` "shared, not itself
-collected" convention already established in this repo.
+matching the `_vocabulary.py` / `_load_bearing.py` convention.
 """
 from __future__ import annotations
 
@@ -43,10 +39,7 @@ PLAN_LINT_SCRIPT = REPO_ROOT / "scripts" / "plan-lint"
 
 def load_plan_lint_module(script_path: Path = PLAN_LINT_SCRIPT) -> ModuleType:
     """Import `scripts/plan-lint` as an in-process module so this test can
-    call its actual `split_tasks()` (and read its `TASK_HEADING_RE`)
-    directly -- the acceptance criteria names `split_tasks()` itself as the
-    surface under test, not just its stdout (the existing
-    `test_plan_lint.py` subprocess convention). The script has no `.py`
+    call its actual `split_tasks()` directly. The script has no `.py`
     suffix -- a hyphenated executable, not a package -- so
     `importlib.util`'s file-location loader is what makes a direct import
     possible at all.
@@ -74,9 +67,8 @@ def load_plan_lint_module(script_path: Path = PLAN_LINT_SCRIPT) -> ModuleType:
 
 def task_starts(plan_lint_module: ModuleType, text: str) -> dict[str, int]:
     """{task_number: start_offset}, from plan-lint's own `TASK_HEADING_RE`
-    -- the one thing all three surfaces already agree on verbatim (a task
-    starts at its own `### Task N` heading). Only where a block *ends* is
-    the disputed question this module exists to check."""
+    -- the one thing all three surfaces already agree on verbatim. Only
+    where a block *ends* is the disputed question this module checks."""
     return {m.group(1): m.start() for m in plan_lint_module.TASK_HEADING_RE.finditer(text)}
 
 
@@ -115,12 +107,10 @@ def derive_build_step_1_4_task_heading_level(build_skill_md_text: str) -> int:
 
 
 def derive_build_step_1_4_coarser_example_level(build_skill_md_text: str) -> int:
-    """The level of the concrete coarser-heading example Step 1.4 itself
-    gives ("a closing `## Not-here follow-ups` section") -- read here only
-    for a sanity check that the doc's own example is coherent with its own
-    stated task-heading level; not consumed by
-    `derive_build_step_1_4_boundary_regex` itself, which needs only the
-    task level and the exclusion sentence's presence."""
+    """Level of the concrete coarser-heading example Step 1.4 gives (e.g.
+    "a closing `## Not-here follow-ups` section") -- a sanity check that
+    the doc's example is coherent with its stated task-heading level; not
+    consumed by `derive_build_step_1_4_boundary_regex` itself."""
     match = _STEP_1_4_COARSER_EXAMPLE_RE.search(build_skill_md_text)
     if match is None:
         raise AssertionError(
@@ -135,20 +125,15 @@ def derive_build_step_1_4_boundary_regex(build_skill_md_text: str) -> re.Pattern
     regex, instead of hand-copying `scripts/plan-lint`'s `#{1,3}` pattern a
     second time.
 
-    Two facts, both read from the text, decide the result:
-
-    - the task heading's own level (see
-      `derive_build_step_1_4_task_heading_level`);
-    - whether the prose still carries its own coarser-heading-exclusion
-      sentence ("Explicitly exclude any trailing content at a coarser
-      heading level"). Present: any heading from level 1 up to and
-      including the task level ends a block (markdown's own coarsest
-      level, 1, is the structural floor -- nothing in either doc needs to
-      spell that out again). Absent: this derivation falls back to the
-      *naive* "next task heading only" rule the sentence exists to rule
-      out -- exactly the M0 dogfood bug Step 1.4 itself names -- so a
-      regression that drops the sentence is caught as a real behavior
-      change, not silently kept "correct" by a hardcoded floor.
+    Two facts read from the text decide the result: the task heading's own
+    level (see `derive_build_step_1_4_task_heading_level`), and whether the
+    prose still carries its coarser-heading-exclusion sentence ("Explicitly
+    exclude any trailing content at a coarser heading level"). Present: any
+    heading from level 1 up to and including the task level ends a block.
+    Absent: falls back to the naive "next task heading only" rule the
+    sentence exists to rule out -- the M0 dogfood bug Step 1.4 names -- so
+    dropping the sentence is caught as a behavior change, not silently kept
+    "correct" by a hardcoded floor.
     """
     task_heading_level = derive_build_step_1_4_task_heading_level(build_skill_md_text)
     if _STEP_1_4_COARSER_EXCLUSION_RE.search(build_skill_md_text) is None:

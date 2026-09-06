@@ -1,10 +1,9 @@
 # Gate vocabulary — canonical verdict tokens
 
 Canonical source for each gate's exact verdict tokens. Each gate command file (linked below)
-remains the source of truth for *how* it decides between its tokens — this file exists so
-consumers that must react to a specific token, not just display it, cite one spelling instead
-of retyping it, so a rename in the command doesn't silently drift out of sync with its
-consumers. `commands/next.md` cites this file instead of restating token definitions.
+remains the source of truth for *how* it decides between its tokens; consumers that must react
+to a specific token cite this file's spelling instead of retyping it, so a rename in the
+command can't silently drift. `commands/next.md` cites this file instead of restating tokens.
 
 ## The three-outcome shape
 
@@ -19,11 +18,10 @@ how to resolve it). The tokens differ per episode; the shape doesn't.
 | work | `audit` | `commands/review.md` | `PASS` | `FIX AND RE-REVIEW` | `NEEDS DISCUSSION` |
 | delivery | `acceptance` | `commands/review.md` | `SHIP` | `FIX AND RE-REVIEW` | `HOLD` |
 
-The bet and design rows carry the same tokens they always have. The work and delivery
-episodes share one fix-and-retry spelling, `FIX AND RE-REVIEW` (#289) — one retry token
-for both review episodes, replacing `FIX AND RE-AUDIT` and `FIX AND RE-CHECK`. The
-"Ledger gate" column is the key `bin/gate-ledger` and `commands/next.md` record
-under; the episode name is the vocabulary the gate prose and reports speak.
+The work and delivery episodes share one fix-and-retry spelling, `FIX AND RE-REVIEW` (#289),
+replacing `FIX AND RE-AUDIT` and `FIX AND RE-CHECK`. "Ledger gate" is the key
+`bin/gate-ledger` and `commands/next.md` record under; the episode name is the vocabulary
+the gate prose and reports speak.
 
 Note: bet has no "fix and retry" token — `BUILD SMALLER` is a scoped-down proceed, not a
 retry state.
@@ -34,16 +32,15 @@ The terms the episode rows above are written against, one line each (#289):
 
 - **episode** — one bounded run of a gate on a branch: opened at a sha, at most two
   rounds (the first review plus one fix-and-retry) when the audit or acceptance door
-  drives it — `bin/gate-ledger`'s episode verbs refuse the third round and the second
+  drives it — `bin/gate-ledger`'s episode verbs refuse a third round or a second
   closing verdict in code — and closed by exactly one **terminal** verdict. A round's
   `FIX AND RE-REVIEW` is that round's *outcome*, not a closing verdict: below the round
   cap, `episode-round` re-enters past it, clearing the outcome and keeping the findings;
   at the cap, `episode-verdict` accepts a terminal verdict over it instead (re-entry is
-  spent), and set-aside dispositions of already-recorded findings land while it rides —
-  "closed by exactly one terminal verdict" holds on every path. The design-review
-  and decide doors adopt the episode verbs in a later landing, and the epic driver's
-  own retry cap is a separate constant until #274 collapses the two implementations —
-  this bound governs the episode verbs, not those loops.
+  spent), and set-aside dispositions of already-recorded findings land while it rides.
+  The design-review and decide doors adopt the episode verbs in a later landing; the
+  epic driver's own retry cap is a separate constant until #274 collapses the two
+  implementations — this bound governs the episode verbs only, not those loops.
 - **lane profile** — the set of specialist review lanes (auditors/reviewers) a round
   dispatches for this changeset: the always-on lanes plus the conditionally-routed
   ones, per `commands/review.md`'s routing rules.
@@ -64,10 +61,10 @@ one you mean whenever both could be read.
 ## Advisory verdicts (not phase-gating)
 
 Not every verdict `bin/gate-ledger` recognizes is a phase gate. `pre-mortem` is an
-advisory-only signal `cmd_status`/`record` track alongside the four gates above, but it
-does not join the table: it has no "fix and retry" or "stop/rethink" token, no phase
-transition in `commands/next.md`, and no skill shim — it exists solely so
-`hooks/gate-reminder.sh`'s PR-time reminder can name a materialized cross-story risk.
+advisory-only signal `cmd_status`/`record` track alongside the four gates above; it has
+no "fix and retry" or "stop/rethink" token, no phase transition in `commands/next.md`, and
+no skill shim — it exists so `hooks/gate-reminder.sh`'s PR-time reminder can name a
+materialized cross-story risk.
 
 | Verdict source | Roll-up tokens | Recorded on | Absence |
 |-----------------|-----------------|-------------|---------|
@@ -75,11 +72,10 @@ transition in `commands/next.md`, and no skill shim — it exists solely so
 
 This roll-up is deliberately coarser than `agents/premortem-auditor.md`'s per-item
 verdict (`REALIZED` / `NOT REALIZED` / `CAN'T VERIFY`, one per register line): `CLEAR`
-means "no item in the register realized," chosen so it never collides with an
-individual item's `NOT REALIZED` in conversation about the same register. Update this
-section, not the per-gate table above, if the roll-up vocabulary or its scope changes.
-See `docs/studious/premortems/2026-07-09-premortem-hook-awareness-design.md` for the
-rationale behind this shape.
+means "no item in the register realized," chosen to avoid colliding with an individual
+item's `NOT REALIZED` in conversation about the same register. Update this section, not
+the per-gate table above, if the roll-up vocabulary or scope changes. Rationale:
+`docs/studious/premortems/2026-07-09-premortem-hook-awareness-design.md`.
 
 ## Consumers that must stay in sync
 

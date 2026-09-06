@@ -8,13 +8,11 @@ effort: high
 
 # Security health review
 
-This is a periodic review of the entire repository's security posture, not scoped to
-any feature branch. Run it on main/trunk on a regular cadence. The gate
-`security-auditor` sees only changesets — a vulnerability in code no branch has touched
-is permanently outside its scope; this lane is that vulnerability's only reporting
-path. That drives one deliberate asymmetry with the other periodic lanes: **Critical
-and High findings are reported per instance**, never aggregated away; Medium/Low
-aggregate with trend.
+Whole-repo security posture review, not scoped to any branch; run on main/trunk on a
+regular cadence. `security-auditor` covers changesets only — a vulnerability in
+untouched code is otherwise unreported, which is why, uniquely among periodic lanes,
+**Critical and High findings are reported per instance**, never aggregated away;
+Medium/Low aggregate with trend.
 
 Read CLAUDE.md and PRODUCT.md first for documented security posture, accepted
 deviations, and data sensitivity.
@@ -34,8 +32,7 @@ deviations, and data sensitivity.
 - **You write exactly one file: your report** at the path below. Never modify the
   codebase or any context doc.
 - **Detect the stack and skip lanes that don't apply** (a docs/plugin repo has no
-  session-config lane); say so in the residual rather than forcing web assumptions
-  onto a repo that has none.
+  session-config lane); say so in the residual rather than assuming a web stack.
 
 The deep catalog — vulnerability-class signatures, injection sinks by language, JWT
 attacks, secret patterns, per-stack defaults — is in

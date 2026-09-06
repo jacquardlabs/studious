@@ -1,19 +1,16 @@
 """No shipped prompt still calls this plugin's build loop "jig" (issue #150).
 
-jig was absorbed as skills of this plugin, so a user reading "jig's four skills"
-or "if jig is installed" is being pointed at a product they cannot install —
-the marketplace entry was deleted. The conditionals that *acted* on that name
-are guarded separately (`tests/jig/test_gate_handoffs.py`); this guards the
-prose, which regresses easily because old wording gets copied forward.
+jig was absorbed as skills of this plugin and the marketplace entry deleted,
+so prose like "jig's four skills" points at something uninstallable. The
+conditionals that *acted* on the name are guarded separately
+(`tests/jig/test_gate_handoffs.py`); this guards the prose.
 
-`docs/jig/` and `tests/jig/` survive as real directory names. `tests/jig/` is
-live — the build scripts' own test tree. `docs/jig/` is historical only:
-`docs/jig/reports/`, `docs/jig/reviews/`, and `docs/jig/evidence/` hold dated
-records from before the evidence/report stores moved to `.studious/` and
-`docs/studious/` (see `/exorcist:seance` G-13) — real committed files, never
-renamed after the fact, but no longer where anything new gets written. So the
-rule is not "the string never appears," it is "every appearance is part of
-one of those paths."
+`docs/jig/` and `tests/jig/` survive as real directory names — `tests/jig/`
+is the build scripts' live test tree; `docs/jig/` holds historical dated
+records from before evidence/reports moved to `.studious/`/`docs/studious/`
+(see `/exorcist:seance` G-13), never renamed after the fact. So the rule is
+"every appearance is part of one of those paths," not "the string never
+appears."
 """
 from __future__ import annotations
 

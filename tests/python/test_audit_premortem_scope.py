@@ -1,22 +1,17 @@
-"""Structural regression tests for the audit-premortem-scope-fix story.
+"""Regression tests for the audit-premortem-scope-fix story.
 
 `workflows/epic-driver.js`'s `auditFanIn()` compiles the audit gate's verdict at
-two altitudes — per-story (`auditRound`) and epic-finale (`finaleAuditRound`) —
-by handing the compiling agent `commands/review.md`'s full compilation text.
-That document's own auditor-11 "Pre-mortem verification" section fires whenever a
-pre-mortem register file is present — true in every story worktree, since the
-register lives on the epic branch and is checked out into each story worktree as
-a side effect of normal `git worktree add`. But the driver's own `AUDITORS`
-constant lists only the fixed lanes and never dispatches a pre-mortem auditor into the
-reports `auditFanIn()` receives, at either altitude — so, with nothing telling it
-otherwise, the compiling agent could read commands/review.md's auditor-11 section,
-notice the register file, expect an extra report, find none, and raise a phantom
-missing-premortem-lane finding with no code behind it to fix.
+two altitudes (per-story `auditRound`, epic-finale `finaleAuditRound`) by handing
+the compiling agent `commands/review.md`'s full text, whose auditor-11 pre-mortem
+section fires whenever a register file is present — true in every story worktree,
+since the register lives on the epic branch and rides along via normal
+`git worktree add`. `AUDITORS` never dispatches a pre-mortem auditor, so nothing
+stops the compiler from noticing the register, expecting a report, finding none,
+and raising a phantom missing-lane finding.
 
-These tests lock the fix: `auditFanIn()`'s own prompt text now tells the
-compiling agent that pre-mortem verification is out of scope for its verdict, at
-both altitudes it serves, and states both altitude-specific reasons — without
-touching `AUDITORS`, `joinReports()`, or any dispatch call site.
+These tests lock the fix: `auditFanIn()`'s prompt text now scopes pre-mortem
+verification out at both altitudes, without touching `AUDITORS`, `joinReports()`,
+or any dispatch call site.
 """
 
 from __future__ import annotations
@@ -68,15 +63,12 @@ def test_audit_fan_in_scopes_out_premortem_verification() -> None:
 
 
 def test_audit_fan_in_states_both_altitude_reasons() -> None:
-    """The carve-out names the story-altitude reason and the finale-altitude reason.
+    """Carve-out names both the story- and finale-altitude reasons.
 
     Per reference/epic-plan-contract.md's "Epic pre-mortem" row, the register is
-    verified once, at the epic finale, never per-story — and at the finale the
-    driver runs a separate, dedicated premortem-auditor step outside this
-    compilation (workflows/epic-driver.js's finale block, distinct from
-    finaleAuditRound). Both reasons must be legible to the compiling agent
-    regardless of which altitude actually invoked auditFanIn, since the same
-    prompt text serves both call sites.
+    verified once at the epic finale (never per-story), via a separate dedicated
+    premortem-auditor step outside this compilation. Both reasons must be legible
+    regardless of which altitude invoked auditFanIn, since one prompt serves both.
     """
     body = _audit_fan_in_body()
     lowered = body.lower()
@@ -91,13 +83,10 @@ def test_audit_fan_in_states_both_altitude_reasons() -> None:
 
 
 def test_audit_fan_in_forbids_the_finding_and_the_verdict_penalty() -> None:
-    """The carve-out explicitly bars raising the finding or depressing the verdict.
+    """Carve-out bars both raising the finding and depressing the verdict.
 
-    A vague "disregard this" is not enough to stop a compiling agent from still
-    citing the absence as a minor/track-tier finding, which would still show up
-    in the compiled report even if it no longer drives the verdict. The prompt
-    must forbid both: raising it as a finding at all, and letting it lower the
-    verdict below what the audited lanes otherwise support.
+    A vague "disregard this" wouldn't stop the compiler citing the absence as a
+    minor finding even without moving the verdict — the prompt must forbid both.
     """
     body = _audit_fan_in_body()
     lowered = body.lower()
@@ -116,31 +105,18 @@ def test_audit_fan_in_forbids_the_finding_and_the_verdict_penalty() -> None:
 
 
 def test_auditors_constant_never_gains_a_premortem_entry() -> None:
-    """Acceptance criteria: no change to AUDITORS; pre-mortem stays out of the fixed roster.
+    """Acceptance criteria: AUDITORS never gains a pre-mortem entry.
 
-    The premortem-scope fix is scoped to auditFanIn's own prompt text only. The
-    AUDITORS lane roster itself is free to grow (new fixed auditors land independently
-    of that fix, and independently of the later delta-scoped re-audit story, #130,
-    which reads and narrows AUDITORS but never edits its membership) — what both
-    stories guarantee is that it never gains a pre-mortem entry, since pre-mortem
-    verification stays a dedicated finale step, never a fixed dispatch lane.
+    Scoped to auditFanIn's prompt text only — pre-mortem stays a dedicated finale
+    step, never a fixed dispatch lane. AUDITORS is otherwise free to grow.
 
-    `joinReports()`'s own signature and both call sites (auditRound/finaleAuditRound)
-    DID change under #130 — delta-scoped re-audit's own acceptance criteria require it
-    (narrowed dispatch, carry-forward, a fix-delta pass) — so this test no longer pins
-    their exact shape; tests/python/test_delta_scoped_reaudit.py covers that shape.
-    `auditFanIn()`'s own call sites underwent the equivalent change under #138 (first-round
-    changeset routing), which threads `routed`/`routedOut` through both call sites, and
-    again under #271's fix cycle round 2 (a trailing `injectionAttempt` boolean, so a
-    detected audit-evasion attempt surfaces in the compiled report instead of vanishing
-    silently) — so this test no longer pins their exact shape either;
-    tests/python/test_audit_first_round_routing.py covers that shape. `auditRound`'s call
-    site grew once more under #244 (scope-delta measurement) to thread a computed
-    `scopeDeltaFlags` string through — the finale call site did NOT (a declared set has no
-    single owner at finale altitude, per that design doc's Open Questions), so this test
-    prefix-matches both call sites rather than pinning either one's exact trailing
-    argument list; tests/python/test_scope_delta_measurement.py covers the actual new
-    shape.
+    `joinReports()`'s signature and call sites changed under #130 (delta-scoped
+    re-audit) and are no longer pinned here — see test_delta_scoped_reaudit.py.
+    `auditFanIn()`'s call sites changed under #138 (routed/routedOut) and #271's
+    fix cycle (trailing `injectionAttempt`) and are prefix-matched, not pinned —
+    see test_audit_first_round_routing.py. `auditRound`'s call site grew again
+    under #244 (`scopeDeltaFlags`); the finale site did not (no single owner at
+    finale altitude) — see test_scope_delta_measurement.py.
     """
     source = _driver_text()
     auditors_match = re.search(r"const AUDITORS = \[(.*?)\]", source, re.DOTALL)
@@ -156,33 +132,15 @@ def test_auditors_constant_never_gains_a_premortem_entry() -> None:
         "only, not a dispatch change"
     )
 
-    # Both call sites' auditFanIn signature grew under #138 (first-round changeset
-    # routing) to thread routed/routedOut through, and again under #271's fix cycle
-    # round 2 to thread a trailing injectionAttempt boolean — this test no longer
-    # pins their exact shape, mirroring the same relaxation this docstring already
-    # applied to joinReports under #130; tests/python/test_audit_first_round_routing.py
-    # covers the actual new shape. What this test still guarantees: neither call site
-    # gained a pre-mortem argument — the carve-out stays prompt-text only.
-    # Grew again under operability-routing-parity's acceptance fix cycle (a trailing
-    # frontendMatch boolean, so joinReports/auditFanIn can gate the accessibility
-    # not-covered block without a second hand-derived copy of the flag) — matching
-    # this docstring's own stated intent above, the prefix is checked, not the exact
-    # trailing argument list; tests/python/test_audit_first_round_routing.py covers
-    # the current shape in full. auditRound's call site grew once more under #244
-    # (scope-delta measurement) to append a computed scopeDeltaFlags string — the
-    # finale call site did NOT (a declared set has no single owner at finale
-    # altitude, per that design doc's Open Questions); both remain prefix-matched
-    # rather than pinned exactly, so this one additional trailing argument on
-    # auditRound's side needs no assertion change here — tests/python/
-    # test_scope_delta_measurement.py covers the actual new shape.
+    # Also grew under operability-routing-parity's fix cycle (trailing
+    # frontendMatch boolean, for the accessibility not-covered gate) and under
+    # #244 on auditRound's side only (scopeDeltaFlags; finale has no single owner
+    # for that set) — see docstring. Both stay prefix-matched: no pre-mortem arg.
     assert "auditFanIn(story, joined, `epic/${slug}`, storyWorktree(story), nextPhase, routed, routedOut, injectionAttempt" in source, (
         "auditRound's auditFanIn call site is missing or has an unexpected shape"
     )
-    # The finale call site passes `joinedAll` rather than `joined` since #281/#130's
-    # re-aim: joinReports' output plus the three finale-only blocks appended after it
-    # (findings-closure, seams, and any lane carried forward on story-level
-    # attestations). Still prefix-matched, still asserting the same thing — no
-    # pre-mortem argument.
+    # Finale passes joinedAll (joined + three finale-only blocks) since #281/#130's
+    # re-aim. Still prefix-matched — same guarantee: no pre-mortem argument.
     assert "auditFanIn(null, joinedAll, input.defaultBranch, epicWorktree, '', routed, routedOut, injectionAttempt" in source, (
         "finaleAuditRound's auditFanIn call site is missing or has an unexpected shape"
     )
@@ -191,12 +149,7 @@ def test_auditors_constant_never_gains_a_premortem_entry() -> None:
 
 
 def test_dedicated_finale_premortem_step_is_unchanged() -> None:
-    """The dedicated finale premortem-auditor dispatch stays outside the fan-in.
-
-    Out of scope per the design doc: this story defers to that step for the
-    epic-level pre-mortem verdict, it does not touch its dispatch, schema, or
-    result handling (finale.premortem).
-    """
+    """Dedicated finale premortem-auditor dispatch stays outside the fan-in — out of scope for this story."""
     source = _driver_text()
     assert "agentType: 'studious:premortem-auditor'" in source, (
         "the dedicated finale premortem-auditor dispatch is missing or changed"

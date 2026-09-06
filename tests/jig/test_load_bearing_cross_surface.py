@@ -1,19 +1,8 @@
-"""Integration test binding jig's two independently-encoded load-bearing
-derivations (story plan-lint-load-bearing-cross-surface, sibling to issue
-#66; epic pre-dogfood-hardening): `scripts/plan-lint`'s own
-`compute_load_bearing()` and `tests/_load_bearing.py`'s
-`derive_load_bearing_set()` each separately claim to implement
-`skills/build/SKILL.md` step 1.5's rule -- nothing before this checked that
-mechanically, against a shared set of fixtures. This closes the exact gap
-the epic-finale audit for `load-bearing-title-match` (issue #62) named:
-that story shipped title-matching in the test-only reference module without
-anything proving `plan-lint`'s own, real copy agreed.
-
-Uses the three fixtures under `tests/fixtures/plan-lint/`: the two existing
-`clean-plan.md` / `broken-plan.md` (both number-match only) and the new
-`load-bearing-title-match.md` (the title-only match path neither of the
-other two exercises) -- committed fixtures, not a synthetic stand-in,
-matching `test_task_split_boundary_integration.py`'s own convention.
+"""Binds jig's two independent load-bearing derivations -- `scripts/plan-lint`'s
+`compute_load_bearing()` and `tests/_load_bearing.py`'s `derive_load_bearing_set()`
+-- against shared fixtures, closing the gap the epic-finale audit for
+`load-bearing-title-match` (issue #62) named: title-matching shipped in the
+test-only reference module with nothing proving plan-lint's real copy agreed.
 
 Run with:
 
@@ -37,12 +26,10 @@ _STEP_1_5_TITLE_MATCH_RE = re.compile(r"unambiguous title match")
 
 
 def step_1_5_documents_both_match_paths(build_skill_md_text: str) -> bool:
-    """True iff Step 1.5's prose still names both of its documented match
-    modes by text -- a regression that silently drops either phrase (e.g.
-    narrowing back to number-only) is exactly what this presence check
-    catches; it is not itself proof either surface's code implements what
-    the prose says, only that the prose hasn't quietly stopped promising
-    it."""
+    """True iff Step 1.5's prose still names both documented match modes --
+    catches a regression narrowing back to number-only. Not proof either
+    surface implements what the prose says, only that the prose still
+    promises it."""
     return bool(
         _STEP_1_5_HEADING_NUMBER_RE.search(build_skill_md_text)
         and _STEP_1_5_TITLE_MATCH_RE.search(build_skill_md_text)
@@ -64,10 +51,9 @@ FIXTURE_NAMES = (
     "clean-plan.md",
     "broken-plan.md",
     "load-bearing-title-match.md",
-    # Boundary fixtures (#206). The three above are all parsed identically by
-    # any reasonable task-heading grammar, which is why the agreement they
-    # proved was weaker than it read: the two surfaces carried different
-    # regexes and disagreed on all three inputs below.
+    # Boundary fixtures (#206): the three above parse identically under any
+    # reasonable grammar, so the agreement they proved was weaker than it
+    # read -- the two surfaces' regexes disagreed on all three inputs below.
     "boundary-trailing-section.md",
     "boundary-heading-variants.md",
 )
@@ -118,10 +104,9 @@ class TestTwoSurfacesAgreeOnLoadBearingSets(unittest.TestCase):
         self.assertEqual(surface_1_plan_lint(self.plan_lint_module, text), frozenset({"7"}))
 
     def test_title_match_fixture_load_bearing_set_is_task_1_via_title_only(self) -> None:
-        """The fixture's whole point: Task 2's Rests-on line names Task 1
-        by title alone, with no "Task 1" substring anywhere in it -- if
-        this passed via number-match instead, the fixture wouldn't be
-        exercising the path it claims to."""
+        """Task 2's Rests-on line names Task 1 by title alone, with no
+        "Task 1" substring in it -- else this would pass via number-match
+        instead of the path it claims to exercise."""
         text = (FIXTURES / "load-bearing-title-match.md").read_text(encoding="utf-8")
         rests_on_line = next(
             line for line in text.splitlines() if line.strip().startswith("Rests on:") and "triple" in line
@@ -131,12 +116,11 @@ class TestTwoSurfacesAgreeOnLoadBearingSets(unittest.TestCase):
 
     def test_a_trailing_coarser_section_contributes_nothing(self) -> None:
         """Step 1.4's explicit exclusion, which the old reference violated:
-        it split only at the next *task* heading, so a closing
+        it split only at the next *task* heading, so a trailing
         `## Not-here follow-ups` was absorbed into the last task's block and
-        a `Rests on:` line down there was read as that task's own. Agreement
-        alone would not catch this -- both surfaces could agree on `{1}` --
-        so the expected set is asserted outright.
-        """
+        its `Rests on:` line misread as that task's own. Agreement alone
+        wouldn't catch this (both could agree on `{1}`), so the expected
+        set is asserted outright."""
         text = (FIXTURES / "boundary-trailing-section.md").read_text(encoding="utf-8")
         # rsplit: the fixture's own header prose names the heading too, and the
         # section that matters is the trailing one.
@@ -155,10 +139,8 @@ class TestTwoSurfacesAgreeOnLoadBearingSets(unittest.TestCase):
 
 
 class TestMutationIsCaughtAsMismatch(unittest.TestCase):
-    """The story's other required demonstration: disabling one surface's
-    title-match path makes the agreement check above fail on the fixture
-    that actually exercises it, rather than passing regardless of what
-    either surface's code says."""
+    """Disabling one surface's title-match path must make the agreement
+    check fail on the fixture that exercises it, not pass regardless."""
 
     def setUp(self) -> None:
         self.plan_lint_module = load_plan_lint_module()

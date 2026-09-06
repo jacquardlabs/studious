@@ -1,24 +1,22 @@
 # Decision journal format — the committed verdict memory
 
-`/bet` appends one JSON object per line to
-`docs/studious/decisions.jsonl` in the consuming project after every verdict, and
-both `/bet` and `@agent-backlog-priorities` read that file before
-evaluating. This file pins the exact record shape and the append/read mechanics so
-drift between what the gate writes and what the readers expect is a visible diff
-against this doc, not a silent surprise — the same job
-`reference/evidence-format.md` does for `hooks/evidence-capture.sh`.
+`/bet` appends one JSON object per line to `docs/studious/decisions.jsonl` in the
+consuming project after every verdict; both `/bet` and `@agent-backlog-priorities`
+read that file before evaluating. This doc pins the record shape and append/read
+mechanics so drift between writer and readers is a visible diff here, not a silent
+surprise — the same job `reference/evidence-format.md` does for
+`hooks/evidence-capture.sh`.
 
 **Two writes, two jobs.** The journal does not replace `gate-ledger record`. The
-gate ledger is local, gitignored, per-branch *flow state* — `/next` reads it to
-know where a feature stands. The journal is committed, project-lifetime *decision
-memory* — durable across clones, branches, and sessions. Neither substitutes for
-the other. Committing `docs/studious/decisions.jsonl` stays with the user's normal
-git flow — this journal specifically is never auto-committed by any Studious process,
-unlike a gate's own incidental commit of a register or note it wrote (CLAUDE.md's
-recommend-only invariant, bookkeeping-boundary bullet) or an executor's implementation
-commits (`reference/worker-contract.md`). The distinction is deliberate: this file
-accumulates across the whole project's lifetime, never scoped to one branch or one
-gate's run, so no single gate run is positioned to commit it honestly.
+gate ledger is local, gitignored, per-branch *flow state* (`/next` reads it for
+feature status); the journal is committed, project-lifetime *decision memory*,
+durable across clones, branches, and sessions. Neither substitutes for the other.
+Committing `docs/studious/decisions.jsonl` stays with the user's normal git flow —
+it is never auto-committed by any Studious process, unlike a gate's own incidental
+commit of a register or note (CLAUDE.md's recommend-only invariant, bookkeeping-boundary
+bullet) or an executor's implementation commits (`reference/worker-contract.md`):
+this file accumulates across the project's whole lifetime, never scoped to one
+branch or run, so no single gate run can commit it honestly.
 
 ## Record shape
 
@@ -68,9 +66,8 @@ Both readers follow these; a reader that deviates is a defect against this file.
 - **Absent file = no prior verdicts.** Proceed normally; never create the file at
   read time.
 - **Matching is model judgment** against the `idea` field — semantic, not string
-  equality. No matching code exists or should; lean permissive, since a false
-  positive costs one informational line and a false negative is just today's
-  baseline re-litigation.
+  equality; no matching code exists or should. Lean permissive: a false positive
+  costs one informational line, a false negative just re-litigates today's baseline.
 - **Append-only means file order is chronological.** When several entries match one
   idea, the last matching line is the current decision — surface every match with
   its date and name the latest as latest; never present a superseded verdict as

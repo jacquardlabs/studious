@@ -1,45 +1,34 @@
 #!/usr/bin/env python3
-"""Render a repo's saves ledger — the catches a gate demonstrably made (#146).
+"""Render a repo's saves ledger — findings a gate demonstrably caught (#146).
 
-A **save** is a finding that changed the work: it was raised at one sha and
-closed at a later one. Nothing here is a judgment call and no prompt is
-consulted; every field is folded out of state `bin/gate-ledger` already wrote.
+A **save** is a finding raised at one sha and closed at a later one, folded
+from state `bin/gate-ledger` already wrote. No judgment calls, no prompt.
 
-Two read-only sources, both local and gitignored:
+Sources, both local and gitignored:
 
-- `.studious/epics/<epic>.events.jsonl` — the per-epic findings ledger
-  (`finding` / `attestation` lines, `reference/events-format.md`). This is the
-  core: it carries the finding's identity, its severity, the sha it was raised
-  at, and the sha it was resolved at.
-- `.studious/telemetry/<branch-slug>.jsonl` — the gate-time outcome labels
-  (`reference/telemetry-format.md`). Enrichment only: when an outcome line's
-  `task_id` resolves to the same epic/story, a save that sat across a
-  fix-and-retry verdict followed by a proceed verdict is marked
-  `gate-confirmed` and names both tokens.
-
-The telemetry half is deliberately optional. That store is best-effort by its
-own contract and a missing file changes no verdict anywhere, so requiring it
-would render an empty ledger in the common case. A save stands on the findings
-closure; the verdict pair is the confirmation when it is there.
+- `.studious/epics/<epic>.events.jsonl` — per-epic findings ledger
+  (`reference/events-format.md`): identity, severity, raised/resolved sha.
+- `.studious/telemetry/<branch-slug>.jsonl` — gate-time outcome labels
+  (`reference/telemetry-format.md`), optional enrichment: when an outcome
+  line's `task_id` resolves to the same epic/story, a save whose fix-and-retry
+  verdict was followed by a proceed verdict is marked `gate-confirmed`. That
+  store is best-effort by its own contract, so a missing file must not empty
+  the ledger — a save stands on the findings closure alone.
 
 **The fold matches `gate-ledger epic-findings` exactly** — group by fingerprint,
-sort each group by `at`, take identity (lane, story, severity, raised sha) from
-the FIRST line and state from the LAST, and the resolved sha from the last line
-whose status is `closed`. Two readers of one store that disagree are a defect,
-and the first-line rule is what stops a Critical being laundered down by a
-restatement. Timestamps sort as plain strings: `at` is fixed-width
-`%Y-%m-%dT%H:%M:%SZ`, which orders lexicographically, and `datetime.
-fromisoformat` rejects the trailing `Z` below 3.11 — under this directory's 3.9
-floor that would be a runtime break vermin cannot see.
+sort by `at`, identity from the FIRST line, state from the LAST, resolved sha
+from the last `closed` line. Two readers of one store must agree, and the
+first-line rule stops a Critical being laundered down by a restatement.
+Timestamps sort as plain strings (`at` is fixed-width `%Y-%m-%dT%H:%M:%SZ`) —
+`datetime.fromisoformat` rejects the trailing `Z` below 3.11, a runtime break
+under this directory's 3.9 floor that vermin can't see.
 
-"What it prevented" is the finding's own `severity` and `lane`, never a
-generated impact claim: the issue's constraint is no new judgment calls.
+"What it prevented" is the finding's own `severity`/`lane`, never a generated
+impact claim.
 
-Read-only and stdout-only. It writes nothing, anywhere — rendering is the
-persistence. `--json` emits the same records for a downstream corpus.
+Read-only and stdout-only; `--json` emits the same records.
 
-Exit codes: 0 always, including a repo with no `.studious/` at all (an empty
-ledger is a true answer). 2 usage error.
+Exit codes: 0 always, including no `.studious/` at all. 2 usage error.
 """
 from __future__ import annotations
 
@@ -53,9 +42,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _gitutil import main_checkout_root as repo_root
 
 #: Verdict tokens per `reference/gate-vocabulary.md`. A save is `gate-confirmed`
-#: when a fix-and-retry token was recorded at or after the finding was raised and
-#: a proceed token followed it — the gate saying, in its own vocabulary, that the
-#: work changed and then passed.
+#: when a retry token at/after the raise is followed by a proceed token — the
+#: gate saying, in its own vocabulary, that the work changed and then passed.
 RETRY_VERDICTS = frozenset({"FIX AND RE-REVIEW", "REVISE"})
 PROCEED_VERDICTS = frozenset({"PASS", "SHIP", "PROCEED TO PLAN", "BUILD", "BUILD SMALLER"})
 #: Severity ladder, most serious first (`reference/severity-rubric.md`).
@@ -86,7 +74,7 @@ class Save:
 def read_records(path: Path) -> list[dict]:
     """Every well-formed JSON object in a `.jsonl` store, malformed lines skipped.
 
-    Mirrors `epic-findings`' `fromjson? // empty`: one corrupt append must not
+    Mirrors `epic-findings`'s `fromjson? // empty`: one corrupt append must not
     blind the reader to every other line.
     """
     try:
@@ -109,11 +97,10 @@ def read_records(path: Path) -> list[dict]:
 def epic_context_from_branch(branch: str) -> tuple[str, str] | None:
     """`epic/<epic>--<story>` -> (epic, story); `epic/<epic>` -> (epic, "").
 
-    The same derivation `bin/gate-ledger`'s `epic_context_from_branch()` does,
-    and the bridge between the two stores: an outcome line's `task_id` is the raw
-    branch name, so it resolves to the (epic, story) the findings ledger is keyed
-    by. Both halves were slugified before concatenation, so the first `--` splits
-    unambiguously. A branch with no `epic/` prefix belongs to no epic.
+    Same derivation as `bin/gate-ledger`'s `epic_context_from_branch()`,
+    bridging an outcome line's raw `task_id` to the findings ledger's (epic,
+    story) key. Both halves were pre-slugified, so the first `--` splits
+    unambiguously. No `epic/` prefix -> no epic.
     """
     if not branch.startswith("epic/"):
         return None
@@ -170,12 +157,11 @@ def verdicts_by_story(telemetry_dir: Path) -> dict[tuple[str, str], list[dict]]:
 def confirming_verdicts(outcomes: list[dict], raised_at: str) -> tuple[str, str, str]:
     """(gate, retry token, proceed token) for the first retry-then-proceed pair after `raised_at`.
 
-    A pair is matched per gate — a finding raised mid-episode is answered by that
-    gate's own retry token and the proceed token that closes it — and the winner
-    across gates is the pair whose proceed line lands EARLIEST, never the
-    alphabetically first gate (`acceptance` sorts before `audit`, and picking by
-    name would credit the wrong door on a story that retried at both). No pair,
-    or no telemetry at all, leaves the save unconfirmed rather than dropping it.
+    Matched per gate — a finding is answered by that gate's own retry/proceed
+    pair — and the winner across gates is whichever proceed line lands
+    EARLIEST, never the alphabetically first gate (`acceptance` sorts before
+    `audit`, which would credit the wrong door on a story retried at both). No
+    pair, or no telemetry, leaves the save unconfirmed rather than dropped.
     """
     candidates: list[tuple[str, str, str, str]] = []  # (proceed at, gate, retry, proceed)
     for gate in sorted({str(r.get("gate", "")) for r in outcomes}):

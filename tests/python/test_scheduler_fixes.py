@@ -1,31 +1,18 @@
 """Regression tests for the scheduler-fixes story (issue #104).
 
-`workflows/epic-driver.js` is not a conventionally importable module — see the
-harness-shape comment at the top of `eslint.config.mjs` — so, following the
-precedent `test_contract_injection.py` established, these tests extract the
-driver's real, unmodified pure functions verbatim (balanced-brace scan, never
-reimplemented) and execute them in a plain `node -e` subprocess. That proves
-something about the actual shipped source, not a paraphrase of it.
+`workflows/epic-driver.js` isn't importable (see the harness-shape comment in
+`eslint.config.mjs`), so — per `test_contract_injection.py`'s precedent — these tests
+extract the driver's real functions verbatim and run them via a `node -e` subprocess.
 
-Three defects, three test groups:
-
-1. **Work-file collisions** — every `work-set`/`work-log`/`work-get` call site
-   (never `epic-story-set`, already scoped by its own `--epic` argument) keys
-   an epic-dispatched story to `workSlug(story)`, an epic-qualified slug — and
-   the same qualified string is what gets printed back to the user in
-   `parkedThisRun`/`landedThisRun`, so `/next "<the printed slug>"`
-   resolves the exact on-disk work file. `workSlug`'s own round trip through
-   `bin/gate-ledger`'s `slugify()` (which collapses the "--" separator to a
-   single "-", same collision-acceptance precedent as `branch_slug()`
-   collapsing '/') is exercised end-to-end by the existing gate-ledger suite's
-   work-set/work-get slug tests (`tests/test_gate_ledger.sh`); nothing new is
-   owed there since this story introduces no change to `bin/gate-ledger`.
-2. **Misleading cycle labels** — `unresolvedStories()` reports true cycle
-   members and stories merely downstream of a cycle as two distinct outcomes,
-   naming the actual cycle member(s) a downstream story is blocked behind.
-3. **False cycle flags from duplicate deps** — a duplicate dependency entry
-   never inflates a story's indegree past its distinct dependency count, so an
-   acyclic plan with a duplicate dep is never mistaken for a cycle.
+1. **Work-file collisions** — every `work-set`/`work-log`/`work-get` call site (never
+   `epic-story-set`, already scoped by its own `--epic` arg) must key on `workSlug(story)`,
+   the epic-qualified slug also printed in `parkedThisRun`/`landedThisRun`, so
+   `/next "<printed slug>"` resolves the right work file. `workSlug`'s round trip through
+   `bin/gate-ledger`'s `slugify()` is already covered by `tests/test_gate_ledger.sh`.
+2. **Misleading cycle labels** — `unresolvedStories()` distinguishes true cycle members
+   from stories merely downstream of a cycle, naming the blocking member(s).
+3. **False cycle flags from duplicate deps** — a duplicate dependency entry must not
+   inflate a story's indegree past its distinct dependency count.
 """
 
 from __future__ import annotations
@@ -39,28 +26,18 @@ from test_driver_crash_hardening import _extract_function, _run_node
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 
-# The four gate-ledger verbs whose --slug argument must carry the epic-qualified
-# slug. epic-story-set is deliberately excluded: it takes its own --epic argument
-# and is out of scope for this story (see the design doc's "Out of scope").
+# Gate-ledger verbs whose --slug must carry the epic-qualified slug. epic-story-set
+# is excluded: it takes its own --epic argument (design doc's "Out of scope").
 # Perf item 10 added acceptanceFanIn's own work-log call site, bumping this from 6.
 WORK_VERB_SLUG_CALL_COUNT = 7
 EPIC_STORY_SET_BARE_SLUG_COUNT = 4
-# #270 fix-and-recheck (Critical, operability-auditor) added a second parkedThisRun
-# push for the merge dispatch — the 'VERIFY MISMATCH' branch verifyMergeLanded can
-# now route to — bumping this from 6 to 7. #270 fix-and-recheck round 6 (SHOULD
-# FIX) consolidated that branch to route through the shared park() helper instead
-# of its own inline push, dropping this back to 6 — the workSlug-tagged push still
-# happens, just inside park() rather than duplicated at the call site.
-# The appetite/canary story (#268/#144/#297) adds three more: two heldThisRun
-# pushes (the refusal path in runStory, the canary-didn't-land path in the run
-# section) and the `canary:` field of the returned report. Held entries carry the
-# same identity requirement as parked ones — an operator reading "held" still has
-# to be able to hand the printed slug to /next — so they are counted here
-# rather than exempted, bumping this from 6 to 9.
-# The #304 review fixes add two more: a heldThisRun push for a resume-at-merge
-# story refused by a ceiling before its first (merge) dispatch, and a
-# parkedThisRun push for a story whose dep names no story in the plan
-# (UNKNOWN DEP) — bumping this from 9 to 11.
+# History: 6 -> 7 (#270 fix-and-recheck adds a parkedThisRun push for the
+# VERIFY MISMATCH branch) -> 6 (#270 round 6 consolidates that branch through the
+# shared park() helper) -> 9 (#268/#144/#297 canary story adds two heldThisRun
+# pushes plus the `canary:` report field — held entries need the same
+# /next-resolvable identity as parked ones) -> 11 (#304 review fixes add a
+# heldThisRun push for a ceiling-refused resume-at-merge story, and a
+# parkedThisRun push for an UNKNOWN DEP story).
 DISPLAY_WORK_SLUG_COUNT = 11
 
 
@@ -78,8 +55,7 @@ console.log(JSON.stringify({{ result: workSlug({json.dumps(story)}) }}))
 def _unresolved_probe(stories: dict) -> dict:
     """Run the driver's real `unresolvedStories()` against a fixture DAG.
 
-    `stories` maps slug -> list of dep slugs; every story implicitly has an
-    empty gate profile (irrelevant here — only `.deps` is read).
+    `stories` maps slug -> list of dep slugs; only `.deps` is read.
     """
     source = DRIVER.read_text()
     fn = _extract_function(source, "unresolvedStories")
@@ -101,11 +77,9 @@ console.log(JSON.stringify({{ cycle: result.cycle, downstream: result.downstream
 def test_work_verb_call_sites_use_the_qualified_slug() -> None:
     """Every work-set/work-log/work-get call site interpolates workSlug(story).
 
-    Asserted as a property over the call sites actually present, not against a
-    hardcoded total. The count was pinned at 7 and broke the moment #237 added a
-    legitimate eighth call site — a maintainer's only signal being "the number
-    changed" tells them nothing about whether the new site is correct. `>=` keeps
-    the guard against the check going vacuous if the interpolation is renamed.
+    Asserted as a property over the call sites present, not a hardcoded total —
+    pinning at 7 broke the moment #237 added a legitimate eighth site. `>=` still
+    guards against the check going vacuous if the interpolation is renamed.
     """
     source = DRIVER.read_text()
     qualified = source.count('--slug "${workSlug(story)}"')
@@ -114,10 +88,9 @@ def test_work_verb_call_sites_use_the_qualified_slug() -> None:
         f"least {WORK_VERB_SLUG_CALL_COUNT} — did an interpolation get renamed?"
     )
     # The real property: no work-verb call site keys on the *bare* story slug.
-    # Two interpolations are legitimate — `workSlug(story)` and `workSlugVal`, a
-    # variable already holding the qualified slug (acceptanceScopeCheckPrompt takes
-    # it as a parameter). Both resolve to `<epic>--<story>`; only `${story}` does not,
-    # and that is the collision this guard exists to prevent.
+    # `workSlug(story)` and `workSlugVal` (a param already holding the qualified
+    # slug, in acceptanceScopeCheckPrompt) both resolve to `<epic>--<story>`; only
+    # `${story}` doesn't, and that's the collision this guard prevents.
     for verb in ("work-set", "work-get", "work-log"):
         for match in re.finditer(rf"{verb} --slug \"(\$\{{[^}}]+\}})\"", source):
             assert match.group(1) != "${story}", (
@@ -143,9 +116,8 @@ def test_epic_story_set_keeps_the_bare_slug() -> None:
 def test_reported_story_identifiers_match_the_work_file_key() -> None:
     """Every parkedThisRun/landedThisRun entry names the story with workSlug().
 
-    Non-regression per the design doc: the identifier printed in the "Needs
-    you" queue must be the exact on-disk work-file key, or `/next "<the
-    printed slug>"` cannot resolve the feature it names.
+    The identifier printed in the "Needs you" queue must be the exact on-disk
+    work-file key, or `/next "<the printed slug>"` can't resolve the feature.
     """
     source = DRIVER.read_text()
     count = source.count("story: workSlug(")
@@ -188,10 +160,8 @@ def test_self_dependency_is_a_degenerate_cycle() -> None:
 def test_downstream_of_cycle_gets_a_distinct_accurate_reason() -> None:
     """A story stuck behind a cycle is `downstream`, never mislabeled `cycle`.
 
-    Covers both a story directly depending on a cycle member and one several
-    hops further out — `unresolvedStories()`'s own comment on why a two-pass
-    Kahn's over the induced subgraph would mislabel exactly this shape.
-    cycleDepsOf() must still name the true cycle member transitively, not the
+    Covers both a direct dependent of a cycle member and one several hops out.
+    cycleDepsOf() must name the true cycle member transitively, not the
     intermediate downstream story.
     """
     result = _unresolved_probe({
@@ -208,10 +178,9 @@ def test_downstream_of_cycle_gets_a_distinct_accurate_reason() -> None:
 def test_duplicate_dep_does_not_inflate_indegree_into_a_false_cycle() -> None:
     """A duplicate dep entry on an otherwise-resolvable story flags nothing.
 
-    Regression for the bug: indegree was incremented once per listed dep
-    (including duplicates) but only ever decremented once per distinct
-    dependency that settles, so a duplicate dep entry left indegree stuck
-    above zero forever and the story was wrongly reported as cycling.
+    Regression: indegree was incremented once per listed dep (including
+    duplicates) but decremented only once per distinct dep that settles, so a
+    duplicate left indegree stuck above zero and the story falsely cycled.
     """
     result = _unresolved_probe({"e": [], "f": ["e", "e"]})
     assert result["cycle"] == []

@@ -1,29 +1,20 @@
-"""Regression tests for scripts/design-lint (story design-lint, issue #9;
-section-name schema reconciled to `reference/design-doc-contract.md`,
-which is the sole authority for the section set -- see #211).
+"""Regression tests for scripts/design-lint (#9); section schema follows
+`reference/design-doc-contract.md` (#211).
 
-Exercises the script as a black box (subprocess against the real
-executable), matching `test_verify.py`/`test_evidence_capture.py`'s own
-convention, never importing its internals directly. Each violation fixture
-is `CLEAN_DOC` with exactly one targeted change, so a failure names the
-*specific* element this story's acceptance criteria require:
+Black-box subprocess tests, matching `test_verify.py`/`test_evidence_capture.py`'s
+convention. Each fixture is `CLEAN_DOC` with one targeted violation, so a
+failure names the specific element.
 
-1. Clean pass: a fully-conformant doc carrying every section
-   `reference/design-doc-contract.md` requires exits 0.
-2. Each of Check 1's sub-cases (missing required section, wrong section
-   count, unrecognized heading), Check 2 (prose-only Proposed design),
-   Check 3 (Problem & persona's three grounding buckets, each direction),
-   Check 4 (purely-happy-path User journey), and Check 5 (unruled fork)
-   exits 1 and names the specific violation.
-3. Premortem-driven regressions
-   (docs/studious/premortems/design-lint-reconcile.md and the earlier
-   docs/studious/premortems/design-lint.md): risk #1 (a fabricated/absent
-   persona claim is not rescued by an unrelated real path elsewhere in the
-   section), risk #7 (backtick-quoted filler doesn't count as
-   concreteness), risk #3 (a genuine failure path phrased without a listed
-   token is a documented, deliberate false negative — not a bug), and risk
-   #4/#5 (path-citation escape safety and an in-body `---` divider don't
-   crash or mis-slice the parser).
+1. Clean pass: a fully-conformant doc exits 0.
+2. Each check's violation (missing section, wrong count, unrecognized
+   heading; prose-only Proposed design; Problem & persona's three grounding
+   buckets; happy-path-only User journey; unruled fork) exits 1 and names it.
+3. Premortem regressions (docs/studious/premortems/design-lint-reconcile.md,
+   design-lint.md): risk #1 (fabricated persona claim not rescued by an
+   unrelated real path in the same section), #7 (backtick filler doesn't
+   count as concreteness), #3 (a genuine failure path without a listed
+   token is a documented false negative, not a bug), #4/#5 (path-escape
+   safety and an in-body `---` divider don't crash or mis-slice the parser).
 
 Run with:
 
@@ -42,18 +33,16 @@ from _script import run_script as _run_script
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "design-lint"
 
-# The real PRODUCT.md persona sentence this project's own PRODUCT.md
-# carries verbatim (PRODUCT.md:28-30) — used both as the fixture repo's own
-# PRODUCT.md content and, quoted back via blockquote, in CLEAN_DOC's
-# `Problem & persona` section, so Check 3's bucket (c) has a real substring
-# relationship to check, not an invented one.
+# Verbatim from this repo's own PRODUCT.md (PRODUCT.md:28-30) — used as
+# both the fixture repo's PRODUCT.md and CLEAN_DOC's blockquote, so Check
+# 3's bucket (c) checks a real substring relationship, not an invented one.
 PERSONA_SENTENCE = (
     "A developer using Claude Code, likely already pairing it with studious's\n"
     "judgment gates, who wants a repeatable, verifiable build/implementation\n"
     "workflow instead of ad hoc prompting or Superpowers."
 )
 
-# The blockquote form of PERSONA_SENTENCE as it appears in CLEAN_DOC.
+# PERSONA_SENTENCE as a blockquote, as it appears in CLEAN_DOC.
 PERSONA_BLOCKQUOTE = (
     "> A developer using Claude Code, likely already pairing it with studious's\n"
     "> judgment gates, who wants a repeatable, verifiable build/implementation\n"
@@ -61,11 +50,9 @@ PERSONA_BLOCKQUOTE = (
 )
 
 # `Problem & persona`'s full body in CLEAN_DOC: a verbatim blockquote
-# (bucket c) followed by a "problem today" paragraph that also carries a
-# real, tree-checkable path citation (`src/server.py`) — both grounding
-# shapes present at once, matching this repo's own real fixtures
-# (a real shipped doc's Problem & persona cites a real premortem path
-# *alongside* its persona blockquote).
+# (bucket c) plus a "problem today" paragraph citing a real, tree-checkable
+# path (`src/server.py`, bucket b) — both grounding shapes present at once,
+# matching real shipped docs.
 PERSONA_SECTION_BODY = (
     "Primary persona, verbatim from `PRODUCT.md`:\n\n"
     f"{PERSONA_BLOCKQUOTE}\n"
@@ -74,9 +61,9 @@ PERSONA_SECTION_BODY = (
     "human closes the tab.\n\n"
 )
 
-# The concrete-shape-bearing chunk of CLEAN_DOC's `Proposed design` section,
-# isolated from the section's fork-ruling sentence so Check 2's fixtures
-# can swap it without disturbing Check 5's clean-pass fork citation.
+# The concrete-shape chunk of `Proposed design`, isolated from the
+# fork-ruling sentence so Check 2 fixtures can swap it without disturbing
+# Check 5's fork citation.
 PROPOSED_DESIGN_CONCRETE_BLOCK = (
     "Session state is written as:\n\n"
     "```json\n"
@@ -87,14 +74,11 @@ PROPOSED_DESIGN_CONCRETE_BLOCK = (
 )
 
 # A fully-conformant design-<slug>.md carrying every section
-# `reference/design-doc-contract.md` requires, in its order -- the same set
-# every real, gate-design-reviewed doc this repo has produced actually
-# carries. Every check actually resolves clean against
-# a throwaway fixture repo: `Problem & persona` carries a PRODUCT.md-
-# verbatim blockquote, `Proposed design` carries a fenced code block plus
-# artifact-shaped inline code and its own ruled `(q1)` fork, `User journey`
-# names a failure path alongside its happy path, and every `(qN)` fork
-# carries a ruling verb in its own sentence.
+# `reference/design-doc-contract.md` requires, matching real
+# gate-design-reviewed docs: `Problem & persona` has a PRODUCT.md-verbatim
+# blockquote, `Proposed design` has a fenced code block plus a ruled `(q1)`
+# fork, `User journey` names a failure path, and every `(qN)` fork carries
+# a ruling.
 CLEAN_DOC = f"""# Design: unified Q&A handoff (fixture)
 
 ## Problem & persona
@@ -147,8 +131,8 @@ no data migration.
 Signed off via viva review — 1 round, 8 sections, 0 revised. 2026-07-16
 """
 
-# A minimal doc carrying only three of the eight required sections. Every
-# name present is canonical, so the only violations are the five it omits.
+# Only three of the eight required sections; all names present are
+# canonical, so the only violations are the five omitted.
 TOO_FEW_SECTIONS_DOC = """# Design: too few sections (fixture)
 
 ## Problem & persona
@@ -176,10 +160,8 @@ def run_script(doc_path: Path, repo: Path) -> subprocess.CompletedProcess[str]:
 
 
 def _write_repo_with_server(tmp: Path) -> Path:
-    """Build a throwaway repo carrying both a real file
-    (`src/server.py`, Check 3 bucket (b) and the parser's `--repo`
-    resolution generally) and a `PRODUCT.md` whose persona paragraph is the
-    same real sentence CLEAN_DOC's blockquote quotes (Check 3 bucket (c))."""
+    """Throwaway repo with `src/server.py` (bucket b) and a `PRODUCT.md`
+    whose persona paragraph matches CLEAN_DOC's blockquote (bucket c)."""
     repo = tmp / "repo"
     (repo / "src").mkdir(parents=True)
     (repo / "src" / "server.py").write_text("def handoff():\n    pass\n", encoding="utf-8")
@@ -232,10 +214,8 @@ class TestDesignLintCheck1SectionVocabulary(unittest.TestCase):
             self.assertIn("missing required section 'Open questions'", result.stdout)
 
     def test_short_doc_names_every_missing_section_never_a_bare_count(self) -> None:
-        """#211 (c): the exact-count check is gone. A doc carrying three of
-        the eight required sections is reported as five sections missing *by
-        name* — actionable — never as an arithmetic mismatch the author has
-        to decode."""
+        """#211 (c): the exact-count check is gone; missing sections are
+        named individually, never reported as a bare arithmetic mismatch."""
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             repo = _write_repo_with_server(tmp_path)
@@ -255,10 +235,9 @@ class TestDesignLintCheck1SectionVocabulary(unittest.TestCase):
             self.assertNotIn("top-level sections found", result.stdout)
 
     def test_extra_section_beyond_the_required_set_is_permitted(self) -> None:
-        """#211 (c): `reference/design-doc-contract.md` lets a doc carry any
-        heading text as long as the content answers the mapped question, so a
-        section beyond the required set is not a violation. This test is the
-        guard against the exact-count check being reintroduced."""
+        """#211 (c): any heading beyond the required set is allowed as long
+        as content answers the mapped question — guards against the
+        exact-count check returning."""
         self.assertIn("## Operational readiness\n", CLEAN_DOC)
         doc_text = CLEAN_DOC.replace(
             "## Operational readiness\n",
@@ -277,9 +256,8 @@ class TestDesignLintCheck1SectionVocabulary(unittest.TestCase):
             self.assertIn("clean pass", result.stdout)
 
     def test_renamed_required_section_reports_the_absence_not_the_heading(self) -> None:
-        """A required section renamed away is caught as the section that is
-        now *missing*, never as an unrecognized-heading complaint — the extra
-        heading is the author's business, the absent answer is the gate's."""
+        """A renamed required section is reported as missing, never as an
+        unrecognized-heading complaint."""
         self.assertIn("## Alternatives considered\n", CLEAN_DOC)
         doc_text = CLEAN_DOC.replace("## Alternatives considered\n", "## Implementation Plan\n", 1)
 
@@ -315,10 +293,9 @@ class TestDesignLintCheck2ProposedDesignConcrete(unittest.TestCase):
             self.assertIn("section 'Proposed design' has no concrete shape markers", result.stdout)
 
     def test_backtick_quoted_filler_does_not_count_as_concrete(self) -> None:
-        """Premortem risk #7: a Proposed design section dense with backticks
-        that name no real artifact (`maybe`, `later`, `soon`) must still
-        fail — the concreteness check counts artifact-shaped spans, not any
-        backtick span."""
+        """Premortem risk #7: backtick spans naming no real artifact
+        (`maybe`, `later`, `soon`) must still fail — the check counts
+        artifact-shaped spans, not any backtick span."""
         self.assertIn(PROPOSED_DESIGN_CONCRETE_BLOCK, CLEAN_DOC)
         filler_only = (
             "This might land `later`, `maybe` as a fast-follow, `soon` after\n"
@@ -337,11 +314,10 @@ class TestDesignLintCheck2ProposedDesignConcrete(unittest.TestCase):
             self.assertIn("section 'Proposed design' has no concrete shape markers", result.stdout)
 
     def test_markdown_table_counts_as_concrete(self) -> None:
-        """`_has_markdown_table` is one of two shape markers that short-circuit
-        Check 2 before the artifact-span count is even considered (the other
-        being a fenced code block) — this table carries no fence and no
-        inline-code spans at all, so a clean pass here is only explainable by
-        the table branch, not the span-counting fallback."""
+        """`_has_markdown_table` short-circuits Check 2 before the
+        artifact-span count runs (the other short-circuit is a fenced code
+        block); this table has no fence or inline code, so a pass here can
+        only come from the table branch."""
         self.assertIn(PROPOSED_DESIGN_CONCRETE_BLOCK, CLEAN_DOC)
         table_only = (
             "| Approach | Session storage |\n"
@@ -362,9 +338,7 @@ class TestDesignLintCheck2ProposedDesignConcrete(unittest.TestCase):
 
 class TestDesignLintProposedDesignArtifactSpanThreshold(unittest.TestCase):
     """Premortem risk #6 (design-lint.md): pins the exact MIN_ARTIFACT_SPANS
-    boundary so a future threshold change is a deliberate edit, not a
-    silent drift — a Proposed design section with no fence/table still
-    passes at exactly the floor and still fails one span short of it."""
+    boundary so a threshold change must be deliberate, not silent drift."""
 
     def test_exactly_the_floor_with_no_fence_or_table_still_passes(self) -> None:
         self.assertIn(PROPOSED_DESIGN_CONCRETE_BLOCK, CLEAN_DOC)
@@ -403,9 +377,8 @@ class TestDesignLintProposedDesignArtifactSpanThreshold(unittest.TestCase):
 
 
 class TestDesignLintCheck3PersonaCheckable(unittest.TestCase):
-    """Check 3's three grounding buckets, remapped from the old schema's
-    per-bullet `Assumptions` check onto `Problem & persona`'s single
-    section-level claim."""
+    """Check 3's three grounding buckets, remapped from the old per-bullet
+    `Assumptions` check onto `Problem & persona`'s section-level claim."""
 
     def test_blockquote_not_verbatim_in_product_is_named(self) -> None:
         fabricated = (
@@ -430,12 +403,10 @@ class TestDesignLintCheck3PersonaCheckable(unittest.TestCase):
             )
 
     def test_fabricated_blockquote_is_not_rescued_by_unrelated_real_path(self) -> None:
-        """Premortem risk #1 (design-lint-reconcile.md): a `Problem &
-        persona` section whose persona claim is fabricated must FAIL even
-        though the very same section also cites a real, resolvable repo
-        path (`src/server.py`, present in CLEAN_DOC's own "problem today"
-        sentence) for an unrelated purpose. If this passed, Check 3's
-        bucket-OR would have degraded to "some checkable token appears
+        """Premortem risk #1 (design-lint-reconcile.md): a fabricated
+        persona claim must FAIL even when the same section also cites a
+        real, resolvable path (`src/server.py`) for an unrelated purpose —
+        otherwise the bucket-OR degrades to "some checkable token appears
         here," not "the persona is real.\""""
         fabricated = (
             "> A weekend hobbyist who has never heard of jig, wanting a fully\n"
@@ -459,9 +430,8 @@ class TestDesignLintCheck3PersonaCheckable(unittest.TestCase):
             )
 
     def test_no_blockquote_but_tree_checkable_path_still_passes(self) -> None:
-        """Bucket (b) alone, with no persona blockquote at all, is a
-        legitimate grounding — the design doc's own Open questions leaves
-        this acceptance direction to the build phase; this pins it."""
+        """Bucket (b) alone, with no persona blockquote, is legitimate
+        grounding."""
         blockquote_intro = "Primary persona, verbatim from `PRODUCT.md`:\n\n" + PERSONA_BLOCKQUOTE + "\n"
         self.assertIn(blockquote_intro, CLEAN_DOC)
         doc_text = CLEAN_DOC.replace(blockquote_intro, "")
@@ -614,12 +584,10 @@ class TestDesignLintCheck4UserJourneyFailurePath(unittest.TestCase):
 
     def test_genuine_failure_without_a_listed_token_is_still_rejected(self) -> None:
         """Premortem risk #3 (design-lint.md): Check 4's vocabulary is
-        deliberately narrow. A User journey section that plainly describes
-        a real failure path, but phrases it without any of the closed
-        token list, is a known, accepted false negative — the mechanical
-        check has no way to tell it apart from a genuinely happy-path-only
-        section, and that's the documented trade-off, not a bug this story
-        fixes."""
+        deliberately narrow. A real failure path phrased without any of the
+        closed token list is a known, accepted false negative — the
+        mechanical check can't tell it apart from a truly happy-path-only
+        section, and that's the documented trade-off, not a bug."""
         failure_bullet = (
             "- If the review server fails to start, the QA tab stays on its current\n"
             "  cards and shows no crash — the handoff simply doesn't fire (see Out of\n"
@@ -662,11 +630,10 @@ class TestDesignLintCheck5ForkRulings(unittest.TestCase):
 
     def test_unresolved_options_table_fork_is_named(self) -> None:
         """Real /shape output never carries a `(qN)` tag (docs/design/
-        design-lint-reconcile.md's Open questions) -- its fork convention is
+        design-lint-reconcile.md's Open questions); its fork convention is
         a lettered-options table plus a `(recommended): <letter>` marker
         (SKILL.md Step 4). A table with 2+ lettered rows and no marker
-        anywhere in the same section must be named, the same way an
-        unruled `(qN)` tag is."""
+        anywhere in the section must be named, same as an unruled `(qN)`."""
         open_questions_body = (
             "- Whether the handoff step should also close on `SIGTERM`, or only on the\n"
             "  explicit `/complete` call — undecided, tracked for a later round.\n"
@@ -691,8 +658,7 @@ class TestDesignLintCheck5ForkRulings(unittest.TestCase):
 
     def test_options_table_fork_with_recommendation_marker_passes(self) -> None:
         """The same table as above, but with the actual `(recommended):
-        <letter>` marker real /shape output uses -- must pass clean, not
-        just avoid a false positive on some other check."""
+        <letter>` marker real /shape output uses — must pass clean."""
         open_questions_body = (
             "- Whether the handoff step should also close on `SIGTERM`, or only on the\n"
             "  explicit `/complete` call — undecided, tracked for a later round.\n"
@@ -719,9 +685,9 @@ class TestDesignLintCheck5ForkRulings(unittest.TestCase):
 class TestDesignLintRevisionHistoryAndDividers(unittest.TestCase):
     def test_in_body_horizontal_rule_does_not_mis_slice_sections(self) -> None:
         """Premortem risk #5 (design-lint.md): parsing splits on `## `
-        headings alone, never on a `---` divider, so a horizontal rule used
-        mid-section (not the Revision History trailer) must not disturb the
-        section count or any other check's result."""
+        headings only, never on a `---` divider, so a mid-section rule
+        (not the Revision History trailer) must not disturb section count
+        or any other check's result."""
         open_questions_body = (
             "- Whether the handoff step should also close on `SIGTERM`, or only on the\n"
             "  explicit `/complete` call — undecided, tracked for a later round.\n"

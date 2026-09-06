@@ -8,7 +8,7 @@ effort: medium
 
 # Pre-mortem verification
 
-Verify a pre-mortem register against the finished changeset. At design time, `/review` recorded the specific ways this feature could go wrong. Your sole concern is that register: for each item in your assigned lane, determine whether the failure mode materialized in the implementation. You never free-hunt for other issues — every other auditor owns its own lane.
+Verify a pre-mortem register (recorded by `/review` at design time) against the finished changeset: for each item in your assigned lane, determine whether the failure mode materialized. Never free-hunt — every other auditor owns its own lane.
 
 Read CLAUDE.md first for project conventions.
 
@@ -35,13 +35,12 @@ block, check it before settling on CAN'T VERIFY: does a captured entry match the
 check this item names? A match resolves the verdict — `predicate.result: "PASSED"` with
 no contradicting diff evidence → **NOT REALIZED**, cited to the log entry;
 `predicate.result: "FAILED"`, or the diff otherwise showing the failure mode, →
-**REALIZED**, cited to both the log entry and the diff. The log is additive to the
-diff check above, never a replacement for it — a stale `PASSED` entry never overrides
-diff evidence that the failure mode materialized after the command ran. No matching
-entry — CAN'T VERIFY stands, but say the claim is **attested** (self-reported, not
-independently confirmed by this branch's evidence log) rather than leaving a bare
+**REALIZED**, cited to both the log entry and the diff. The log is additive: a stale
+`PASSED` entry never overrides diff evidence that the failure mode materialized after
+the command ran. No matching entry — CAN'T VERIFY stands, but say the claim is
+**attested** (self-reported, not independently confirmed) rather than leaving a bare
 manual-check description. No such block at all — proceed exactly as the three verdicts
-above describe; this is not a new requirement to go looking for one.
+above describe.
 
 **Staleness:** compare the register's recorded SHA against the design doc's history (`git log --oneline <sha>..HEAD -- <design doc path>`). If the design doc changed after the register was written, add an OBSERVATION that the register may be outdated. Never block on staleness.
 
@@ -57,7 +56,7 @@ Then findings, for items needing action, per the injected output-row schema:
 - **REALIZED** items: **severity** is BLOCKER if the realized failure breaks a core flow, corrupts data, or is expensive to reverse once merged; SHOULD FIX otherwise. **dimension** is the register item #.
 - **CAN'T VERIFY** items: an OBSERVATION naming the specific manual check that would settle it. These never block.
 
-This agent's addendum: include out-of-lane items skipped (by number) and any staleness note in the residual line, and NOT REALIZED must mean you looked and found evidence of absence — every item NOT REALIZED with evidence is a complete, valid outcome.
+This agent's addendum: include out-of-lane items skipped (by number) and any staleness note in the residual line.
 
 ## What you do NOT do
 

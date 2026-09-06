@@ -1,11 +1,10 @@
 # Accessibility checklist — lookup data
 
 Vendored fallback for auditor 8 in `commands/review.md` when the `web-design-guidelines`
-skill isn't installed. Not a substitute for that skill — it's narrower, covering only the
-blocking-tier items `reference/severity-rubric.md` already names (no keyboard access, contrast
-failures on core flows) plus the adjacent checks needed to make those judgments: focus
-management and semantic HTML. CLAUDE.md's documented accessibility posture overrides anything
-here.
+skill isn't installed. Narrower than that skill: covers only the blocking-tier items
+`reference/severity-rubric.md` names (no keyboard access, contrast failures on core flows)
+plus the adjacent checks needed to judge those — focus management and semantic HTML.
+CLAUDE.md's documented accessibility posture overrides anything here.
 
 ## Keyboard access
 
@@ -45,8 +44,7 @@ here.
 ## Semantic HTML
 
 - Structure uses native elements for their purpose (`button` for actions, `a` for navigation,
-  `label` for form fields) before reaching for ARIA — ARIA patches meaning onto the wrong
-  element; it doesn't beat the right one.
+  `label` for form fields) before reaching for ARIA.
 - Every form input has a programmatically associated label (`<label for>`, `aria-label`, or
   `aria-labelledby`) — placeholder text alone is not a label.
 - Heading levels (`h1`–`h6`) nest without skipping and reflect actual document structure, not

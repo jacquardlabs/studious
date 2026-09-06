@@ -1,11 +1,9 @@
 """Structural regression tests for the handback-skill story (issue #97).
 
-`reference/handback-contract.md` and `reference/handback-contract.md` are prose, not executable code
-— there is no script backing the manifest assembly for a live model to run, so
-`bin/gate-ledger evidence-list` (locked by `tests/test_gate_ledger.sh`) is the only
-mechanical surface. These tests instead lock the prompt's structural commitments
-that the design doc's pre-mortem register
-(`docs/studious/premortems/2026-07-10-handback-skill-design.md`) named as concrete
+The contract (`reference/handback-contract.md`) is prose, not executable code — the only
+mechanical surface is `bin/gate-ledger evidence-list` (locked by `tests/test_gate_ledger.sh`).
+These tests lock the prompt's structural commitments that the design doc's pre-mortem
+register (`docs/studious/premortems/2026-07-10-handback-skill-design.md`) named as
 audit-time detection hints:
 
 - item 1: the branch-slug/anchoring reuse (`evidence-list`, never a re-derived slug).
@@ -49,8 +47,8 @@ def test_command_file_exists() -> None:
 
 
 def test_the_contract_is_not_a_door() -> None:
-    """The persona restructure made handback a mode of `/ship`, so its procedure moved to
-    `reference/`. Command frontmatter here would put a tenth door back on the surface."""
+    """The persona restructure made handback a mode of `/ship`; frontmatter here would
+    put a tenth door back on the surface."""
     assert not _command_text().lstrip().startswith("---"), (
         "reference/handback-contract.md carries command frontmatter — it is a contract "
         "/ship reads, never a door of its own"
@@ -58,8 +56,7 @@ def test_the_contract_is_not_a_door() -> None:
 
 
 def test_ship_declares_the_write_tool_the_handback_mode_needs() -> None:
-    """Handback commits a file, unlike a pure-report flow — so the door that runs it has
-    to carry Write. The mode is only as capable as the door hosting it."""
+    """Handback commits a file, unlike a pure-report flow, so the door running it must carry Write."""
     frontmatter = _ship_text().split("---", 2)[1]
     assert "description:" in frontmatter
     assert "allowed-tools:" in frontmatter or "Write" in _ship_text()
@@ -72,8 +69,8 @@ def test_ship_names_the_handback_mode_in_its_own_description() -> None:
 
 
 def test_ship_states_what_the_handback_mode_does_not_do() -> None:
-    """The mode's whole point is the PR-less return. If the door doesn't say it opens no
-    PR and records no verdict, an operator can't tell it from a normal closeout."""
+    """Without stating it opens no PR and records no verdict, an operator can't tell this
+    mode from a normal closeout."""
     text = _ship_text()
     assert "/ship --handback" in text
     assert "no PR is opened" in text

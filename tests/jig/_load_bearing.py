@@ -1,22 +1,13 @@
-"""A test-side reference implementation of step 1.5's load-bearing-set
-derivation (story rough-in-inspector, issue #15).
+"""Test-side reference for step 1.5's load-bearing-set derivation
+(story rough-in-inspector, issue #15).
 
-`skills/build/SKILL.md` deliberately keeps this derivation as Foreman
-*prose* -- a fresh `/build` session reads `Rests on:` lines and reasons
-about them itself, the same class of judgment-free-but-not-code-parseable
-procedure step 1.4's own trailing-heading exclusion already is (see the
-design doc's Alternatives #4: "not adopted this pass"). This module is not
-that procedure and is never imported by any script or skill -- it exists
-only so a test can demonstrate, mechanically, that the *algorithm the
-prose describes* is well-defined and produces the right partition for a
-plan shaped like the story's own required demonstration (one task another
-task's `Rests on:` line names, one leaf). Task splitting itself (post-#206)
-is shared with `scripts/plan-lint` via `_planparse`, not independently
-derived here -- only the load-bearing rule is this module's own.
+Kept as prose in `skills/build/SKILL.md`, not code (design doc Alternatives
+#4); never imported by any script or skill. Task splitting is shared with
+`scripts/plan-lint` via `_planparse` (post-#206); only the load-bearing rule
+is derived here.
 
-Not a test module -- nothing here is collected by `unittest discover`,
-matching the `_vocabulary.py` / `_tempgit.py` "shared, not itself
-collected" convention already established in this repo.
+Not collected by `unittest discover` -- same convention as `_vocabulary.py`
+/ `_tempgit.py`.
 """
 from __future__ import annotations
 
@@ -32,28 +23,17 @@ _PLANPARSE = Path(__file__).resolve().parents[2] / "scripts" / "_planparse.py"
 
 
 def _load_planparse():
-    """Load `scripts/_planparse.py` — the shared task grammar, not either
-    surface's own code (#206).
+    """Load `scripts/_planparse.py`, the shared task grammar (#206) — not
+    either surface's own code.
 
-    This module used to carry its own `^### Task (\\S+) — (.*)$` and split at
-    the next task heading. Both halves diverged from the grammar the scripts
-    actually use, on three inputs: a non-numeric label (`Task 2a`), a hyphen
-    where the em-dash belongs, and a trailing coarser-level section. The last
-    one is the naive-parser bug `skills/build/SKILL.md` Step 1.4 explicitly
-    names — this module absorbed a closing `## Not-here follow-ups` into the
-    preceding task's block, so a `Rests on:` line down there was read as that
-    task's. The cross-surface agreement test never caught any of it because no
-    fixture sat on those boundaries.
-
-    Sharing the *tokenizer* costs nothing this module was built to provide.
-    Its reason to exist is demonstrating step 1.5's derivation — number match,
-    unambiguous title match, never self-referential — and that stays written
-    out here, independently of `plan-lint`'s.
+    This module's prior parser diverged from plan-lint's on three inputs
+    (non-numeric label, hyphen vs em-dash, trailing section absorbed into
+    the last task's block) with no fixture catching it; derivation logic
+    stays independently written here.
     """
     spec = importlib.util.spec_from_file_location("_planparse_for_reference", _PLANPARSE)
     module = importlib.util.module_from_spec(spec)
-    # `_planparse` defines a dataclass, and `@dataclass` resolves annotations
-    # through `sys.modules[cls.__module__]` — absent that entry it raises.
+    # `@dataclass` resolves annotations via `sys.modules[cls.__module__]` — absent, it raises.
     sys.modules[spec.name] = module
     try:
         spec.loader.exec_module(module)
@@ -67,34 +47,24 @@ _planparse = _load_planparse()
 
 
 def _is_number_match(rests_on_text: str, label: str) -> bool:
-    """Step 1.5's first alternative: the `Rests on:` line names the
-    dependency by its heading number, e.g. the literal text "Task 2"."""
+    """Step 1.5, alternative 1: `Rests on:` names the dependency by heading number ("Task 2")."""
     return bool(re.search(rf"\bTask {re.escape(label)}\b", rests_on_text))
 
 
 def _is_title_match(rests_on_text: str, title: str, title_counts: Counter[str]) -> bool:
-    """Step 1.5's second, independent alternative: an *unambiguous* title
-    match to task N's own heading -- the `Rests on:` line names the
-    dependency by its title alone, with no heading number ("Task 2")
-    anywhere in it. Unambiguous means no other task in the same plan
-    shares that exact title (case-insensitive) -- a title two tasks share
-    can't uniquely identify either one, so it never counts as a match."""
+    """Step 1.5, alternative 2: an unambiguous title match to task N's heading,
+    with no heading number in the `Rests on:` text. Unambiguous means no other
+    task shares that exact title (case-insensitive) -- a shared title can't
+    uniquely identify either task, so it never counts as a match."""
     if not title or title_counts[title.casefold()] > 1:
         return False
     return title.casefold() in rests_on_text.casefold()
 
 
 def derive_load_bearing_set(plan_text: str) -> frozenset[str]:
-    """The set of task labels that are load-bearing: some *other* task
-    block's own `Rests on:` line names them, per step 1.5's stated rule,
-    either by heading number (e.g. the literal text "Task 2") or by an
-    unambiguous title match to that task's own heading -- two independent
-    match paths, either of which is sufficient. A task never contributes
-    its own label to its own load-bearing status -- only another task's
-    `Rests on:` line counts."""
-    # Task splitting is shared with plan-lint, not independently derived: this
-    # reference and plan-lint cannot disagree on where a task begins, what
-    # counts as one, or where it ends.
+    """Task labels some *other* task's `Rests on:` line names, by number match
+    or unambiguous title match (either sufficient). A task's own `Rests on:`
+    line never counts toward its own label."""
     blocks = _planparse.split_tasks_with_titles(plan_text)
     title_counts = Counter(title.casefold() for _, title, _ in blocks if title)
     load_bearing: set[str] = set()

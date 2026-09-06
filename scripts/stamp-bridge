@@ -1,51 +1,39 @@
 #!/usr/bin/env python3
 """stamp-bridge -- fires `/next <slug>` on a recorded viva sign-off (issue #315).
 
-After the async-approval ruling (#311), an agent-authored brief for the viva
-route is recorded `epic-set --status proposed` before any human sees it
-(`reference/epic-orchestration.md`'s step 8 note). Nothing then starts the
-run without a human at a terminal -- this script is that missing link,
-invoked once a human has stamped the brief in viva. **The stamp is the
-license to fire**: CLAUDE.md's infra-door invariant forbids a write
-"dispatched, scheduled, or triggered on the human's behalf without them
-typing it in that turn" -- the human's `/complete` in viva, resolved to a
-recorded, all-approved round on disk, is that typing, for this one epic,
-once.
+Per the async-approval ruling (#311), a viva-route brief is recorded
+`epic-set --status proposed` before any human sees it
+(`reference/epic-orchestration.md` step 8). This script is the missing
+link that starts the run, invoked once a human stamps the brief in viva.
+Licensed by CLAUDE.md's infra-door invariant (no write "dispatched,
+scheduled, or triggered on the human's behalf without them typing it in
+that turn"): the human's `/complete` in viva, resolved to a recorded,
+all-approved round on disk, counts as that typing, once, for this epic.
 
 Local transport only (2026-09-06 billing ruling): `claude -p "/next <slug>"
---permission-mode dontAsk` runs under the caller's own Claude Code
-subscription, the same as an interactive session. **No `--max-budget-usd`
-is passed.** `reference/epic-pricing.md` is explicit that the appetite the
-user approved is recorded and enforced in *tokens*
-(`workflows/epic-driver.js`'s own `budget` primitive) and that a derived
-dollar figure "would be a rate table stored in a ledger, going stale
-silently against every price change" -- so this script does not invent
-one. The Claude Code Routine API cloud transport the issue also names stays
-deferred, API-key-metered and out of scope for the canary.
+--permission-mode dontAsk` runs under the caller's own subscription, like
+an interactive session. **No `--max-budget-usd`**: `reference/epic-pricing.md`
+enforces the approved appetite in *tokens* (`workflows/epic-driver.js`'s
+`budget` primitive); a derived dollar figure would be a rate table going
+stale against every price change. The cloud Routine API transport stays
+deferred/out of scope for the canary.
 
-**Double-fire guard.** Refuses unless the epic's recorded `status` is
-exactly `proposed` and it carries no `approval` yet -- the #316 supervisor
-re-runs things, and a second stamp on an already-approved epic must be a
-no-op, not a second `/next` invocation racing the first.
+**Double-fire guard.** Refuses unless `status` is exactly `proposed` with
+no `approval` yet -- the #316 supervisor re-runs things, so a second stamp
+on an already-approved epic must be a no-op, not a racing second `/next`.
 
-**Sign-off check.** Reads a viva review-round output file (`ReviewOutput`
-per `docs/headless-contract.md` v12 -- `sections: [{id, verdict, ...}]`).
-Refuses unless `sections` is a non-empty list and every entry's `verdict` is
-`"approved"`. Viva's own `POST /complete` guard already enforces this before
-writing the file (a partly-approved round refuses to complete), so this is
-belt-and-suspenders, not the only gate -- but the file is untrusted disk
-state as far as this script is concerned, never taken on faith.
+**Sign-off check.** Reads a viva `ReviewOutput` file (`docs/headless-contract.md`
+v12: `sections: [{id, verdict, ...}]`); refuses unless `sections` is
+non-empty and every `verdict` is `"approved"`. Viva's `POST /complete`
+already enforces this, but the file is untrusted disk state here too.
 
-**Round-ref.** `--approval viva:<round-ref>` needs a concrete value; nothing
-upstream defines its shape. This script uses
-`<output-filename>@<sha256-of-its-bytes, first 12 hex>` -- reproducible from
-the artifact alone, and distinct across two rounds that happen to share a
-filename.
+**Round-ref.** `--approval viva:<round-ref>` has no upstream-defined shape;
+uses `<output-filename>@<sha256-of-its-bytes, first 12 hex>` -- reproducible
+from the artifact alone, distinct across same-named rounds.
 
 Exit codes: 0 = flipped and fired (or, under `--dry-run`, would have); 1 =
-epic not eligible to flip, or the round is not signed off; 2 = usage error,
-missing files, or `gate-ledger`/`claude` not found. Python 3.9 floor, stdlib
-only, matching `scripts/intake`'s conventions.
+epic not eligible, or round not signed off; 2 = usage error, missing files,
+or `gate-ledger`/`claude` not found. Python 3.9 floor, stdlib only.
 """
 from __future__ import annotations
 

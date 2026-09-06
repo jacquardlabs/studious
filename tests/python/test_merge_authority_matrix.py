@@ -1,13 +1,9 @@
-"""PRODUCT.md's merge-authority matrix (#312) is a contract pinned by prose, not
-tests — PRODUCT.md's own known-problems section names that exact failure mode. This
-pins the three tier tokens identically across the three places that must agree: the
-policy (PRODUCT.md), the plan contract that records a story's class
-(`reference/epic-plan-contract.md`), and the mechanism that stores it
-(`bin/gate-ledger`'s `epic-story-set --merge-class` validation and usage string).
-
-A rename in one place and not the others degrades silently: a plan can record a class
-PRODUCT.md never defined, or vice versa, and nothing catches it until a human notices
-the words don't match.
+"""PRODUCT.md's merge-authority matrix (#312) is pinned by prose, not tests —
+PRODUCT.md's own known-problems section names this exact failure mode. Pins the three
+tier tokens identically across policy (PRODUCT.md), plan contract
+(`reference/epic-plan-contract.md`), and mechanism (`bin/gate-ledger`'s
+`epic-story-set --merge-class`), so a rename in one place can't silently drift from
+the others.
 """
 
 from __future__ import annotations

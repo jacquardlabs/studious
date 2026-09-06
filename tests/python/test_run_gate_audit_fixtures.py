@@ -87,8 +87,8 @@ def test_extract_verdict_missing_returns_none() -> None:
 
 
 def test_extract_verdict_ignores_trailing_token_in_prose() -> None:
-    # "PASS" appears later in the sentence than the actual bolded verdict —
-    # a naive last-match search would misread this as PASS.
+    # "PASS" appears later in the sentence than the bolded verdict; a naive
+    # last-match search would misread it.
     text = "### Verdict\n**FIX AND RE-REVIEW** — not safe to PASS to the acceptance gate.\n"
     assert extract_verdict(text) == "FIX AND RE-REVIEW"
 
@@ -170,10 +170,9 @@ def test_evaluate_clean_report_against_clean_expectation() -> None:
 
 # --- `claude -p --output-format json` payload shapes -----------------------
 #
-# Regression tests for a live crash: Claude Code 2.1.220 emits a JSON *array*
-# of stream events, and the harness assumed the single-object shape, so
-# `payload.get` raised AttributeError on a list and lost every fixture queued
-# behind it.
+# Regression: Claude Code 2.1.220 emits a JSON array of stream events; the
+# harness assumed a single object, so `payload.get` raised AttributeError and
+# dropped every queued fixture.
 
 
 def test_parse_cli_json_reads_the_stream_event_array() -> None:
@@ -232,13 +231,11 @@ def test_parse_cli_json_rejects_a_bool_as_a_cost() -> None:
 
 # --- nested-subheading sections -------------------------------------------
 #
-# Regression test for a silent scoring bug. Real /review reports nest one
-# `###` subheading per finding inside the `## Critical findings` section. An
-# any-heading section terminator returned the blank line between the two, so a
-# correctly-filed Critical parsed as an empty section: the golden harness
-# counted 0 findings, and the A/B scored the planted defect as under-tiered.
-# Every synthetic report above lists findings as flat bullets, which is why
-# nothing caught it until a live run.
+# Regression: real /review reports nest a `###` per finding under `##
+# Critical findings`. An any-heading terminator stopped at that blank line,
+# parsing Critical as empty — the golden harness scored 0 findings and the
+# A/B under-tiered the planted defect. Synthetic reports above use flat
+# bullets, which is why this went uncaught until a live run.
 
 NESTED_REPORT = """\
 # Audit report — `changeset` @ 682e203

@@ -1,47 +1,40 @@
 """Regression tests for reference/planning-contract.md (story plan-skill, issues
 #11, #23, #13).
 
-Standard library only, matching test_build_skill.py's and
-test_finish_skill.py's own convention. Run with:
+Stdlib only. Run with:
 
     uv run --no-project python3 -m unittest discover -s tests -v
 
-Checks this story's acceptance criteria and the epic/story pre-mortems'
-named risks mechanically, by inspecting the prose `/build`'s session
-actually reads:
+Checks the prose `/build`'s session actually reads, against the story's
+acceptance criteria and the epic/story pre-mortems' named risks:
 
-1. `reference/planning-contract.md` has valid `name`/`description` frontmatter,
-   `name` matching the directory, and no longer reads as the M1 stub.
-2. The body carries jig's own `/build`-level vocabulary (`PLAN READY`/
-   `DESIGN GAP`/`TOO BIG`, `cap`/`hold`, `script`/`test-backed`/`probe`,
-   `LOW`/`REPLAN-RISK`/`ESCALATE-RISK`), derived from DESIGN.md at test
-   time, not hand-copied.
-3. Step 1b's infra-inventory reads the target `CLAUDE.md` for a test
-   runner and (issue #13) scripted-probe tooling before any `probe`-tier
-   item is proposed, names the three checkable signals cheapest-first, and
-   never lets a task self-attest a `probe` item when no tool is found
-   (story `plan-skill` pre-mortem risk #5's escape-hatch requirement).
-4. Step 5's lint-revise loop is bounded (not an open "revise until exit 0")
-   and has a no-progress escape that forbids "fixing" a finding by deleting
-   the flagged content (epic pre-mortem risk #2 / story pre-mortem risk #2).
+1. `reference/planning-contract.md` has valid frontmatter, `name` matches the
+   directory, and no longer reads as the M1 stub.
+2. Body carries jig's `/build`-level vocabulary, derived from DESIGN.md at
+   test time, not hand-copied.
+3. Step 1b's infra-inventory reads target `CLAUDE.md` for a test runner and
+   (issue #13) scripted-probe tooling before any `probe`-tier item is
+   proposed, names the three checkable signals cheapest-first, and never
+   lets a task self-attest a `probe` item when no tool is found
+   (pre-mortem risk #5's escape-hatch requirement).
+4. Step 5's lint-revise loop is bounded and has a no-progress escape
+   forbidding "fixing" a finding by deleting the flagged content
+   (epic pre-mortem risk #2 / story pre-mortem risk #2).
 5. `DESIGN GAP` always names one of its three distinct causes plus a
-   concrete resume action (epic pre-mortem risk #3 / story pre-mortem
-   risk #3).
-6. Step 6 passes an explicit `--split-on` to viva rather than relying on
-   auto-detect alone, and the `Not-here follow-ups` heading level stays
-   `##`, unchanged (resolves issue #23; epic pre-mortem risks #1/#5).
-7. Step 4 instructs `Rests on:` to reference tasks by the literal `Task N`
-   token, matching `scripts/plan-lint`'s and `/build`'s own parsing
-   (epic pre-mortem risk #6).
+   concrete resume action (epic risk #3 / story risk #3).
+6. Step 6 passes explicit `--split-on` to viva rather than relying on
+   auto-detect; `Not-here follow-ups` heading level stays `##` (resolves
+   issue #23; epic risks #1/#5).
+7. Step 4's `Rests on:` references tasks by the literal `Task N` token,
+   matching `scripts/plan-lint`'s and `/build`'s parsing (epic risk #6).
 8. Step 6 names a clear, non-silent failure when viva isn't installed
-   (story pre-mortem risk #7).
-9. Step 1 instructs naming which doc section supplied each extracted
-   concept, and asks once rather than fabricating when a design doc has
-   no explicit constraints/assumptions section (story pre-mortem risk #4).
-10. No `SKILL.md` is nested deeper than the directory's top level.
-11. The two already-shipped stale-reference sites this story updates
-    (`skills/build/SKILL.md`, `skills/ship/SKILL.md`) still name the
-    `##` heading level and now cite this story's own verified round-trip.
+   (story risk #7).
+9. Step 1 names which doc section supplied each extracted concept, and asks
+   once rather than fabricating when a doc has no explicit
+   constraints/assumptions section (story risk #4).
+10. No `SKILL.md` nested deeper than the directory's top level.
+11. `skills/build/SKILL.md` and `skills/ship/SKILL.md` still name the `##`
+    heading level and cite this story's verified round-trip.
 """
 from __future__ import annotations
 
@@ -64,9 +57,8 @@ PLAN_VOCABULARY = derive_plan_vocabulary(DESIGN_MD.read_text(encoding="utf-8"))
 
 
 class TestPlanningContractFile(unittest.TestCase):
-    """`/plan` folded into `/build` in the persona restructure, so the planning procedure
-    is a contract `/build`'s Step 0 follows rather than a door of its own. What used to be
-    frontmatter assertions here are now the two facts that keep that true."""
+    """`/plan` folded into `/build`; this is now a contract `/build`'s Step 0 follows,
+    not a door of its own. These two facts keep that true."""
 
     def test_contract_exists(self) -> None:
         self.assertTrue(SKILL_MD.is_file(), f"{SKILL_MD} is missing")
@@ -173,8 +165,7 @@ class TestPlanSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertPhraseIn("A `probe`-tier item is never satisfied by")
         self.assertPhraseIn("executor self-attestation")
         self.assertPhraseIn("You stop and report `DESIGN GAP`")
-        # The three rejected horns named explicitly, matching the design
-        # doc's own Alternatives-considered rejection.
+        # The three rejected horns, matching the design doc's own rejection.
         self.assertIn("downgrade the item", self.body)
         self.assertIn("silently write `(tier: probe)` anyway", self.body)
         self.assertIn("fabricate a `judgment` tier", self.body)
@@ -282,15 +273,12 @@ class TestStaleReferencesUpdated(unittest.TestCase):
     references now cite this story's own verified round-trip, and neither
     changed the heading level itself (issue #23, Step 6)."""
 
-    # Both assertions used to also require the literal path of this story's own
-    # design doc. That pinned the attribution to a branch-local file which, by the rule ratified in #219, is deleted at closeout --
-    # so the assertion guaranteed a permanently dangling pointer (#233). The
-    # issue number is the durable half and is what these check now: the claim
-    # still has to be attributed, just not to a file that cannot exist.
+    # Previously also required the literal design-doc path; since #219 makes those
+    # paths disposable, that guaranteed a dangling pointer (#233) -- the issue
+    # number is the durable half these check now.
     #
-    # The negative is deliberately the whole directory rather than one filename.
-    # Naming a file here would put the very string this rule forbids back into a
-    # permanent file, and the point is that *no* design-doc path belongs in one.
+    # Negative is the whole directory, not one filename, so no design-doc path
+    # re-enters a permanent file here.
 
     def test_build_skill_cites_the_verified_round_trip(self) -> None:
         body = BUILD_SKILL_MD.read_text(encoding="utf-8")

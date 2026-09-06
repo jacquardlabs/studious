@@ -6,10 +6,10 @@ allowed-tools: Read, Glob, Grep, Bash, Task, Write, Workflow
 
 # What's next
 
-One door for "where am I, what now" — at story scale, list scale, or milestone scale. The
-flow is scale-invariant: the same doors in the same order, whatever the size. Scope changes
-how many stories a bet contains and how much runs dispatched versus supervised; it never
-changes which doors exist.
+One door for "where am I, what now" — at story, list, or milestone scale. The flow is
+scale-invariant: the same doors in the same order regardless of size. Scope changes how many
+stories a bet contains and how much runs dispatched versus supervised; it never changes which
+doors exist.
 
 This door judges nothing and builds nothing. It reads position, names the next door, and
 runs it on your word. Verdicts belong to `/review`; commits belong to `/build` and `/ship`.
@@ -21,27 +21,24 @@ Read PRODUCT.md at the project root first.
 **Default: report, then ask.** Say where the work stands, name the next door and what it
 involves, and stop for the user's word before running it. Propose, don't apply.
 
-**One exception, because re-asking an answered question is friction, not safety:** if the
-previous turn's closing block already named this exact piece and the user's message is an
-advance ("next", "go", "keep going", a bare `/next`), that *is* the confirmation — run it
-without asking again.
+**One exception:** if the previous turn's closing block already named this exact piece and
+the user's message is an advance ("next", "go", "keep going", a bare `/next`), that *is*
+the confirmation — run it without asking again.
 
 **A second exception, epic scale only (#311):** a recorded viva sign-off on a brief
-satisfying every element in `reference/epic-plan-contract.md` IS the user's word for
-that plan — the same confirmation as an in-turn "yes," recorded earlier rather than
-spoken now. It approves the plan it was stamped against and nothing else; it never
-licenses auto-advance past the piece that plan authorizes, and "Never auto-advance past
-the piece you ran" below still governs everything after. A brief missing any required
-element is rejected at intake — never approved by default, never inferred, never
-defaulted to the nearest guess.
+satisfying every element in `reference/epic-plan-contract.md` IS the user's word for that
+plan. It approves only the plan it was stamped against; it never licenses auto-advance
+past the piece that plan authorizes — "Never auto-advance past the piece you ran" below
+still governs everything after. A brief missing any required element is
+rejected at intake — never approved by default, never inferred.
 
 **Never auto-advance past the piece you ran.** When it finishes — pass, fail, or handoff —
 stop with the closing block below, even when the result is a clean pass and the next step is
 obvious. The user advances the flow; you never do.
 
 **When recorded state and the repo disagree, stop and name the disagreement.** Do not guess
-which is right and do not quietly pick one. Evidence usually wins (see below), but a
-contradiction the evidence rules can't settle is a question for the user, not a coin flip.
+or quietly pick one. Evidence usually wins (see below), but a contradiction the evidence
+rules can't settle is a question for the user.
 
 ## The flow
 
@@ -56,8 +53,8 @@ contradiction the evidence rules can't settle is a question for the user, not a 
 | 7 | ship | handoff | branch closed out: scaffolding removed, evidence assembled, PR opened or work merged/parked |
 
 Pieces 2, 4, and 7 are handoffs — the two steps Studious doesn't own (writing the design,
-writing the code) plus closeout. Studious hands over context and steps back; the route is
-the user's pick, and no episode cares which route produced the branch.
+writing the code) plus closeout. The route is the user's pick; no episode cares which route
+produced the branch.
 
 After piece 7 the flow is `done`. Never open the PR yourself: the PR is the user's
 (`gh pr create` — the PR-time hook reads the same ledger). This is a story-scale rule.
@@ -319,8 +316,7 @@ At epic scale the closing shape is `reference/epic-orchestration.md`'s own repor
 summary, the "Needs you" queue, and the held/landed counts — not this block.
 
 Then stop. Do not start the next piece, do part of it "to save time," or ask whether to
-continue — the whole point is that the user advances the flow with one word, whenever they're
-ready.
+continue — the user advances the flow with one word, when ready.
 
 ## Record keeping
 
