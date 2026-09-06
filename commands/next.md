@@ -1,5 +1,5 @@
 ---
-description: The standup question at any scale — where is this, and what now. Reads position from recorded state and repo evidence, names the next door, and runs it on your word. One story, a list, or a whole milestone. Use for "what's next", "do the next piece", "where am I", "keep going", "drive this milestone".
+description: The standup question at any scale — where is this, and what now. Reads position from recorded state and repo evidence, names the next door, and runs it on your word. One story, a list, or a whole milestone. Use for "what's next", "do the next piece", "where am I", "keep going", "drive this milestone", "knock out this milestone", "run the whole epic", "build issue 12", "take this through the flow". Do NOT use for picking what to work on (that's /bet), for running a specific review (that's /review), or for a periodic project sweep (that's /health).
 argument-hint: "[idea, issue, milestone, or in-flight work] (omit to continue what's in flight)"
 allowed-tools: Read, Glob, Grep, Bash, Task, Write, Workflow
 ---

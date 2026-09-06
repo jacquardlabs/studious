@@ -81,8 +81,7 @@ the per-gate table above, if the roll-up vocabulary or scope changes. Rationale:
 
 Update this table first when a gate's tokens change, then update these consumers:
 
-- The matching trigger shim (`skills/evaluate-feature-idea`, `skills/review-the-work`,
-  `skills/do-the-next-piece`) and `commands/next.md` — each mentions its episode's tokens in one line.
+- `commands/next.md` — mentions each episode's tokens in one line.
 - `commands/next.md`'s per-piece phase-transition mapping (`## Run exactly one piece`) —
   reacts to every token to decide the next phase.
 - `reference/epic-orchestration.md`'s driver — advances on proceed tokens, bounds retries on

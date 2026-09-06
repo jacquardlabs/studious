@@ -1,5 +1,5 @@
 ---
-description: The retrospective — reads the cycle's own ledger, opens with the last retro's plan, and proposes changes to what governs the next cycle. `outcomes` mode grades shipped merges against the fixes and reverts that followed. The whole-project inspections live at /health. Recommend-only — writes reports, never code, issues, or verdicts.
+description: The retrospective — reads the cycle's own ledger, opens with the last retro's plan, and proposes changes to what governs the next cycle. `outcomes` mode grades shipped merges against the fixes and reverts that followed — use for "are the gates actually catching anything", "did the stuff we passed come back", "grade our past verdicts", "how much of what we shipped needed a fix". The whole-project inspections live at /health. Recommend-only — writes reports, never code, issues, or verdicts. Do NOT use for judging work in flight (that's /review), for choosing what to build next (that's /bet), or for install diagnostics (that's /doctor).
 argument-hint: "[outcomes [lookback-weeks [attribution-days]]] (omit for the retrospective)"
 allowed-tools: Read, Glob, Grep, Bash, Task, Write, Edit
 ---

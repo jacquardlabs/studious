@@ -19,6 +19,15 @@ A door is backed by a `commands/*.md` file or a `skills/*/SKILL.md` file — bot
 invokable slash commands, and which one backs a door is an implementation detail, not a
 class distinction. The `Backed by` column is the authority either way.
 
+**There is no separate natural-language shim layer.** Commands and skills both carry a
+`description` field that makes them model-invocable by default (verified against the
+installed Claude Code docs, 2026-09-06); a door's own `description` frontmatter does
+everything a `skills/<name>/` trigger shim used to. The five natural-language shims that
+once fronted `/doctor`, `/next`, `/bet`, `/retro`, and `/review` had their trigger
+phrasing and "Do NOT use for" exclusions folded into that target door's `description`,
+then their directories were deleted; `skills/` now holds only
+the three producer doors and `task-execution-discipline` (model-invoked, not a door).
+
 **`Absorbed` lists names that are gone**, so `/doctor` can grep a consuming project for
 them and flag stale hits. `/build` absorbed `/plan` but kept its own name, so `build` is
 excluded from its own Absorbed cell — including it would make `/doctor` flag every live

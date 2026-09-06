@@ -32,7 +32,7 @@ agents/       — Agent definitions (name, description, tools, model in frontmat
 bin/          — Executables used by commands (e.g. gate-ledger for gate verdicts and /next's per-feature and per-epic state)
 commands/     — Slash commands (description, allowed-tools in frontmatter)
 scripts/      — CI helper scripts (link checking, manifest validation)
-skills/       — Natural-language trigger shims (skills/<name>/SKILL.md)
+skills/       — Producer doors and model-invoked skills (skills/<name>/SKILL.md)
 hooks/        — Shipped hook scripts + hooks.json (e.g. the PR-time gate reminder)
 reference/    — Curated rubrics agents read at audit time (e.g. reference/idioms/<lang>.md)
 templates/    — Scaffold files created by /setup
@@ -40,7 +40,7 @@ tests/        — Python and shell tests for commands and CI scripts
 ```
 
 - Agents do the work. Commands orchestrate agents or provide standalone workflows.
-- Skills are trigger shims: a tightly-scoped `description` lets a gate fire from natural language, and the body delegates to the matching command instead of duplicating it.
+- The natural-language shim layer is gone: commands and skills both carry a `description` field that makes them model-invocable by default, so a door's own `description` frontmatter carries its trigger phrasing and "Do NOT use for" exclusions directly — no separate `skills/<name>/` shim needed to fire it from plain language.
 - Every agent and command reads PRODUCT.md, DESIGN.md, or CLAUDE.md for project context.
 - Review reports save to `docs/studious/` subdirectories in the user's project, not to the plugin itself.
 - **Recommend-only** is CLAUDE.md's invariant, not restated here — see CLAUDE.md's "Key invariants" bullets "Recommend-only means propose, never modify," "One bookkeeping boundary, not a name list," and "Everything else is either an executor or a human-typed one-off" for the exact boundary (any self-declared recommend-only command, the shared bookkeeping boundary, and the executor/one-off carve-out) and the predicate the `.studious/`/`docs/studious/` bookkeeping boundary applies — not an enumerated writer list.
@@ -53,7 +53,7 @@ Names encode two things — whether something is an action or a role, and what s
 - **Doors are the stages devs already know** — ten of them, declared in `reference/personas.md`: `bet`, `shape`, `build`, `review`, `ship`, `next`, `health`, `retro`, plus `setup` and `doctor`. Each names a stage from kanban, Scrum, XP, or Shape Up rather than a mechanism. Adding an eleventh means adding a charter row first; the CI check and the docs both derive from that table.
 - **Agents are either a 1:1 reviewer or a role.** Periodic, project-scoped reviewers share the `review-*` name (only `review-outcomes` is still dispatched, by `/retro outcomes`; the other seven lost their dispatcher when `/health` moved to gauntlet's posture judges, and #334 S4 retires them). Changeset specialists spawned by a fan-out command (`/review`, the gates) are named by role: `<domain>-auditor` for technical/rule checks (security, code, doc, architecture), `<domain>-reviewer` for human-judgment checks (product, ux, frontend).
 - **One fan-out command, many subagents.** Parallel checks belong to subagents under a single entry point (`/review`, `/health`), not to their own top-level commands. Don't add a command per check.
-- **Trigger shims are named for the intent they detect** — `evaluate-feature-idea`, `review-the-work`, `do-the-next-piece` — not for the door they call. The `description` carries the trigger; keep it conservative (fire on explicit intent, list what it should NOT match) so a door never interrupts when it isn't wanted. A shim is not a door: `reference/personas.md`'s `Backed by` column names the three `skills/` entries that are.
+- **A door's trigger lives in its own `description`, not a separate shim.** Keep it conservative (fire on explicit intent, list what it should NOT match) so a door never interrupts when it isn't wanted. `reference/personas.md`'s `Backed by` column names the three `skills/` entries that are doors; the fourth, `task-execution-discipline`, is model-invoked but not a door.
 
 ## Model and effort assignments
 
