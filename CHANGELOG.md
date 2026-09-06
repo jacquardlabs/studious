@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v3.6.0 (2026-09-06)
+
+### Features
+
+- Add scripts/stamp-bridge, viva sign-off fires /next locally
+  ([#324](https://github.com/jacquardlabs/studious/pull/324),
+  [`5539beb`](https://github.com/jacquardlabs/studious/commit/5539beb63a50863f4c3e5ab7ce90c2c5365175bc))
+
+
 ## v3.5.0 (2026-09-06)
 
 ### Features
