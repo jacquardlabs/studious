@@ -127,6 +127,16 @@ captured artifact) and the captured artifacts themselves — including the task'
 `tier`, `status`, and `detail`. A non-zero exit means this task has no folder
 to promote: say so on the row and never invent a link.
 
+**One more `resolve`, `--task exorcise`, same `--repo`/`--branch`.** `/build` Step 3
+captures the exorcise report under that task id (`exorcist:report`, pinned in
+`reference/evidence-format.md`) when its pass landed; it is no `PLAN.md` task, so the
+loop above never reaches it. Non-zero exit: no pass landed (exorcist absent, its `verify`
+re-run failed, or the build predates the step) — no row, no remark. Found: the folder
+joins the freshness hold below like any other, and the table ends with one more
+`<details>` block quoting the report's `Concepts removed:` line, then its `## Held`
+section verbatim — the route `/build` Step 3 promises a `hold` finding, exactly as an
+Inspector `CONCERN` rides `inspector:report` (see Assembling the table).
+
 **Freshness hold — run this before promoting anything.** Call
 `scripts/evidence-freshness --repo <worktree> --evidence <folder>`
 once per evidence folder involved — each `<folder>` being a path `resolve`

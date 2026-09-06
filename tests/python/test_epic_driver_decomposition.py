@@ -128,8 +128,8 @@ def test_acceptance_round_delegates_premortem_discovery_to_one_resolver() -> Non
 
 def test_resolver_and_helper_stay_outside_the_worker_dispatch_region() -> None:
     """`scripts/check_gate_independence.py` exempts exactly one region (#212) —
-    it wraps `workerPrompt` and nothing else. Neither new function may drift
-    inside it."""
+    it wraps the worker-class dispatch prompts (`workerPrompt`, and since #318
+    `exorcisePrompt`) and nothing else. Neither new function may drift inside it."""
     source = DRIVER.read_text()
     begin = source.index("// gate-independence: begin worker-dispatch")
     end = source.index("// gate-independence: end worker-dispatch")
@@ -137,7 +137,7 @@ def test_resolver_and_helper_stay_outside_the_worker_dispatch_region() -> None:
     for name in ("resolvePremortemLane", "missingLane"):
         assert name not in region, (
             f"{name} moved inside the worker-dispatch exemption region, which must "
-            "wrap workerPrompt and nothing else"
+            "wrap the worker-class dispatch prompts and nothing else"
         )
 
 

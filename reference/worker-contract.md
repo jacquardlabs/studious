@@ -83,6 +83,13 @@ step's token is owned by `reference/gate-vocabulary.md`.
   doing names it in its return for the epic to schedule. Narrowing is the same defect
   facing the other way: a criterion dropped because it turned out to be harder than the
   rest is a scope decision, and scope decisions are not a worker's to make silently.
+- **A simplification pass is inside the contract.** An executor may run one before
+  returning — exorcist's `/exorcist:exorcise` with the acceptance criteria as its intent,
+  the way `/build` Step 3 does — to execute the previous rule rather than leave it to a
+  judge. The criteria still bound it in both directions: the pass removes what no
+  criterion asks for and never drops what one implies, its result is re-verified by the
+  same checks as the work before it is committed, and its report is evidence like any
+  other captured run.
 - **Report the terminal status the work actually reached.** `BUILT` means every
   acceptance criterion is met and committed. Work that stopped part-way returns `PAUSED`
   with what remains, and a design that cannot be built as written returns `ESCALATED` —
