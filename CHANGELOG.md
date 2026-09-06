@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v3.4.0 (2026-09-06)
+
+### Bug Fixes
+
+- Avoid ambiguous en dash flagged by ruff RUF001 in test literal
+  ([#322](https://github.com/jacquardlabs/studious/pull/322),
+  [`5b3d30d`](https://github.com/jacquardlabs/studious/commit/5b3d30dd8ac0f465a863ac50a651968b32f10b4f))
+
+### Features
+
+- /ship --epic — epic closeout proposes decision patches and files follow-ups
+  ([#322](https://github.com/jacquardlabs/studious/pull/322),
+  [`5b3d30d`](https://github.com/jacquardlabs/studious/commit/5b3d30dd8ac0f465a863ac50a651968b32f10b4f))
+
+
 ## v3.3.1 (2026-09-06)
 
 ### Bug Fixes
