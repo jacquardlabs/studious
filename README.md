@@ -35,7 +35,7 @@ milestone — the doors don't change. [Full definition below](#bets).
 | `/ship` | Deliver and close out | done · increment · small releases |
 | `/next [anything]` | The standup question, at any scale | standup · pull · hill chart |
 | `/health [area]` | The periodic inspection | health check · standing review |
-| `/retro outcomes` | The periodic look-back | retrospective · kaizen · cool-down |
+| `/retro [outcomes]` | The periodic look-back | retrospective · kaizen · cool-down |
 
 Plus two you'll run rarely: `/setup` (first-time scaffolding) and `/studious:doctor`
 (install diagnostics — namespaced, because Claude Code ships its own `/doctor`).
@@ -289,9 +289,20 @@ Separate from the feature flow, two doors run against main, not feature branches
 `/health` inspects what the project *is*: bare `/health` dispatches gauntlet's 7 posture
 judges in parallel and compiles a master summary — cross-referenced findings, a
 prioritized action plan, and proposed context-doc updates for your approval. `/retro`
-looks back at how the cycle went; today it carries `outcomes`. Trend lives in your issue
-tracker, not in a report store — every run reports a baseline. The last two rows below are
-modes, not lanes: they run only when you name them.
+looks back at how the cycle went. Trend lives in your issue tracker, not in a report store —
+every run reports a baseline. The last three rows below are modes, not lanes: they run only
+when you name them.
+
+`/retro` is the retrospective: it reads what Studious recorded while the work happened — the
+gate ledger, dispatch telemetry, the decision journal, git history — never the code. It opens
+by checking the previous retro's plan item by item, renders the cycle's numbers with
+`scripts/retro-stats` (stories landed and parked, rounds per episode, which lanes blocked,
+findings waived or ruled noise, parks by reason, declared-vs-outside scope, time per phase),
+says what those rows show went well and badly, proposes changes to the surfaces that govern
+the next cycle as diffs — context docs, audit routing, the appetite's measured rung,
+story-class heuristics, noise suppressions, idiom rubric lines — and closes with the plan
+the next retro opens with. The report lands in `docs/studious/retros/`; a clone with no
+ledger gets "no cycle data in this clone", not an error.
 
 | Area | What it checks | Cadence |
 |------|----------------|---------|
@@ -303,6 +314,7 @@ modes, not lanes: they run only when you name them.
 | `/health readme` | User-facing docs: stale claims, broken commands, voice drift | After a release |
 | `/health prompts` | Trigger coverage, contract alignment, duplication, injection posture | Monthly |
 | `/health backlog` | Open issues that are resolved, obsolete, or duplicated | After a review cycle |
+| `/retro` | The cycle's own ledger: last plan checked, numbers, proposed changes, next plan | After each epic or milestone closes |
 | `/retro outcomes` | Shipped merges graded against the fixes and reverts that followed | Quarterly |
 
 Every mode is recommend-only. It writes reports; it never writes code, closes an issue, or

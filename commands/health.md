@@ -68,7 +68,7 @@ Gauntlet's judges carry their own posture (injection defense, read-only inspecti
 
 ## Single-area run (argument given)
 
-Dispatch the one matching judge with the Task tool, using the table's `subagent_type`. When it returns, render its findings document to the table's report path (Rendering below) and surface the report. If the area is `codebase`/`health`, also run the **idiom feedback step** below before finishing. Skip Phase 2 — there's nothing to cross-reference in a single review.
+Dispatch the one matching judge with the Task tool, using the table's `subagent_type`. When it returns, render its findings document to the table's report path (Rendering below) and surface the report. Skip Phase 2 — there's nothing to cross-reference in a single review. The idiom-rubric proposal that used to follow the codebase lane is `/retro`'s (section 4) — it reads the reports this door writes.
 
 ## Full sweep (no argument)
 
@@ -129,21 +129,3 @@ Ingest rules, from the contract (gauntlet's `docs/findings-contract.md` §4–5)
 - A `taste` finding never ranks above `track`.
 
 Render to Markdown at the table's report path: a header (date, judge, `artifact.ref`, `standard.name`), then findings grouped **Critical / Important / Track**, most severe first, each carrying its `dimension`, `summary`, `locus`, `basis`/`level`, and — where present — `anchor`, `failure_scenario`, `recommendation`; then the judge's `coverage` verbatim; then the ingest notes ("none" when clean). An empty findings list with a substantive `coverage` is a clean result, not a failed lane.
-
-## Idiom feedback step (codebase lane only)
-
-Propose-only, per Studious's own recommend-only posture (this plugin never writes `reference/idioms/<lang>.md` for you) — this step only prints a proposed addition as output text for the user to copy in by hand.
-
-### Step 1 — the repo-wide idiom findings
-
-Repo-wide idiom findings are the codebase lane's own: `gauntlet:codebase-posture-auditor` judges against gauntlet's `idioms/` standard, so no second dispatch is needed. `code-auditor` is mounted at `acceptance` and is never dispatched repo-wide. Read this run's rendered codebase report — `docs/studious/health-reviews/YYYY-MM-DD-health-review.md` — for findings about non-idiomatic constructs, naming inconsistency, or a missed stdlib pattern, whichever dimension the judge filed them under.
-
-### Step 2 — recurrence detection
-
-- Read the prior `docs/studious/health-reviews/*-health-review.md` reports (everything except the one just produced this run; older `*-code-idioms.md` reports from before this door count too). If fewer than 2 prior reports exist, print `Idiom feedback: insufficient review history (need 2+ prior cycles) — skipped.` and stop here.
-- Otherwise, scan this cycle's and the prior cycles' idiom findings for a pattern that recurs across 3 or more cycles (or 3+ distinct locations within the current report) — e.g. the same non-idiomatic construct, naming inconsistency, or missed-stdlib pattern flagged repeatedly rather than a one-off.
-- For each recurring pattern found, print:
-  - The target file (`reference/idioms/<language>.md`, matching the language of the flagged code).
-  - A proposed rubric line in that file's existing style (e.g. `X → Y`).
-  - The finding history backing it — which cycles/reports and locations it appeared in.
-- If nothing recurs, say so plainly — a clean result is a valid outcome here too.

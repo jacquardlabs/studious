@@ -10,13 +10,15 @@ object per line, same store shape and root-anchoring as `.studious/evidence/`. W
 by `bin/gate-ledger` (`telemetry-dispatch`, and `record`'s own outcome side effect);
 `hooks/dispatch-telemetry.sh` is a caller of the first, never a second writer.
 
-## Scope: a pure writer, no reader yet
+## Scope: one reader, and nothing branches on it
 
-Like `reference/events-format.md`'s store, this one ships with no read verb and no
-consumer in this plugin. A missing, empty, or malformed telemetry file changes no verdict
-anywhere. It exists so the routing work has a left side to join against, and so the two
-write paths below don't drift from each other. This file, not either implementation, is
-the contract.
+This store ships with no read verb; its one consumer in this plugin is `/retro`'s
+`scripts/retro-stats` (#330), which reads the files directly under this contract and renders
+dispatch counts per story and verdicts per branch for the retrospective's cycle numbers. A
+missing, empty, or malformed telemetry file changes no verdict anywhere — the reader reports
+a gap, never a zero. The store exists so the routing work has a left side to join against,
+and so the two write paths below don't drift from each other. This file, not either
+implementation, is the contract.
 
 ## Envelope
 
@@ -194,3 +196,5 @@ branch it describes — a routing comparison reads runs that finished long ago.
   sentinel suppression, and defensive exits.
 - `workflows/epic-driver.js`'s audit fan-out builds the driver-side call; changing the
   flag set means changing that prompt builder in the same commit.
+- `scripts/retro-stats` reads `kind`, `task_id`, `model`, and `skill` off dispatch lines and
+  `task_id` off outcome lines; renaming any of those means changing its cost table.
