@@ -213,10 +213,14 @@ Then, from whichever ran:
   internal round).
 - **RETHINK** → phase `design`; back to the doc with the reasoning.
 
-Log with `work-log --step design --outcome "<verdict>" --phase "<phase>"` — the verdict
-logged is the episode's own token (`PROCEED TO PLAN` / `REVISE` / `RETHINK`,
+Log with `work-log --step design-review --outcome "<verdict>" --phase "<phase>"` — the
+verdict logged is the episode's own token (`PROCEED TO PLAN` / `REVISE` / `RETHINK`,
 `reference/gate-vocabulary.md`'s spelling for this gate); `/shape`'s own
-`DESIGNED`/`NEEDS RESEARCH`/`REVISED` rides in the report prose, not this field.
+`DESIGNED`/`NEEDS RESEARCH`/`REVISED` rides in the report prose, not this field. **Never
+`--step design`** — `scripts/retro-stats` buckets rounds and time-per-phase by the gate's
+own step name (`GATES`/`PHASES`, both naming `design-review` distinctly from `design`);
+logging under the piece's display name instead of the gate name would silently zero out
+that gate's row going forward.
 
 **The review model at this scale (#210):** a design doc here gets a human sign-off — viva
 inside `/shape`, or whatever your route's equivalent is — *and* the design episode, because a
@@ -263,10 +267,12 @@ Then, from whichever ran:
   refusal instead, surface the choice named — record a terminal verdict, reopen a fresh
   episode, or take the still-open findings to discussion — and let the user make it.
 
-Log with `work-log --step build --outcome "<verdict>" --phase "<phase>"` — the verdict
+Log with `work-log --step audit --outcome "<verdict>" --phase "<phase>"` — the verdict
 logged is the episode's own token (`reference/gate-vocabulary.md`'s spelling for the
 `audit` gate); `/build`'s own `BUILT`/`PAUSED`/`ESCALATED` rides in the report prose, not
-this field.
+this field. **Never `--step build`** — `bin/gate-ledger` closes that step's outcome
+vocabulary to `BUILT`/`PAUSED`/`ESCALATED`/`HANDED-OFF`/`SKIPPED` (#213) and refuses a
+gate token like `PASS` written under it.
 
 Whatever the verdict, run `gate-ledger episode-get --gate audit` and carry its first line —
 `round R of C — N open, M carried` — into the closing block, verbatim: the episode's own round

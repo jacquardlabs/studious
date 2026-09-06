@@ -112,6 +112,59 @@ def test_work_on_branches_on_every_token_it_can_be_handed() -> None:
     assert "never silently" in bullet, "an unrecognized token must be named, not swallowed"
 
 
+def _next_piece(text: str, n: int) -> str:
+    """Slice one numbered piece section out of commands/next.md's `## Run exactly one
+    piece` — `### n ·` through the following `### n+1 ·` heading (or `## Skips` after
+    the last piece). Mirrors test_episode_contract.py's `NavigatorEpisodeTest.piece()`
+    so a markdown reflow inside a section can't break this the way a raw regex over the
+    surrounding prose would."""
+    start = text.index(f"### {n} ·")
+    end = text.index(f"### {n + 1} ·") if f"### {n + 1} ·" in text else text.index("## Skips")
+    return text[start:end]
+
+
+def test_work_on_logs_the_design_gate_verdict_under_step_design_review_not_design() -> None:
+    """The write /next itself makes at the end of the design piece records a
+    gate-vocabulary token (`PROCEED TO PLAN` / `REVISE` / `RETHINK`) under the ledger
+    gate's own name, `design-review` — never the piece's display name, `design`.
+    `scripts/retro-stats` buckets rounds and time-per-phase by exactly this step string
+    (`GATES`/`PHASES`, both naming `design-review` distinctly from `design`); logging
+    under `design` instead would silently zero out that gate's row in every future
+    `/retro` report. (command-surface/option-b: piece 2 absorbed the separate
+    design-review piece and briefly inherited the merged piece's own name, `design`,
+    instead of keeping the gate's name, `design-review`.)"""
+    piece2 = _next_piece(WORK_ON.read_text(encoding="utf-8"), 2)
+    assert '--step design-review --outcome "<verdict>"' in piece2, (
+        "piece 2 does not log the design-review gate's verdict under --step design-review"
+    )
+    assert '--step design --outcome "<verdict>"' not in piece2, (
+        "piece 2 logs the design gate's verdict under --step design, which "
+        "scripts/retro-stats never buckets as the design-review gate — it must be "
+        "--step design-review"
+    )
+
+
+def test_work_on_logs_the_audit_gate_verdict_under_step_audit_not_build() -> None:
+    """The write /next itself makes at the end of the build piece records a
+    gate-vocabulary token (`PASS` / `FIX AND RE-REVIEW` / `NEEDS DISCUSSION`,
+    reference/gate-vocabulary.md's spelling for the `audit` gate) — never one of
+    this file's closed `--step build` statuses. `bin/gate-ledger` refuses any
+    `--step build --outcome` pair outside {BUILT, PAUSED, ESCALATED, HANDED-OFF,
+    SKIPPED}, so logging the audit verdict under `--step build` would reject
+    `PASS` at the write, breaking the flow's own bookkeeping call. (command-surface/
+    option-b: piece 3 absorbed the separate work-review piece and briefly
+    inherited its neighbor's `--step build` instead of keeping `--step audit`.)"""
+    piece3 = _next_piece(WORK_ON.read_text(encoding="utf-8"), 3)
+    assert '--step audit --outcome "<verdict>"' in piece3, (
+        "piece 3 does not log the audit gate's verdict under --step audit"
+    )
+    assert '--step build --outcome "<verdict>"' not in piece3, (
+        "piece 3 logs the audit gate's verdict under --step build, which "
+        "gate-ledger's closed build-outcome vocabulary would reject for a token "
+        "like PASS — it must be --step audit"
+    )
+
+
 def test_design_md_vocabulary_row_matches() -> None:
     text = DESIGN_MD.read_text(encoding="utf-8")
     row = re.search(r"^\| `/build` session verdict \| (.*?) \|", text, re.MULTILINE)
