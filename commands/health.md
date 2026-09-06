@@ -35,7 +35,7 @@ The `Standard` column mirrors each judge's row in gauntlet's charter, because th
 **`simplify` is the other mode, opt-in for the same reason `backlog` is:** the séance's four lanes read the whole tree at opus — ~75 minutes on a 20k-line repository (exorcist's README, Cost) — so it never rides the bare sweep. Check whether exorcist is installed the way `/setup` Step 6b does: look for `exorcist:seance` in this session's registered skill listing — never a file path.
 
 - **Not installed:** one line — "exorcist not installed — simplify skipped; install with `/plugin install exorcist@jacquardlabs-marketplace`." — and stop. Never an error: the mode is optional.
-- **Installed:** invoke `/exorcist:seance` with `$ARGUMENTS` past the keyword as its ref (defaults to HEAD) and relay its report verbatim. It resolves its own worktree and writes only under `docs/exorcist/seance-<date>/`; nothing in the tree changes. Point at the register and stop: setting ghosts `approved` and working them — `/bet` the register or `/exorcist:exorcise <register>` — is a human-typed producer act, never this door's.
+- **Installed:** invoke `/exorcist:seance` (it surveys HEAD) and relay its report verbatim. It resolves its own worktree and writes only under `docs/exorcist/seance-<date>/`; nothing in the tree changes. Point at the register and stop: setting ghosts `approved` and working them — `/bet` the register or `/exorcist:exorcise <register>` — is a human-typed producer act, never this door's.
 
 Either way, skip the rest of this file.
 
