@@ -1046,7 +1046,7 @@ cmd_episode_finding() {
     --arg waiver "$waiver" --arg t "$(now_iso)"
 }
 
-cmd_episode_get() { # --gate G [--findings | --history] -> one line a prose surface can quote verbatim: "round R of C — N open, M carried"
+cmd_episode_get() { # --gate G [--findings | --history] [--branch B] -> one line a prose surface can quote verbatim: "round R of C — N open, M carried"
   # Findings ledger's read side. Counts only `open`/`carried` — what a verdict
   # has to answer for (`closed` resolved, `waived`/`rejected-as-noise` set
   # aside). Prints nothing when no episode is recorded, mirroring gate-get/epic-get.
@@ -1064,12 +1064,17 @@ cmd_episode_get() { # --gate G [--findings | --history] -> one line a prose surf
   #
   # --history (#300): every archived episode plus the current one, each with
   # verdict, counts, escalation, and the waiver text the operator typed.
-  local gate="" findings=0 history=0
+  #
+  # --branch (#330): read another branch's episodes, same as gate-get and
+  # evidence-list — `scripts/retro-stats` runs on main and reads every story
+  # branch's record from there. Default stays the current branch.
+  local gate="" findings=0 history=0 branch=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --gate)     gate="$2"; shift 2 ;;
       --findings) findings=1; shift ;;
       --history)  history=1; shift ;;
+      --branch)   branch="$2"; shift 2 ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
@@ -1082,7 +1087,7 @@ cmd_episode_get() { # --gate G [--findings | --history] -> one line a prose surf
     return 2
   fi
   if ! have jq || ! have git; then return 0; fi
-  local file; file="$(ledger_dir)/$(branch_slug).json"
+  local file; file="$(ledger_dir)/$(branch_slug "$branch").json"
   [ -f "$file" ] || return 0
   if [ "$history" -eq 1 ]; then
     # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
@@ -2663,5 +2668,5 @@ case "${1:-}" in
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   telemetry-dispatch) shift; cmd_telemetry_dispatch "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-assign --slug S --phase PH --brief B [--artifacts A1,A2] [--branch BR] [--worktree W] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] [--appetite-tokens N] [--appetite-episodes N] [--canary on|off] [--acceptance-altitude per-story|delivery-boundary] [--approval interactive|viva:REF] | epic-run-log --slug E --landed N [--tokens-spent N] | epic-finding --epic E --story S --lane L --severity Critical|Important|Track --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--waiver R] [--sha X] | epic-attest --epic E --story S --lane L [--sha X] | epic-findings --epic E [--unresolved | --attestations] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] [--merge-class auto-merge|human-approve|never-unattended] | epic-get --slug S | epic-reconcile --slug S [--override-stop-loss] | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | telemetry-dispatch --run-id R --step-id S --role RL --routing-reason static|override|classifier:vN|ab:ARM [--parent-step-id P] [--task-id T] [--skill K] [--model M] [--effort E] [--capturer hook|driver] [--feature k=v ...] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-assign --slug S --phase PH --brief B [--artifacts A1,A2] [--branch BR] [--worktree W] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] [--appetite-tokens N] [--appetite-episodes N] [--canary on|off] [--acceptance-altitude per-story|delivery-boundary] [--approval interactive|viva:REF] | epic-run-log --slug E --landed N [--tokens-spent N] | epic-finding --epic E --story S --lane L --severity Critical|Important|Track --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--waiver R] [--sha X] | epic-attest --epic E --story S --lane L [--sha X] | epic-findings --epic E [--unresolved | --attestations] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] [--merge-class auto-merge|human-approve|never-unattended] | epic-get --slug S | epic-reconcile --slug S [--override-stop-loss] | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | telemetry-dispatch --run-id R --step-id S --role RL --routing-reason static|override|classifier:vN|ab:ARM [--parent-step-id P] [--task-id T] [--skill K] [--model M] [--effort E] [--capturer hook|driver] [--feature k=v ...] | gc [--force]}" >&2; exit 2 ;;
 esac
