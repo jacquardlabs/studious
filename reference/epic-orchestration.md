@@ -660,6 +660,14 @@ create` keystroke. A died or refused PR dispatch never un-records `ready`: the e
 stays ready, and running `gh pr create` from the epic branch by hand is still exactly
 as available as it always was.
 
+**Closeout (#247) is a separate, human-invoked step, never this dispatch's job.**
+`skills/ship/SKILL.md`'s "Epic scope" (`/ship --epic <slug>`) proposes decision
+patches and per-item-confirms follow-up issues from what is now durably on the ledger
+— the settled `--decisions` from step 8, the findings ledger, the parked stories.
+Nothing about it runs unattended: filing an issue needs a human's per-item word, the
+same rule the story-scale path already follows, so it stays out of every dispatch this
+section names.
+
 A finale gate (audit or acceptance) whose fix cycles run out while it still holds its
 own retry token (`FIX AND RE-REVIEW`) does not end the run reading
 as an unexplained "not ready": it adds one entry to the "Needs you" queue below naming

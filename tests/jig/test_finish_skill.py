@@ -360,3 +360,46 @@ class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
         self.assertEqual(self.flat_body.count(contents), 1, "the manifest description has one home")
         exit_zero_at = self.flat_body.index(normalize_ws("It prints one folder path — absolute, since the store lives outside the tracked tree — on exit 0."))
         self.assertLess(exit_zero_at, self.flat_body.index(contents))
+
+
+class TestShipEpicScope(unittest.TestCase):
+    """`/ship --epic <slug>` (#247) — epic-scale closeout, human-invoked after the
+    epic finale's PR is open. Never Steps 1-6; never dispatched by
+    workflows/epic-driver.js."""
+
+    def setUp(self) -> None:
+        self.body = SKILL_MD.read_text(encoding="utf-8")
+        self.flat_body = normalize_ws(self.body)
+
+    def assertPhraseIn(self, phrase: str) -> None:
+        self.assertIn(normalize_ws(phrase), self.flat_body, f"phrase not found (whitespace-normalized): {phrase!r}")
+
+    def test_three_modes_are_named(self) -> None:
+        self.assertPhraseIn("## Three modes")
+        self.assertPhraseIn("`/ship --epic <slug>`")
+
+    def test_epic_scope_never_runs_steps_one_through_six(self) -> None:
+        self.assertPhraseIn("never runs Steps 1–6 below")
+        self.assertPhraseIn("No Step 6 here")
+
+    def test_epic_scope_is_human_invoked_never_dispatched_by_the_driver(self) -> None:
+        self.assertPhraseIn("human-invoked only")
+        self.assertPhraseIn("`workflows/epic-driver.js` never runs this itself")
+
+    def test_epic_scope_reads_the_ledger_fresh_not_an_embedded_report(self) -> None:
+        self.assertPhraseIn("Read the ledger fresh, not anything embedded earlier")
+        self.assertPhraseIn("gate-ledger epic-get --slug <slug>")
+        self.assertPhraseIn("gate-ledger epic-findings --epic <slug>")
+
+    def test_epic_scope_reuses_step_4s_propose_never_apply_posture(self) -> None:
+        self.assertPhraseIn("Step 4's exact posture, epic-scoped inputs")
+        self.assertPhraseIn(
+            "Never call `Edit`, `Write`, `git apply`, or any other patch mechanism against those three"
+        )
+
+    def test_epic_scope_reuses_step_3s_confirmation_mechanism_verbatim(self) -> None:
+        self.assertPhraseIn("Step 3's mechanism, verbatim, epic-scoped sources")
+        self.assertPhraseIn("Confirmation is per-item, not all-or-nothing")
+
+    def test_epic_scope_does_not_reassemble_evidence(self) -> None:
+        self.assertPhraseIn("Evidence needs no separate assembly here")
