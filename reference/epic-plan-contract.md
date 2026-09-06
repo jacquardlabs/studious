@@ -25,6 +25,7 @@ or unjudgeable story later.
 | Appetite | Two numbers the user approves alongside the scope: **tokens**, the ceiling `workflows/epic-driver.js` holds at runtime, and **open episodes**, the maximum stories that may be awaiting judgment or human action at once. Proposed from the estimate; recorded via `epic-set --appetite-tokens` / `--appetite-episodes`. |
 | Canary | Whether the first invocation dispatches exactly one story and waits for it to land before releasing the rest. On by default. Recorded via `epic-set --canary on\|off`. |
 | Acceptance altitude | Where product judgment runs: `per-story` (the default, and today's behavior) or `delivery-boundary`. **Not yet safe to set** — see below. Recorded via `epic-set --acceptance-altitude`. |
+| Approval | How this plan was approved: `interactive` (the live plan-piece interview) or `viva:<round-ref>` (a recorded sign-off on an agent-authored brief, #311). Every element in this table must be answerable from the brief either way — a brief missing one is rejected at intake (`scripts/intake`, #314), never approved by default. Recorded via `epic-set --approval`. |
 
 ## Story class — what the driver runs unattended, and what it hands back
 

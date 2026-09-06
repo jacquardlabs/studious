@@ -70,6 +70,18 @@ milestone.
 
 ## Plan piece — runs once, ends at approval
 
+**Two routes to the same approval, since #311.** Everything below describes the live,
+in-session interview — the only route until now. An agent may instead author the same
+plan as a written brief and open it in viva (`/viva-write`, headless contract v12); a
+human's sign-off there is the identical confirmation as answering live, recorded
+earlier rather than spoken now. **Every element this section produces is required
+either way** — the brief route answers steps 1–7 in writing instead of in conversation,
+never by omitting one. A brief missing a required element is rejected at intake
+(`scripts/intake`, #314) before it ever reaches a human to stamp — never approved by
+default, never inferred, never defaulted to the nearest guess. Step 8 below is where
+the two routes converge: the same `epic-set`/`epic-story-set` calls, with `--approval`
+recording which route produced this approval and when.
+
 1. Read PRODUCT.md, DESIGN.md, and CLAUDE.md.
 2. Propose a decomposition satisfying `reference/epic-plan-contract.md`: stories with
    slugs, source issues, acceptance criteria, dependency edges, a gate profile each
@@ -208,15 +220,38 @@ milestone.
    gate-ledger epic-set --slug "<slug>" --title "<title>" --source "<milestone M | issue #N | label L>" \
      --goal "<goal statement>" --branch "epic/<slug>" --concurrency <cap> --status approved \
      --appetite-tokens <approved tokens> --appetite-episodes <approved open episodes> \
-     --canary <on|off> --acceptance-altitude <per-story|delivery-boundary>
+     --canary <on|off> --acceptance-altitude <per-story|delivery-boundary> \
+     --approval <interactive|viva:round-ref>
    gate-ledger epic-story-set --epic "<slug>" --slug "<story>" --title "<story title>" \
      --source "issue #N" --criteria "<criteria>" --decisions "<answered forks>" \
-     --deps "<dep-a,dep-b>" --gates "<profile>"
+     --deps "<dep-a,dep-b>" --gates "<profile>" --merge-class "<auto-merge|human-approve|never-unattended>"
    ```
+
+   `--approval` (#311) is `interactive` for the live route this section describes, or
+   `viva:<round-ref>` when a brief was stamped instead — `epic-reconcile`'s payload
+   surfaces whichever was recorded, which is how the driver (and a human re-reading
+   this epic later) tells the two routes apart. Never omit it: an epic with no recorded
+   approval is exactly the state a status of `proposed` (below) is for, not `approved`.
+
+   **An agent authoring a brief for the viva route records `--status proposed`
+   first** — before any human has seen it — so `epic-reconcile` can see a pending
+   brief waiting on its stamp. The stamp-to-dispatch bridge (`scripts/intake`, #314;
+   the bridge itself, #315) then flips it: `epic-set --slug "<slug>" --status approved
+   --approval "viva:<round-ref>"`, at which point this is the same recorded state the
+   live route reaches directly. `commands/next.md`'s "do the next piece" selector
+   deliberately does not count a `proposed` epic as ready to drive — driving an
+   unstamped brief on an empty invocation would be the exact default-approval this
+   whole amendment exists to forbid.
 
    `--appetite-tokens` is a token count, never a dollar figure — the ledger rejects
    anything but a positive integer, and the driver compares it against a token budget.
    Record the numbers the user actually approved, not the ones step 5 proposed.
+
+   `--merge-class` (#312) records PRODUCT.md's "Merge authority" tier for the story —
+   `auto-merge`, `human-approve`, or `never-unattended` — decided here, at approval,
+   never inferred later at merge time. A story already classed `story-supervised` in
+   step 3 by the prompt-prose trigger is `never-unattended` by construction; state it
+   as the same fact under two names, not two separate judgment calls.
 
    `--acceptance-altitude` records the altitude the user approved in step 5 — pass
    `per-story` unless they explicitly chose `delivery-boundary`. This flag is the only

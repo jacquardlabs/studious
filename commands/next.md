@@ -26,6 +26,15 @@ previous turn's closing block already named this exact piece and the user's mess
 advance ("next", "go", "keep going", a bare `/next`), that *is* the confirmation — run it
 without asking again.
 
+**A second exception, epic scale only (#311):** a recorded viva sign-off on a brief
+satisfying every element in `reference/epic-plan-contract.md` IS the user's word for
+that plan — the same confirmation as an in-turn "yes," recorded earlier rather than
+spoken now. It approves the plan it was stamped against and nothing else; it never
+licenses auto-advance past the piece that plan authorizes, and "Never auto-advance past
+the piece you ran" below still governs everything after. A brief missing any required
+element is rejected at intake — never approved by default, never inferred, never
+defaulted to the nearest guess.
+
 **Never auto-advance past the piece you ran.** When it finishes — pass, fail, or handoff —
 stop with the closing block below, even when the result is a clean pass and the next step is
 obvious. The user advances the flow; you never do.
@@ -71,7 +80,10 @@ gate-ledger epic-list     # epics in flight
 
 - **`$ARGUMENTS` is empty — "do the next piece."** If a work file's branch matches the
   current branch, that's it. Otherwise, if exactly one epic is `approved`/`running`/`ready`,
-  drive that epic. Otherwise, if exactly one work file is active (phase not `done`/`stopped`),
+  drive that epic — **`proposed` deliberately does not count here** (#311): a brief awaiting
+  its viva stamp has not been approved yet, and driving it on an empty invocation would be
+  exactly the default-approval this door refuses everywhere else. Otherwise, if exactly one
+  work file is active (phase not `done`/`stopped`),
   use it. If several are active, list them and ask which — don't guess. **Cap that list at the
   5 most recently updated** (`updatedAt`), and say how many more there are rather than
   printing them all: a menu long enough to scroll is not a choice a user can make. If the list
