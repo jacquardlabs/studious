@@ -69,8 +69,8 @@ Via the Jacquard Labs marketplace:
 
 That also installs the two declared dependencies: [viva](https://github.com/jacquardlabs/viva),
 which `/shape` and `/build` drive for their human sign-off rounds, and
-[gauntlet](https://github.com/jacquardlabs/gauntlet), whose posture judges `/health` dispatches
-(`/review`'s changeset lanes follow under #334 S1).
+[gauntlet](https://github.com/jacquardlabs/gauntlet), whose judges `/review` and `/health`
+dispatch.
 
 Then, in any project:
 
@@ -200,8 +200,10 @@ perform. It ships a route through both. Use it, or don't; the judges can't tell.
   one task at a time in a fresh, isolated executor, verifies each by running the task's own
   commands, and captures the output as evidence. Status flips are written by scripts, never
   by the model, and load-bearing tasks get a fresh inspector judging exactly three things:
-  test self-dealing, contract match, technicality gaming. Reports `BUILT`, `PAUSED`, or
-  `ESCALATED`, and never auto-continues past a pause.
+  test self-dealing, contract match, technicality gaming. After the last task passes, an
+  exorcist pass strips what no criterion asked for, the scripts re-verify, and one
+  `exorcise:` commit lands (skipped with a note when exorcist is not installed). Reports
+  `BUILT`, `PAUSED`, or `ESCALATED`, and never auto-continues past a pause.
 - **`/ship`** closes out a `BUILT` branch: an evidence table mapping each done-means item to
   how it was verified, follow-ups filed only on per-item confirmation, proposed (never
   applied) patches to your context docs, and a dated build report. Reports `MERGE`, `PR`,
@@ -247,7 +249,8 @@ never ran, ran on an older commit, or didn't pass. It's a reminder, not a block.
 
 ## Where your state lives
 
-Two directories, one committed and one not. Nothing else is written on your behalf.
+Two directories, one committed and one not, plus `docs/exorcist/` when you run
+`/health simplify` (exorcist's own register path). Nothing else is written on your behalf.
 
 | Path | Committed | What's in it |
 |---|---|---|

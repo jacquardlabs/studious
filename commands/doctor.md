@@ -71,6 +71,12 @@ over. Grep the consuming project's `CLAUDE.md`, `README.md`, and `.github/workfl
 for any of them as a slash-command invocation (`/work-on`, not `docs/design/`), and report
 each hit with the door that replaced it.
 
+One rename the `Absorbed` column cannot express, because the door is still live: `/retro`'s
+area arguments moved to `/health` (#330). Grep the same files for `/retro <area>` where
+`<area>` is any keyword in `commands/health.md`'s area table — read the table, don't
+restate it — and report each hit with `/health <area>` as the replacement. Bare `/retro`
+and `/retro outcomes` are current; leave them alone.
+
 **Propose, don't apply.** Print the rewire as a diff the human can apply; never edit their
 files. This is the same posture every other check here takes — `/doctor` fixes nothing.
 

@@ -1,6 +1,6 @@
 ---
 description: Judge the work — the one review door. Picks its episode from repo state: a design doc with no built diff opens the design episode; a built diff opens the work episode (security, code, docs, architecture, tests, and criteria conformance always; UX, frontend, accessibility, infrastructure, operability, dependency, prompt, and pre-mortem lanes join in when the changeset warrants); `--delivery` opens the delivery episode at the bet's exit. Use for "review this design", "audit this branch", "does this actually deliver".
-allowed-tools: Read, Glob, Grep, Bash, Task, Write
+allowed-tools: Read, Glob, Grep, Bash, Task, Write, Skill
 ---
 
 # The review door
@@ -49,17 +49,15 @@ judges carry their own posture (injection defense, read-only inspection, calibra
 nothing is stamped into a dispatch prompt from `reference/` any more.
 
 **Gauntlet's root.** `${CLAUDE_PLUGIN_ROOT}` resolves to this plugin's root, never
-gauntlet's, and gauntlet 0.15.0 ships no command that prints its own root. The root is the
-directory the `gauntlet:review` command's substituted paths name: when that command loads,
-its `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/dispatch.py"` lines arrive with the variable
-already replaced by an absolute `…/gauntlet/<version>/` path. If this session has not
-learned it yet, stop and ask the operator to load it once per session — `/gauntlet:where`
-if that command exists in the session's listing (it does not at 0.15.0; gauntlet#80 asks
-for the root to be stated in the contract), else `/gauntlet:review --help` (gauntlet's door
-reads a non-numeric argument as a document path, finds none, and stops; the loaded command
-text carries the root). Record it as `GAUNTLET_ROOT` for the rest of the session. **Never
-Glob the plugin cache** for it — a path guessed from a cache layout is the
-convention-boundary failure #150 recorded.
+gauntlet's. Once per session, invoke the `gauntlet:where` skill: its three lines arrive
+with gauntlet's own `${CLAUDE_PLUGIN_ROOT}` already substituted — the absolute root and the
+two script paths (gauntlet#80; the mechanism is the same substitution every plugin command
+gets on load). Record the first line as `GAUNTLET_ROOT` for the rest of the session. If
+`gauntlet:where` is not in this session's skill listing, the installed gauntlet predates
+it: stop with one line — "gauntlet predates `/gauntlet:where` — `/plugin update
+gauntlet@jacquardlabs-marketplace`, then re-run" — never a guess.
+**Never Glob the plugin cache** for it — a path guessed from a cache layout is the
+convention-boundary failure that #150 recorded.
 
 ## Establish the changeset (work and delivery episodes)
 
