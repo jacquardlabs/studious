@@ -25,12 +25,16 @@ contains and how much runs dispatched versus supervised — never which doors ex
 - **Lanes stay separate.** Gate agents never build; worker agents never gate
   (`reference/worker-contract.md`); the two never share context. A gate judges the
   diff and the doc, never a worker's transcript.
-- **GitHub is read-only.** Never create or edit issues; never open PRs — after the
-  finale the branch is the user's (`gh pr create`). This binds every dispatched agent,
-  not just you: the driver stamps the invariant into each dispatch prompt it builds and
-  watches the open-issue/open-PR counts across the run, reporting any change as an
-  anomaly (#276). Dispatching by hand on the fallback path means carrying the same
-  sentence into the prompt yourself.
+- **GitHub is read-only, with one named exception.** Never create or edit issues;
+  never open, update, or merge a PR. This binds every dispatched agent, not just you:
+  the driver stamps the invariant into each dispatch prompt it builds and watches the
+  open-issue/open-PR counts across the run, reporting any change as an anomaly (#276).
+  Dispatching by hand on the fallback path means carrying the same sentence into the
+  prompt yourself. **The one exception (#253):** after the finale's audit and
+  acceptance gates both pass and `ready` is recorded, one dedicated dispatch — and
+  only that one — pushes the epic branch and opens its PR. See "Epic finale" below.
+  Every other dispatch, including every other finale lane, stays absolutely
+  read-only; the exception is scoped to that one dispatch, never generalized.
 - **Judgment verdicts always stop the story** and wait for the user. Autonomy never
   absorbs a RETHINK, NEEDS DISCUSSION, or HOLD; unknown verdicts park too, never
   advance.
@@ -609,8 +613,17 @@ mode, run it in the `__epic` worktree):
 Verdicts record to the epic branch's ledger — the PR-time hook reads the same file.
 All pass → `gate-ledger epic-set --slug "<slug>" --status ready`, then release the
 integration checkout so the branch is checkoutable from the user's clone:
-`git worktree remove "$(gate-ledger worktree-path --slug "<slug>")"`. Recap every story's verdict
-trail and remind the user the PR is theirs (`gh pr create` from the epic branch).
+`git worktree remove "$(gate-ledger worktree-path --slug "<slug>")"`.
+
+**Only then, from the recorded fact of `ready` and never earlier (#253):** one
+dedicated dispatch — the one exception to "GitHub is read-only" above — pushes the
+epic branch and opens its PR, carrying the per-story verdict trail and the evidence
+`gate-ledger evidence-list --branch "epic/<slug>" --dedupe` returns
+(`reference/evidence-format.md`) as its body. This moved the human's part of exit
+earlier, to plan approval — what stays theirs is review and merge, not the `gh pr
+create` keystroke. A died or refused PR dispatch never un-records `ready`: the epic
+stays ready, and running `gh pr create` from the epic branch by hand is still exactly
+as available as it always was.
 
 A finale gate (audit or acceptance) whose fix cycles run out while it still holds its
 own retry token (`FIX AND RE-REVIEW`) does not end the run reading
@@ -1113,8 +1126,10 @@ work file yet, so its three sub-lines — the phase trail, the `<scope line>`, a
 `scope: unavailable (could not read the work file)` for a story that was never
 dispatched reports a read failure that didn't happen.
 
-When the epic reaches `ready`, the last line becomes the
-`gh pr create` handoff; `stopped` states what ended it. A parked story is always also
+When the epic reaches `ready`, the last line reports the PR the finale already opened
+(`finale.prUrl`) — or, if that one dispatch died or refused, that `ready` is recorded
+and `gh pr create` from the epic branch is still the user's to run by hand
+(`finale.notes`). `stopped` states what ended it. A parked story is always also
 a valid `/next` feature — say so when the queue is non-empty; taking a story over
 by hand usually happens inside its worktree (the story branch is checked out there),
 or after `git worktree remove` on it — except a `ledger-scope-check` park (above):

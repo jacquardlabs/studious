@@ -51,7 +51,10 @@ writing the code) plus closeout. Studious hands over context and steps back; the
 the user's pick, and no episode cares which route produced the branch.
 
 After piece 7 the flow is `done`. Never open the PR yourself: the PR is the user's
-(`gh pr create` — the PR-time hook reads the same ledger).
+(`gh pr create` — the PR-time hook reads the same ledger). This is a story-scale rule.
+At epic scale the finale itself opens the epic's PR, once, after its gates pass
+(`reference/epic-orchestration.md`, "Epic finale") — that is not this door acting; see
+the closing-shape note below.
 
 No door is mandatory, only default. Skipping `/bet` means no appetite and no decision record
 exist — position still derives from repo evidence, and every later door runs regardless.
