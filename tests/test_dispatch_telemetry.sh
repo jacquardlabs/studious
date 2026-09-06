@@ -84,6 +84,15 @@ check "product-reviewer maps to gate-acceptance" "gate-acceptance" "$(jq -r 'sel
 check "dual-surface code-auditor leaves skill empty" "" "$(jq -r 'select(.role=="code-auditor").skill' "$f")"
 check "review-outcomes maps to its own command, not deep-review" "review-outcomes" "$(jq -r 'select(.role=="review-outcomes").skill' "$f")"
 
+# --- a gauntlet posture judge (#334 S3): the prefix is the allow-list, no agent file to pin from ---
+d=$(sandbox); f=$(telemetry_file "$d" feat/foo)
+run_hook "$d" "$(payload gauntlet:codebase-posture-auditor 'inspect the repository')" >/dev/null
+check "gauntlet posture judge writes one record" "1" "$(lines "$f")"
+check "role strips the gauntlet: prefix" "codebase-posture-auditor" "$(jq -r '.role' "$f")"
+check "posture lane maps to health" "health" "$(jq -r '.skill' "$f")"
+check "model is empty with no local agent file" "" "$(jq -r '.model' "$f")"
+check "effort is empty with no local agent file" "" "$(jq -r '.effort' "$f")"
+
 # --- parent_step_id comes from agent_id when nested in a subagent ---
 d=$(sandbox); f=$(telemetry_file "$d" feat/foo)
 run_hook "$d" "$(payload security-auditor x '{"agent_id":"agt-9","agent_type":"general-purpose"}')" >/dev/null
