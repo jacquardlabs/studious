@@ -2,6 +2,27 @@
 
 <!-- version list -->
 
+## v3.8.1 (2026-09-06)
+
+### Bug Fixes
+
+- Drop 2 CI-breaking noqa:E402 comments added in the seance cleanup
+  ([#331](https://github.com/jacquardlabs/studious/pull/331),
+  [`070454b`](https://github.com/jacquardlabs/studious/commit/070454bf3de5750ba10dcf4f2ca56a09e272f835))
+
+### Documentation
+
+- Update README for M0's async entry path and epic PR auto-open
+  ([#327](https://github.com/jacquardlabs/studious/pull/327),
+  [`aa90240`](https://github.com/jacquardlabs/studious/commit/aa90240afd6be30a84a28a7a154e8944ae50830f))
+
+### Refactoring
+
+- Consolidate duplicated helpers and dead code from the seance register
+  ([#331](https://github.com/jacquardlabs/studious/pull/331),
+  [`070454b`](https://github.com/jacquardlabs/studious/commit/070454bf3de5750ba10dcf4f2ca56a09e272f835))
+
+
 ## v3.8.0 (2026-09-06)
 
 ### Features
