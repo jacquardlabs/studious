@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse hook on `Task` (wired in hooks.json): appends one `dispatch`
-# record per Studious review agent sent out, to
+# record per review agent sent out — studious's or gauntlet's — to
 # .studious/telemetry/<branch-slug>.jsonl via gate-ledger. Contract:
 # reference/telemetry-format.md; this script only calls `telemetry-dispatch`.
 #
@@ -53,21 +53,24 @@ IFS=$'\037' read -r tool subagent run_id step_id parent_step_id prompt_bytes sel
 # reference/telemetry-format.md.
 [ "${self_report:-}" = "true" ] && exit 0
 
-# --- role is the agent's own `name`, never the qualified dispatch string. A
-# `gauntlet:` prefix names one of gauntlet's judges (#334): the prefix is the
-# allow-list, since its roster lives in gauntlet's charter and there is no
-# agents/<role>.md here — so `telemetry-dispatch` leaves model/effort empty.
-# A local role is allow-listed by its agent file existing.
+# --- role is the agent's own `name`, never the qualified dispatch string;
+# `fleet` records which plugin that name belongs to. A `gauntlet:` prefix
+# names one of gauntlet's judges (#334): the prefix is the allow-list, since
+# its roster lives in gauntlet's charter and there is no agents/<role>.md
+# here — so `telemetry-dispatch` leaves model/effort empty, even when a local
+# agent shares the name. A local role is allow-listed by its agent file
+# existing (the review-* agents stay local until #334 S4; never zero them).
 case "$subagent" in
-  gauntlet:*) role="${subagent#gauntlet:}" ;;
-  *) role="${subagent#studious:}"
-     [ -f "${CLAUDE_PLUGIN_ROOT}/agents/${role}.md" ] || exit 0 ;;
+  gauntlet:*) fleet="gauntlet"; role="${subagent#gauntlet:}" ;;
+  *)          fleet="studious"; role="${subagent#studious:}"
+              [ -f "${CLAUDE_PLUGIN_ROOT}/agents/${role}.md" ] || exit 0 ;;
 esac
 
 # --- roster: which dispatch surface each agent belongs to. Two exception
 # lists plus a pattern, not a fourth hand-maintained copy of the auditor
 # roster (epic-driver.js's AUDITORS comment already names three as a drift
 # risk, #271) — the pattern self-heals, the exceptions carry what it can't.
+# Both fleets map alike: gauntlet's acceptance lanes carry the same names.
 #
 # ORDER IS LOAD-BEARING: product-reviewer, premortem-auditor, and
 # code-auditor all match *-reviewer/*-auditor, so both exception lists must
@@ -99,11 +102,12 @@ fi
 [ -n "${step_id:-}" ] || step_id="$run_id:$role:$(date -u +%s)"
 
 # model/effort not read here: Task input carries no model field, and
-# resolving from agents/<role>.md belongs in `telemetry-dispatch` itself.
+# resolving from agents/<role>.md (local roles only) belongs in
+# `telemetry-dispatch` itself.
 # routing_reason is `static`: interactive fan-out always dispatches a fixed
 # roster; only the driver narrows one, and it reports its own dispatches.
-args=(--run-id "$run_id" --step-id "$step_id" --role "$role" --skill "$skill"
-      --routing-reason static --capturer hook
+args=(--run-id "$run_id" --step-id "$step_id" --role "$role" --fleet "$fleet"
+      --skill "$skill" --routing-reason static --capturer hook
       --feature "prompt_bytes=${prompt_bytes:-0}")
 [ -n "${parent_step_id:-}" ] && args+=(--parent-step-id "$parent_step_id")
 "$ledger" telemetry-dispatch "${args[@]}" >/dev/null 2>&1

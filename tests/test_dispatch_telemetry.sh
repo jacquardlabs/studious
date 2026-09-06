@@ -55,6 +55,7 @@ out=$(run_hook "$d" "$(payload studious:security-auditor 'audit this changeset')
 check "hook is silent on the happy path" "" "$out"
 check "one dispatch record written" "1" "$(lines "$f")"
 check "role strips the studious: prefix" "security-auditor" "$(jq -r '.role' "$f")"
+check "fleet is studious for a local agent" "studious" "$(jq -r '.fleet' "$f")"
 check "capturer is hook" "hook" "$(jq -r '.capturer' "$f")"
 check "kind is dispatch" "dispatch" "$(jq -r '.kind' "$f")"
 check "run_id is the session id" "sess-1" "$(jq -r '.run_id' "$f")"
@@ -70,6 +71,37 @@ check "prompt_bytes recorded as a number" "20" "$(jq -r '.features.prompt_bytes'
 d=$(sandbox); f=$(telemetry_file "$d" feat/foo)
 run_hook "$d" "$(payload studious:doc-auditor 'x')" >/dev/null
 check "model: inherit recorded verbatim" "inherit" "$(jq -r '.model' "$f")"
+check "a local agent still resolves its fleet as studious" "studious" "$(jq -r '.fleet' "$f")"
+
+# --- a gauntlet: prefix is its own allow-list: no local file, no local pin ---
+# security-auditor has a local agents/ file too, so an empty model here proves the
+# fleet suppressed the lookup rather than the file being absent.
+d=$(sandbox); f=$(telemetry_file "$d" feat/foo)
+out=$(run_hook "$d" "$(payload gauntlet:security-auditor 'audit this changeset')")
+check "gauntlet dispatch is silent on the happy path" "" "$out"
+check "gauntlet dispatch writes one record" "1" "$(lines "$f")"
+check "role strips the gauntlet: prefix" "security-auditor" "$(jq -r '.role' "$f")"
+check "fleet is gauntlet" "gauntlet" "$(jq -r '.fleet' "$f")"
+check "gauntlet auditor maps to gate-audit" "gate-audit" "$(jq -r '.skill' "$f")"
+check "gauntlet role records no model, even with a same-named local agent" "" "$(jq -r '.model' "$f")"
+check "gauntlet role records no effort" "" "$(jq -r '.effort' "$f")"
+d=$(sandbox); f=$(telemetry_file "$d" feat/foo)
+run_hook "$d" "$(payload gauntlet:product-posture-reviewer x)" >/dev/null
+run_hook "$d" "$(payload gauntlet:product-reviewer x)" >/dev/null
+run_hook "$d" "$(payload gauntlet:premortem-auditor x)" >/dev/null
+run_hook "$d" "$(payload gauntlet:code-auditor x)" >/dev/null
+run_hook "$d" "$(payload gauntlet:falsifiability-auditor x)" >/dev/null
+check "gauntlet posture reviewer maps to the /health key, not gate-acceptance" "health" "$(jq -r 'select(.role=="product-posture-reviewer").skill' "$f")"
+check "gauntlet product-reviewer maps to gate-acceptance like the local lane" "gate-acceptance" "$(jq -r 'select(.role=="product-reviewer").skill' "$f")"
+check "gauntlet premortem-auditor maps to gate-acceptance like the local lane" "gate-acceptance" "$(jq -r 'select(.role=="premortem-auditor").skill' "$f")"
+check "gauntlet code-auditor is ambiguous like the local lane" "" "$(jq -r 'select(.role=="code-auditor").skill' "$f")"
+check "a gauntlet judge with no local counterpart still records" "gate-audit" "$(jq -r 'select(.role=="falsifiability-auditor").skill' "$f")"
+check "every gauntlet line names its fleet" "5" "$(jq -r 'select(.fleet=="gauntlet") | .role' "$f" | wc -l | tr -d ' ')"
+# the ledger refuses a qualified string as a role: the prefix belongs in --fleet
+check "a gauntlet role with a colon is rejected by gate-ledger" "2" \
+  "$(cd "$d" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id r --step-id s \
+      --role gauntlet:security-auditor --routing-reason static >/dev/null 2>&1; echo $?)"
+check "the rejected role wrote no line" "5" "$(lines "$f")"
 
 # --- skill mapping per surface ---
 d=$(sandbox); f=$(telemetry_file "$d" feat/foo)
@@ -106,6 +138,10 @@ run_hook "$d" "$(payload backlog-hygiene 'triage')" >/dev/null
 check "a Studious agent off the review surfaces writes nothing" "0" "$(lines "$f")"
 run_hook "$d" "$(payload not-a-real-auditor 'x')" >/dev/null
 check "a pattern match with no agent file writes nothing" "0" "$(lines "$f")"
+run_hook "$d" "$(payload studious:not-a-real-auditor 'x')" >/dev/null
+check "a studious: prefix does not bypass the local file check" "0" "$(lines "$f")"
+run_hook "$d" "$(payload gauntlet:general-purpose 'x')" >/dev/null
+check "a gauntlet: prefix on a non-judge name writes nothing" "0" "$(lines "$f")"
 run_hook "$d" "$(payload '' 'do a thing')" >/dev/null
 check "missing subagent_type writes nothing" "0" "$(lines "$f")"
 run_hook "$d" "$(jq -nc '{hook_event_name:"PreToolUse",tool_name:"Bash",session_id:"s",tool_input:{command:"pytest"}}')" >/dev/null
