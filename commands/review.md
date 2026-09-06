@@ -503,7 +503,7 @@ holds:
   the repo confirms it** — no `web`-surface signal as defined in `/setup`'s design-system
   extraction (that list is canonical; don't restate it here, to avoid drift). Both must
   hold. Note "No web surface (DESIGN.md + repo agree) — frontend lanes skipped." Their
-  cross-surface and per-surface consistency is covered by `/retro interface`, not by this
+  cross-surface and per-surface consistency is covered by `/health interface`, not by this
   episode. Require the repo check because the `## Surfaces` table can be stale: if it claims
   no web surface but the repo shows web-framework signal, the doc is wrong — do NOT skip;
   run the lanes and flag the doc for re-extraction. If DESIGN.md has no `## Surfaces` table

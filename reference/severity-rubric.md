@@ -5,7 +5,7 @@ these tiers directly (its findings contract, `docs/findings-contract.md` §5), s
 per-judge label→tier table lives here any more — that table died at fleet migration (#334).
 The one vocabulary studious still maps is the `web-design-guidelines` skill's, on `/review`'s
 inline lane-8 path, which returns no findings document. The periodic review family
-(`commands/retro.md`, `agents/review-*.md`) already emits directly in this vocabulary.
+(`agents/review-*.md`) already emits directly in this vocabulary.
 
 ## The three tiers
 

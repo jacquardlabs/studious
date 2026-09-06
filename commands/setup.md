@@ -54,7 +54,7 @@ Then populate it inline — follow `reference/design-system-extraction.md` in fu
 
 ## Step 4 — Create README.md (if needed)
 
-If README.md already exists, skip this step — leave it alone and tell the user to run `/retro readme` to check it for drift. Never overwrite an existing README.
+If README.md already exists, skip this step — leave it alone and tell the user to run `/health readme` to check it for drift. Never overwrite an existing README.
 
 If README.md doesn't exist, generate one now. PRODUCT.md exists at this point, so draw from it directly:
 
@@ -142,14 +142,15 @@ Language conventions `code-auditor` enforces at `/review`. Document the rules an
 
 | Review | Cadence | Command |
 |--------|---------|---------|
-| Codebase health | Weekly or pre-milestone | `/retro codebase` |
-| Interface health | Monthly or post-UI-sprint | `/retro interface` |
-| Architecture | Quarterly or pre-major-feature | `/retro architecture` |
-| Product health | Monthly | `/retro product` |
-| Security health | Monthly | `/retro security` |
-| README drift | After a release or feature batch | `/retro readme` |
-| All reviews + summary | As needed | `/retro` |
-| Outcome review (post-ship) | Quarterly or after a milestone closes | `/retro` |
+| Codebase health | Weekly or pre-milestone | `/health codebase` |
+| Interface health | Monthly or post-UI-sprint | `/health interface` |
+| Architecture | Quarterly or pre-major-feature | `/health architecture` |
+| Product health | Monthly | `/health product` |
+| Security health | Monthly | `/health security` |
+| Docs drift | After a release or feature batch | `/health readme` |
+| All inspections + summary | As needed | `/health` |
+| Backlog hygiene | After a review cycle | `/health backlog` |
+| Outcome review (post-ship) | Quarterly or after a milestone closes | `/retro outcomes` |
 
 ### After each review
 
@@ -157,10 +158,10 @@ Language conventions `code-auditor` enforces at `/review`. Document the rules an
 2. File **Important** findings as tasks to address this cycle
 3. Log **Track** findings (lowest tier — revisit next cycle); they compound if ignored
 4. Update context docs if the review surfaced changes:
-   - `/retro product` updates PRODUCT.md
-   - `/retro interface` updates DESIGN.md
-   - `/retro architecture` updates CLAUDE.md
-   - `/retro readme` proposes a README.md diff
+   - `/health product` updates PRODUCT.md
+   - `/health interface` updates DESIGN.md
+   - `/health architecture` updates CLAUDE.md
+   - `/health readme` proposes a README.md diff
 ```
 
 When writing the **Code conventions** block, detect the project's primary language(s) from the codebase and pre-fill sensible defaults plus the matching idiom linter — Ruff for Python, ESLint/Biome for JS/TS, golangci-lint for Go, Clippy for Rust, RuboCop for Ruby — then flag it for the user to refine.

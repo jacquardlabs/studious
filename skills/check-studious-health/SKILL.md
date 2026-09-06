@@ -1,6 +1,6 @@
 ---
 name: check-studious-health
-description: Use when the user asks whether their Studious install is healthy, why a review seemed to run with fewer lanes than expected, whether required tooling (git/gh/jq) is present, or whether context docs (PRODUCT.md/DESIGN.md/CLAUDE.md) are missing or still template stubs — phrasing like "is my studious install healthy", "why did the review skip something", "check my studious setup", "something feels off with studious". Do NOT use for running a review (/review), for choosing or judging work (/bet), for periodic project health reviews (/retro), or for first-time scaffolding (/setup).
+description: Use when the user asks whether their Studious install is healthy, why a review seemed to run with fewer lanes than expected, whether required tooling (git/gh/jq) is present, or whether context docs (PRODUCT.md/DESIGN.md/CLAUDE.md) are missing or still template stubs — phrasing like "is my studious install healthy", "why did the review skip something", "check my studious setup", "something feels off with studious". Do NOT use for running a review (/review), for choosing or judging work (/bet), for periodic project health reviews (/health), or for first-time scaffolding (/setup).
 ---
 
 # Is Studious healthy?

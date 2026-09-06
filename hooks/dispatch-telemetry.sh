@@ -14,7 +14,7 @@
 # NOT documented; a wrong assumption there degrades to zero telemetry, not
 # wrong telemetry.
 #
-# No armed-branch check (unlike evidence-capture.sh): /retro runs on main
+# No armed-branch check (unlike evidence-capture.sh): /health runs on main
 # with no story/work file, and an armed check would silence half of what
 # this store exists to record. The roster table below is the whole filter.
 
@@ -53,22 +53,31 @@ IFS=$'\037' read -r tool subagent run_id step_id parent_step_id prompt_bytes sel
 # reference/telemetry-format.md.
 [ "${self_report:-}" = "true" ] && exit 0
 
-role="${subagent#studious:}"   # the agent's own `name`, never the qualified dispatch string
+# --- role is the agent's own `name`, never the qualified dispatch string. A
+# `gauntlet:` prefix names one of gauntlet's judges (#334): the prefix is the
+# allow-list, since its roster lives in gauntlet's charter and there is no
+# agents/<role>.md here — so `telemetry-dispatch` leaves model/effort empty.
+# A local role is allow-listed by its agent file existing.
+case "$subagent" in
+  gauntlet:*) role="${subagent#gauntlet:}" ;;
+  *) role="${subagent#studious:}"
+     [ -f "${CLAUDE_PLUGIN_ROOT}/agents/${role}.md" ] || exit 0 ;;
+esac
 
 # --- roster: which dispatch surface each agent belongs to. Two exception
 # lists plus a pattern, not a fourth hand-maintained copy of the auditor
 # roster (epic-driver.js's AUDITORS comment already names three as a drift
 # risk, #271) — the pattern self-heals, the exceptions carry what it can't.
-# Guarded by an agents/<role>.md existence check.
 #
 # ORDER IS LOAD-BEARING: product-reviewer, premortem-auditor, and
 # code-auditor all match *-reviewer/*-auditor, so both exception lists must
-# be tested first; review-outcomes matches review-* but runs outside the
-# /retro sweep, so its case must precede that pattern too. code-auditor
-# serves both /review lane 2 and /retro's idiom step and the hook can't see
-# which dispatched it, so its lines carry an empty `skill`
-# (reference/telemetry-format.md says how a joiner resolves that).
-[ -f "${CLAUDE_PLUGIN_ROOT}/agents/${role}.md" ] || exit 0
+# be tested first; the posture judges end in -auditor/-reviewer too, so
+# *-posture-* precedes that pattern; review-outcomes matches review-* but
+# runs under /retro, not the retired local sweep, so its case precedes that
+# pattern as well. code-auditor serves both /review lane 2 and the old idiom
+# step and the hook can't see which dispatched it, so its lines carry an
+# empty `skill` (reference/telemetry-format.md says how a joiner resolves
+# that).
 ACCEPTANCE_ROLES="product-reviewer premortem-auditor"
 AMBIGUOUS_ROLES="code-auditor"
 in_list() { case " $2 " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
@@ -76,6 +85,7 @@ if   in_list "$role" "$ACCEPTANCE_ROLES"; then skill="gate-acceptance"
 elif in_list "$role" "$AMBIGUOUS_ROLES";  then skill=""
 else
   case "$role" in
+    *-posture-*)          skill="health" ;;
     review-outcomes)      skill="review-outcomes" ;;
     review-*)             skill="deep-review" ;;
     *-auditor|*-reviewer) skill="gate-audit" ;;

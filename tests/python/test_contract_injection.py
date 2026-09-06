@@ -57,11 +57,12 @@ ANCHORED = "${CLAUDE_PLUGIN_ROOT}/" + CONTRACT
 # A bare-relative citation: the contract path NOT preceded by the plugin-root anchor.
 BARE_CITATION_RE = re.compile(r"(?<!\$\{CLAUDE_PLUGIN_ROOT\}/)reference/prompt-contract\.md")
 
-# The commands that fan out to contract agents and therefore own contract assembly.
-# `review.md` left this tuple at #334 S1: its lanes are gauntlet judges, whose posture
-# is inlined in each judge file, so it stamps nothing; `retro.md` follows at S3.
-FANOUT_COMMANDS = (
-    "retro.md",
+# The fan-out sites that dispatch contract agents and therefore own contract assembly.
+# `/retro`'s one remaining dispatch (`outcomes`) is stamped by the contract it follows,
+# not by the command file. `/health` and `/review` are absent on purpose: gauntlet's
+# judges inline their own posture, so neither stamps anything (#334 S3, S1).
+FANOUT_SITES = (
+    "reference/outcome-review-contract.md",
 )
 
 # The driver dispatches auditors/reviewers itself, bypassing gate commands — a
@@ -209,14 +210,10 @@ def test_no_agent_restates_the_injected_closer() -> None:
     assert offenders == [], f"agents still restating the injected closer: {offenders}"
 
 
-def test_each_fanout_command_reads_the_anchored_contract() -> None:
-    """Each fan-out command assembles the contract from the plugin root to inject it."""
-    missing = [
-        name
-        for name in FANOUT_COMMANDS
-        if ANCHORED not in (REPO_ROOT / "commands" / name).read_text()
-    ]
-    assert missing == [], f"commands not reading the anchored contract: {missing}"
+def test_each_fanout_site_reads_the_anchored_contract() -> None:
+    """Each fan-out site assembles the contract from the plugin root to inject it."""
+    missing = [rel for rel in FANOUT_SITES if ANCHORED not in (REPO_ROOT / rel).read_text()]
+    assert missing == [], f"fan-out sites not reading the anchored contract: {missing}"
 
 
 def test_wire_plugin_config_does_not_symlink_reference(tmp_path: Path) -> None:

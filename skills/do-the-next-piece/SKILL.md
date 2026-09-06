@@ -1,6 +1,6 @@
 ---
 name: do-the-next-piece
-description: Use when the user wants work moved forward without naming a step — "what's next", "do the next piece", "keep going", "where am I on this", "continue", "next" — or wants a whole milestone or epic driven — "knock out this milestone", "run the whole epic", "drive these issues to done". Also use when they ask Studious to start a named issue and carry it — "build issue #12", "take this through the flow". This routes to /next. Do NOT use for picking what to work on (that's /bet), for running a specific review (that's /review), or for a periodic project sweep (that's /retro).
+description: Use when the user wants work moved forward without naming a step — "what's next", "do the next piece", "keep going", "where am I on this", "continue", "next" — or wants a whole milestone or epic driven — "knock out this milestone", "run the whole epic", "drive these issues to done". Also use when they ask Studious to start a named issue and carry it — "build issue #12", "take this through the flow". This routes to /next. Do NOT use for picking what to work on (that's /bet), for running a specific review (that's /review), or for a periodic project sweep (that's /health).
 ---
 
 # Do the next piece
