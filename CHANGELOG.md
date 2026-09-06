@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v3.7.0 (2026-09-06)
+
+### Features
+
+- Add scripts/epic-supervisor, re-fire /next from reconcile alone
+  ([#325](https://github.com/jacquardlabs/studious/pull/325),
+  [`b104d42`](https://github.com/jacquardlabs/studious/commit/b104d42afa7b3225978354256b392998404bd207))
+
+
 ## v3.6.0 (2026-09-06)
 
 ### Features
