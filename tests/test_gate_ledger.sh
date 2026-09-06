@@ -2728,5 +2728,23 @@ check "work-assign preserves fields work-set already wrote" "Fancy" \
      "$LEDGER" work-assign --slug asg-epic--s2 --phase design --brief b >/dev/null; \
      jq -r '.title' "$di/.studious/work/asg-epic-s2.json")"
 
+# --- episode-get --branch (#330): read another branch's episodes from main ---
+# scripts/retro-stats runs on main and reads every story branch's record from
+# there, the same way gate-get and evidence-list already take --branch.
+deb=$(sandbox)
+( cd "$deb" && "$LEDGER" episode-open --gate audit \
+    && "$LEDGER" episode-finding --gate audit --lane security-auditor --severity Critical \
+         --fingerprint eb-1 --status waived --waiver "accepted for the fixture" ) >/dev/null
+git -C "$deb" checkout -q -b other/branch
+check "episode-get on a branch with no episodes prints nothing" "" \
+  "$(cd "$deb" && "$LEDGER" episode-get --gate audit --history)"
+ebhist=$(cd "$deb" && "$LEDGER" episode-get --gate audit --history --branch feat/foo)
+contains "episode-get --branch --history reads the named branch's episode" "episode 1 (current)" "$ebhist"
+contains "episode-get --branch --history carries that branch's waiver line" "eb-1" "$ebhist"
+contains "episode-get --branch --findings reads the named branch's digest" $'digest\tsecurity-auditor\teb-1\twaived' \
+  "$(cd "$deb" && "$LEDGER" episode-get --gate audit --findings --branch feat/foo)"
+contains "episode-get --branch (summary) reads the named branch" "round 1 of" \
+  "$(cd "$deb" && "$LEDGER" episode-get --gate audit --branch feat/foo)"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

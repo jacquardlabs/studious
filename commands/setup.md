@@ -76,6 +76,7 @@ Create these directories if they don't exist:
 - `docs/studious/readme-reviews/`
 - `docs/studious/prompt-reviews/`
 - `docs/studious/outcome-reviews/`
+- `docs/studious/retros/`
 
 Add a `.gitkeep` to each empty directory so they're tracked in git.
 
@@ -150,6 +151,7 @@ Language conventions `code-auditor` enforces at `/review`. Document the rules an
 | Docs drift | After a release or feature batch | `/health readme` |
 | All inspections + summary | As needed | `/health` |
 | Backlog hygiene | After a review cycle | `/health backlog` |
+| Retrospective | After each epic or milestone closes | `/retro` |
 | Outcome review (post-ship) | Quarterly or after a milestone closes | `/retro outcomes` |
 
 ### After each review
