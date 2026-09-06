@@ -366,6 +366,22 @@ If the epic's status is still `approved`, mark the run started:
 
 ### 1 · Reconcile — evidence first
 
+**Apply any browser-submitted park resolutions first (#317), before the read
+everything below trusts:**
+
+```bash
+scripts/park-resolve --slug "<slug>" --repo "<repo root>"
+```
+
+A park resolved in the browser while nobody was watching a terminal is exactly the
+kind of un-park `reference/epic-orchestration.md`'s own "Skips, amendments, and
+un-parking" section already licenses — this call applies it through the same
+`gate-ledger` verbs a human would type by hand, never a new mechanism. Idempotent:
+a story no longer recorded `parked` is skipped, so re-running this against a stale
+`answers.json` is a no-op. A non-zero exit here is worth surfacing in the run report
+(one resolution refused or failed), never worth stopping the invocation over — the
+rest of Reconcile proceeds either way.
+
 Recorded state must match evidence before anything is dispatched; evidence wins, and
 the files get corrected (via `gate-ledger`, never by hand) when they disagree. One
 call resolves all of it:
@@ -1067,6 +1083,20 @@ Landed this run: <story> — <phase>: <outcome> (<Nm>) → <phase>: <outcome> (<
   gate-ledger work-get --slug "<slug>--<story>"
 Run /next when you're ready, or resolve the queue first.
 ```
+
+**After rendering, write a browser-facing packet for every gate-parked story (#317) —
+additive, the terminal block above is unchanged either way:**
+
+```bash
+scripts/park-packet --slug "<slug>" --repo "<repo root>"
+```
+
+One viva QA round per gate-parked story, read fresh from the ledger every run — never
+carried over from a prior invocation's own report. A `story-supervised` park (the
+second `Needs you` bullet form above) gets no packet: it has no gate verdict or
+branch to show, and its resolution is `/next "<slug>--<story>"` at a terminal, exactly
+as printed. This call is best-effort reporting, not a gate: a non-zero exit is worth a
+line in the run report, never worth failing the invocation over.
 
 `<scope line>` is always exactly one of the five renderings the jq above produces
 when its read succeeds — identical composition for a `Needs you` entry and a
