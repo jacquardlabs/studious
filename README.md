@@ -66,8 +66,10 @@ Via the Jacquard Labs marketplace:
 /plugin install studious@jacquardlabs-marketplace
 ```
 
-That also installs [viva](https://github.com/jacquardlabs/viva), a declared dependency:
-`/shape` and `/build` drive it for their human sign-off rounds.
+That also installs two declared dependencies: [viva](https://github.com/jacquardlabs/viva),
+which `/shape` and `/build` drive for their human sign-off rounds, and
+[gauntlet](https://github.com/jacquardlabs/gauntlet), the judges `/review` and `/retro`
+dispatch.
 
 Then, in any project:
 
@@ -343,6 +345,9 @@ skips diffs over 40 changed files to bound the fan-out's cost.
   automatically. `/shape` and `/build` drive it for their sign-off rounds, through viva's
   published headless contract. It stays a separate repo because that contract is versioned
   and tested, not a format convention.
+- [gauntlet](https://github.com/jacquardlabs/gauntlet) — a declared dependency, installed
+  automatically. `/review` and `/retro` dispatch its judges; Studious ships the consumers
+  and verdict derivation, never the judges (#334).
 - [Superpowers](https://github.com/obra/superpowers) — an optional alternative to the
   built-in build loop. Any executor satisfying `reference/worker-contract.md` works.
 - GitHub Issues — `/bet` and `/retro backlog` read your tracker via the `gh` CLI.
