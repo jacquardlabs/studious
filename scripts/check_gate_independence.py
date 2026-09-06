@@ -51,9 +51,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 CHARTER = REPO / "reference" / "personas.md"
 
-#: One row of the charter's Doors table: `/door` | persona | class | `commands/file.md` | …
+#: One row of the charter's Doors table: `/door` | persona | class | `commands/file.md` | absorbed
 DOOR_ROW = re.compile(
-    r"^\|\s*`/(?P<door>[a-z][a-z-]*)`\s*\|[^|]*\|\s*(?P<cls>\w+)\s*\|\s*`(?P<path>[^`]+)`\s*\|",
+    r"^\|\s*`/(?P<door>[a-z][a-z-]*)`\s*\|(?P<persona>[^|]*)\|\s*(?P<cls>\w+)\s*\|"
+    r"\s*`(?P<path>[^`]+)`\s*\|(?P<absorbed>[^|]*)\|",
     re.MULTILINE,
 )
 

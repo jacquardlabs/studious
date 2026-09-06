@@ -34,7 +34,7 @@ import re
 import unittest
 from pathlib import Path
 
-from _frontmatter import FRONTMATTER
+from _frontmatter import SkillFileCase
 from _vocabulary import derive_jig_vocabulary
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -56,19 +56,8 @@ JIG_VOCABULARY = derive_jig_vocabulary(DESIGN_MD.read_text(encoding="utf-8"))
 SUPERPOWERS_ONLY_PHRASE = "your human partner"
 
 
-class TestDisciplineSkillFile(unittest.TestCase):
-    def setUp(self) -> None:
-        self.assertTrue(SKILL_MD.is_file(), f"{SKILL_MD} does not exist")
-        self.text = SKILL_MD.read_text(encoding="utf-8")
-        match = FRONTMATTER.match(self.text)
-        self.assertIsNotNone(match, f"{SKILL_MD} has no --- frontmatter block")
-        self.frontmatter = match.group(1)
-        self.body = self.text[match.end() :]
-
-    def test_name_matches_directory(self) -> None:
-        name_match = re.search(r"^name:\s*(\S+)", self.frontmatter, re.MULTILINE)
-        self.assertIsNotNone(name_match, f"{SKILL_MD} missing name: field")
-        self.assertEqual(name_match.group(1), "task-execution-discipline")
+class TestDisciplineSkillFile(SkillFileCase):
+    SKILL_DIR = SKILL_DIR
 
     def test_description_is_present_and_non_empty(self) -> None:
         desc_match = re.search(
@@ -100,26 +89,6 @@ class TestDisciplineSkillFile(unittest.TestCase):
             "STUB placeholder skills",
         )
 
-    def test_description_is_a_valid_unquoted_yaml_plain_scalar(self) -> None:
-        # A YAML plain (unquoted) scalar cannot contain ": " (colon
-        # followed by a space) mid-string — a strict frontmatter loader
-        # reads that sequence as a nested mapping key and fails to parse
-        # the file at all. Regression guard for gate-audit's Important
-        # finding on this file (m1-scaffold--discipline-skill): quote the
-        # value or rephrase around it, don't reintroduce a bare ": ".
-        desc_match = re.search(
-            r"^description:\s*(.*)$", self.frontmatter, re.MULTILINE
-        )
-        self.assertIsNotNone(desc_match)
-        description = desc_match.group(1)
-        self.assertNotIn(
-            ": ",
-            description,
-            "unquoted description contains ': ' -- a strict YAML "
-            "frontmatter loader will fail to parse this plain scalar; "
-            "quote the value or rephrase to avoid a mid-string colon",
-        )
-
     def test_not_documented_as_a_slash_command(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         self.assertNotIn(
@@ -127,14 +96,6 @@ class TestDisciplineSkillFile(unittest.TestCase):
             readme,
             "this is a model-invoked skill, not one of jig's five "
             "user-invoked slash commands",
-        )
-
-    def test_no_nested_skill_md(self) -> None:
-        nested = list(SKILL_DIR.rglob("SKILL.md"))
-        self.assertEqual(
-            nested,
-            [SKILL_MD],
-            f"{SKILL_DIR} contains nested SKILL.md files: {nested}",
         )
 
     def test_derived_vocabulary_is_non_empty(self) -> None:

@@ -46,7 +46,7 @@ from __future__ import annotations
 
 import json
 
-from test_driver_crash_hardening import DRIVER, _run_driver
+from test_driver_crash_hardening import DRIVER, LAND_STORY_A_RULES, _run_driver
 
 
 def _one_story_epic() -> dict:
@@ -67,16 +67,6 @@ def _one_story_epic() -> dict:
             "cycle": {"title": "Cycle sentinel", "criteria": "n/a", "gates": ["acceptance"], "deps": ["cycle"]},
         },
     }
-
-
-LAND_STORY_A_RULES = [
-    {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
-    {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
-    {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
-    {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "looks good"}},
-    {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
-    {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
-]
 
 
 def _findings(payload: dict) -> dict:

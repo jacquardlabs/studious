@@ -96,9 +96,7 @@ from _gitutil import git_repo_root  # noqa: E402
 from _planparse import (  # noqa: E402
     COMMAND_TIERS,
     HEADING_LEVEL_1_TO_3_RE,
-    STATUS_FLIP_SUFFIX_RE,  # noqa: F401  (re-export for tests/jig/_load_bearing.py)
-    TASK_HEADING_RE,  # noqa: F401  (re-export for tests/_task_split_boundary.py)
-    TASK_HEADING_TITLE_RE,  # noqa: F401  (re-export, same reason)
+    TASK_HEADING_RE,  # noqa: F401  (re-export for tests/jig/_task_split_boundary.py)
     TIER_BODY_RE,
     VALID_TIERS,
     Item,
@@ -153,14 +151,6 @@ def strip_line_locator(span: str) -> str:
     return LINE_LOCATOR_SUFFIX_RE.sub("", span)
 
 
-def _task_title(block: str) -> str:
-    """`_planparse.task_title`, kept as a local name so this module's own
-    call sites and tests read unchanged. The grammar moved to `_planparse`
-    (#206) so the test-side reference derives titles from the same source
-    rather than a second regex that drifted."""
-    return task_title(block)
-
-
 def _is_number_match(rests_on_text: str, task_num: str) -> bool:
     """SKILL.md step 1.5's first alternative: the `Rests on:` line names
     the dependency by its heading number, e.g. the literal text "Task 2"."""
@@ -188,7 +178,7 @@ def compute_load_bearing(tasks: list[tuple[str, str]]) -> frozenset[str]:
     match paths -- derived mechanically, never declared (the handoff's own
     §5.3 decision 8), reused rather than re-invented for a second
     definition."""
-    titles = {task_num: _task_title(block) for task_num, block in tasks}
+    titles = {task_num: task_title(block) for task_num, block in tasks}
     title_counts: Counter[str] = Counter(t.casefold() for t in titles.values() if t)
     load_bearing: set[str] = set()
     for task_num, block in tasks:

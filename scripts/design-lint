@@ -240,10 +240,6 @@ def split_paragraph_sentences(body: str) -> list[str]:
     return sentences
 
 
-def _bullet_label(bullet: str) -> str:
-    return bullet.strip().splitlines()[0][:120]
-
-
 def check_1_section_vocabulary(sections: list[Section]) -> list[str]:
     """Every required section present, exactly once each.
 

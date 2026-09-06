@@ -81,9 +81,9 @@ def run_shell_with_timeout(command: str, cwd: Path, timeout: float) -> subproces
         return subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
 
 
-def run(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
-    """Run a command, capturing output as text, never raising on non-zero exit."""
-    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=False)
+def run(cmd: list[str], cwd: Path | None = None, check: bool = False) -> subprocess.CompletedProcess[str]:
+    """Run a command, capturing output as text. Never raises unless `check=True`."""
+    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=check)
 
 
 def git_repo_root(path: Path) -> Path | None:
@@ -97,16 +97,42 @@ def git_repo_root(path: Path) -> Path | None:
     return Path(result.stdout.strip())
 
 
+def main_checkout_root(start: Path) -> Path:
+    """The MAIN working tree containing `start`, or `start` itself outside a repo.
+
+    Resolved via `--git-common-dir`, not `--show-toplevel`: in a linked worktree
+    it names the main repo's `.git`, whose parent is the main working tree; in an
+    ordinary checkout it names `<root>/.git`, so the parent is the same root
+    `git_repo_root` finds. Mirrors `bin/gate-ledger`'s own `repo_root()`, which is
+    every `.studious/` store's owner — a linked worktree resolving to its own
+    root instead would silently scatter a store's records across worktrees.
+
+    Falls back to `--show-toplevel`, then to `start` itself, if the common-dir
+    resolution doesn't land on a `.git` directory (odd/bare layouts) or can't be
+    resolved at all — same degradation direction as gate-ledger's own fallback.
+    """
+    try:
+        result = run(["git", "rev-parse", "--git-common-dir"], cwd=start)
+    except OSError:
+        result = None
+    common = result.stdout.strip() if result is not None and result.returncode == 0 else ""
+    if common:
+        resolved = (start / common).resolve() if not Path(common).is_absolute() else Path(common)
+        if resolved.name == ".git":
+            return resolved.parent
+    toplevel = run(["git", "rev-parse", "--show-toplevel"], cwd=start)
+    if toplevel.returncode == 0 and toplevel.stdout.strip():
+        return Path(toplevel.stdout.strip())
+    return start
+
+
 def build_evidence_root(repo: Path) -> Path:
     """The default evidence store: `<main checkout>/.studious/build-evidence`.
 
     Anchored to the MAIN checkout, not `repo` itself, for the same reason
     `bin/gate-ledger`'s stores are: `/build` runs in a temporary linked worktree
     that is removed after its branch merges, and `/ship` runs later, wherever the
-    user is. A store inside the build worktree would vanish with it. Resolved via
-    the common git dir — in a linked worktree `--git-common-dir` names the main
-    repo's `.git`, whose parent is the main working tree; in an ordinary checkout
-    it names `<root>/.git`, so the parent is the same root `git_repo_root` finds.
+    user is. A store inside the build worktree would vanish with it.
 
     `.studious/` is gitignored (`bin/gate-ledger`'s `ensure_gitignore()` keeps it
     that way in consuming projects), so evidence never enters the repo — the PR
@@ -115,25 +141,8 @@ def build_evidence_root(repo: Path) -> Path:
     not the same directory: one holds per-branch JSONL append logs, the other
     per-task artifact folders, and a shared root would make each store's readers
     scan the other's files.
-
-    Falls back to `<repo>/.studious/build-evidence` if the common dir can't be
-    resolved — same degradation direction as gate-ledger's own root fallback.
     """
-    try:
-        result = run(["git", "rev-parse", "--git-common-dir"], cwd=repo)
-    except OSError:
-        result = None
-    if result is not None and result.returncode == 0 and result.stdout.strip():
-        common = Path(result.stdout.strip())
-        if not common.is_absolute():
-            common = repo / common
-        return common.resolve().parent / ".studious" / "build-evidence"
-    return repo / ".studious" / "build-evidence"
-
-
-def working_tree_status(repo: Path) -> str:
-    """Return `git status --porcelain` output for `repo` (empty string = clean)."""
-    return run(["git", "-C", str(repo), "status", "--porcelain"]).stdout
+    return main_checkout_root(repo) / ".studious" / "build-evidence"
 
 
 def current_branch(repo: Path) -> str:

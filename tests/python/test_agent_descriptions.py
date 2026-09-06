@@ -19,7 +19,6 @@ These tests lock the description shape without a live model.
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from run_gate_audit_fixtures import REPO_ROOT
 

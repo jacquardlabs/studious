@@ -35,6 +35,7 @@ Run with:
 """
 from __future__ import annotations
 
+import functools
 import subprocess
 import sys
 import tempfile
@@ -42,6 +43,7 @@ import unittest
 from pathlib import Path
 
 from _orphancheck import orphan_spawning_command, process_is_gone, wait_for_marker
+from _script import run_script as _run_script
 from _tempgit import init_repo
 from _text import normalize_ws
 
@@ -52,9 +54,7 @@ PASS_CMD = "python3 -c 'pass'"
 FAIL_CMD = "python3 -c 'import sys; sys.exit(1)'"
 HANG_CMD = "python3 -c 'import time; time.sleep(5)'"
 
-
-def run_script(args: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([str(SCRIPT), *args], capture_output=True, text=True, timeout=30, check=False)
+run_script = functools.partial(_run_script, SCRIPT)
 
 
 class TestWorktreeSetupHappyPath(unittest.TestCase):

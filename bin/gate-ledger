@@ -113,48 +113,19 @@ ledger_dir() {
   fi
 }
 
-work_dir() {
-  # Same root-anchoring as ledger_dir, different store.
+store_dir() { # name -> .studious/<name>, root-anchored like ledger_dir
+  # Same root-anchoring as ledger_dir, one function for every other store
+  # instead of a copy per name — a store name is data, not a mode flag. A
+  # story worker running in a linked worktree (its own cwd) still lands its
+  # records in the MAIN tree's .studious/<name>/, e.g. evidence and
+  # telemetry: one branch's dispatches and its verdicts share a file and can
+  # be joined without a cross-worktree read.
+  local name="$1"
   local root
   if root=$(repo_root); then
-    printf '%s/.studious/work' "$root"
+    printf '%s/.studious/%s' "$root" "$name"
   else
-    printf '.studious/work'
-  fi
-}
-
-epic_dir() {
-  # Same root-anchoring as ledger_dir, different store.
-  local root
-  if root=$(repo_root); then
-    printf '%s/.studious/epics' "$root"
-  else
-    printf '.studious/epics'
-  fi
-}
-
-evidence_dir() {
-  # Same root-anchoring as ledger_dir, different store. A story worker running
-  # in a linked worktree (its own cwd) still lands its records in the MAIN
-  # tree's .studious/evidence/, exactly like the other three stores.
-  local root
-  if root=$(repo_root); then
-    printf '%s/.studious/evidence' "$root"
-  else
-    printf '.studious/evidence'
-  fi
-}
-
-telemetry_dir() {
-  # Same root-anchoring as ledger_dir, different store. An auditor dispatched
-  # into a linked story worktree still lands its dispatch line in the MAIN
-  # tree's .studious/telemetry/, so one branch's dispatches and its verdicts
-  # share a file and can be joined without a cross-worktree read.
-  local root
-  if root=$(repo_root); then
-    printf '%s/.studious/telemetry' "$root"
-  else
-    printf '.studious/telemetry'
+    printf '.studious/%s' "$name"
   fi
 }
 
@@ -263,6 +234,22 @@ json_update() { # file, jq filter, then any --arg name value ... pairs for jq
   return "$rc"
 }
 
+_epic_events_append() { # epic, story, kind, jq-object filter for the kind's own fields, then --arg/--argjson pairs for it -> jq's own exit status
+  # The record body append_event() and append_epic_record() both write —
+  # dir/file/jq template only, no failure policy. The two callers differ
+  # solely in what a write failure means to them (a secondary log's
+  # best-effort miss vs. a finding that must fail loud), so that stays theirs.
+  local epic="$1" story="$2" kind="$3" fields="$4"
+  shift 4
+  local dir; dir=$(store_dir epics)
+  mkdir -p "$dir" 2>/dev/null
+  local file="$dir/$epic.events.jsonl"
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  jq -nc "$@" \
+      --arg at "$(now_iso)" --arg epic "$epic" --arg story "$story" --arg kind "$kind" \
+      '{at: $at, epic: $epic, story: $story, kind: $kind} + ('"$fields"')' >> "$file" 2>/dev/null
+}
+
 append_event() { # epic, story, kind, jq-object filter for the kind's own fields, then --arg/--argjson pairs for it
   # The append-only counterpart to json_update()'s role: one jq -nc object per
   # call, >> the epic's shared .events.jsonl — same precedent as
@@ -271,17 +258,9 @@ append_event() { # epic, story, kind, jq-object filter for the kind's own fields
   # already succeeded, and a failure here signals on stderr but always returns
   # 0 — this is a secondary, additive log, never a precondition for the
   # primary write it follows (see reference/events-format.md).
-  local epic="$1" story="$2" kind="$3" fields="$4"
-  shift 4
+  local epic="$1" story="$2" kind="$3"
   if ! have jq || ! have git; then return 0; fi
-  local dir; dir=$(epic_dir)
-  mkdir -p "$dir" 2>/dev/null
-  local file="$dir/$epic.events.jsonl"
-  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  if ! jq -nc "$@" \
-      --arg at "$(now_iso)" --arg epic "$epic" --arg story "$story" --arg kind "$kind" \
-      '{at: $at, epic: $epic, story: $story, kind: $kind} + ('"$fields"')' >> "$file" 2>/dev/null
-  then
+  if ! _epic_events_append "$@"; then
     echo "gate-ledger: events-append failed for epic '$epic' (kind $kind) — primary write unaffected" >&2
   fi
   return 0
@@ -301,7 +280,7 @@ append_telemetry() { # capturer, kind, jq-object filter for the kind's own field
   local capturer="$1" kind="$2" fields="$3"
   shift 3
   if ! have jq || ! have git; then return 0; fi
-  local dir; dir=$(telemetry_dir)
+  local dir; dir=$(store_dir telemetry)
   mkdir -p "$dir" 2>/dev/null
   local file; file="$dir/$(branch_slug).jsonl"
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
@@ -314,7 +293,7 @@ append_telemetry() { # capturer, kind, jq-object filter for the kind's own field
   return 0
 }
 
-telemetry_run_file() { printf '%s/%s.run' "$(telemetry_dir)" "$(branch_slug)"; }
+telemetry_run_file() { printf '%s/%s.run' "$(store_dir telemetry)" "$(branch_slug)"; }
 
 gates_file_init() { # ensures the current branch's gates file exists, echoes its path
   local dir; dir=$(ledger_dir)
@@ -1255,7 +1234,7 @@ cmd_episode_get() { # --gate G [--findings | --history] -> one line a prose surf
 
 work_file_init() { # slug → ensures the work file exists, echoes its path
   local slug="$1"
-  local dir; dir=$(work_dir)
+  local dir; dir=$(store_dir work)
   mkdir -p "$dir"
   local file; file="$dir/$slug.json"
   [ -f "$file" ] || printf '{"schemaVersion":1,"slug":"%s","history":[]}' "$slug" > "$file"
@@ -1623,14 +1602,14 @@ cmd_work_get() {
     return 2
   fi
   slug=$(slugify "$slug")
-  local file; file="$(work_dir)/$slug.json"
+  local file; file="$(store_dir work)/$slug.json"
   [ -f "$file" ] || return 0
   cat "$file"
 }
 
 epic_file_init() { # slug → ensures the epic file exists, echoes its path
   local slug="$1"
-  local dir; dir=$(epic_dir)
+  local dir; dir=$(store_dir epics)
   mkdir -p "$dir"
   local file; file="$dir/$slug.json"
   [ -f "$file" ] || printf '{"schemaVersion":1,"slug":"%s","status":"planning","stories":{}}' "$slug" > "$file"
@@ -1798,7 +1777,7 @@ cmd_epic_run_log() { # --slug E --landed N [--tokens-spent N] -> appends one per
     echo "gate-ledger: --slug reduced to nothing after slugify" >&2
     return 2
   fi
-  local file; file="$(epic_dir)/$slug.json"
+  local file; file="$(store_dir epics)/$slug.json"
   if [ ! -f "$file" ]; then
     echo "gate-ledger: no epic file for '$slug' (run epic-set first)" >&2
     return 2
@@ -1833,7 +1812,7 @@ cmd_epic_get() {
     return 2
   fi
   slug=$(slugify "$slug")
-  local file; file="$(epic_dir)/$slug.json"
+  local file; file="$(store_dir epics)/$slug.json"
   [ -f "$file" ] || return 0
   cat "$file"
 }
@@ -1883,7 +1862,7 @@ cmd_epic_story_set() {
     return 2
   fi
 
-  local file; file="$(epic_dir)/$epic.json"
+  local file; file="$(store_dir epics)/$epic.json"
   if [ ! -f "$file" ]; then
     echo "gate-ledger: no epic file for '$epic' (run epic-set first)" >&2
     return 2
@@ -1974,16 +1953,8 @@ cmd_epic_story_set() {
 # recorded line and its state from its LAST, so a later line cannot launder a
 # Critical down to a lower tier by restating it.
 append_epic_record() { # epic, story, kind, jq-object filter for the kind's own fields, then --arg/--argjson pairs
-  local epic="$1" story="$2" kind="$3" fields="$4"
-  shift 4
-  local dir; dir=$(epic_dir)
-  mkdir -p "$dir" 2>/dev/null
-  local file="$dir/$epic.events.jsonl"
-  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  if ! jq -nc "$@" \
-      --arg at "$(now_iso)" --arg epic "$epic" --arg story "$story" --arg kind "$kind" \
-      '{at: $at, epic: $epic, story: $story, kind: $kind} + ('"$fields"')' >> "$file" 2>/dev/null
-  then
+  local epic="$1" story="$2" kind="$3"
+  if ! _epic_events_append "$@"; then
     echo "gate-ledger: $kind append failed for epic '$epic' — NOTHING was recorded;" \
          "re-run this call before treating the finding as on the record" >&2
     return 1
@@ -2087,7 +2058,7 @@ cmd_epic_finding() {
   # trail is consulted here, one read before the append, skipping malformed
   # lines exactly as the fold does (`fromjson? // empty`).
   local trail stored_severity
-  trail="$(epic_dir)/$epic.events.jsonl"
+  trail="$(store_dir epics)/$epic.events.jsonl"
   stored_severity=""
   if [ -f "$trail" ]; then
     # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
@@ -2190,7 +2161,7 @@ cmd_epic_findings() { # --epic E [--unresolved | --attestations] -> one summary 
   fi
   if ! have jq; then return 0; fi
   epic=$(slugify "$epic")
-  local file; file="$(epic_dir)/$epic.events.jsonl"
+  local file; file="$(store_dir epics)/$epic.events.jsonl"
   [ -f "$file" ] || return 0
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   jq -Rrn --arg epic "$epic" --arg unresolved "$unresolved" --arg attestations "$attestations" '
@@ -2469,7 +2440,7 @@ cmd_epic_reconcile() { # --slug E -> one JSON payload replacing work-through's ~
 
 cmd_epic_list() {
   if ! have jq; then return 0; fi
-  local dir; dir=$(epic_dir)
+  local dir; dir=$(store_dir epics)
   local f
   for f in "$dir"/*.json; do
     [ -e "$f" ] || continue
@@ -2481,7 +2452,7 @@ cmd_epic_list() {
 
 cmd_work_list() {
   if ! have jq; then return 0; fi
-  local dir; dir=$(work_dir)
+  local dir; dir=$(store_dir work)
   local f
   for f in "$dir"/*.json; do
     [ -e "$f" ] || continue
@@ -2599,7 +2570,7 @@ cmd_gc() {
   # retained files, the branch-gone bullet (finding 2's own asymmetry note),
   # and the Flow state output line — in the same change, or
   # the rollback is incomplete.
-  local wdir; wdir=$(work_dir)
+  local wdir; wdir=$(store_dir work)
   local phase sd_len slug
   for f in "$wdir"/*.json; do
     [ -e "$f" ] || continue
@@ -2644,7 +2615,7 @@ cmd_gc() {
   # An epic still `running`, or one whose branch survives, is left alone — that
   # includes an epic parked on a story, which is exactly the state a user needs
   # to still be able to see.
-  local edir; edir=$(epic_dir)
+  local edir; edir=$(store_dir epics)
   local status eslug
   for f in "$edir"/*.json; do
     [ -e "$f" ] || continue
@@ -2671,7 +2642,7 @@ cmd_gc() {
   # per-branch rules: `--force` neither widens nor narrows this (it only
   # governs the measured-scope-delta keep above), and the current branch's
   # files survive by being a live branch's, never by a special case.
-  local tdir; tdir=$(telemetry_dir)
+  local tdir; tdir=$(store_dir telemetry)
   local live_slugs tslug
   live_slugs=$(git for-each-ref refs/heads --format='%(refname:short)' 2>/dev/null | tr '/' '-')
   for f in "$tdir"/*.jsonl "$tdir"/*.run; do
@@ -2714,7 +2685,7 @@ cmd_evidence_append() { # append-only: one jq -nc object per call, >> the branch
   fi
 
   ensure_gitignore
-  local dir; dir=$(evidence_dir)
+  local dir; dir=$(store_dir evidence)
   mkdir -p "$dir"
   local file; file="$dir/$(branch_slug).jsonl"
 
@@ -2861,14 +2832,14 @@ cmd_evidence_list() { # optional --branch B: print that branch's evidence .jsonl
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
-  # Same evidence_dir()/branch_slug() anchoring evidence-append already uses,
+  # Same store_dir(evidence)/branch_slug() anchoring evidence-append already uses,
   # so a caller never re-derives repo-root or slug logic itself — one place
   # this store's location lives, reused by both the writer and this reader.
   # Named generically on purpose: this file is shared bookkeeping on the
   # guarded surface, so it never names a producer door. Mirrors cmd_gate_get's shape: resolve one
   # branch's file, print it verbatim, nothing if it doesn't exist yet.
   local slug; slug=$(branch_slug "$branch")
-  local file; file="$(evidence_dir)/$slug.jsonl"
+  local file; file="$(store_dir evidence)/$slug.jsonl"
   [ -f "$file" ] || return 0
 
   if [ -z "$dedupe" ]; then

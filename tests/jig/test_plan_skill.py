@@ -48,6 +48,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+from _frontmatter import PhraseInBodyMixin
 from _text import normalize_ws
 from _vocabulary import derive_plan_vocabulary
 
@@ -99,13 +100,10 @@ class TestPlanVocabularyDerivation(unittest.TestCase):
         )
 
 
-class TestPlanSkillBody(unittest.TestCase):
+class TestPlanSkillBody(PhraseInBodyMixin, unittest.TestCase):
     def setUp(self) -> None:
         self.body = SKILL_MD.read_text(encoding="utf-8")
         self.flat_body = normalize_ws(self.body)
-
-    def assertPhraseIn(self, phrase: str) -> None:
-        self.assertIn(normalize_ws(phrase), self.flat_body, f"phrase not found (whitespace-normalized): {phrase!r}")
 
     def test_body_uses_plan_level_vocabulary(self) -> None:
         missing = [term for term in PLAN_VOCABULARY if term not in self.body]

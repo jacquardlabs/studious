@@ -27,18 +27,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from test_driver_crash_hardening import (  # noqa: E402
+from test_driver_crash_hardening import (
+    AUDITOR_SHORT_NAMES as AUDIT_LANES,
+)
+from test_driver_crash_hardening import (
     DRIVER,
     _extract_function,
     _run_driver,
     _run_node,
 )
-
-AUDIT_LANES = [
-    "security-auditor", "code-auditor", "doc-auditor", "architecture-auditor",
-    "test-auditor", "infra-auditor", "operability-auditor", "dependency-auditor",
-    "prompt-auditor", "ux-reviewer", "frontend-reviewer",
-]
 
 _ROUTING_ALL_IN = json.dumps({
     "infraMatch": True, "frontendMatch": True, "depMatch": True,

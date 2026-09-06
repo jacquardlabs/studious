@@ -60,6 +60,7 @@ Run with:
 """
 from __future__ import annotations
 
+import functools
 import importlib.machinery
 import importlib.util
 import json
@@ -72,6 +73,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from _orphancheck import orphan_spawning_command, process_is_gone, wait_for_marker
+from _script import run_script as _run_script
 from _tempgit import commit_all, init_repo
 from _text import normalize_ws
 
@@ -111,8 +113,7 @@ def _script_constant(name: str):
 MAX_PROBE_ARTIFACT_BYTES = _script_constant("MAX_PROBE_ARTIFACT_BYTES")
 
 
-def run_script(args: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([str(SCRIPT), *args], capture_output=True, text=True, timeout=30, check=False)
+run_script = functools.partial(_run_script, SCRIPT)
 
 
 def write_items(tmp: Path, items: list[dict], task: str = "task-1") -> Path:

@@ -37,6 +37,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from _script import run_script as _run_script
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "design-lint"
 
@@ -170,13 +172,7 @@ Primary persona, verbatim from `PRODUCT.md`:
 
 
 def run_script(doc_path: Path, repo: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [str(SCRIPT), "--doc", str(doc_path), "--repo", str(repo)],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
-    )
+    return _run_script(SCRIPT, ["--doc", str(doc_path), "--repo", str(repo)])
 
 
 def _write_repo_with_server(tmp: Path) -> Path:

@@ -29,13 +29,14 @@ Run with:
 """
 from __future__ import annotations
 
+import functools
 import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from _script import run_script as _run_script
 from _tempgit import commit_all, init_repo
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -56,8 +57,7 @@ ALL_CATEGORIES = frozenset(
 )
 
 
-def run_script(args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([str(SCRIPT), *args], cwd=cwd, capture_output=True, text=True, timeout=30, check=False)
+run_script = functools.partial(_run_script, SCRIPT)
 
 
 def write(path: Path, text: str) -> Path:

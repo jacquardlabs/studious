@@ -18,19 +18,19 @@ Run with:
 """
 from __future__ import annotations
 
-import subprocess
+import functools
 import sys
 import tempfile
 import unittest
 from datetime import UTC, datetime
 from pathlib import Path
 
+from _script import run_script as _run_script
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "build-report"
 
-
-def run_script(args: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([str(SCRIPT), *args], capture_output=True, text=True, timeout=30, check=False)
+run_script = functools.partial(_run_script, SCRIPT)
 
 
 class TestBuildReportHappyPath(unittest.TestCase):

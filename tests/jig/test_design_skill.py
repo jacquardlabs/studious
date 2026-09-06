@@ -45,7 +45,7 @@ import re
 import unittest
 from pathlib import Path
 
-from _frontmatter import FRONTMATTER
+from _frontmatter import PhraseInBodyMixin, SkillFileCase
 from _text import normalize_ws
 from _vocabulary import derive_design_vocabulary
 
@@ -76,55 +76,9 @@ def _contract_sections() -> list[str]:
     return names
 
 
-class TestDesignSkillFile(unittest.TestCase):
-    def setUp(self) -> None:
-        self.assertTrue(SKILL_MD.is_file(), f"{SKILL_MD} does not exist")
-        self.text = SKILL_MD.read_text(encoding="utf-8")
-        match = FRONTMATTER.match(self.text)
-        self.assertIsNotNone(match, f"{SKILL_MD} has no --- frontmatter block")
-        self.frontmatter = match.group(1)
-        self.body = self.text[match.end() :]
-
-    def test_name_matches_directory(self) -> None:
-        name_match = re.search(r"^name:\s*(\S+)", self.frontmatter, re.MULTILINE)
-        self.assertIsNotNone(name_match, f"{SKILL_MD} missing name: field")
-        self.assertEqual(name_match.group(1), "shape")
-
-    def test_description_is_present_and_no_longer_a_stub(self) -> None:
-        desc_match = re.search(r"^description:\s*(.*)$", self.frontmatter, re.MULTILINE)
-        self.assertIsNotNone(desc_match, f"{SKILL_MD} missing description: field")
-        description = desc_match.group(1)
-        self.assertTrue(description.strip())
-        self.assertNotIn(
-            "STUB",
-            description,
-            "design has real batch-interview/forks/sectioned-doc/viva-loop "
-            "content as of story design-skill; it is no longer one of the "
-            "STUB placeholder skills",
-        )
-        self.assertNotIn("Do not invoke for actual design work yet", self.body)
-
-    def test_description_is_a_valid_unquoted_yaml_plain_scalar(self) -> None:
-        desc_match = re.search(r"^description:\s*(.*)$", self.frontmatter, re.MULTILINE)
-        self.assertIsNotNone(desc_match)
-        description = desc_match.group(1)
-        self.assertNotIn(
-            ": ",
-            description,
-            "unquoted description contains ': ' -- a strict YAML frontmatter "
-            "loader will fail to parse this plain scalar",
-        )
-        self.assertNotRegex(
-            description,
-            r"\s#",
-            "unquoted description contains whitespace followed by '#' -- a "
-            "strict YAML loader reads this as a comment and silently "
-            "truncates the rest of the value",
-        )
-
-    def test_no_nested_skill_md(self) -> None:
-        nested = list(SKILL_DIR.rglob("SKILL.md"))
-        self.assertEqual(nested, [SKILL_MD], f"{SKILL_DIR} contains nested SKILL.md files: {nested}")
+class TestDesignSkillFile(SkillFileCase):
+    SKILL_DIR = SKILL_DIR
+    STUB_NEGATIVE_PHRASE = "Do not invoke for actual design work yet"
 
 
 class TestDesignVocabularyDerivation(unittest.TestCase):
@@ -142,13 +96,10 @@ class TestDesignVocabularyDerivation(unittest.TestCase):
 
 
 
-class TestDesignSkillBody(unittest.TestCase):
+class TestDesignSkillBody(PhraseInBodyMixin, unittest.TestCase):
     def setUp(self) -> None:
         self.body = SKILL_MD.read_text(encoding="utf-8")
         self.flat_body = normalize_ws(self.body)
-
-    def assertPhraseIn(self, phrase: str) -> None:
-        self.assertIn(normalize_ws(phrase), self.flat_body, f"phrase not found (whitespace-normalized): {phrase!r}")
 
     def test_body_uses_design_level_vocabulary(self) -> None:
         missing = [term for term in DESIGN_VOCABULARY if term not in self.body]

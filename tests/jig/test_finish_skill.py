@@ -40,7 +40,7 @@ import re
 import unittest
 from pathlib import Path
 
-from _frontmatter import FRONTMATTER
+from _frontmatter import PhraseInBodyMixin, SkillFileCase
 from _text import normalize_ws
 from _vocabulary import derive_finish_vocabulary
 
@@ -52,54 +52,9 @@ DESIGN_MD = REPO_ROOT / "DESIGN.md"
 FINISH_VOCABULARY = derive_finish_vocabulary(DESIGN_MD.read_text(encoding="utf-8"))
 
 
-class TestFinishSkillFile(unittest.TestCase):
-    def setUp(self) -> None:
-        self.assertTrue(SKILL_MD.is_file(), f"{SKILL_MD} does not exist")
-        self.text = SKILL_MD.read_text(encoding="utf-8")
-        match = FRONTMATTER.match(self.text)
-        self.assertIsNotNone(match, f"{SKILL_MD} has no --- frontmatter block")
-        self.frontmatter = match.group(1)
-        self.body = self.text[match.end() :]
-
-    def test_name_matches_directory(self) -> None:
-        name_match = re.search(r"^name:\s*(\S+)", self.frontmatter, re.MULTILINE)
-        self.assertIsNotNone(name_match, f"{SKILL_MD} missing name: field")
-        self.assertEqual(name_match.group(1), "ship")
-
-    def test_description_is_present_and_no_longer_a_stub(self) -> None:
-        desc_match = re.search(r"^description:\s*(.*)$", self.frontmatter, re.MULTILINE)
-        self.assertIsNotNone(desc_match, f"{SKILL_MD} missing description: field")
-        description = desc_match.group(1)
-        self.assertTrue(description.strip())
-        self.assertNotIn(
-            "STUB",
-            description,
-            "finish has real closing-out content as of story finish-skill; "
-            "it is no longer one of the STUB placeholder skills",
-        )
-        self.assertNotIn("Do not invoke for actual finish work yet", self.body)
-
-    def test_description_is_a_valid_unquoted_yaml_plain_scalar(self) -> None:
-        desc_match = re.search(r"^description:\s*(.*)$", self.frontmatter, re.MULTILINE)
-        self.assertIsNotNone(desc_match)
-        description = desc_match.group(1)
-        self.assertNotIn(
-            ": ",
-            description,
-            "unquoted description contains ': ' -- a strict YAML frontmatter "
-            "loader will fail to parse this plain scalar",
-        )
-        self.assertNotRegex(
-            description,
-            r"\s#",
-            "unquoted description contains whitespace followed by '#' -- a "
-            "strict YAML loader reads this as a comment and silently "
-            "truncates the rest of the value",
-        )
-
-    def test_no_nested_skill_md(self) -> None:
-        nested = list(SKILL_DIR.rglob("SKILL.md"))
-        self.assertEqual(nested, [SKILL_MD], f"{SKILL_DIR} contains nested SKILL.md files: {nested}")
+class TestFinishSkillFile(SkillFileCase):
+    SKILL_DIR = SKILL_DIR
+    STUB_NEGATIVE_PHRASE = "Do not invoke for actual finish work yet"
 
 
 class TestFinishVocabularyDerivation(unittest.TestCase):
@@ -116,13 +71,10 @@ class TestFinishVocabularyDerivation(unittest.TestCase):
 
 
 
-class TestFinishSkillBody(unittest.TestCase):
+class TestFinishSkillBody(PhraseInBodyMixin, unittest.TestCase):
     def setUp(self) -> None:
         self.body = SKILL_MD.read_text(encoding="utf-8")
         self.flat_body = normalize_ws(self.body)
-
-    def assertPhraseIn(self, phrase: str) -> None:
-        self.assertIn(normalize_ws(phrase), self.flat_body, f"phrase not found (whitespace-normalized): {phrase!r}")
 
     def test_body_uses_finish_level_vocabulary(self) -> None:
         missing = [term for term in FINISH_VOCABULARY if term not in self.body]
@@ -285,7 +237,7 @@ if __name__ == "__main__":
     sys.exit(unittest.main())
 
 
-class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
+class TestFinishResolvesTheEvidenceFolderByAsking(PhraseInBodyMixin, unittest.TestCase):
     """#179/#224's read side, narrowed to path resolution.
 
     The folder name gained a branch slug, so any reader that rebuilds
@@ -298,13 +250,6 @@ class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
     def setUp(self) -> None:
         self.body = SKILL_MD.read_text(encoding="utf-8")
         self.flat_body = normalize_ws(self.body)
-
-    def assertPhraseIn(self, phrase: str) -> None:
-        self.assertIn(
-            normalize_ws(phrase),
-            self.flat_body,
-            f"phrase not found (whitespace-normalized): {phrase!r}",
-        )
 
     def test_the_evidence_folder_is_resolved_by_the_script_not_rebuilt(self) -> None:
         """The repo-wide scan does NOT cover this file's grammar line -- pin it here.
@@ -362,7 +307,7 @@ class TestFinishResolvesTheEvidenceFolderByAsking(unittest.TestCase):
         self.assertLess(exit_zero_at, self.flat_body.index(contents))
 
 
-class TestShipEpicScope(unittest.TestCase):
+class TestShipEpicScope(PhraseInBodyMixin, unittest.TestCase):
     """`/ship --epic <slug>` (#247) — epic-scale closeout, human-invoked after the
     epic finale's PR is open. Never Steps 1-6; never dispatched by
     workflows/epic-driver.js."""
@@ -370,9 +315,6 @@ class TestShipEpicScope(unittest.TestCase):
     def setUp(self) -> None:
         self.body = SKILL_MD.read_text(encoding="utf-8")
         self.flat_body = normalize_ws(self.body)
-
-    def assertPhraseIn(self, phrase: str) -> None:
-        self.assertIn(normalize_ws(phrase), self.flat_body, f"phrase not found (whitespace-normalized): {phrase!r}")
 
     def test_three_modes_are_named(self) -> None:
         self.assertPhraseIn("## Three modes")

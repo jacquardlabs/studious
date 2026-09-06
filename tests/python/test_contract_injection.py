@@ -56,6 +56,7 @@ import subprocess
 from pathlib import Path
 
 from run_gate_audit_fixtures import REPO_ROOT, _wire_plugin_config
+from test_driver_crash_hardening import _extract_function
 
 CONTRACT = "reference/prompt-contract.md"
 ANCHORED = "${CLAUDE_PLUGIN_ROOT}/" + CONTRACT
@@ -143,31 +144,6 @@ CONTRACT_BLOCK_MARKERS = (
 
 def _agent_files() -> list[Path]:
     return sorted((REPO_ROOT / "agents").glob("*.md"))
-
-
-def _extract_function(source: str, name: str) -> str:
-    """Extract a top-level ``function <name>(...) { ... }`` declaration verbatim.
-
-    Balanced-brace scan from the function's own opening brace. Every ``${...}``
-    interpolation inside the driver's template literals is individually balanced
-    (a bare identifier, never a literal ``{``/``}``), so counting braces
-    character-by-character finds the true closing brace correctly.
-    """
-    marker = f"function {name}("
-    start = source.index(marker)
-    brace_open = source.index("{", start)
-    depth = 0
-    i = brace_open
-    while True:
-        ch = source[i]
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                break
-        i += 1
-    return source[start : i + 1]
 
 
 def _dispatch_functions_source() -> str:

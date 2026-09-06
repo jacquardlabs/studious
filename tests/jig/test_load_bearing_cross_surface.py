@@ -21,19 +21,44 @@ Run with:
 """
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
-from _load_bearing_cross_surface import (
-    load_plan_lint_module,
-    step_1_5_documents_both_match_paths,
-    surface_1_plan_lint,
-    surface_2_reference,
-)
+from _load_bearing import derive_load_bearing_set
+from _task_split_boundary import load_plan_lint_module
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = REPO_ROOT / "tests" / "jig" / "fixtures" / "plan-lint"
 BUILD_SKILL_MD = REPO_ROOT / "skills" / "build" / "SKILL.md"
+
+_STEP_1_5_HEADING_NUMBER_RE = re.compile(r"its heading number")
+_STEP_1_5_TITLE_MATCH_RE = re.compile(r"unambiguous title match")
+
+
+def step_1_5_documents_both_match_paths(build_skill_md_text: str) -> bool:
+    """True iff Step 1.5's prose still names both of its documented match
+    modes by text -- a regression that silently drops either phrase (e.g.
+    narrowing back to number-only) is exactly what this presence check
+    catches; it is not itself proof either surface's code implements what
+    the prose says, only that the prose hasn't quietly stopped promising
+    it."""
+    return bool(
+        _STEP_1_5_HEADING_NUMBER_RE.search(build_skill_md_text)
+        and _STEP_1_5_TITLE_MATCH_RE.search(build_skill_md_text)
+    )
+
+
+def surface_1_plan_lint(plan_lint_module, text: str) -> frozenset[str]:
+    """The load-bearing set per `scripts/plan-lint`'s own, real code."""
+    tasks = plan_lint_module.split_tasks(text)
+    return plan_lint_module.compute_load_bearing(tasks)
+
+
+def surface_2_reference(text: str) -> frozenset[str]:
+    """The load-bearing set per `tests/_load_bearing.py`'s reference
+    implementation of the same, Foreman-prose rule."""
+    return derive_load_bearing_set(text)
 
 FIXTURE_NAMES = (
     "clean-plan.md",

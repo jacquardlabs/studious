@@ -42,7 +42,7 @@ Three modes — capture is the default and takes no verb word:
     evidence-capture list --branch B                 print each task's answer
 
 `resolve` and `list` are the **one home** for the rule that says which folder
-belongs to which task. A reader (`/finish` today) calls them instead of
+belongs to which task. A reader (`/ship` today) calls them instead of
 rebuilding a folder name from a shape it would otherwise have to keep in
 sync — and instead of keying on task + date, which cannot tell two branches'
 identically-tasked folders apart once one has merged into the other's base.
@@ -166,7 +166,7 @@ from _gitutil import (  # noqa: E402
     current_branch,
     git_repo_root,
     last_commit_sha_and_epoch,
-    working_tree_status,
+    run,
 )
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -409,7 +409,7 @@ def usage_modes() -> str:
     """The three-mode usage block, lifted from this module's own docstring.
 
     `--help` and the docstring are the same statement to two readers who
-    never meet: a persona who runs `--help` after `/finish` reports a
+    never meet: a persona who runs `--help` after `/ship` reports a
     `resolve` failure needs to find that verb documented. Deriving the block
     from the docstring keeps that one statement in one place — a second
     hand-maintained copy is exactly the drift that leaves `--help`
@@ -575,7 +575,7 @@ def run_capture(argv: list[str]) -> int:
         print(f"error: '{args.repo}' is not inside a git repository", file=sys.stderr)
         return 2
 
-    dirty = working_tree_status(repo)
+    dirty = run(["git", "-C", str(repo), "status", "--porcelain"]).stdout
     if dirty.strip():
         print(
             "error: refusing to capture evidence against an uncommitted working "

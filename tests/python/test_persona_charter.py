@@ -19,14 +19,11 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import check_gate_independence as gi
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CHARTER = REPO_ROOT / "reference" / "personas.md"
 
-DOOR_ROW = re.compile(
-    r"^\|\s*`/(?P<door>[a-z][a-z-]*)`\s*\|(?P<persona>[^|]*)\|\s*(?P<cls>\w+)\s*\|"
-    r"\s*`(?P<path>[^`]+)`\s*\|(?P<absorbed>[^|]*)\|",
-    re.MULTILINE,
-)
 #: A Specialists row: title, episode lanes, periodic duty. Backticked agent names in the
 #: last two columns are filenames under `agents/`.
 SPECIALIST_ROW = re.compile(
@@ -43,9 +40,7 @@ def text() -> str:
 
 
 def doors() -> list[dict]:
-    rows = [m.groupdict() for m in DOOR_ROW.finditer(text())]
-    assert rows, "the Doors table parsed to zero rows — its shape changed"
-    return rows
+    return gi.doors()
 
 
 def specialist_section() -> str:

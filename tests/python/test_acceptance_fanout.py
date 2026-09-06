@@ -29,21 +29,9 @@ import json
 from test_driver_crash_hardening import (
     DRIVER,
     FINALE_AUDITORS_PASS,
+    _one_story_acceptance_epic,
     _run_driver,
 )
-
-
-def _one_story_acceptance_epic() -> dict:
-    return {
-        "slug": "epx",
-        "title": "Test epic",
-        "goal": "prove the acceptance fan-out",
-        "concurrency": 1,
-        "stories": {
-            "a": {"title": "Story A", "criteria": "a criteria", "gates": ["acceptance"]},
-        },
-    }
-
 
 SCOPE_WITH_DOC = {"findings": json.dumps({"files": ["foo.py"], "designDoc": "docs/design-foo.md"})}
 SCOPE_NO_DOC = {"findings": json.dumps({"files": ["foo.py"], "designDoc": ""})}
