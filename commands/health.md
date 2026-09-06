@@ -1,6 +1,6 @@
 ---
-description: The periodic inspection — whole-project posture reviews and backlog hygiene. With no argument, dispatches gauntlet's seven posture judges and compiles a master summary; with an area, runs just that one. Codebase, interface, architecture, product, security, README, prompts, plus a `backlog` mode. Recommend-only — writes reports, never code, issues, or verdicts.
-argument-hint: "[codebase | interface | architecture | product | security | readme | prompts | backlog] (omit for the full sweep)"
+description: The periodic inspection — whole-project posture reviews and backlog hygiene. With no argument, dispatches gauntlet's seven posture judges and compiles a master summary; with an area, runs just that one. Codebase, interface, architecture, product, security, README, prompts, plus `backlog` and `simplify` modes. Recommend-only — writes reports, never code, issues, or verdicts.
+argument-hint: "[codebase | interface | architecture | product | security | readme | prompts | backlog | simplify] (omit for the full sweep)"
 allowed-tools: Read, Glob, Grep, Bash, Task, Write, Edit
 ---
 
@@ -8,7 +8,7 @@ allowed-tools: Read, Glob, Grep, Bash, Task, Write, Edit
 
 Run standing reviews against the repository as it is on main. With no argument, dispatches all seven posture lanes and compiles a master summary. With an area argument, runs just that one at its own cadence (e.g. architecture quarterly without the other six). This door reads what the project *is* — the repository and the tracker; `/retro` reads how the cycle went.
 
-This door is recommend-only. It writes reports under `docs/studious/`; it never writes code, never modifies or closes an issue, and never records a gate verdict.
+This door is recommend-only. It writes reports under `docs/studious/` (`simplify` leaves exorcist's register under `docs/exorcist/`, that plugin's own convention); it never writes code, never modifies or closes an issue, and never records a gate verdict.
 
 Read CLAUDE.md, PRODUCT.md, and DESIGN.md first.
 
@@ -26,10 +26,18 @@ Read CLAUDE.md, PRODUCT.md, and DESIGN.md first.
 | `readme` | `gauntlet:docs-posture-auditor` | (inline) | Wider than README drift: every user-facing doc — stale claims, missing capabilities, commands and paths that don't resolve, voice drift. The judge returns findings, never a diff; this door drafts the diff (Context doc updates below) | `docs/studious/readme-reviews/YYYY-MM-DD-readme-review.md` |
 | `prompts` | `gauntlet:prompt-posture-auditor` | `prompt-checklist` | Trigger coverage, instruction consistency, orchestrator-subagent contract alignment, duplication, injection posture, token economy | `docs/studious/prompt-reviews/YYYY-MM-DD-prompt-review.md` |
 | `backlog` (or `hygiene`) | `backlog-hygiene` (local) | — | Open issues that should be closed — resolved by commits, made obsolete, or duplicated | none — reported in-session |
+| `simplify` (or `seance`) | `/exorcist:seance` (skill, not a dispatch) | — | Standing simplification targets — pattern contention, dead code, duplicated helpers, wrapper strata — as a ranked register. Working it is the human's act: `/bet` the register or `/exorcist:exorcise <dir>/register.json`; this door never applies one | `docs/exorcist/seance-YYYY-MM-DD/register.json` (exorcist writes it; `register.md` is its rendering) |
 
 The `Standard` column mirrors each judge's row in gauntlet's charter, because this door cannot read that charter at run time (`${CLAUDE_PLUGIN_ROOT}` resolves only this plugin, and the plugin cache is never globbed). A named standard is a lookup rubric; `(inline)` means the judge's own prompt is the rubric and `standard.name` is the judge's name, version omitted.
 
 **`backlog` is a mode, not a lane: it is never part of the full sweep.** The seven lanes read the codebase and compile together; `backlog` reads the issue tracker. It requires GitHub Issues via the `gh` CLI — PRODUCT.md may link a different tracker (Linear, Jira); this mode only reads GitHub Issues, and doesn't apply if the project tracks work elsewhere. Spawn `@agent-backlog-hygiene` to fetch the open issues, cross-reference each against git history, PRODUCT.md, and the most recent review reports, and compile the report. Output format and evidence rules are the agent's — see `agents/backlog-hygiene.md`'s `## Output` section. It never closes, comments on, or modifies any issue. Skip the rest of this file.
+
+**`simplify` is the other mode, opt-in for the same reason `backlog` is:** the séance's four lanes read the whole tree at opus — ~75 minutes on a 20k-line repository (exorcist's README, Cost) — so it never rides the bare sweep. Check whether exorcist is installed the way `/setup` Step 6b does: look for `exorcist:seance` in this session's registered skill listing — never a file path.
+
+- **Not installed:** one line — "exorcist not installed — simplify skipped; install with `/plugin install exorcist@jacquardlabs-marketplace`." — and stop. Never an error: the mode is optional.
+- **Installed:** invoke `/exorcist:seance` (it surveys HEAD) and relay its report verbatim. It resolves its own worktree and writes only under `docs/exorcist/seance-<date>/`; nothing in the tree changes. Point at `register.json` and stop: setting ghosts `approved` there and working them — `/bet` the register or `/exorcist:exorcise <dir>/register.json` — is a human-typed producer act, never this door's.
+
+Either way, skip the rest of this file.
 
 If `$ARGUMENTS` is non-empty but matches no keyword, list the valid keywords and stop.
 
@@ -116,6 +124,8 @@ A gauntlet judge returns a `recommendation` — an imperative sentence, never a 
 Do NOT apply these changes. Present them as proposed diffs for the user to review and approve.
 
 No metrics dashboard: trend belongs to the issue tracker, and a gauntlet findings document carries no metrics field.
+
+If a séance register exists (`docs/exorcist/seance-*/register.json`; `register.md` is its rendering), link the newest under the action plan — it is a lead for the human, never a lane in this sweep.
 
 Save the master summary to `docs/studious/health-reviews/YYYY-MM-DD-deep-review-summary.md`.
 
