@@ -6,10 +6,14 @@ the marketplace entry was deleted. The conditionals that *acted* on that name
 are guarded separately (`tests/jig/test_gate_handoffs.py`); this guards the
 prose, which regresses easily because old wording gets copied forward.
 
-`docs/jig/` and `tests/jig/` survive as real directory names — the evidence
-layout is pinned in `reference/evidence-format.md` and renaming it would break
-the one contract a gate is allowed to rely on. So the rule is not "the string
-never appears," it is "every appearance is part of one of those paths."
+`docs/jig/` and `tests/jig/` survive as real directory names. `tests/jig/` is
+live — the build scripts' own test tree. `docs/jig/` is historical only:
+`docs/jig/reports/`, `docs/jig/reviews/`, and `docs/jig/evidence/` hold dated
+records from before the evidence/report stores moved to `.studious/` and
+`docs/studious/` (see `/exorcist:seance` G-13) — real committed files, never
+renamed after the fact, but no longer where anything new gets written. So the
+rule is not "the string never appears," it is "every appearance is part of
+one of those paths."
 """
 from __future__ import annotations
 

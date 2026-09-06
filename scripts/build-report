@@ -2,7 +2,7 @@
 """jig's build-report script (story finish-skill, issue #20).
 
 `/ship`'s Step 5: writes a dated, durable build report --
-`docs/jig/reports/YYYY-MM-DD-<story-slug>-build-report.md` -- same class
+`docs/studious/build-reports/YYYY-MM-DD-<story-slug>-build-report.md` -- same class
 and naming shape as studious's own dated review reports
 (`docs/studious/<kind>-reviews/YYYY-MM-DD-<kind>-review.md`), reusing an
 established convention rather than inventing a new report shape.
@@ -35,9 +35,9 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="build-report",
-        description="Write /ship's dated build report to docs/jig/reports/.",
+        description="Write /ship's dated build report to docs/studious/build-reports/.",
     )
-    parser.add_argument("--repo", default=".", help="path to the repo docs/jig/reports/ is written under")
+    parser.add_argument("--repo", default=".", help="path to the repo docs/studious/build-reports/ is written under")
     parser.add_argument("--slug", required=True, help="the story's slug (used in the report's filename)")
     parser.add_argument("--content", required=True, help="path to the already-assembled markdown report body")
     parser.add_argument("--date", default=None, help="report date, YYYY-MM-DD (default: today, UTC)")
@@ -62,7 +62,7 @@ def main(argv: list[str]) -> int:
 
     repo = Path(args.repo).resolve()
     date = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    reports_root = repo / "docs" / "jig" / "reports"
+    reports_root = repo / "docs" / "studious" / "build-reports"
     report_path = reports_root / f"{date}-{args.slug}-build-report.md"
 
     if report_path.exists() and not args.force:

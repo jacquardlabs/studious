@@ -15,7 +15,6 @@ __pycache__/
 # (covered by the .studious/ entry above), and /ship's PR body is the record.
 /PLAN.md
 docs/design/
-docs/jig/demonstrations/
 
 # A/B eval run output — regenerate with scripts/run_ab_eval.py (tests/ab/README.md)
 ab-results/
