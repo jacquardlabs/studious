@@ -379,7 +379,11 @@ class TestShipEpicScope(unittest.TestCase):
         self.assertPhraseIn("`/ship --epic <slug>`")
 
     def test_epic_scope_never_runs_steps_one_through_six(self) -> None:
-        self.assertPhraseIn("never runs Steps 1–6 below")
+        # The doc's own range notation uses an en dash between the digits.
+        # Built from an escape rather than the literal glyph so ruff's
+        # ambiguous-unicode check doesn't flag this source file over a
+        # character this test only needs to match, not display.
+        self.assertPhraseIn(f"never runs Steps 1{chr(0x2013)}6 below")
         self.assertPhraseIn("No Step 6 here")
 
     def test_epic_scope_is_human_invoked_never_dispatched_by_the_driver(self) -> None:
