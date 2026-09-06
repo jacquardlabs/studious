@@ -18,6 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL = (REPO_ROOT / "skills" / "build" / "SKILL.md").read_text(encoding="utf-8")
 EVIDENCE_FORMAT = (REPO_ROOT / "reference" / "evidence-format.md").read_text(encoding="utf-8")
 WORKER_CONTRACT = (REPO_ROOT / "reference" / "worker-contract.md").read_text(encoding="utf-8")
+SHIP = (REPO_ROOT / "skills" / "ship" / "SKILL.md").read_text(encoding="utf-8")
 
 
 def _section(heading_prefix: str) -> str:
@@ -98,6 +99,18 @@ def test_evidence_format_pins_the_label() -> None:
     assert "`exorcist:report`" in EVIDENCE_FORMAT
     assert "`--task exorcise`" in EVIDENCE_FORMAT
     assert "`## Held`" in EVIDENCE_FORMAT
+
+
+def test_ship_resolves_the_exorcise_report_so_held_findings_reach_the_pr_body() -> None:
+    """`--task exorcise` is no PLAN.md task, so /ship's per-task loop never reaches it on its
+    own (premortem #6); Step 1 resolves it explicitly, before the freshness hold so the
+    hold's "each folder resolve printed above" covers it."""
+    step1 = SHIP[SHIP.index("## Step 1") : SHIP.index("## Step 2")]
+    resolve_at = step1.index("`--task exorcise`")
+    assert resolve_at < step1.index("**Freshness hold")
+    assert "`exorcist:report`" in step1
+    assert "`## Held`" in step1 and "`Concepts removed:`" in step1
+    assert "no row, no remark" in step1, "an absent pass is silent, never an invented row"
 
 
 def test_worker_contract_admits_the_pass_without_loosening_the_criteria() -> None:

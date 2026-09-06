@@ -653,7 +653,8 @@ with the build proceeding to its verdict.
    the Failure routine. The report's `## Held` section — `hold` findings
    exorcise would not apply (trust boundary, behavior change, spec conflict)
    — reaches `/review` the way an Inspector `CONCERN` does: quoted from the
-   captured artifact into the PR body `/ship` assembles.
+   captured artifact into the PR body `/ship` assembles (`skills/ship/SKILL.md`
+   Step 1 resolves `--task exorcise` for exactly this).
 5. **FAIL on any item.** Run `git checkout -- .` in the worktree —
    exorcise's own documented undo — and confirm `git status --porcelain` is
    empty: the tree is exactly the `BUILT` tree again. Record one **Track**
