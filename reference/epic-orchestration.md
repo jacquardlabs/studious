@@ -232,6 +232,10 @@ recording which route produced this approval and when.
    surfaces whichever was recorded, which is how the driver (and a human re-reading
    this epic later) tells the two routes apart. Never omit it: an epic with no recorded
    approval is exactly the state a status of `proposed` (below) is for, not `approved`.
+   `<round-ref>` itself is `scripts/stamp-bridge`'s (#315) to define: the viva review
+   round's output filename plus the first 12 hex digits of that file's own sha256, e.g.
+   `viva:review-r2.json@a1b2c3d4e5f6` — reproducible from the artifact alone, distinct
+   across two rounds that happen to share a filename.
 
    **An agent authoring a brief for the viva route records `--status proposed`
    first** — before any human has seen it — so `epic-reconcile` can see a pending
