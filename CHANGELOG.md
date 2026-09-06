@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v3.8.0 (2026-09-06)
+
+### Features
+
+- Add scripts/park-packet and park-resolve, browser-resolvable parks
+  ([#326](https://github.com/jacquardlabs/studious/pull/326),
+  [`5fe0349`](https://github.com/jacquardlabs/studious/commit/5fe0349f6dfacb7d2af008aa979cf7a151232a43))
+
+
 ## v3.7.0 (2026-09-06)
 
 ### Features
