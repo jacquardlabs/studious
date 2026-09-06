@@ -290,7 +290,7 @@ Separate from the feature flow, two doors run against main, not feature branches
 judges in parallel and compiles a master summary — cross-referenced findings, a
 prioritized action plan, and proposed context-doc updates for your approval. `/retro`
 looks back at how the cycle went; today it carries `outcomes`. Trend lives in your issue
-tracker, not in a report store — every run reports a baseline. The last two rows below are
+tracker, not in a report store — every run reports a baseline. The last three rows below are
 modes, not lanes: they run only when you name them.
 
 | Area | What it checks | Cadence |
@@ -303,6 +303,7 @@ modes, not lanes: they run only when you name them.
 | `/health readme` | User-facing docs: stale claims, broken commands, voice drift | After a release |
 | `/health prompts` | Trigger coverage, contract alignment, duplication, injection posture | Monthly |
 | `/health backlog` | Open issues that are resolved, obsolete, or duplicated | After a review cycle |
+| `/health simplify` | Exorcist's séance: standing simplification targets as a register you approve, then `/bet` or `/exorcist:exorcise` (needs exorcist installed) | Quarterly, or before a large refactor |
 | `/retro outcomes` | Shipped merges graded against the fixes and reverts that followed | Quarterly |
 
 Every mode is recommend-only. It writes reports; it never writes code, closes an issue, or
