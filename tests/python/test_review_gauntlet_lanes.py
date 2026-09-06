@@ -79,11 +79,15 @@ def test_round_two_ledger_instruction_speaks_the_findings_document() -> None:
     return as findings, resolved ones are named in `coverage`, and a suppressed finding that
     changed comes back at `track` — each carrying the fingerprint the ledger step matches on."""
     text = _door()
-    block = text[text.index("Findings ledger for this episode"):text.index("The delivery episode records")]
+    block = " ".join(text[text.index("Findings ledger for this episode"):text.index("The delivery episode records")].split())
     assert "OBSERVATION" not in block and "still stands" not in block
     assert "`coverage`" in block and "`track`" in block and "fingerprint token" in block
     ledger = text[text.index("On round 2, update round 1's records"):text.index("- fixed — re-record")]
     assert "`coverage`" in ledger, "the ledger step does not say how closed vs open is read off the document"
+    assert "digest" in ledger, (
+        "a suppressed digest returning at `track` must read as a re-open proposal, "
+        "never as a still-standing detail line written `--status open`"
+    )
 
 
 def test_no_bash_workarounds_are_gone() -> None:

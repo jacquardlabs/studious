@@ -225,8 +225,8 @@ whose lane matches that dispatch, plus every `rejected-as-noise` digest for that
 never the whole ledger — alongside this shared instruction: "These are the findings this episode's round 1
 recorded in your lane. Your reply is still one findings document, nothing beside it, so
 each detail line lands in one of two places: one the current changeset leaves standing
-returns as a finding at the same locus, its `summary` carrying the line's fingerprint token
-verbatim; one the changeset resolves is named by that same token in `coverage`, with the
+returns as a finding at the locus you find it, its `summary` carrying the line's fingerprint
+token verbatim; one the changeset resolves is named by that same token in `coverage`, with the
 code that resolved it — never as a finding. Then run your normal rubric over the full
 changeset; the ledger primes your review, it never bounds it. A `rejected-as-noise` digest
 is a settled ruling: that finding, and any finding matching it on lane and fingerprint, is
@@ -809,9 +809,11 @@ be recorded too — it never blocks):
   `carried`.
 
 On round 2, update round 1's records and add what the re-review found. The lane's findings
-document is the whole answer (the ledger step above told it where each line lands): a
-fingerprint named in `coverage` and carried by no finding is fixed; one a finding carries is
-still standing; one in neither place is a lane that did not answer for it — ask, never guess.
+document is the whole answer (the ledger step above told it where each line lands). For a
+detail-line (`open` / `carried`) fingerprint: named in `coverage` and carried by no finding is
+fixed; carried by a finding is still standing; in neither place is a lane that did not answer
+for it — ask, never guess. A digest fingerprint carried by a `track` finding is a proposal to
+re-open a settled ruling, put to the user like a waiver, never a write of its own.
 
 - fixed — re-record the same fingerprint with `--status closed`
 - still standing — `--status open` again
