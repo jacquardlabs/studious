@@ -2470,6 +2470,29 @@ check "epic-run-log requires --landed" "2" \
 check "epic-run-log refuses an unrecorded epic" "2" \
   "$(cd "$da" && "$LEDGER" epic-run-log --slug ghost --landed 1 >/dev/null 2>&1; echo $?)"
 
+# --tokens-spent (#316): optional, so a caller with nothing to report writes
+# exactly as before; recorded per-run, and the write is also mirrored as an
+# events.jsonl line for the same reasons every other transition is.
+de=$(sandbox)
+eef="$de/.studious/epics/priced.events.jsonl"
+( cd "$de" && "$LEDGER" epic-set --slug priced --title P ) >/dev/null
+( cd "$de" && "$LEDGER" epic-run-log --slug priced --landed 1 --tokens-spent 12000 ) >/dev/null
+check "tokens-spent is recorded on the run entry" "12000" \
+  "$(jq -r '.runs[-1].tokensSpent' "$de/.studious/epics/priced.json")"
+( cd "$de" && "$LEDGER" epic-run-log --slug priced --landed 0 ) >/dev/null
+check "a run with no --tokens-spent carries no tokensSpent field" "null" \
+  "$(jq -r '.runs[-1].tokensSpent // null' "$de/.studious/epics/priced.json")"
+check "epic-run-log rejects a non-numeric --tokens-spent" "2" \
+  "$(cd "$de" && "$LEDGER" epic-run-log --slug priced --landed 1 --tokens-spent lots >/dev/null 2>&1; echo $?)"
+check "every epic-run-log call appends one epic-run event" "2" \
+  "$(grep -c '"kind":"epic-run"' "$eef")"
+check "the epic-run event carries landed and tokensSpent" "1 12000" \
+  "$(head -1 "$eef" | jq -r '[.landed, .tokensSpent] | join(" ")')"
+check "an epic-run event with no tokens-spent omits the field" "null" \
+  "$(tail -1 "$eef" | jq -r '.tokensSpent // null')"
+check "epic-run events carry no story (epic-level, per record's own convention)" "" \
+  "$(head -1 "$eef" | jq -r '.story')"
+
 # Run history is bounded — the stop-loss only ever reads the tail.
 db=$(sandbox)
 ( cd "$db" && "$LEDGER" epic-set --slug longrun --title L ) >/dev/null
