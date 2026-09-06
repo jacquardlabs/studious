@@ -29,6 +29,7 @@ import subprocess
 from pathlib import Path
 
 from test_driver_crash_hardening import (
+    clean_document,
     AUDITOR_SHORT_NAMES,
     DRIVER,
     _extract_function,
@@ -476,7 +477,7 @@ def _driver_text() -> str:
 def test_routing_scope_check_prompt_gained_an_optional_work_slug_param() -> None:
     source = _driver_text()
     fn = _extract_function(source, "routingScopeCheckPrompt")
-    assert "function routingScopeCheckPrompt(dir, base, contract, workSlugVal)" in fn
+    assert "function routingScopeCheckPrompt(dir, base, workSlugVal)" in fn
     assert "declaredFiles" in fn
     assert "scopeDelta" in fn
 
@@ -496,25 +497,24 @@ def test_resolve_routing_match_flags_threads_work_slug_through() -> None:
     # `_extract_function`'s marker is "function <name>(", which lands just after
     # the `async` keyword — matching `_extract_function`'s own established usage
     # elsewhere in this repo's test suite.
-    assert "function resolveRoutingMatchFlags(dir, base, label, phaseLabel, contract, workSlugVal)" in fn
-    assert "routingScopeCheckPrompt(dir, base, contract, workSlugVal)" in fn
+    assert "function resolveRoutingMatchFlags(dir, base, label, phaseLabel, workSlugVal)" in fn
+    assert "routingScopeCheckPrompt(dir, base, workSlugVal)" in fn
 
 
 def test_finale_call_sites_never_pass_a_work_slug() -> None:
     """A declared set has no single owner at finale altitude (design doc, Open
     Questions) — both finale call sites must stay byte-identical to before this
-    story on the argument that matters here: they pass the pre-existing `contract`
-    (5th) argument (an unrelated, earlier addition — injection-defense threading,
-    #271) but never a 6th `workSlugVal` argument."""
+    story on the argument that matters here: they never pass a 5th `workSlugVal`
+    argument."""
     source = _driver_text()
-    assert "resolveRoutingMatchFlags(epicWorktree, input.defaultBranch, 'finale:routing-scope', 'Finale', CONTRACT)" in source
-    assert "resolveRoutingMatchFlags(epicWorktree, input.defaultBranch, 'finale:premortem-diff', 'Finale', CONTRACT)" in source
+    assert "resolveRoutingMatchFlags(epicWorktree, input.defaultBranch, 'finale:routing-scope', 'Finale')" in source
+    assert "resolveRoutingMatchFlags(epicWorktree, input.defaultBranch, 'finale:premortem-diff', 'Finale')" in source
 
 
 def test_audit_fan_in_and_acceptance_fan_in_gained_a_scope_delta_flags_param() -> None:
     source = _driver_text()
     audit_fn = _extract_function(source, "auditFanIn")
-    assert "function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut, injectionAttempt, frontendMatch, scopeDeltaFlags)" in audit_fn
+    assert "function auditFanIn(story, reports, base, dir, nextPhase, routed, routedOut, injectionAttempt, frontendMatch, scopeDeltaFlags, criticalLanes)" in audit_fn
     assert "${scopeDeltaFlags || ''}" in audit_fn
 
     acceptance_fn = _extract_function(source, "acceptanceFanIn")
@@ -565,13 +565,13 @@ def test_run_gate_threads_attempts_into_every_round_and_fixer_dispatch() -> None
 
 def _full_roster_pass_rules(story: str) -> list[dict]:
     return [
-        {"match": rf"^audit:{name}:{story}$", "result": {"findings": "clean"}}
+        {"match": rf"^audit:{name}:{story}$", "result": clean_document(name)}
         for name in AUDITOR_SHORT_NAMES
     ]
 
 
 _FINALE_CLEAN_RULES = [
-    {"match": rf"^finale:{name}$", "result": {"findings": "clean"}} for name in AUDITOR_SHORT_NAMES
+    {"match": rf"^finale:{name}$", "result": clean_document(name)} for name in AUDITOR_SHORT_NAMES
 ] + [
     {"match": r"^finale:attestations$", "result": {"findings": '{"attestations": []}'}},
     {"match": r"^finale:findings-closure$", "result": {"findings": "every recorded finding reached a resolved sha"}},
@@ -766,7 +766,7 @@ def test_acceptance_round_one_never_embeds_scope_delta_flags_when_audit_ran_firs
             "files": ["a.py"], "designDoc": "", "declaredFiles": ["a.py"], "scopeDelta": [],
         })}},
         {"match": rf"^acceptance:premortem-fallback:{story}$", "result": {"findings": json.dumps({"status": "empty"})}},
-        {"match": rf"^acceptance:product-review:{story}$", "result": {"findings": "looks good"}},
+        {"match": rf"^acceptance:product-review:{story}$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": rf"^acceptance:walkthrough:{story}$", "result": {"findings": "looks good"}},
         {"match": rf"^acceptance:compile:{story}$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
         {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
@@ -804,7 +804,7 @@ def test_acceptance_round_one_names_the_build_moment_when_no_audit_gate_runs() -
             "files": ["a.py"], "designDoc": "", "declaredFiles": ["a.py"], "scopeDelta": [],
         })}},
         {"match": rf"^acceptance:premortem-fallback:{story}$", "result": {"findings": json.dumps({"status": "empty"})}},
-        {"match": rf"^acceptance:product-review:{story}$", "result": {"findings": "looks good"}},
+        {"match": rf"^acceptance:product-review:{story}$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": rf"^acceptance:walkthrough:{story}$", "result": {"findings": "looks good"}},
         {"match": rf"^acceptance:compile:{story}$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
         {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
@@ -832,7 +832,7 @@ def test_acceptance_fix_cycle_moment_reaches_the_compile_prompt() -> None:
             "files": ["a.py", "b.py"], "designDoc": "", "declaredFiles": ["a.py"], "scopeDelta": [],
         })}},
         {"match": rf"^acceptance:premortem-fallback:{story}$", "result": {"findings": json.dumps({"status": "empty"})}},
-        {"match": rf"^acceptance:product-review:{story}$", "result": {"findings": "looks good"}},
+        {"match": rf"^acceptance:product-review:{story}$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": rf"^acceptance:walkthrough:{story}$", "result": {"findings": "looks good"}},
         {"match": rf"^acceptance:compile:{story}$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
         {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
@@ -858,7 +858,7 @@ def test_finale_routing_scope_check_prompt_never_asks_for_declared_files() -> No
             "files": ["a.py"], "designDoc": "", "declaredFiles": ["a.py"], "scopeDelta": [],
         })}},
         {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "looks good"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
         {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},

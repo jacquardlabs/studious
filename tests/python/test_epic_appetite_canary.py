@@ -24,7 +24,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from test_driver_crash_hardening import (  # noqa: E402
+from test_driver_crash_hardening import (
+    clean_document,  # noqa: E402
     DRIVER,
     SIBLING_LANDS_RULES,
     _run_driver,
@@ -69,7 +70,7 @@ def _epic(filler: bool = False, **overrides: object) -> dict:
 A_LANDS = [
     {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
     {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
-    {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+    {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
     {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "looks good"}},
     {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a1", "summary": "ok"}},
     {"match": r"^merge:a$", "result": {"merged": True, "sha": "a2", "notes": "clean"}},
@@ -89,7 +90,7 @@ B_VERIFY = [
 A_PARKS = [
     {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
     {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
-    {"match": r"^acceptance:product-review:a$", "result": {"findings": "concerns"}},
+    {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="concerns")},
     {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "concerns"}},
     {"match": r"^acceptance:compile:a$", "result": {"verdict": "NEEDS DISCUSSION", "sha": "a1", "summary": "the goal is wrong"}},
     {"match": r"^park:a$", "result": {"verdict": "PARKED", "sha": "a1", "summary": "the goal is wrong"}},
@@ -407,7 +408,7 @@ def test_a_gate_retry_loop_checks_the_budget_before_it_dispatches_a_fixer() -> N
     rules = [
         {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
         {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "concerns"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="concerns")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "concerns"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "a1", "summary": "criterion 2 has no evidence"}},
         {"match": r"^park:a$", "result": {"verdict": "PARKED", "sha": "a1", "summary": "out of budget"}},

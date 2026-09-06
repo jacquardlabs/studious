@@ -151,9 +151,9 @@ def test_auditors_constant_never_gains_a_premortem_entry() -> None:
 def test_dedicated_finale_premortem_step_is_unchanged() -> None:
     """Dedicated finale premortem-auditor dispatch stays outside the fan-in — out of scope for this story."""
     source = _driver_text()
-    assert "agentType: 'studious:premortem-auditor'" in source, (
+    assert "agentType: 'gauntlet:premortem-auditor'" in source, (
         "the dedicated finale premortem-auditor dispatch is missing or changed"
     )
-    assert "premortem: premortem && premortem.findings," in source, (
+    assert "premortem: premortem || null," in source, (
         "finale.premortem result handling changed — out of this story's scope"
     )

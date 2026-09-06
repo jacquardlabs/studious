@@ -36,9 +36,9 @@ import re
 
 import pytest
 from test_driver_crash_hardening import (
-    DEFAULT_TEST_CONTRACT,
     DRIVER,
     _extract_function,
+    _extract_symbol,
     _run_node,
 )
 from test_epic_driver_decomposition import _extract_async_function
@@ -60,19 +60,20 @@ _UNANCHORED_GIT = re.compile(rf"\bgit\s+(?!-C\b)(?={_GIT_SUBCOMMANDS})\b")
 _CWD_DIRECTIVE = re.compile(r"From\s+/tmp/probe-worktree[:,]")
 
 
-# routingScopeCheckPrompt calls requireContract/injectionDefensePreamble internally
-# (gate-audit round 1, #271: the §1 injection-defense preamble it slices out of
-# `contract`) — must be extracted alongside it or the probe script raises
-# ReferenceError (same reason test_audit_first_round_routing.py does the same).
+# The two changeset probes read two module constants (#334 S2: the inline
+# injection-defense sentence, and the shas/receipts asks every judge invocation is
+# built from) — extracted alongside them or the probe script raises ReferenceError
+# (same reason test_audit_first_round_routing.py does the same).
 _EXTRA_DEPS = {
-    "routingScopeCheckPrompt": ("requireContract", "injectionDefensePreamble"),
+    "routingScopeCheckPrompt": ("INJECTION_DEFENSE", "shasAndReceiptsAsk", "SHAS_AND_RECEIPTS_FIELDS"),
+    "acceptanceScopeCheckPrompt": ("shasAndReceiptsAsk", "SHAS_AND_RECEIPTS_FIELDS"),
 }
 
 
 def _build_prompt(fn_name: str, args: list[str]) -> str:
     source = DRIVER.read_text()
     fns = "\n\n".join(
-        _extract_function(source, name) for name in (*_EXTRA_DEPS.get(fn_name, ()), fn_name)
+        _extract_symbol(source, name) for name in (*_EXTRA_DEPS.get(fn_name, ()), fn_name)
     )
     script = f"""
 {fns}
@@ -83,7 +84,7 @@ process.stdout.write(JSON.stringify({{ prompt: {fn_name}({", ".join(args)}) }}))
 
 SCOPE_PROBES = [
     ("acceptanceScopeCheckPrompt", [json.dumps(PROBE_DIR), json.dumps(PROBE_BASE), json.dumps(PROBE_SLUG)]),
-    ("routingScopeCheckPrompt", [json.dumps(PROBE_DIR), json.dumps(PROBE_BASE), json.dumps(DEFAULT_TEST_CONTRACT)]),
+    ("routingScopeCheckPrompt", [json.dumps(PROBE_DIR), json.dumps(PROBE_BASE)]),
     ("ledgerScopeCheckPrompt", [json.dumps(PROBE_DIR)]),
 ]
 
