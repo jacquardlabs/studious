@@ -59,7 +59,7 @@ Evidence:
   after you build it"; periodic reviews "run against main, not feature branches"; a
   `PreToolUse` hook fires on `gh pr create` (`hooks/gate-reminder.sh`).
 - The backlog commands operate on GitHub Issues via the `gh` CLI
-  (`/bet`, `/retro`), so the user works in a GitHub repo.
+  (`/bet`, `/health backlog`), so the user works in a GitHub repo.
 - The whole system reads three context docs (PRODUCT.md, DESIGN.md, CLAUDE.md) the
   user maintains — a user who values durable, shared context over per-prompt
   re-explanation.
@@ -171,9 +171,9 @@ Traced from the commands and the README's two-rhythm description.
    walks that sequence one piece per invocation and never auto-advances. Each episode
    catches a specific failure; the user narrows or skips what the risk doesn't warrant.
 
-3. **Per-project health loop** — `/retro` dispatches the periodic review agents against main
-   in parallel, compiles a cross-referenced master summary with a prioritized action
-   plan, and proposes (never applies) updates to the context docs. `/retro backlog`
+3. **Per-project health loop** — `/health` dispatches gauntlet's posture judges against
+   main in parallel, compiles a cross-referenced master summary with a prioritized action
+   plan, and proposes (never applies) updates to the context docs. `/health backlog`
    then flags resolved/obsolete/duplicated issues against the cycle's fixes, and
    `/retro outcomes` grades what shipped against the fixes that followed.
 
@@ -231,7 +231,7 @@ itself" violation this document states below.
   the build if any gate command, agent, driver, hook, or the ledger invokes a build
   skill or requires a build artifact. Superpowers, a human, or any other executor
   satisfies the same contract.
-- **Shipping our own judge fleet** — the judge lanes `/review` and `/retro` fan out to
+- **Shipping our own judge fleet** — the judge lanes `/review` and `/health` fan out to
   are gauntlet's (#334, 2026-09-06). Studious keeps its three local agents and the verdict
   derivation around every lane; it adds no judge of its own.
 - **A separate orchestration product** — the initiative altitude was chartered as a

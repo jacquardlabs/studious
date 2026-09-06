@@ -125,7 +125,7 @@ cited by the auditor/reviewer agents rather than restated per-agent.
 ### Plugin / prompt tooling
 
 - **Command naming** — `verb`-prefixed families: `gate-*` (per-feature quality gates),
-  `retro` (periodic reviews, backlog hygiene, outcome grading), `setup` (context-doc
+  `health` (periodic inspections, backlog hygiene), `retro` (outcome grading), `setup` (context-doc
   scaffolding and extraction), `next` (flow navigation at every scale). All lowercase,
   hyphenated, and declared in `reference/personas.md` — which is the authority, not this
   list.

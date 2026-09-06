@@ -75,9 +75,9 @@ def _declared_dependencies() -> set[str]:
 
 
 # Plugins whose skills and agents are citable here though they ship elsewhere: the
-# manifest's declared dependencies (`viva` for /shape and /build's sign-off rounds,
-# `gauntlet` for the judge lanes). An agent token namespaced `<plugin>:<name>` resolves
-# in that plugin, not in `agents/`.
+# manifest's declared dependencies (`viva`, which /shape, /build, and the doctor's
+# tooling check all name; `gauntlet`, whose posture judges /health dispatches). An
+# agent token namespaced `<plugin>:<name>` resolves in that plugin, not in `agents/`.
 EXTERNAL_PLUGINS = _declared_dependencies()
 # `web-design-guidelines` ships with Claude Code itself.
 EXTERNAL_SKILLS = {"web-design-guidelines"} | EXTERNAL_PLUGINS

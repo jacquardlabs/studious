@@ -27,7 +27,7 @@ effort: medium
    - **Maintenance** — bug fixes, security patches, performance improvements, accessibility fixes
    - **Polish existing feature** — finish, adjust, or improve something already shipped
    - **New initiative** — start something from the product roadmap, known problems list, or backlog
-5. **Dedupe vs hygiene.** Filter out — or flag — issues that look resolved or obsolete (closed by a merged commit/PR, superseded by a product decision, duplicated). These belong in close-candidate territory, not the ranking. Note "run /retro first" if several surface.
+5. **Dedupe vs hygiene.** Filter out — or flag — issues that look resolved or obsolete (closed by a merged commit/PR, superseded by a product decision, duplicated). These belong in close-candidate territory, not the ranking. Note "run /health backlog first" if several surface.
 6. Filter remaining issues to the selected intent:
    - Match by label (e.g., `tech-debt`, `security` for maintenance; tier labels for feature work).
    - Match by content — scan issue body for keywords and context that align with the intent.

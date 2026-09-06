@@ -7,9 +7,9 @@ A periodic, recommend-only review that scores the flow's own accuracy. It reads 
 
 Read PRODUCT.md and CLAUDE.md first for project context.
 
-## Why this runs outside the `/retro` sweep
+## Why this runs outside the `/health` sweep
 
-The seven reviews in that sweep read the codebase as it stands today and share one metrics dashboard. This one reads *history* — what shipped, and what had to be corrected weeks later — so it contributes no dashboard row and runs on its own cadence: quarterly, or after a milestone closes and enough time has passed for the fixes to exist.
+The seven lanes in that sweep read the codebase as it stands today. This one reads *history* — what shipped, and what had to be corrected weeks later — so it runs under `/retro`, on its own cadence: quarterly, or after a milestone closes and enough time has passed for the fixes to exist.
 
 ## Arguments
 
