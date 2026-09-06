@@ -2,6 +2,48 @@
 
 <!-- version list -->
 
+## v3.3.0 (2026-09-06)
+
+### Documentation
+
+- Cut the milestone mapping table — the tracker owns ordering
+  ([#310](https://github.com/jacquardlabs/studious/pull/310),
+  [`7f9ba6b`](https://github.com/jacquardlabs/studious/commit/7f9ba6b1187ebb7be1a7c1fd217184e46545a05c))
+
+- Define bets in the README and split start-here from reference
+  ([#309](https://github.com/jacquardlabs/studious/pull/309),
+  [`a8c8af2`](https://github.com/jacquardlabs/studious/commit/a8c8af23357eef1b4eb66916b727ad1dffc33106))
+
+- Milestone numbering convention, and refresh stale known problems
+  ([#310](https://github.com/jacquardlabs/studious/pull/310),
+  [`7f9ba6b`](https://github.com/jacquardlabs/studious/commit/7f9ba6b1187ebb7be1a7c1fd217184e46545a05c))
+
+- Re-affirm design-record disposability against the SDLC playbook triad
+  ([#319](https://github.com/jacquardlabs/studious/pull/319),
+  [`eadf802`](https://github.com/jacquardlabs/studious/commit/eadf80217f8a034e91968f4049d80e4504d3747c))
+
+- Renumber milestones to delivery order and refresh stale known problems
+  ([#310](https://github.com/jacquardlabs/studious/pull/310),
+  [`7f9ba6b`](https://github.com/jacquardlabs/studious/commit/7f9ba6b1187ebb7be1a7c1fd217184e46545a05c))
+
+### Features
+
+- Async plan approval via a recorded viva stamp
+  ([#320](https://github.com/jacquardlabs/studious/pull/320),
+  [`3c83794`](https://github.com/jacquardlabs/studious/commit/3c8379497c5584f0a344eda803eddb2e3ad053f3))
+
+- Epic exit, merge authority, and async approval (#253, #312, #311)
+  ([#320](https://github.com/jacquardlabs/studious/pull/320),
+  [`3c83794`](https://github.com/jacquardlabs/studious/commit/3c8379497c5584f0a344eda803eddb2e3ad053f3))
+
+- Merge-authority matrix — auto-merge / human-approve / never-unattended
+  ([#320](https://github.com/jacquardlabs/studious/pull/320),
+  [`3c83794`](https://github.com/jacquardlabs/studious/commit/3c8379497c5584f0a344eda803eddb2e3ad053f3))
+
+- The epic finale opens its own PR ([#320](https://github.com/jacquardlabs/studious/pull/320),
+  [`3c83794`](https://github.com/jacquardlabs/studious/commit/3c8379497c5584f0a344eda803eddb2e3ad053f3))
+
+
 ## v3.2.0 (2026-08-04)
 
 ### Bug Fixes
