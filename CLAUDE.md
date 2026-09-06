@@ -120,7 +120,10 @@ do not share a runner or a conftest. Don't unify them opportunistically.
 
 ## Where a design record lives
 
-Ratified 2026-07-25 (#219, #216, #181). One rule, two classes:
+Ratified 2026-07-25 (#219, #216, #181). Re-affirmed 2026-09-05 (#313) against a
+committed-artifact alternative (Anthropic's AI-native SDLC playbook's `intent.md`/
+`spec.md`/`plan.md`); the ruling and its rationale are
+`docs/design-record-disposability.md`. One rule, two classes:
 
 - **Disposable** — a `/shape` doc (`docs/design/<slug>.md`), `PLAN.md`, and demonstration
   scratch. Gitignored, branch-local, removed by `/ship` at closeout. Never committed;
