@@ -133,9 +133,14 @@ captures the exorcise report under that task id (`exorcist:report`, pinned in
 loop above never reaches it. Non-zero exit: no pass landed (exorcist absent, its `verify`
 re-run failed, or the build predates the step) — no row, no remark. Found: the folder
 joins the freshness hold below like any other, and the table ends with one more
-`<details>` block quoting the report's `Concepts removed:` line, then its `## Held`
-section verbatim — the route `/build` Step 3 promises a `hold` finding, exactly as an
-Inspector `CONCERN` rides `inspector:report` (see Assembling the table).
+`<details>` block quoting the report's `Concepts removed:` line — the same line may also
+carry a `Concepts kept:` clause, naming new symbols that survived, and only
+then does the block quote that too — then its `## Held` section verbatim when the report
+carries one — the route `/build` Step 3 promises a `hold` finding, exactly as an
+Inspector `CONCERN` rides `inspector:report` (see Assembling the table). Exorcist omits
+`## Held` entirely when nothing was held, which is the common case: then the `<details>`
+block ends after that `Concepts` line, and that is
+not a gap to fill — there is nothing further to quote.
 
 **Freshness hold — run this before promoting anything.** Call
 `scripts/evidence-freshness --repo <worktree> --evidence <folder>`

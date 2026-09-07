@@ -42,7 +42,7 @@ excluded from its own Absorbed cell — including it would make `/doctor` flag e
 | `/ship` | Shipper | producer | `skills/ship/SKILL.md` | finish, handback |
 | `/next` | Navigator, Orchestrator | navigator | `commands/next.md` | work-on, work-through, coach |
 | `/health` | Health Officer | periodic | `commands/health.md` | deep-review, backlog-hygiene |
-| `/retro` | Health Officer | periodic | `commands/retro.md` | review-outcomes |
+| `/retro` | Retrospective Lead | periodic | `commands/retro.md` | review-outcomes |
 | `/setup` | — | infra | `commands/setup.md` | studious-init, extract-product-context, extract-design-system |
 | `/doctor` | — | infra | `commands/doctor.md` | studious-doctor |
 
@@ -95,11 +95,15 @@ episode to the door that convenes it, and nothing else.
 
 ## Specialists
 
-These are the agents shipping today, each keeping the lane and rubric it owns now. One
-specialist serves both cadences: a diff-scoped lane inside a `/review` episode, and a
-whole-project duty under `/health` — which dispatches gauntlet's posture judges for it
-(#334 S3); the local `review-*` files stay until #334 S4 retires them. The title is keyed
-to the agent filename here so a title/agent pair cannot drift.
+These are the agents shipping today, each keeping the lane and rubric it owns now, though
+the table names the local file, not what actually runs it. One specialist serves both
+cadences: a diff-scoped lane inside a `/review` episode, and a whole-project duty under
+`/health`. `/review` dispatches `gauntlet:<judge>` for every Episode lane column entry
+(`commands/review.md`), and `/health` dispatches gauntlet's posture judges for the
+Periodic duty column too (#334 S3) — except Outcome Analyst's `review-outcomes`, which
+`/retro outcomes` still dispatches locally, having no posture-judge twin. The other local
+files named in both columns stay until #334 S4 retires them. The title is keyed to the
+agent filename here so a title/agent pair cannot drift.
 
 | Specialist | Episode lane (diff-scoped) | Periodic duty |
 |---|---|---|

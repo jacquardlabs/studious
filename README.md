@@ -283,13 +283,14 @@ working documents for one branch, not project records.
 
 ## When something looks wrong
 
-Studious degrades quietly by design — a missing tool or an unregistered agent drops a lane
+Studious degrades quietly by design — a missing tool or an unregistered skill drops a door
 without erroring. `/studious:doctor` is the read-only pass that surfaces it, in five checks:
 
 1. **Tooling** — `git`, `jq`, `gh`, `python3`, `viva`, `gauntlet`. Missing `jq` is the quiet one:
    `gate-ledger record` no-ops, so no verdict and no flow position is ever written.
 2. **Plugin health** — whether every agent and skill Studious ships actually registered this
-   session. Malformed frontmatter drops a `/review` lane without an error.
+   session. Malformed frontmatter on `backlog-priorities` means `/bet` silently runs without
+   its ranking lane, without an error.
 3. **Context docs** — populated, missing, or still the shipped template.
 4. **Flow-state hygiene** — how many active work files have piled up in `.studious/`. Past
    ten, bare `/next` stops resuming one feature and starts asking you to pick from a list.
@@ -380,8 +381,8 @@ skips diffs over 40 changed files to bound the fan-out's cost.
 - [gauntlet](https://github.com/jacquardlabs/gauntlet) — a declared dependency, installed
   automatically. `/health` dispatches its seven posture judges and renders their findings
   through gauntlet's published findings contract — separate under the same criterion —
-  and `/review`'s changeset lanes follow under #334 S1. Studious ships the consumers and
-  verdict derivation, never the judges (#334).
+  and `/review`'s changeset lanes are `gauntlet:*` dispatches too. Studious ships the
+  consumers and verdict derivation, never the judges (#334).
 - [Superpowers](https://github.com/obra/superpowers) — an optional alternative to the
   built-in build loop. Any executor satisfying `reference/worker-contract.md` works.
 - GitHub Issues — `/bet` and `/health backlog` read your tracker via the `gh` CLI.
