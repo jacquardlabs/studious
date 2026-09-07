@@ -476,7 +476,7 @@ def test_resumed_process_with_a_narrowable_ledger_verdict_narrows() -> None:
     # fix-and-recheck fix, a narrowed verdict is trusted only when confirmed to
     # have been read from this story's own worktree.
     ledger_findings = json.dumps(
-        {"hasNarrowableVerdict": True, "sha": "deadbeef", "blockingLanes": ["security-auditor"], "resolvedBranch": "epic/epx--a"}
+        {"hasNarrowableVerdict": True, "sha": "deadbeef", "blockingLanes": ["security-auditor"], "criticalLanes": ["security-auditor"], "resolvedBranch": "epic/epx--a"}
     )
     rules = [
         {"match": rf"^audit:ledger-scope:{story}$", "result": {"findings": ledger_findings}},
@@ -495,6 +495,63 @@ def test_resumed_process_with_a_narrowable_ledger_verdict_narrows() -> None:
         if name == "security-auditor":
             continue
         assert f"audit:{name}:{story}" not in labels
+    assert out["result"]["landed"] == 1
+
+
+def _resumed_epic(story: str = "a") -> dict:
+    return {
+        "slug": "epx", "title": "T", "goal": "g", "concurrency": 1,
+        "stories": {story: {"title": "A", "criteria": "c", "gates": ["audit"], "retries": {"audit": 1}}},
+    }
+
+
+def test_resumed_narrowing_restricts_the_ledgers_lanes_to_those_with_a_recorded_critical() -> None:
+    """The ledger names two blocking lanes (the compiler's raw answer, recorded before
+    the in-run restriction ran); the epic findings ledger recorded a Critical for one.
+    The resumed round dispatches only that one — the other is carried forward, and an
+    unmocked dispatch of it would reject the whole run."""
+    ledger_findings = json.dumps({
+        "hasNarrowableVerdict": True, "sha": "deadbeef", "resolvedBranch": "epic/epx--a",
+        "blockingLanes": ["security-auditor", "code-auditor"], "criticalLanes": ["security-auditor"],
+    })
+    rules = [
+        {"match": r"^audit:ledger-scope:a$", "result": {"findings": ledger_findings}},
+        {"match": r"^audit:security-auditor:a$", "result": clean_document("security-auditor")},
+        {"match": r"^audit:fix-delta:a$", "result": {"findings": "clean"}},
+        {"match": r"^audit:compile:a$", "result": {"verdict": "PASS", "sha": "s2", "summary": "clean"}},
+        {"match": r"^merge:a$", "result": {"merged": True, "sha": "s3", "notes": "clean"}},
+        *_FINALE_CLEAN_RULES,
+    ]
+    out = _run_driver(_resumed_epic(), rules)
+    assert out["ok"], f"code-auditor was dispatched off the ledger's unrestricted list: {out.get('error')}"
+    labels = [c["label"] for c in out["calls"]]
+    assert labels.count("audit:security-auditor:a") == 1
+    assert "audit:code-auditor:a" not in labels
+    compile_prompt = next(c["prompt"] for c in out["calls"] if c["label"] == "audit:compile:a")
+    assert "gauntlet:code-auditor --- (carried forward: PASS, no Confirmed Critical as of deadbeef" in compile_prompt
+    assert out["result"]["landed"] == 1
+
+
+def test_resumed_narrowing_with_no_recorded_critical_runs_full() -> None:
+    """The ledger's list survives no restriction at all → no lane profile → the
+    resumed round is full and unnarrowed, no fix-delta pass."""
+    ledger_findings = json.dumps({
+        "hasNarrowableVerdict": True, "sha": "deadbeef", "resolvedBranch": "epic/epx--a",
+        "blockingLanes": ["security-auditor"], "criticalLanes": [],
+    })
+    rules = [
+        {"match": r"^audit:ledger-scope:a$", "result": {"findings": ledger_findings}},
+        *_full_roster_pass_rules("a"),
+        {"match": r"^audit:compile:a$", "result": {"verdict": "PASS", "sha": "s2", "summary": "clean"}},
+        {"match": r"^merge:a$", "result": {"merged": True, "sha": "s3", "notes": "clean"}},
+        *_FINALE_CLEAN_RULES,
+    ]
+    out = _run_driver(_resumed_epic(), rules)
+    assert out["ok"], out.get("error")
+    labels = [c["label"] for c in out["calls"]]
+    for name in AUDITOR_SHORT_NAMES:
+        assert labels.count(f"audit:{name}:a") == 1
+    assert "audit:fix-delta:a" not in labels
     assert out["result"]["landed"] == 1
 
 
