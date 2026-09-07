@@ -169,6 +169,13 @@ def hours(value: float) -> str:
 
 
 def collect(ledger: Ledger, root: Path, since: str) -> dict[str, Any]:
+    # Every gate-ledger verb below opens `if ! have jq; then return 0; fi` — a
+    # clean exit 0 with empty stdout, so `Ledger.errors` never records a missing
+    # jq as a failure. Without jq, every one of the flags below is unmeasured
+    # regardless of what its own before/after error count says; telemetry and
+    # the decisions journal are read as files, not ledger verbs, so jq's absence
+    # doesn't touch them.
+    jq_missing = shutil.which("jq") is None
     before = len(ledger.errors)
     work_rows = ledger.tsv("work-list")
     work_list_failed = len(ledger.errors) > before
@@ -249,16 +256,16 @@ def collect(ledger: Ledger, root: Path, since: str) -> dict[str, Any]:
         "decisions": decisions,
         "has_journal": decisions_file.is_file(),
         "ledger_errors": list(ledger.errors),
-        "work_list_failed": work_list_failed,
-        "epic_list_failed": epic_list_failed,
-        "work_get_failed": work_get_failed,
-        "epic_get_failed": epic_get_failed,
-        "jq_missing": shutil.which("jq") is None,
-        "findings_failed": findings_failed,
-        "gates_failed": gates_failed,
-        "episodes_failed": episodes_failed,
-        "episode_findings_failed": episode_findings_failed,
-        "evidence_failed": evidence_failed,
+        "work_list_failed": work_list_failed or jq_missing,
+        "epic_list_failed": epic_list_failed or jq_missing,
+        "work_get_failed": work_get_failed or jq_missing,
+        "epic_get_failed": epic_get_failed or jq_missing,
+        "jq_missing": jq_missing,
+        "findings_failed": findings_failed or jq_missing,
+        "gates_failed": gates_failed or jq_missing,
+        "episodes_failed": episodes_failed or jq_missing,
+        "episode_findings_failed": episode_findings_failed or jq_missing,
+        "evidence_failed": evidence_failed or jq_missing,
     }
 
 

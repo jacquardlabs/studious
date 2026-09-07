@@ -19,6 +19,7 @@ import unittest
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "retro-stats"
@@ -144,6 +145,35 @@ class TestFolds(unittest.TestCase):
         out = self.m.render(data, Path("/tmp/some-repo"), "")
         self.assertIn("jq not installed", out)
         self.assertNotIn("no cycle data", out)
+
+    def test_collect_flags_every_ledger_derived_count_when_jq_is_missing(self) -> None:
+        """acceptance finding, round 2: the jq check only fired render()'s
+        top-level all-empty short-circuit — a project with a committed
+        `docs/studious/decisions.jsonl` (any project that ever ran `/bet`) keeps
+        `data["decisions"]` non-empty regardless of jq, so that branch never ran
+        and every ledger-backed section rendered plain measured-zero text with
+        no jq mention at all. `collect()` must flag every ledger-derived count
+        unmeasured whenever jq is missing, not just gate one branch of render()."""
+        with tmp_repo() as repo:
+            studious_dir = repo / "docs" / "studious"
+            studious_dir.mkdir(parents=True)
+            (studious_dir / "decisions.jsonl").write_text(
+                '{"date": "2026-01-01", "gate": "should-we-build", "idea": "x", '
+                '"verdict": "BUILD", "rationale": "r"}\n',
+                encoding="utf-8",
+            )
+            with patch.object(self.m.shutil, "which", return_value=None):
+                data = self.m.collect(self.m.Ledger(GATE_LEDGER, repo), repo, "")
+            self.assertTrue(data["jq_missing"])
+            for flag in (
+                "work_list_failed", "epic_list_failed", "work_get_failed", "epic_get_failed",
+                "findings_failed", "gates_failed", "episodes_failed",
+                "episode_findings_failed", "evidence_failed",
+            ):
+                self.assertTrue(data[flag], f"{flag} was not flagged when jq is missing")
+            out = self.m.render(data, repo, "")
+            self.assertIn("unmeasured", out)
+            self.assertNotIn("0 work file(s), 0 epic(s)", out)
 
     def test_window_compares_the_date_prefix_without_parsing_the_z(self) -> None:
         self.assertTrue(self.m.in_window("2026-08-02T18:03:58Z", "2026-08-02"))
