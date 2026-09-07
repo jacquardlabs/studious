@@ -380,8 +380,8 @@ skips diffs over 40 changed files to bound the fan-out's cost.
 - [gauntlet](https://github.com/jacquardlabs/gauntlet) — a declared dependency, installed
   automatically. `/health` dispatches its seven posture judges and renders their findings
   through gauntlet's published findings contract — separate under the same criterion —
-  and `/review`'s changeset lanes follow under #334 S1. Studious ships the consumers and
-  verdict derivation, never the judges (#334).
+  and `/review`'s changeset lanes are `gauntlet:*` dispatches too. Studious ships the
+  consumers and verdict derivation, never the judges (#334).
 - [Superpowers](https://github.com/obra/superpowers) — an optional alternative to the
   built-in build loop. Any executor satisfying `reference/worker-contract.md` works.
 - GitHub Issues — `/bet` and `/health backlog` read your tracker via the `gh` CLI.

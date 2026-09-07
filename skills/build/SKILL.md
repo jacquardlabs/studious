@@ -652,7 +652,9 @@ with the build proceeding to its verdict.
    usage error step 2.5 names; route it the same way.
 5. **PASS on every task.** Commit the working tree as one commit,
    `exorcise: <concepts removed>`, the list taken from the report's
-   `Concepts removed:` line. You commit here on `verify`'s PASS — the same
+   `Concepts removed:` line (the report may also carry a `Concepts kept:`
+   line alongside it, naming new symbols that survived; the commit message
+   draws from `Concepts removed:` only). You commit here on `verify`'s PASS — the same
    mechanical ground `status-flip` writes on — and the message comes from
    the report, never from a diff; this is the one commit in this loop an
    executor didn't make, and it is a commit of what a script just passed.
@@ -671,7 +673,8 @@ with the build proceeding to its verdict.
    exorcise's own documented undo — and confirm `git status --porcelain` is
    empty: the tree is exactly the `BUILT` tree again. Record one **Track**
    note for the session report naming the failing task and item and the
-   report's `Concepts removed:` line, and proceed to the Session verdict. No
+   report's `Concepts removed:` and `Concepts kept:` lines, and proceed to
+   the Session verdict. No
    fix cycle, no re-dispatch, no Failure routine.
 7. **The subagent died or returned no report.** Treat as FAIL's cleanup
    without the verify run: `git checkout -- .`, confirm clean, one Track note

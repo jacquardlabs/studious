@@ -42,7 +42,7 @@ excluded from its own Absorbed cell — including it would make `/doctor` flag e
 | `/ship` | Shipper | producer | `skills/ship/SKILL.md` | finish, handback |
 | `/next` | Navigator, Orchestrator | navigator | `commands/next.md` | work-on, work-through, coach |
 | `/health` | Health Officer | periodic | `commands/health.md` | deep-review, backlog-hygiene |
-| `/retro` | Health Officer | periodic | `commands/retro.md` | review-outcomes |
+| `/retro` | Retrospective Lead | periodic | `commands/retro.md` | review-outcomes |
 | `/setup` | — | infra | `commands/setup.md` | studious-init, extract-product-context, extract-design-system |
 | `/doctor` | — | infra | `commands/doctor.md` | studious-doctor |
 

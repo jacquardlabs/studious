@@ -127,7 +127,7 @@ No metrics dashboard: trend belongs to the issue tracker, and a gauntlet finding
 
 If a séance register exists (`docs/exorcist/seance-*/register.json`; `register.md` is its rendering), link the newest under the action plan — it is a lead for the human, never a lane in this sweep.
 
-Save the master summary to `docs/studious/health-reviews/YYYY-MM-DD-deep-review-summary.md`.
+Save the master summary to `docs/studious/health-reviews/YYYY-MM-DD-health-summary.md`.
 
 ## Compile the findings
 
