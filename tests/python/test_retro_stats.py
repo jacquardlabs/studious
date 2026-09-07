@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.machinery
 import importlib.util
+import re
 import shutil
 import subprocess
 import sys
@@ -22,6 +23,18 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "retro-stats"
 GATE_LEDGER = REPO_ROOT / "bin" / "gate-ledger"
+
+
+def _function_body(source: str, name: str) -> str:
+    """The text of a `bin/gate-ledger` shell function, from its `name() {` line up
+    to (not including) the next top-level `cmd_*() {` declaration."""
+    lines = source.splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith(f"{name}() {{"))
+    end = next(
+        (i for i in range(start + 1, len(lines)) if re.match(r"^cmd_\w+\(\) \{", lines[i])),
+        len(lines),
+    )
+    return "\n".join(lines[start:end])
 
 
 def _module():
@@ -125,6 +138,24 @@ class TestFolds(unittest.TestCase):
         self.assertTrue(self.m.in_window("", ""))
 
 
+class TestTsvColumnSyncPin(unittest.TestCase):
+    """#351 Critical (`tsv-column-sync-unpinned`): `bin/gate-ledger`'s SYNC NOTE
+    comments beside `cmd_episode_get` (:1061) and `cmd_epic_findings` (:1975) were
+    advisory only — nothing pinned that the note stayed put, or that its column
+    order actually matched what `lanes_section` unpacks. A reorder of either
+    function's TSV columns would silently misattribute /retro's lanes table."""
+
+    def test_sync_note_present_in_episode_get_body(self) -> None:
+        body = _function_body(GATE_LEDGER.read_text(encoding="utf-8"), "cmd_episode_get")
+        self.assertIn("SYNC NOTE", body)
+        self.assertIn("scripts/retro-stats", body)
+
+    def test_sync_note_present_in_epic_findings_body(self) -> None:
+        body = _function_body(GATE_LEDGER.read_text(encoding="utf-8"), "cmd_epic_findings")
+        self.assertIn("SYNC NOTE", body)
+        self.assertIn("scripts/retro-stats", body)
+
+
 class TestCliEndToEnd(unittest.TestCase):
     def setUp(self) -> None:
         if not shutil.which("jq"):
@@ -201,6 +232,22 @@ class TestCliEndToEnd(unittest.TestCase):
             self.assertIn("| DEFER | 1 |", out)
             self.assertNotIn("no cycle data", out)
 
+    def test_seeded_finding_lands_in_the_correct_lane_severity_status_column(self) -> None:
+        """#351: direct end-to-end pin for the TSV column sync. `epic-finding`'s row
+        is `status\tseverity\tstory\tlane\tfingerprint\traisedSha\tresolvedSha`
+        (`bin/gate-ledger:2023`); `lanes_section` reads it back positionally. Seed
+        one finding with distinct, unambiguous values in each of those fields and
+        confirm they land in `lanes_section`'s Lane/Critical/Unresolved columns —
+        a silently reordered column would move a value into the wrong cell
+        instead of failing outright, so this checks the exact rendered row."""
+        with tmp_repo() as repo:
+            self._gl(repo, "epic-set", "--slug", "e2", "--title", "t", "--goal", "g", "--branch", "epic/e2", "--status", "running")
+            self._gl(repo, "epic-story-set", "--epic", "e2", "--slug", "s1", "--title", "s", "--status", "landed")
+            self._gl(repo, "epic-finding", "--epic", "e2", "--story", "s1", "--lane", "docs-auditor",
+                      "--severity", "Critical", "--fingerprint", "sync-pin-1", "--status", "open")
+            out = run_script(["--repo", str(repo)]).stdout
+            self.assertIn("| `docs-auditor` | 1 | 1 | 1 | 0 | 0 | 0 |", out)
+
     def test_blocking_lane_survives_only_while_the_retry_record_stands(self) -> None:
         """`gate-get` holds one record per gate; the PASS that followed replaced the
         retry record, so the seeded lane is not named blocking any more."""
@@ -254,6 +301,31 @@ class TestCliEndToEnd(unittest.TestCase):
         proc = run_script(["--since", "yesterday"])
         self.assertEqual(proc.returncode, 2)
 
+    def test_partial_failure_marks_only_the_failed_verbs_count_unmeasured(self) -> None:
+        """#351 (`partial-failure-renders-zeros`): when `work-list` fails but other
+        verbs succeed, the header used to print "0 work file(s)" indistinguishable
+        from a genuinely empty store, with the failure noted only in the error
+        section at the bottom. The header must mark that count unmeasured and
+        name the failure count up front."""
+        with tmp_repo() as repo:
+            self._seed(repo)
+            shim = repo / "shim-gate-ledger"
+            shim.write_text(
+                "#!/bin/sh\n"
+                'if [ "$1" = "work-list" ]; then echo boom >&2; exit 7; fi\n'
+                f'exec "{GATE_LEDGER}" "$@"\n',
+                encoding="utf-8",
+            )
+            shim.chmod(0o755)
+            proc = run_script(["--repo", str(repo), "--gate-ledger", str(shim)])
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            header = proc.stdout.splitlines()[0]
+            self.assertIn("unmeasured work file(s)", header)
+            self.assertIn("gate-ledger errored on 1 call(s)", header)
+            self.assertNotIn("0 work file(s)", proc.stdout)
+            # the epic count, unaffected, still measures normally
+            self.assertIn("1 epic(s)", header)
+
     def test_a_failed_gate_ledger_call_reads_differently_from_an_empty_store(self) -> None:
         """#351: `Ledger.out` returned `""` alike for a failed verb and a legitimately
         empty store, so the two were indistinguishable in the rendered report. Point
@@ -268,6 +340,20 @@ class TestCliEndToEnd(unittest.TestCase):
             self.assertNotEqual(proc.stdout.strip(), "no cycle data in this clone (whole store)")
             self.assertIn("errored", proc.stdout)
             self.assertNotIn("no cycle data", proc.stdout)
+
+    def test_ledger_error_carries_the_failed_calls_own_stderr(self) -> None:
+        """#351 (`ledger-error-discards-stderr`): `Ledger.out` used to discard
+        stderr on a failed call, so a recorded error read as bare
+        "work-list: exit 7" with no cause. The first stderr line must survive
+        into the recorded error string."""
+        with tmp_repo() as repo:
+            fake = repo / "fake-gate-ledger"
+            fake.write_text("#!/bin/sh\necho 'no such store: .studious missing' >&2\nexit 7\n", encoding="utf-8")
+            fake.chmod(0o755)
+            proc = run_script(["--repo", str(repo), "--gate-ledger", str(fake)])
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn("exit 7", proc.stdout)
+            self.assertIn("no such store: .studious missing", proc.stdout)
 
 
 

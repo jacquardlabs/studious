@@ -50,6 +50,20 @@ def test_empty_store_line_is_relayed_not_treated_as_an_error() -> None:
     assert "an empty ledger is an honest answer, never an error" in normalized
 
 
+def test_partial_ledger_failure_is_relayed_not_treated_as_no_data() -> None:
+    """#351 (`retro-door-missing-error-branch`): Section 2 documented only two
+    terminal shapes — normal tables, and `no cycle data in this clone` — with
+    no clause for `retro-stats`'s third shape: a header naming failed
+    `gate-ledger` calls and an unmeasured count, plus a trailing error section.
+    Without this clause the door has no instruction for that output at all."""
+    section = _door()[_door().index("### Section 2"):_door().index("### Section 3")]
+    assert "gate-ledger errored on N call(s)" in section
+    assert "## gate-ledger errors" in section
+    assert "unmeasured" in section
+    normalized = " ".join(section.split()).lower()
+    assert "not an empty store" in normalized
+
+
 def test_section_1_never_marks_an_item_from_memory() -> None:
     section = _door()[_door().index("### Section 1"):_door().index("### Section 2")]
     assert "Never mark an item from memory." in section
