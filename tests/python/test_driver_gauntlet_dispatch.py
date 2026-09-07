@@ -401,11 +401,11 @@ def test_inspection_posture_states_the_untrusted_content_instruction() -> None:
 def test_require_fields_throws_naming_the_missing_key() -> None:
     result = _run_node(
         f"{_symbols(('requireFields',))}\n"
-        "try { requireFields({a: 1}, ['a', 'b'], 'someFn') } "
+        "try { requireFields({root: '/wt'}, ['root', 'storyWorktreePath'], 'someFn') } "
         "catch (e) { console.log(JSON.stringify({message: e.message})) }"
     )
     assert "someFn" in result["message"]
-    assert "b" in result["message"]
+    assert "storyWorktreePath" in result["message"]
 
 
 def test_a_prose_reply_from_a_judge_is_a_died_lane() -> None:

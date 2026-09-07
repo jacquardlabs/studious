@@ -126,7 +126,7 @@ def _gauntlet_stop_line(path) -> str:
 
 def test_health_and_review_carry_the_same_gauntlet_not_installed_stop_line() -> None:
     """#353: both doors' 'Locate gauntlet' section must stop the same way when
-    gauntlet isn't installed — a future edit that drops or reword one door's line
+    gauntlet isn't installed — a future edit that drops or rewords one door's line
     without the other should fail this."""
     health_line = re.sub(r"\s+", " ", _gauntlet_stop_line(HEALTH))
     review_line = re.sub(r"\s+", " ", _gauntlet_stop_line(REVIEW))
