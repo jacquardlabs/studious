@@ -711,6 +711,14 @@ run against it, never a lighter or shortcut version. **Convening is not judging:
 may convene the work episode as a convenience, but the verdict is always `/review`'s.
 This door never writes one.**
 
+**Convening itself is unconditional** — never gated on `gate-ledger` being on `PATH` or
+on this session being able to record. That was a real regression once (#150: a hand-off
+skipped under a gate-ledger presence probe, wrong on both counts — `/review` ships in
+this same plugin, and a missing binary says nothing about whether the gate exists, only
+whether the ledger can record). The one legitimate reason this step doesn't run is the
+driver-dispatch skip above, which is a different axis entirely: not "can we record," but
+"who owns this gate for this dispatch."
+
 Follow `commands/review.md` inline, exactly as written, from "Locate gauntlet" through the
 work episode's "Compile" — don't restate its steps here and don't shortcut them, and don't
 add anything to a dispatch prompt beyond what those steps already gather. Lane 14

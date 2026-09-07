@@ -213,9 +213,13 @@ class TestDesignSkillBody(PhraseInBodyMixin, unittest.TestCase):
         # Was a `command -v gate-ledger` probe that skipped hand-off when the
         # binary was missing (studious #150) -- wrong on both counts: /review
         # ships in the same plugin, and the binary's absence says nothing
-        # about whether the gate exists, only whether it can record.
-        self.assertPhraseIn("tell the developer to run `/review`")
-        self.assertPhraseIn("Unconditionally")
+        # about whether the gate exists, only whether it can record. The
+        # hand-off itself is gone now (producers convene their judge,
+        # command-surface option B) -- /shape convenes the design episode
+        # itself, and that convening is unconditional on the same axis #150
+        # regressed on.
+        self.assertPhraseIn("Convening itself is unconditional")
+        self.assertPhraseIn("#150")
         self.assertNotIn("command -v gate-ledger", self.body)
 
     # -- Verdicts --------------------------------------------------------------
