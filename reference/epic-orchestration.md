@@ -1039,7 +1039,7 @@ End with exactly this shape and nothing after it:
 Epic: <slug> — <landed>/<total> landed, <parked> parked, <held> held, <blocked> blocked on them.
 Budget: <no runtime ceiling — the approved appetite was not enforced this run | enforced, <remaining> tokens left of <approvedTokens> | enforced, <remaining> tokens left — this epic has no recorded appetite to compare it against>
 Canary: <story> — <landed | parked>; <released the rest | the rest stayed held>
-Degraded narrowings: <degradedNarrowings> — this many ledger-scope-check rounds this run couldn't be trusted (a resolved-branch mismatch, an unconfirmed narrowing, or the check itself unavailable) and paid a full unnarrowed round instead. Which story and which of the three, story by story, is in the run's log lines, not this count.
+Degraded narrowings: <degradedNarrowings> — this many ledger-scope-check rounds this run couldn't be trusted (a resolved-branch mismatch, an unconfirmed narrowing, a narrowable verdict whose epic-findings read could not say which lanes carry a recorded Critical, or the check itself unavailable) and paid a full unnarrowed round instead. Which story and which of the four, story by story, is in the run's log lines, not this count.
 Anomalies (facts, not verdicts — nothing here is waiting on a decision, but read it):
   - <kind> at <where>: <the driver's own detail, verbatim>
 Held (nothing to decide — a ceiling stopped dispatch, not a verdict):
@@ -1165,7 +1165,14 @@ pre-check `auditRound` runs before a resumed audit to decide whether it can narr
 When that check itself throws (its worktree doesn't resolve as a worktree at all), the
 story parks under that name rather than `audit`'s, since the audit dispatch this check
 gates never ran. Read it as "stuck before the audit gate could even start," not as a
-fourth thing to re-run by hand.
+fourth thing to re-run by hand. It can also read `invocations`: the one cheap dispatch
+every judge round opens with, which runs gauntlet's `dispatch.py` (located through the
+`gauntlet:where` skill, exactly as `commands/review.md`'s "Locate gauntlet" step does)
+and hands the driver the round's invocations verbatim. A judge's input is its
+invocation, so nothing degrades when none came back — the story parks with the
+builder's own line: the `/plugin update gauntlet@jacquardlabs-marketplace` line when
+the installed gauntlet predates the skill, else `dispatch.py`'s stderr. The remedy is
+that line, not a worktree recreate.
 
 A story parked at plan time as `story-supervised` is the one entry with no gate and no
 verdict at all — its recorded reason starts `story-supervised:`, and it takes the

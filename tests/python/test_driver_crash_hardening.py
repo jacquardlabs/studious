@@ -56,6 +56,16 @@ def clean_document(judge: str, findings: list[dict] | None = None, coverage: str
     }
 
 
+def invocation(judge: str, **extra) -> dict:
+    """One contract-v1 invocation as gauntlet's dispatch.py emits it — what the
+    builder dispatch returns verbatim and a judge is handed unchanged."""
+    return {
+        "contract_version": 1, "judge": judge, "mount": "acceptance",
+        "artifact": {"kind": "changeset", "base": "b0", "head": "h0", "root": "/r"},
+        "standard": {"name": judge}, **extra,
+    }
+
+
 def finding(tier: str, summary: str = "a finding", **extra) -> dict:
     """One contract-v1 finding row; `extra` overrides (an `anchor`, a `basis`)."""
     return {"dimension": "check", "tier": tier, "summary": summary,
@@ -88,7 +98,7 @@ def _extract_symbol(source: str, name: str) -> str:
     """A top-level function, or a top-level `const NAME = ...` statement — one line, a
     template literal, or a brace/bracket-balanced object or array literal — verbatim,
     for the driver's module constants a builder reads (`INJECTION_DEFENSE`, `TIERS`,
-    `STANDARD_OF`, ...)."""
+    `INVOCATIONS`, ...)."""
     if f"function {name}(" in source:
         return _extract_function(source, name)
     start = source.index(f"const {name} = ")
@@ -278,6 +288,16 @@ AUDITOR_SHORT_NAMES = [
     "prompt-auditor", "ux-reviewer", "frontend-reviewer",
 ]
 
+# Every audit and acceptance round (story and finale) opens with one builder dispatch
+# that runs gauntlet's dispatch.py and returns the roster's invocations verbatim.
+# Appended after a test's own rules (first match wins), so a test can still override
+# it to drop a lane or return the builder's error.
+INVOCATIONS_LABELS = r"^(invocations:|acceptance:invocations:|finale:invocations$|finale:premortem-invocations$)"
+DEFAULT_INVOCATIONS_RULE = {
+    "match": INVOCATIONS_LABELS,
+    "result": {"invocations": [invocation(j) for j in (*AUDITOR_SHORT_NAMES, "product-reviewer", "premortem-auditor")]},
+}
+
 
 def _run_driver(
     epic: dict,
@@ -292,7 +312,9 @@ def _run_driver(
     `agent_rules` is an ordered list of ``{"match": <regex on the dispatch
     label>, "throw": <str>}`` or ``{"match": ..., "result": <json-able>}``;
     first match wins. An unmatched label rejects loudly in the mock, so a
-    test can't silently pass by leaving a dispatch unmocked.
+    test can't silently pass by leaving a dispatch unmocked. The one default,
+    `DEFAULT_INVOCATIONS_RULE`, is appended last: every judge round opens with
+    a builder dispatch, and a test that isn't about it need not mock it.
 
     The returned dict also carries ``calls``: every ``{label, prompt}`` the
     mock `agent()` was invoked with, in order. `test_delta_scoped_reaudit.py`
@@ -329,7 +351,7 @@ async function __driver(args, agent, parallel, log, phase) {{
 {stripped}
 }}
 
-const RULES = {json.dumps(agent_rules)}
+const RULES = {json.dumps([*agent_rules, DEFAULT_INVOCATIONS_RULE])}
 const CALLS = []
 function agent(prompt, opts) {{
   const label = (opts && opts.label) || ''

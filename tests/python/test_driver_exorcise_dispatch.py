@@ -85,6 +85,19 @@ def test_prompt_names_the_base_branch_and_no_producer_artifact() -> None:
     )
 
 
+def test_prompt_has_a_nothing_to_cast_out_branch_that_never_commits_empty() -> None:
+    """A pass that reverts nothing leaves the tree as the worker committed it; an
+    `exorcise:` commit over an empty diff would be a lie about the branch. The
+    re-check still runs, the return names that every hunk traced, and no commit."""
+    source = DRIVER.read_text()
+    fn = _extract_function(source, "exorcisePrompt")
+    assert "nothing to cast out — every hunk traced to the intent" in fn
+    assert "never make an empty exorcise: commit" in fn
+    assert "including when the pass changed nothing" in fn, "the re-check runs on the empty-diff branch too"
+    # The empty-diff branch is read off git status, and decided before the commit step.
+    assert fn.index("git status --porcelain in the worktree. Empty output") < fn.index('subject "exorcise:')
+
+
 # ---------- end to end ----------
 
 
