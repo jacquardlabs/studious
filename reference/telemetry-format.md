@@ -159,11 +159,9 @@ The hook derives `skill` from the role by pattern — `*-posture-*` is `/health`
 `deep-review`, `*-auditor`/`*-reviewer` is `/review`'s — plus carve-outs the patterns
 can't carry: `product-reviewer` and `premortem-auditor` belong to `/review --delivery`;
 `review-outcomes` matches `review-*` but is dispatched by `/retro`, so it's mapped before
-the pattern is consulted; `code-auditor` served both `/review`'s lane 2 and the old
-idiom-feedback step, genuinely ambiguous, so its lines carry `skill: ""` and a joiner
-resolves them from the run's other lines. Every carve-out is tested before the patterns,
-since all four names match one. Both fleets map alike: gauntlet's acceptance lanes carry
-the same names as the local ones.
+the pattern is consulted. Every carve-out is tested before the patterns, since all three
+names match one. Both fleets map alike: gauntlet's acceptance lanes carry the same names
+as the local ones.
 
 The allow-list is `agents/<role>.md` existing for a local role, and the `gauntlet:` prefix
 itself for one of gauntlet's judges — its roster is gauntlet's charter, not a file here,

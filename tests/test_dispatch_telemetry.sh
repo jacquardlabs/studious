@@ -94,7 +94,7 @@ run_hook "$d" "$(payload gauntlet:falsifiability-auditor x)" >/dev/null
 check "gauntlet posture reviewer maps to the /health key, not gate-acceptance" "health" "$(jq -r 'select(.role=="product-posture-reviewer").skill' "$f")"
 check "gauntlet product-reviewer maps to gate-acceptance like the local lane" "gate-acceptance" "$(jq -r 'select(.role=="product-reviewer").skill' "$f")"
 check "gauntlet premortem-auditor maps to gate-acceptance like the local lane" "gate-acceptance" "$(jq -r 'select(.role=="premortem-auditor").skill' "$f")"
-check "gauntlet code-auditor is ambiguous like the local lane" "" "$(jq -r 'select(.role=="code-auditor").skill' "$f")"
+check "gauntlet code-auditor maps to gate-audit, its only dispatcher since /review took the lane" "gate-audit" "$(jq -r 'select(.role=="code-auditor").skill' "$f")"
 check "a gauntlet judge with no local counterpart still records" "gate-audit" "$(jq -r 'select(.role=="falsifiability-auditor").skill' "$f")"
 check "every gauntlet line names its fleet" "5" "$(jq -r 'select(.fleet=="gauntlet") | .role' "$f" | wc -l | tr -d ' ')"
 # the ledger refuses a qualified string as a role: the prefix belongs in --fleet
@@ -113,7 +113,7 @@ run_hook "$d" "$(payload review-outcomes x)" >/dev/null
 check "auditor maps to gate-audit" "gate-audit" "$(jq -r 'select(.role=="security-auditor").skill' "$f")"
 check "review-* maps to deep-review" "deep-review" "$(jq -r 'select(.role=="review-readme").skill' "$f")"
 check "product-reviewer maps to gate-acceptance" "gate-acceptance" "$(jq -r 'select(.role=="product-reviewer").skill' "$f")"
-check "dual-surface code-auditor leaves skill empty" "" "$(jq -r 'select(.role=="code-auditor").skill' "$f")"
+check "code-auditor maps to gate-audit like every other auditor (the idiom step reads a posture judge now)" "gate-audit" "$(jq -r 'select(.role=="code-auditor").skill' "$f")"
 check "review-outcomes maps to its own command, not deep-review" "review-outcomes" "$(jq -r 'select(.role=="review-outcomes").skill' "$f")"
 
 # --- a gauntlet posture judge (#334 S3): the prefix is the allow-list, no agent file to pin from ---
