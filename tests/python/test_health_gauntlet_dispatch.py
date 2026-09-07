@@ -13,8 +13,10 @@ from __future__ import annotations
 import re
 
 from run_gate_audit_fixtures import REPO_ROOT
+from test_driver_gauntlet_dispatch import GAUNTLET_MISSING_LINE
 
 DOOR = REPO_ROOT / "commands" / "health.md"
+REVIEW = REPO_ROOT / "commands" / "review.md"
 
 POSTURE_JUDGES = (
     "codebase-posture-auditor", "interface-posture-reviewer", "architecture-posture-auditor",
@@ -75,6 +77,37 @@ def test_dispatch_hands_each_invocation_over_verbatim_and_filters_by_judge() -> 
     assert "one JSON object and nothing else" in dispatch
     assert "`$scratch/findings/<judge>.json`" in dispatch
     assert "never repair or re-ask" in dispatch
+
+
+def _normalized(path) -> str:
+    """Tolerant of the line wrap and backtick differences between the two doors'
+    prose — a whitespace-normalized substring match, not a byte-identical one."""
+    return re.sub(r"\s+", " ", path.read_text()).replace("`", "")
+
+
+def test_health_and_review_carry_the_same_gauntlet_not_installed_stop_line() -> None:
+    """#353: both doors' 'Locate gauntlet' section must stop the same way when
+    gauntlet isn't installed — a future edit that drops or rewords one door's line
+    without the other should fail this. Reuses `GAUNTLET_MISSING_LINE`
+    (test_driver_gauntlet_dispatch.py) rather than re-encoding the sentence, so the
+    string exists in only one place."""
+    for path in (DOOR, REVIEW):
+        assert GAUNTLET_MISSING_LINE in _normalized(path), (
+            f"{path.name} carries no gauntlet-not-installed stop line matching the pinned sentence"
+        )
+
+
+def test_health_context_files_paragraph_names_existence_subset_and_worktree_scoping() -> None:
+    """health.md's `<context files>` paragraph must say WHICH directory to check
+    existence against, so a future edit can't silently regress to checking the
+    ambient checkout instead of the detached worktree being judged (#353 item 3)."""
+    text = _door()
+    paragraph = text[text.index("`<context files>` is the comma-separated subset"):]
+    paragraph = paragraph[:paragraph.index("\n\n")]
+    assert "that exists" in paragraph
+    assert "$scratch/tree" in paragraph
+    assert "the detached worktree being judged" in paragraph
+    assert "never the ambient checkout" in paragraph
 
 
 def test_compile_runs_report_py_per_lane_and_restates_no_ingest_rule() -> None:

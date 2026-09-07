@@ -33,11 +33,17 @@ Do:         Investigate each item against the current repo state yourself before
                doc paths unconditionally; every one of its four call sites feeds it into
                `buildInvocations` -> `invocationsPrompt`, which does filter for existence
                inside the dispatched prompt's own instructions ("Keep only the context docs
-               that exist") — but `contextDocs()` itself doesn't, so any future caller that
-               doesn't route through that filtering prompt gets nonexistent paths. Make
-               `contextDocs()` itself filter to existing files (Node's `fs.existsSync`),
-               removing the redundant filter instruction from `invocationsPrompt`'s prompt
-               text once the function does it directly — don't leave both.
+               that exist"). `contextDocs()` itself cannot do this filtering directly: a
+               Workflow script has no filesystem/exec access (documented at
+               epic-driver.js:100, 546, 1588, 1616 — Node's `fs.existsSync` isn't
+               available to it), so the only place the filter can run is inside the
+               dispatched prompt, executed by an agent with a real shell. Instead, add a
+               test (`test_context_docs_call_sites_all_feed_build_invocations` in
+               tests/python/test_driver_gauntlet_dispatch.py) pinning that every
+               `contextDocs()` call site routes through `buildInvocations` — the function
+               that carries `invocationsPrompt`'s real, prompt-level filter — so a future
+               caller can't bypass it and reach a judge with unfiltered, possibly
+               nonexistent paths.
             5. `inspectionPosture()` (workflows/epic-driver.js:338) and `requireFields()`'s
                missing-field throw path (workflows/epic-driver.js:369) have no direct test.
                Add unit tests in tests/python/test_driver_gauntlet_dispatch.py (or a new
@@ -63,10 +69,16 @@ Not here:   Do not touch the gauntlet-absent stop line's actual wording if it al
             stories' own files.
 
 Done means:
-1. [cap]  Both commands/health.md and commands/review.md's gauntlet-absent stop lines are pinned by a test that fails if either is removed   (tier: test-backed `tests/python/test_severity_mapping.py`)
+1. [cap]  Both commands/health.md and commands/review.md's gauntlet-absent stop lines are pinned by a test that fails if either is removed   (tier: test-backed `tests/python/test_health_gauntlet_dispatch.py`)
 2. [cap]  commands/health.md carries an untrusted-content line for its context-doc reads, and both health.md and review.md's context-file existence check names the worktree root, not the ambient checkout   (tier: probe)
-3. [cap]  epic-driver.js's contextDocs() filters to existing files itself, with the now-redundant filter instruction removed from invocationsPrompt's prompt text   (tier: test-backed `tests/python/test_driver_gauntlet_dispatch.py`)
+3. [cap]  epic-driver.js's contextDocs() cannot filter to existing files itself (no fs access in a Workflow script); every contextDocs() call site is pinned to route through buildInvocations, the function that carries invocationsPrompt's real, prompt-level filter — and that filter instruction's own presence in invocationsPrompt's rendered output is pinned too   (tier: test-backed `tests/python/test_driver_gauntlet_dispatch.py`)
 4. [cap]  inspectionPosture() and requireFields()'s missing-field throw path each have a direct unit test   (tier: test-backed `tests/python/test_driver_gauntlet_dispatch.py`)
 5. [hold] The four ux-reviewer regression pins from #91 are restored in tests/python/test_severity_mapping.py, passing against current file content   (tier: test-backed `tests/python/test_severity_mapping.py`)
 
-Evidence: test output for items 1, 4, 5, 6; grep/read confirmation for items 2 and 3.
+Evidence: `uv run --no-project --with pytest pytest tests/python/test_health_gauntlet_dispatch.py
+          tests/python/test_severity_mapping.py tests/python/test_driver_gauntlet_dispatch.py -q`
+          passes for items 1, 3, 4, 5; grep/read confirmation for item 2. The full
+          `tests/python` suite passes too, except the two pre-existing
+          `test_no_ignored_paths_tracked.py` disposability failures — unrelated to this
+          story, and expected on any dogfooded branch: PLAN.md itself is gitignored yet
+          tracked during an active build, drained at `/ship` closeout.

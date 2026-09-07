@@ -18,8 +18,6 @@ from run_gate_audit_fixtures import REPO_ROOT
 RUBRIC = REPO_ROOT / "reference" / "severity-rubric.md"
 UX_REVIEWER = REPO_ROOT / "agents" / "ux-reviewer.md"
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
-HEALTH = REPO_ROOT / "commands" / "health.md"
-REVIEW = REPO_ROOT / "commands" / "review.md"
 A11Y_ROW_RE = re.compile(r"^\|\s*web-design-guidelines \(a11y\)\s*\|.*$", re.MULTILINE)
 LOCAL_ROSTER_HEADING = "## Local roster"
 # The two acceptance-path lanes epicLedgerInstruction is rendered for beside AUDITORS
@@ -112,29 +110,6 @@ def test_local_roster_tables_cover_exactly_the_epic_drivers_dispatches() -> None
         assert len(first_cells) == len(named), "a lane has two rows in one table"
 
 
-# Tolerant of the line wrap and backtick differences between the two doors' prose —
-# a whitespace-normalized substring match, not a byte-identical one.
-_GAUNTLET_NOT_INSTALLED_RE = re.compile(
-    r"gauntlet\s+is\s+not\s+installed:\s+stop\s+with\s+one\s+line\s+—\s+\"gauntlet\s+is\s+not\s+installed\s+—\s+`?/plugin\s+install\s+gauntlet@jacquardlabs-marketplace`?,\s+then\s+re-run\"\s+—\s+never\s+a\s+guess\."
-)
-
-
-def _gauntlet_stop_line(path) -> str:
-    text = re.sub(r"\s+", " ", path.read_text())
-    match = _GAUNTLET_NOT_INSTALLED_RE.search(text)
-    assert match, f"{path.name} carries no gauntlet-not-installed stop line matching the pinned pattern"
-    return match.group(0)
-
-
-def test_health_and_review_carry_the_same_gauntlet_not_installed_stop_line() -> None:
-    """#353: both doors' 'Locate gauntlet' section must stop the same way when
-    gauntlet isn't installed — a future edit that drops or rewords one door's line
-    without the other should fail this."""
-    health_line = re.sub(r"\s+", " ", _gauntlet_stop_line(HEALTH))
-    review_line = re.sub(r"\s+", " ", _gauntlet_stop_line(REVIEW))
-    assert health_line == review_line
-
-
 # ---------- #91 regression pins, restored (deleted without disclosure at #349/af358ba) ----------
 #
 # ux-reviewer's local-roster row and agents/ux-reviewer.md's own output block must keep
@@ -144,10 +119,15 @@ def test_health_and_review_carry_the_same_gauntlet_not_installed_stop_line() -> 
 # must still match the row that documents them.
 
 
-def _rubric_ux_reviewer_row() -> str:
-    match = re.search(r"^\|\s*ux-reviewer\s*\|.*$", _local_roster(), re.MULTILINE)
-    assert match, "severity-rubric.md's local roster has no ux-reviewer row"
-    return match.group(0)
+def _rubric_ux_reviewer_row() -> list[str]:
+    """The `ux-reviewer` row's cells from the local roster's Label → tier table
+    (`Auditor | Critical | Important | Track`), via the shared `_rows()` parser —
+    never a hand-split of the raw row string."""
+    label_to_tier_table = _local_roster().split("### ")[1]
+    for row in _rows(label_to_tier_table):
+        if row[0] == "ux-reviewer":
+            return row
+    raise AssertionError("severity-rubric.md's local roster has no ux-reviewer row")
 
 
 def _ux_reviewer_output_lines() -> str:
@@ -162,23 +142,21 @@ def _ux_reviewer_output_lines() -> str:
 
 
 def test_rubric_ux_reviewer_row_maps_improvement_to_track() -> None:
-    row = _rubric_ux_reviewer_row()
-    cells = [cell.strip() for cell in row.strip("|").split("|")]
+    cells = _rubric_ux_reviewer_row()
     # Auditor | Critical | Important | Track
     assert cells[0] == "ux-reviewer"
     assert "IMPROVEMENT" not in cells[2], (
-        f"severity-rubric.md still maps IMPROVEMENT into the Important cell: {row!r}"
+        f"severity-rubric.md still maps IMPROVEMENT into the Important cell: {cells!r}"
     )
     assert "IMPROVEMENT" in cells[3], (
-        f"severity-rubric.md does not map IMPROVEMENT into the Track cell: {row!r}"
+        f"severity-rubric.md does not map IMPROVEMENT into the Track cell: {cells!r}"
     )
 
 
 def test_rubric_ux_reviewer_row_keeps_inconsistency_important() -> None:
-    row = _rubric_ux_reviewer_row()
-    cells = [cell.strip() for cell in row.strip("|").split("|")]
+    cells = _rubric_ux_reviewer_row()
     assert "INCONSISTENCY" in cells[2], (
-        f"severity-rubric.md no longer maps INCONSISTENCY to Important: {row!r}"
+        f"severity-rubric.md no longer maps INCONSISTENCY to Important: {cells!r}"
     )
 
 
@@ -202,8 +180,8 @@ def test_ux_reviewer_agent_keeps_inconsistency_important() -> None:
 
 def test_rubric_and_agent_agree_on_improvement_tier() -> None:
     """The two load-bearing sites must never disagree at runtime."""
-    row = _rubric_ux_reviewer_row()
-    rubric_tier = "Track" if "IMPROVEMENT" in row.split("|")[4] else "Important"
+    cells = _rubric_ux_reviewer_row()
+    rubric_tier = "Track" if "IMPROVEMENT" in cells[3] else "Important"
 
     block = _ux_reviewer_output_lines()
     match = re.search(r"^- \*\*IMPROVEMENT → (\w+)\*\*", block, re.MULTILINE)
