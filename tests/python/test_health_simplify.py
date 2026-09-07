@@ -15,7 +15,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HEALTH = (REPO_ROOT / "commands" / "health.md").read_text(encoding="utf-8")
 SIMPLIFY_ROW = next((line for line in HEALTH.splitlines() if line.startswith("| `simplify`")), "")
-MODE_PARAGRAPH = HEALTH[HEALTH.index("**`simplify` is the other mode") : HEALTH.index("## Resolve the artifact")]
+MODE_PARAGRAPH = HEALTH[HEALTH.index("**`simplify` is the other mode") : HEALTH.index("## Locate gauntlet")]
 
 
 def test_area_table_has_a_simplify_row_that_invokes_the_seance_skill() -> None:
@@ -58,6 +58,6 @@ def test_simplify_hands_exorcise_the_json_never_the_rendering() -> None:
 
 
 def test_full_sweep_links_the_latest_register_without_dispatching_it() -> None:
-    compile_section = HEALTH[HEALTH.index("### Phase 2") : HEALTH.index("## Rendering")]
+    compile_section = HEALTH[HEALTH.index("### Phase 2") : HEALTH.index("## Compile the findings")]
     assert "docs/exorcist/seance-*/register.json" in compile_section
     assert "never a lane in this sweep" in compile_section

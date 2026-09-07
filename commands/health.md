@@ -1,7 +1,7 @@
 ---
 description: The periodic inspection — whole-project posture reviews and backlog hygiene. With no argument, dispatches gauntlet's seven posture judges and compiles a master summary; with an area, runs just that one. Codebase, interface, architecture, product, security, README, prompts, plus `backlog` and `simplify` modes. Recommend-only — writes reports, never code, issues, or verdicts.
 argument-hint: "[codebase | interface | architecture | product | security | readme | prompts | backlog | simplify] (omit for the full sweep)"
-allowed-tools: Read, Glob, Grep, Bash, Task, Write, Edit
+allowed-tools: Read, Glob, Grep, Bash, Task, Write, Edit, Skill
 ---
 
 # The inspection
@@ -16,19 +16,17 @@ Read CLAUDE.md, PRODUCT.md, and DESIGN.md first.
 
 `$ARGUMENTS` — optional. Empty means the full sweep. Otherwise match it to one area:
 
-| Keyword | Judge (`subagent_type`) | Standard | What it reviews | Report path |
-|---------|-------------------------|----------|-----------------|-------------|
-| `codebase` (or `health`) | `gauntlet:codebase-posture-auditor` | `idioms` | Structural drift, debt inventory, dead code, dependency health, test health, interface consistency — aggregates and direction | `docs/studious/health-reviews/YYYY-MM-DD-health-review.md` |
-| `interface` (or `frontend`) | `gauntlet:interface-posture-reviewer` | (inline) | Cross-surface consistency, design-system adherence per surface, accessibility (web), interface code quality | `docs/studious/interface-reviews/YYYY-MM-DD-interface-review.md` |
-| `architecture` (or `arch`) | `gauntlet:architecture-posture-auditor` | (inline) | Dependency map, boundaries, complexity, evolution readiness, data layer | `docs/studious/architecture-reviews/YYYY-MM-DD-architecture-review.md` |
-| `product` | `gauntlet:product-posture-reviewer` | (inline) | PRODUCT.md accuracy, product coherence, onboarding path | `docs/studious/product-reviews/YYYY-MM-DD-product-review.md` |
-| `security` | `gauntlet:security-posture-auditor` | `security-checklist` | Whole-repo vulnerability posture, secrets in history, security-config posture | `docs/studious/security-reviews/YYYY-MM-DD-security-review.md` |
-| `readme` | `gauntlet:docs-posture-auditor` | (inline) | Wider than README drift: every user-facing doc — stale claims, missing capabilities, commands and paths that don't resolve, voice drift. The judge returns findings, never a diff; this door drafts the diff (Context doc updates below) | `docs/studious/readme-reviews/YYYY-MM-DD-readme-review.md` |
-| `prompts` | `gauntlet:prompt-posture-auditor` | `prompt-checklist` | Trigger coverage, instruction consistency, orchestrator-subagent contract alignment, duplication, injection posture, token economy | `docs/studious/prompt-reviews/YYYY-MM-DD-prompt-review.md` |
-| `backlog` (or `hygiene`) | `backlog-hygiene` (local) | — | Open issues that should be closed — resolved by commits, made obsolete, or duplicated | none — reported in-session |
-| `simplify` (or `seance`) | `/exorcist:seance` (skill, not a dispatch) | — | Standing simplification targets — pattern contention, dead code, duplicated helpers, wrapper strata — as a ranked register. Working it is the human's act: `/bet` the register or `/exorcist:exorcise <dir>/register.json`; this door never applies one | `docs/exorcist/seance-YYYY-MM-DD/register.json` (exorcist writes it; `register.md` is its rendering) |
-
-The `Standard` column mirrors each judge's row in gauntlet's charter, because this door cannot read that charter at run time (`${CLAUDE_PLUGIN_ROOT}` resolves only this plugin, and the plugin cache is never globbed). A named standard is a lookup rubric; `(inline)` means the judge's own prompt is the rubric and `standard.name` is the judge's name, version omitted.
+| Keyword | Judge (`subagent_type`) | What it reviews | Report path |
+|---------|-------------------------|-----------------|-------------|
+| `codebase` (or `health`) | `gauntlet:codebase-posture-auditor` | Structural drift, debt inventory, dead code, dependency health, test health, interface consistency — aggregates and direction | `docs/studious/health-reviews/YYYY-MM-DD-health-review.md` |
+| `interface` (or `frontend`) | `gauntlet:interface-posture-reviewer` | Cross-surface consistency, design-system adherence per surface, accessibility (web), interface code quality | `docs/studious/interface-reviews/YYYY-MM-DD-interface-review.md` |
+| `architecture` (or `arch`) | `gauntlet:architecture-posture-auditor` | Dependency map, boundaries, complexity, evolution readiness, data layer | `docs/studious/architecture-reviews/YYYY-MM-DD-architecture-review.md` |
+| `product` | `gauntlet:product-posture-reviewer` | PRODUCT.md accuracy, product coherence, onboarding path | `docs/studious/product-reviews/YYYY-MM-DD-product-review.md` |
+| `security` | `gauntlet:security-posture-auditor` | Whole-repo vulnerability posture, secrets in history, security-config posture | `docs/studious/security-reviews/YYYY-MM-DD-security-review.md` |
+| `readme` | `gauntlet:docs-posture-auditor` | Wider than README drift: every user-facing doc — stale claims, missing capabilities, commands and paths that don't resolve, voice drift. The judge returns findings, never a diff; this door drafts the diff (Context doc updates below) | `docs/studious/readme-reviews/YYYY-MM-DD-readme-review.md` |
+| `prompts` | `gauntlet:prompt-posture-auditor` | Trigger coverage, instruction consistency, orchestrator-subagent contract alignment, duplication, injection posture, token economy | `docs/studious/prompt-reviews/YYYY-MM-DD-prompt-review.md` |
+| `backlog` (or `hygiene`) | `backlog-hygiene` (local) | Open issues that should be closed — resolved by commits, made obsolete, or duplicated | none — reported in-session |
+| `simplify` (or `seance`) | `/exorcist:seance` (skill, not a dispatch) | Standing simplification targets — pattern contention, dead code, duplicated helpers, wrapper strata — as a ranked register. Working it is the human's act: `/bet` the register or `/exorcist:exorcise <dir>/register.json`; this door never applies one | `docs/exorcist/seance-YYYY-MM-DD/register.json` (exorcist writes it; `register.md` is its rendering) |
 
 **`backlog` is a mode, not a lane: it is never part of the full sweep.** The seven lanes read the codebase and compile together; `backlog` reads the issue tracker. It requires GitHub Issues via the `gh` CLI — PRODUCT.md may link a different tracker (Linear, Jira); this mode only reads GitHub Issues, and doesn't apply if the project tracks work elsewhere. Spawn `@agent-backlog-hygiene` to fetch the open issues, cross-reference each against git history, PRODUCT.md, and the most recent review reports, and compile the report. Output format and evidence rules are the agent's — see `agents/backlog-hygiene.md`'s `## Output` section. It never closes, comments on, or modifies any issue. Skip the rest of this file.
 
@@ -45,38 +43,40 @@ If `$ARGUMENTS` is non-empty but matches no keyword, list the valid keywords and
      muscle memory and docs still resolve. New reports write to `docs/studious/interface-reviews/`;
      `docs/studious/frontend-reviews/` is the legacy location from before the rename. -->
 
+## Locate gauntlet (before any dispatch)
+
+Every posture lane is a `gauntlet:<judge>` dispatch — gauntlet is the fleet, this door is a consumer. Two scripts in gauntlet's plugin root drive it: `scripts/dispatch.py` builds one validated contract-v1 invocation per judge (gauntlet's `docs/findings-contract.md` §3) and resolves each judge's standard from gauntlet's own charter, and `scripts/report.py` compiles the findings documents the judges return (§4). Nothing here restates that contract — each invocation is handed to its judge verbatim, and this door only decides *which* invocations run. The judges carry their own posture (injection defense, read-only inspection, calibration).
+
+**Gauntlet's root.** `${CLAUDE_PLUGIN_ROOT}` resolves to this plugin's root, never gauntlet's. Once per session, invoke the `gauntlet:where` skill: its first line is gauntlet's absolute root — record it as `GAUNTLET_ROOT` for the rest of the session (`commands/review.md`, "Locate gauntlet", says why this is the one honest route). If `gauntlet:where` is not in this session's skill listing, the installed gauntlet predates it: stop with one line — "gauntlet predates `/gauntlet:where` — `/plugin update gauntlet@jacquardlabs-marketplace`, then re-run" — never a guess. **Never Glob the plugin cache** for it.
+
 ## Resolve the artifact (before any dispatch)
 
-A posture judge reads a whole repository at one ref, and every finding it files cites that ref — so it must read a tree that *is* that ref, never the working directory. Always the worktree, never a condition (the same rule gauntlet's own review command follows):
+A posture judge reads a whole repository at one ref, and every finding it files cites that ref — so it must read a tree that *is* that ref, never the working directory. Always the worktree, never a condition (the same rule gauntlet's own review command follows; `dispatch.py` refuses a tree that is not the ref):
 
 ```bash
+scratch=$(mktemp -d "${TMPDIR:-/tmp}/studious-health.XXXXXX") && mkdir "$scratch/findings"
 REF=$(git rev-parse HEAD)
-ROOT=<tmp>/tree
-git worktree add --detach "$ROOT" "$REF"
+git worktree add --detach "$scratch/tree" "$REF"
+git ls-tree -r --name-only "$REF" > "$scratch/paths.txt"
+python3 "$GAUNTLET_ROOT/scripts/dispatch.py" \
+  --ref "$REF" --root "$scratch/tree" --paths "$scratch/paths.txt" \
+  --context "<context files>" > "$scratch/invocations.json"
 ```
 
-Remove it when you are done (`git worktree remove --force "$ROOT"`), even if the run failed. A dirty tree therefore judges HEAD, not the work in progress — say so when you report the artifact.
+`<context files>` is the comma-separated subset of `CLAUDE.md,DESIGN.md,PRODUCT.md` that exists. Do not pass prior reports as context and do not ask for a trend: every run is a baseline, and continuity lives in the issue tracker, not in a report store. If `dispatch.py` exits non-zero, relay its stderr — a refused tree or an empty selection is the answer, not an error to route around. Remove the worktree (`git worktree remove --force "$scratch/tree"`) and the scratch directory when the run ends, even if it failed. A dirty tree therefore judges HEAD, not the work in progress — say so when you report the artifact.
 
-Every judge receives one contract-v1 invocation (gauntlet's `docs/findings-contract.md` §3), as JSON in its dispatch prompt:
+**Filter to the run's lanes.** `dispatch.py` emits every `posture` judge; keep only the ones this run dispatches — the table's one judge for a single-area run, all seven for the sweep (six when the prompt-surface check below found none). Write that list as a JSON array of judge names and keep the matching invocations:
 
-```json
-{
-  "contract_version": 1,
-  "judge": "<registered name, without the gauntlet: prefix>",
-  "mount": "posture",
-  "artifact": {"kind": "repository", "ref": "<REF>", "root": "<ROOT>"},
-  "standard": {"name": "<the table's Standard cell, or the judge's name for (inline)>"},
-  "context": ["CLAUDE.md", "DESIGN.md", "PRODUCT.md"]
-}
+```bash
+jq --argjson keep '["codebase-posture-auditor",...]' \
+  '[.[] | select(.judge as $j | $keep | index($j))]' "$scratch/invocations.json" > "$scratch/round.json"
 ```
 
-`context` lists only the files that exist. Do not pass prior reports as context and do not ask for a trend: every run is a baseline, and continuity lives in the issue tracker, not in a report store. Tell each judge its entire reply must be the findings document — one JSON object and nothing else — and that it judges the tree at `root`, never this working directory.
-
-Gauntlet's judges carry their own posture (injection defense, read-only inspection, calibration) inline; there is no shared contract to stamp into the dispatch.
+**Dispatch.** One `Task` per invocation in `round.json`, all in a single message, in parallel — `subagent_type` is `gauntlet:<judge>`, and the prompt is that judge's invocation object, verbatim, followed by "your entire reply must be the findings document — one JSON object and nothing else" and "judge the tree at `artifact.root`, never this working directory". Prose rides *beside* the invocation, never inside it. Write each reply verbatim to `$scratch/findings/<judge>.json`; a reply that does not parse is a lane that did not report — keep the file as it came back, never repair or re-ask, and let `report.py` say so.
 
 ## Single-area run (argument given)
 
-Dispatch the one matching judge with the Task tool, using the table's `subagent_type`. When it returns, render its findings document to the table's report path (Rendering below) and surface the report. Skip Phase 2 — there's nothing to cross-reference in a single review. The idiom-rubric proposal that used to follow the codebase lane is `/retro`'s (section 4) — it reads the reports this door writes.
+Dispatch the one matching judge (the `$keep` list is that one name). When it returns, compile (below) and write the compiled report to the table's report path, then surface it. Skip Phase 2 — there's nothing to cross-reference in a single review. The idiom-rubric proposal that used to follow the codebase lane is `/retro`'s (section 4) — it reads the reports this door writes.
 
 ## Full sweep (no argument)
 
@@ -86,11 +86,11 @@ Dispatch telemetry for every judge you spawn — run, step, role, and skill — 
 
 ### Phase 1 — Dispatch all seven lanes in parallel
 
-Spawn all seven judges simultaneously with the Task tool (or six, when the prompt-surface check above found none) — do not run them sequentially. Use the `subagent_type` values from the table above, each with its own invocation from the section above. Run them all with `run_in_background: true`.
+Spawn all seven judges simultaneously (or six, when the prompt-surface check above found none) — do not run them sequentially. `$keep` is every judge in the table, minus `prompt-posture-auditor` when skipped; each dispatch is its own invocation from `round.json`, per the Dispatch step above. Run them all with `run_in_background: true`.
 
 ### Phase 2 — Compile master summary
 
-After every judge returns, render each findings document to its report path (Rendering below), then synthesize a single master summary from the seven reports.
+After every judge returns, compile (below): one `report.py` run per lane writes each area's report at the table's path, and one run over the whole findings directory is the sweep's compiled report. Synthesize the master summary from the seven area reports and that compiled report — a finding `report.py` merged across lanes (its attribution names more than one judge) is a cross-review finding by construction.
 
 #### Cross-review findings
 
@@ -129,13 +129,24 @@ If a séance register exists (`docs/exorcist/seance-*/register.json`; `register.
 
 Save the master summary to `docs/studious/health-reviews/YYYY-MM-DD-deep-review-summary.md`.
 
-## Rendering a findings document
+## Compile the findings
 
-The judge never writes; this door does. Write each reply verbatim to `<tmp>/findings/<judge>.json` first — a reply that does not parse as one JSON object (after unwrapping a code fence around the whole reply, which is transport packaging) is a lane that did not report. Keep the file, say so in the report and the summary, and never repair, re-ask, or drop it.
+Run gauntlet's compiler over the run's findings directory, expecting exactly the judges this run dispatched:
 
-Ingest rules, from the contract (gauntlet's `docs/findings-contract.md` §4–5), each named in the report when it fires:
-- A document whose `contract_version` is not `1` is rejected as a lane that did not report.
-- A `critical` with no `anchor` is recorded as `important`.
-- A `taste` finding never ranks above `track`.
+```bash
+python3 "$GAUNTLET_ROOT/scripts/report.py" --findings "$scratch/findings" \
+  --expect "$(jq -r '[.[].judge] | join(",")' "$scratch/round.json")"
+```
 
-Render to Markdown at the table's report path: a header (date, judge, `artifact.ref`, `standard.name`), then findings grouped **Critical / Important / Track**, most severe first, each carrying its `dimension`, `summary`, `locus`, `basis`/`level`, and — where present — `anchor`, `failure_scenario`, `recommendation`; then the judge's `coverage` verbatim; then the ingest notes ("none" when clean). An empty findings list with a substantive `coverage` is a clean result, not a failed lane.
+It validates every document at the boundary, applies the contract's ingest rules (anchor-or-demote, taste-caps-at-track), names every demotion and unwrap, and renders the findings most-severe-first with each judge's `coverage`; a non-zero exit means at least one expected lane did not report — say so in the report and the summary, never drop the lane. An empty findings list with a substantive `coverage` is a clean result, not a failed lane. It prints no verdict, by design — this door records none either.
+
+The area report files are `report.py`'s markdown, one run per lane — `report.py` reads one flat directory and merges findings across the judges in it, so a per-lane directory is simpler than splitting a merged report by judge. On a single-area run the compiled run above *is* the area report. On the sweep:
+
+```bash
+for judge in $(jq -r '.[].judge' "$scratch/round.json"); do
+  mkdir -p "$scratch/lane/$judge" && cp "$scratch/findings/$judge.json" "$scratch/lane/$judge/" 2>/dev/null
+  python3 "$GAUNTLET_ROOT/scripts/report.py" --findings "$scratch/lane/$judge" --expect "$judge" > <that judge's report path>
+done
+```
+
+A lane that never wrote a document still renders — as a report whose only content is that the judge did not report.
