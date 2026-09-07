@@ -630,7 +630,17 @@ with the build proceeding to its verdict.
    Nothing else goes into the prompt — not `PLAN.md` in full, not any task's
    history, not this session's own conversation. The subagent runs
    exorcise's own §6 checks; that is its claim, not the verdict.
-3. **Verify, independently.** For every task, in order, re-run step 2.5's
+3. **Nothing cast out.** If `git status --porcelain` is empty after the
+   dispatch — every hunk traced, or every finding held — there is nothing
+   to verify or commit: the tree is byte-identical to the one each task's
+   `verify` already passed on. Skip steps 4 and 5. Record one line for the
+   session report, "exorcise: nothing to cast out — every hunk traced",
+   then write the returned report to `<scratch-path>/exorcise-report.md`
+   and capture it with step 5's exact `evidence-capture` call, exit 2
+   routed the same way — a pass that held everything is this branch too,
+   and its `## Held` section reaches `/review` only through that artifact.
+   Not a Track note: nothing failed.
+4. **Verify, independently.** For every task, in order, re-run step 2.5's
    exact `verify` call — same `--plan`/`--task`, same `--probe-spec` when
    the task had one, **the same `--since` that task's step 2.2 dispatch
    timestamp gave**, never a fresh one (exorcise touched no `probe`
@@ -638,7 +648,7 @@ with the build proceeding to its verdict.
    the #44 shape again) — writing each `--out` to
    `<scratch-path>/exorcise/results-<task>.json`. Exit 2 here is the same
    usage error step 2.5 names; route it the same way.
-4. **PASS on every task.** Commit the working tree as one commit,
+5. **PASS on every task.** Commit the working tree as one commit,
    `exorcise: <concepts removed>`, the list taken from the report's
    `Concepts removed:` line. You commit here on `verify`'s PASS — the same
    mechanical ground `status-flip` writes on — and the message comes from
@@ -655,13 +665,13 @@ with the build proceeding to its verdict.
    — reaches `/review` the way an Inspector `CONCERN` does: quoted from the
    captured artifact into the PR body `/ship` assembles (`skills/ship/SKILL.md`
    Step 1 resolves `--task exorcise` for exactly this).
-5. **FAIL on any item.** Run `git checkout -- .` in the worktree —
+6. **FAIL on any item.** Run `git checkout -- .` in the worktree —
    exorcise's own documented undo — and confirm `git status --porcelain` is
    empty: the tree is exactly the `BUILT` tree again. Record one **Track**
    note for the session report naming the failing task and item and the
    report's `Concepts removed:` line, and proceed to the Session verdict. No
    fix cycle, no re-dispatch, no Failure routine.
-6. **The subagent died or returned no report.** Treat as FAIL's cleanup
+7. **The subagent died or returned no report.** Treat as FAIL's cleanup
    without the verify run: `git checkout -- .`, confirm clean, one Track note
    ("exorcise dispatch died"), proceed.
 
@@ -672,7 +682,7 @@ that is `/review`'s finding or the human's own `/exorcist:exorcise`.
 
 | Verdict | When |
 |---|---|
-| `BUILT` | Every task in the plan reaches `PASS` and Step 3 has run (or been skipped with its line). Report the branch/worktree and Step 3's outcome on one line (concepts removed, the Track note, or the skip line), then tell the developer to run `/review` next — unconditionally, since that gate ships in this same plugin. |
+| `BUILT` | Every task in the plan reaches `PASS` and Step 3 has run (or been skipped with its line). Report the branch/worktree and Step 3's outcome on one line (concepts removed, the nothing-cast-out line, the Track note, or the skip line), then tell the developer to run `/review` next — unconditionally, since that gate ships in this same plugin. |
 | `PAUSED` | A dirty or missing baseline stopped Setup, or a task's Failure routine resolved to `REPLAN`, or a risk-tagged task is waiting for a pre-dispatch acknowledgment, or a `verify`/`status-flip` usage error persisted after one retry. Resumable once the human acts. |
 | `ESCALATED` | A task's Failure routine resolved to `ESCALATE`. Terminal for this session — hand off to `/shape` in revision mode. |
 
