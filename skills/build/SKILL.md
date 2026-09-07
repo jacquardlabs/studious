@@ -652,8 +652,8 @@ with the build proceeding to its verdict.
    usage error step 2.5 names; route it the same way.
 5. **PASS on every task.** Commit the working tree as one commit,
    `exorcise: <concepts removed>`, the list taken from the report's
-   `Concepts removed:` line (the report may also carry a `Concepts kept:`
-   line alongside it, naming new symbols that survived; the commit message
+   `Concepts removed:` line (the same line may also carry a `Concepts kept:`
+   clause, naming new symbols that survived; the commit message
    draws from `Concepts removed:` only). You commit here on `verify`'s PASS — the same
    mechanical ground `status-flip` writes on — and the message comes from
    the report, never from a diff; this is the one commit in this loop an
@@ -673,7 +673,7 @@ with the build proceeding to its verdict.
    exorcise's own documented undo — and confirm `git status --porcelain` is
    empty: the tree is exactly the `BUILT` tree again. Record one **Track**
    note for the session report naming the failing task and item and the
-   report's `Concepts removed:` line, plus its `Concepts kept:` line too when
+   report's `Concepts removed:` line, plus its `Concepts kept:` clause too when
    the report carries one, and proceed to
    the Session verdict. No
    fix cycle, no re-dispatch, no Failure routine.

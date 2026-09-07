@@ -62,7 +62,7 @@ Report the counts, never the full list — this is a health check, not an invent
 
 ## 5. Retired door names
 
-The door surface collapsed from eighteen names to nine (`reference/personas.md`). A
+The door surface collapsed from eighteen names to ten (`reference/personas.md`). A
 consuming project's `CLAUDE.md`, README, or `.github/` workflow may still name a door
 that no longer exists — reads as Studious being broken, not as a stale reference.
 
