@@ -179,23 +179,30 @@ def collect(ledger: Ledger, root: Path, since: str) -> dict[str, Any]:
     epics = [ledger.json("epic-get", "--slug", row[0]) for row in epic_rows if row and row[0] not in ("", "?")]
     epics = [e for e in epics if e and in_window(str(e.get("updatedAt", "")), since)]
 
+    before = len(ledger.errors)
     findings = {
         str(e.get("slug", "")): [
             row for row in ledger.tsv("epic-findings", "--epic", str(e.get("slug", ""))) if len(row) == 7
         ]
         for e in epics
     }
+    findings_failed = len(ledger.errors) > before
     branches = sorted(
         {branch_of(w) for w in works if w.get("branch")}
         | {str(e.get("branch")) for e in epics if e.get("branch")}
         | {f"epic/{e.get('slug')}--{s}" for e in epics for s in (e.get("stories") or {})}
     )
+    before = len(ledger.errors)
     gates = {b: ledger.json("gate-get", "--branch", b) for b in branches}
+    gates_failed = len(ledger.errors) > before
+    before = len(ledger.errors)
     episodes = {
         (b, g): ledger.out("episode-get", "--gate", g, "--history", "--branch", b).splitlines()
         for b in branches
         for g in GATES
     }
+    episodes_failed = len(ledger.errors) > before
+    before = len(ledger.errors)
     episode_findings = {
         (b, g): [
             row
@@ -205,6 +212,8 @@ def collect(ledger: Ledger, root: Path, since: str) -> dict[str, Any]:
         for b in branches
         for g in GATES
     }
+    episode_findings_failed = len(ledger.errors) > before
+    before = len(ledger.errors)
     evidence = {
         b: [
             r
@@ -213,6 +222,7 @@ def collect(ledger: Ledger, root: Path, since: str) -> dict[str, Any]:
         ]
         for b in branches
     }
+    evidence_failed = len(ledger.errors) > before
     telemetry = [
         r
         for p in sorted((root / ".studious" / "telemetry").glob("*.jsonl"))
@@ -236,6 +246,11 @@ def collect(ledger: Ledger, root: Path, since: str) -> dict[str, Any]:
         "ledger_errors": list(ledger.errors),
         "work_list_failed": work_list_failed,
         "epic_list_failed": epic_list_failed,
+        "findings_failed": findings_failed,
+        "gates_failed": gates_failed,
+        "episodes_failed": episodes_failed,
+        "episode_findings_failed": episode_findings_failed,
+        "evidence_failed": evidence_failed,
     }
 
 
@@ -269,7 +284,10 @@ def stories_section(data: dict[str, Any]) -> list[str]:
     standalone = [w for w in data["works"] if not str(w.get("source", "")).startswith("epic:")]
     phases = Counter(str(w.get("phase", "?")) for w in standalone)
     lines = ["## Stories (`epic-get`)", ""]
-    lines += table(["Epic", "Status", "Landed", "Parked", "Dropped", "Open", "Driver runs", "Tokens spent"], rows) if rows else ["no epic recorded"]
+    if rows:
+        lines += table(["Epic", "Status", "Landed", "Parked", "Dropped", "Open", "Driver runs", "Tokens spent"], rows)
+    else:
+        lines += ["unmeasured — `epic-list` errored"] if data["epic_list_failed"] else ["no epic recorded"]
     if standalone:
         lines += ["", f"Standalone work files (`work-list`): {len(standalone)} — " + ", ".join(f"{n} {p}" for p, n in sorted(phases.items()))]
     return lines
@@ -287,7 +305,7 @@ def rounds_section(data: dict[str, Any]) -> list[str]:
             escalated = any(line.startswith("escalated\t") for line in data["episodes"].get((branch, gate), []))
             if not entries and not matched:
                 continue
-            ledger_cell = "—"
+            ledger_cell = "unmeasured" if data["episodes_failed"] else "—"
             if matched:
                 last = matched[-1]
                 ledger_cell = f"{len(matched)} episode(s), round {last.group('round')} of {last.group('cap')}, {last.group('verdict') or 'no verdict yet'}"
@@ -302,7 +320,10 @@ def rounds_section(data: dict[str, Any]) -> list[str]:
                 ]
             )
     lines = ["## Rounds per episode (`work-get` history, `episode-get --history`)", ""]
-    lines += table(["Story", "Gate", "Rounds logged", "Last outcome", "Episode ledger"], rows) if rows else ["no gate round logged"]
+    if rows:
+        lines += table(["Story", "Gate", "Rounds logged", "Last outcome", "Episode ledger"], rows)
+    else:
+        lines += ["unmeasured — `episode-get --history` errored"] if data["episodes_failed"] else ["no gate round logged"]
     return lines
 
 
@@ -350,12 +371,24 @@ def lanes_section(data: dict[str, Any]) -> list[str]:
         ]
         for lane, c in sorted(per_lane.items(), key=lambda kv: (-kv[1]["findings"], kv[0]))
     ]
+    failed_verbs = [
+        verb
+        for verb, failed in (
+            ("`epic-findings`", data["findings_failed"]),
+            ("`episode-get --findings`", data["episode_findings_failed"]),
+            ("`gate-get`", data["gates_failed"]),
+        )
+        if failed
+    ]
     lines = ["## Lanes (`epic-findings`, `episode-get --findings`, `gate-get` blockingLanes)", ""]
-    lines += (
-        table(["Lane", "Findings", "Critical", "Unresolved", "Waived", "Ruled noise", "Named blocking"], rows)
-        if rows
-        else ["no finding recorded in either ledger"]
-    )
+    if rows:
+        lines += table(["Lane", "Findings", "Critical", "Unresolved", "Waived", "Ruled noise", "Named blocking"], rows)
+    elif failed_verbs:
+        lines += [f"unmeasured — {', '.join(failed_verbs)} errored"]
+    else:
+        lines += ["no finding recorded in either ledger"]
+    if rows and failed_verbs:
+        lines += ["", f"unmeasured: {', '.join(failed_verbs)} errored on at least one call — counts above may undercount"]
     return lines
 
 
@@ -450,7 +483,12 @@ def evidence_section(data: dict[str, Any]) -> list[str]:
         if records
     ]
     lines = ["## Verification evidence (`evidence-list`)", ""]
-    lines += table(["Story", "Distinct commands", "Failed runs"], rows) if rows else ["no evidence captured"]
+    if rows:
+        lines += table(["Story", "Distinct commands", "Failed runs"], rows)
+    else:
+        lines += ["unmeasured — `evidence-list` errored"] if data["evidence_failed"] else ["no evidence captured"]
+    if rows and data["evidence_failed"]:
+        lines += ["", "unmeasured: `evidence-list` errored on at least one call — counts above may undercount"]
     return lines
 
 

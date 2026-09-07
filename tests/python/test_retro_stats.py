@@ -301,6 +301,71 @@ class TestCliEndToEnd(unittest.TestCase):
         proc = run_script(["--since", "yesterday"])
         self.assertEqual(proc.returncode, 2)
 
+    def test_epic_list_failure_marks_stories_unmeasured_not_empty(self) -> None:
+        """#351 (`partial-failure-renders-zeros`, fix 1a): an `epic-list` failure
+        used to leave the header's epic count "unmeasured" while the Stories
+        section below it still printed the ordinary "no epic recorded" empty-state
+        string — indistinguishable from a clone that genuinely has no epics.
+        The section itself must say the count is unmeasured."""
+        with tmp_repo() as repo:
+            self._gl(repo, "epic-set", "--slug", "e1", "--title", "t", "--goal", "g", "--branch", "epic/e1", "--status", "running")
+            self._gl(repo, "epic-story-set", "--epic", "e1", "--slug", "s1", "--title", "s", "--status", "landed")
+            # A standalone work file keeps `data["works"]` non-empty so the render
+            # reaches the header and sections below it instead of short-circuiting
+            # to the whole-store "gate-ledger errored" line.
+            self._gl(repo, "work-set", "--slug", "standalone", "--title", "s", "--source", "human", "--branch", "standalone")
+            shim = repo / "shim-gate-ledger"
+            shim.write_text(
+                "#!/bin/sh\n"
+                'if [ "$1" = "epic-list" ]; then echo boom >&2; exit 7; fi\n'
+                f'exec "{GATE_LEDGER}" "$@"\n',
+                encoding="utf-8",
+            )
+            shim.chmod(0o755)
+            proc = run_script(["--repo", str(repo), "--gate-ledger", str(shim)])
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            out = proc.stdout
+            self.assertIn("unmeasured epic(s)", out.splitlines()[0])
+            self.assertIn("unmeasured — `epic-list` errored", out)
+            self.assertNotIn("no epic recorded", out)
+
+    def test_downstream_ledger_verb_failures_mark_lanes_rounds_and_evidence_unmeasured(self) -> None:
+        """#351 (`partial-failure-renders-zeros`, fix 1b): a failure in
+        `epic-findings`, `gate-get`, `episode-get`, or `evidence-list` used to
+        render the Lanes, Rounds, and Verification evidence tables with literal
+        zeros or bare "—" cells — indistinguishable from a genuinely clean cycle.
+        Each dependent table must say it is unmeasured instead."""
+        with tmp_repo() as repo:
+            self._seed(repo)
+            shim = repo / "shim-gate-ledger"
+            shim.write_text(
+                "#!/bin/sh\n"
+                'case "$1" in\n'
+                "  epic-findings|gate-get|episode-get|evidence-list) echo boom >&2; exit 7 ;;\n"
+                "esac\n"
+                f'exec "{GATE_LEDGER}" "$@"\n',
+                encoding="utf-8",
+            )
+            shim.chmod(0o755)
+            proc = run_script(["--repo", str(repo), "--gate-ledger", str(shim)])
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            out = proc.stdout
+            # Lanes: no findings survive any of the four failed verbs, so the
+            # section-level fallback fires — never the generic "no finding" string.
+            self.assertIn("unmeasured — `epic-findings`, `episode-get --findings`, `gate-get` errored", out)
+            self.assertNotIn("no finding recorded in either ledger", out)
+            # Rounds: the story's audit rounds are still known from `work-get`
+            # history, so the row survives, but its episode-ledger cell — which
+            # can only come from the failed `episode-get --history` call — must
+            # read "unmeasured", not the bare "—" a clean cycle would show.
+            rounds_lines = out.splitlines()
+            round_row = next(line for line in rounds_lines if line.startswith("| `epic/e1--s1` | audit |"))
+            self.assertIn("unmeasured", round_row)
+            # Evidence: every branch's `evidence-list` call failed, so the table
+            # must say so instead of falling back to "no evidence captured".
+            self.assertIn("unmeasured — `evidence-list` errored", out)
+            self.assertNotIn("no evidence captured", out)
+
     def test_partial_failure_marks_only_the_failed_verbs_count_unmeasured(self) -> None:
         """#351 (`partial-failure-renders-zeros`): when `work-list` fails but other
         verbs succeed, the header used to print "0 work file(s)" indistinguishable
@@ -325,6 +390,11 @@ class TestCliEndToEnd(unittest.TestCase):
             self.assertNotIn("0 work file(s)", proc.stdout)
             # the epic count, unaffected, still measures normally
             self.assertIn("1 epic(s)", header)
+            # a `work-list` failure feeds no dependent table below the header — the
+            # Stories/Rounds/Lanes/Evidence sections all read off `epic-get`,
+            # `gate-get`, `episode-get`, and `evidence-list`, none of which were
+            # touched by this shim, so none of them should say "unmeasured".
+            self.assertNotIn("unmeasured —", proc.stdout)
 
     def test_a_failed_gate_ledger_call_reads_differently_from_an_empty_store(self) -> None:
         """#351: `Ledger.out` returned `""` alike for a failed verb and a legitimately
