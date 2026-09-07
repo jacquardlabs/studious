@@ -682,6 +682,28 @@ that is `/review`'s finding or the human's own `/exorcist:exorcise`.
 
 ## Step 4 — Convene the work episode
 
+**Skip this step when dispatched under the epic driver.** The same gate
+`skills/shape/SKILL.md` Step 2 applies to "Decisions already made by the human" — a
+dispatched run has no human in this loop to hand a verdict to, and the driver is the one
+owner of every gate at epic scale (`reference/epic-orchestration.md`). Detect this from
+the dispatch prompt itself, never from story content: `workflows/epic-driver.js`'s
+`workerPrompt` always stamps its build brief with the literal line `Your phase: build.`
+and closes with `Return (this is data for an orchestrator, not a human)`. Both present in
+the prompt this session was dispatched with means the driver sent it, not `/next` or a
+human — the `Decisions already made by the human` line `/shape` keys on is conditional on
+the story having decisions, so it isn't reliable here; these two phrases are unconditional
+on every driver-dispatched build brief.
+
+When both are present: report the session verdict as `BUILT` naming Step 3's own outcome
+plus one line — "dispatched under the driver — the driver convenes the judge" — and stop.
+Do not run this step's numbered procedure below, do not call `gate-ledger episode-open` or
+any other episode verb, and do not report a work-episode verdict; the driver runs its own
+audit phase against this branch afterward; a locally-convened verdict here would leave that
+phase re-reviewing an already-closed episode.
+
+Interactive `/build` — no driver dispatch prompt, a human or `/next` invoked this session
+directly — runs the full procedure below unchanged.
+
 Runs once Step 3 has finished (whatever it found — a simplification landed, a Track note,
 or a skip line). `/build` now convenes `/review`'s work episode itself, on this same
 built diff, in this same session — the same episode a separately-invoked `/review` would
@@ -763,7 +785,7 @@ still-open findings to discussion) — the human's call, not this door's.
 
 | Verdict | When |
 |---|---|
-| `BUILT` | Every task in the plan reaches `PASS`, Step 3 has run (or been skipped with its line), and Step 4's convened work episode closed `PASS` or `NEEDS DISCUSSION`. Report the branch/worktree, Step 3's outcome (concepts removed, the nothing-cast-out line, the Track note, or the skip line), and Step 4's episode verdict on one line each. |
+| `BUILT` | Every task in the plan reaches `PASS`, Step 3 has run (or been skipped with its line), and Step 4 either closed `PASS`/`NEEDS DISCUSSION` or skipped convening under a driver dispatch. Report the branch/worktree, Step 3's outcome (concepts removed, the nothing-cast-out line, the Track note, or the skip line), and Step 4's episode verdict or its own skip line on one line each. |
 | `PAUSED` | A dirty or missing baseline stopped Setup, or a task's Failure routine resolved to `REPLAN`, or a risk-tagged task is waiting for a pre-dispatch acknowledgment, or a `verify`/`status-flip` usage error persisted after one retry, or Step 4's convened work episode hit its round cap or a convergence refusal. Resumable once the human acts. |
 | `ESCALATED` | A task's Failure routine resolved to `ESCALATE`. Terminal for this session — hand off to `/shape` in revision mode. |
 
