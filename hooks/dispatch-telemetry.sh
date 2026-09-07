@@ -66,26 +66,20 @@ case "$subagent" in
               [ -f "${CLAUDE_PLUGIN_ROOT}/agents/${role}.md" ] || exit 0 ;;
 esac
 
-# --- roster: which dispatch surface each agent belongs to. Two exception
-# lists plus a pattern, not a fourth hand-maintained copy of the auditor
+# --- roster: which dispatch surface each agent belongs to. One exception
+# list plus a pattern, not a fourth hand-maintained copy of the auditor
 # roster (epic-driver.js's AUDITORS comment already names three as a drift
 # risk, #271) — the pattern self-heals, the exceptions carry what it can't.
 # Both fleets map alike: gauntlet's acceptance lanes carry the same names.
 #
-# ORDER IS LOAD-BEARING: product-reviewer, premortem-auditor, and
-# code-auditor all match *-reviewer/*-auditor, so both exception lists must
-# be tested first; the posture judges end in -auditor/-reviewer too, so
-# *-posture-* precedes that pattern; review-outcomes matches review-* but
-# runs under /retro, not the retired local sweep, so its case precedes that
-# pattern as well. code-auditor serves both /review lane 2 and the old idiom
-# step and the hook can't see which dispatched it, so its lines carry an
-# empty `skill` (reference/telemetry-format.md says how a joiner resolves
-# that).
+# ORDER IS LOAD-BEARING: product-reviewer and premortem-auditor match
+# *-reviewer/*-auditor, so the exception list must be tested first; the
+# posture judges end in -auditor/-reviewer too, so *-posture-* precedes that
+# pattern; review-outcomes matches review-* but runs under /retro, not the
+# retired local sweep, so its case precedes that pattern as well.
 ACCEPTANCE_ROLES="product-reviewer premortem-auditor"
-AMBIGUOUS_ROLES="code-auditor"
 in_list() { case " $2 " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
-if   in_list "$role" "$ACCEPTANCE_ROLES"; then skill="gate-acceptance"
-elif in_list "$role" "$AMBIGUOUS_ROLES";  then skill=""
+if in_list "$role" "$ACCEPTANCE_ROLES"; then skill="gate-acceptance"
 else
   case "$role" in
     *-posture-*)          skill="health" ;;
