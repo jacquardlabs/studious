@@ -277,7 +277,10 @@ scratch=$(mktemp -d "${TMPDIR:-/tmp}/studious-review.XXXXXX") && mkdir "$scratch
   plumbing, inside the bookkeeping boundary.
 
 `<context files>` is the comma-separated subset of `CLAUDE.md,DESIGN.md,PRODUCT.md` that
-exists, plus the resolved pre-mortem register path whenever the pre-mortem lane runs.
+exists, plus the resolved pre-mortem register path whenever the pre-mortem lane runs. Check
+existence in the tree being judged, never the ambient checkout, which can differ: `$scratch/tree`
+for the work and delivery episodes' changeset artifact, the repository root for the design
+episode's document artifact (Part 1, no worktree).
 `dispatch.py` emits `product-reviewer` only when the context names a PRODUCT.md and
 `premortem-auditor` only when it names a register, so a missing input drops the lane there
 rather than dispatching a judge that can only self-skip. If it exits non-zero, relay its
