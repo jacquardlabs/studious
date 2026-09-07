@@ -20,11 +20,6 @@ UX_REVIEWER = REPO_ROOT / "agents" / "ux-reviewer.md"
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 HEALTH = REPO_ROOT / "commands" / "health.md"
 REVIEW = REPO_ROOT / "commands" / "review.md"
-# Tolerant of the line wrap and backtick differences between the two doors' prose —
-# a whitespace-normalized substring match, not a byte-identical one.
-GAUNTLET_NOT_INSTALLED_RE = re.compile(
-    r"gauntlet\s+is\s+not\s+installed:\s+stop\s+with\s+one\s+line\s+—\s+\"gauntlet\s+is\s+not\s+installed\s+—\s+`?/plugin\s+install\s+gauntlet@jacquardlabs-marketplace`?,\s+then\s+re-run\"\s+—\s+never\s+a\s+guess\."
-)
 A11Y_ROW_RE = re.compile(r"^\|\s*web-design-guidelines \(a11y\)\s*\|.*$", re.MULTILINE)
 LOCAL_ROSTER_HEADING = "## Local roster"
 # The two acceptance-path lanes epicLedgerInstruction is rendered for beside AUDITORS
@@ -117,9 +112,16 @@ def test_local_roster_tables_cover_exactly_the_epic_drivers_dispatches() -> None
         assert len(first_cells) == len(named), "a lane has two rows in one table"
 
 
+# Tolerant of the line wrap and backtick differences between the two doors' prose —
+# a whitespace-normalized substring match, not a byte-identical one.
+_GAUNTLET_NOT_INSTALLED_RE = re.compile(
+    r"gauntlet\s+is\s+not\s+installed:\s+stop\s+with\s+one\s+line\s+—\s+\"gauntlet\s+is\s+not\s+installed\s+—\s+`?/plugin\s+install\s+gauntlet@jacquardlabs-marketplace`?,\s+then\s+re-run\"\s+—\s+never\s+a\s+guess\."
+)
+
+
 def _gauntlet_stop_line(path) -> str:
     text = re.sub(r"\s+", " ", path.read_text())
-    match = GAUNTLET_NOT_INSTALLED_RE.search(text)
+    match = _GAUNTLET_NOT_INSTALLED_RE.search(text)
     assert match, f"{path.name} carries no gauntlet-not-installed stop line matching the pinned pattern"
     return match.group(0)
 
