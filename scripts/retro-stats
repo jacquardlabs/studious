@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import statistics
 import sys
 from collections import Counter, defaultdict
@@ -252,6 +253,7 @@ def collect(ledger: Ledger, root: Path, since: str) -> dict[str, Any]:
         "epic_list_failed": epic_list_failed,
         "work_get_failed": work_get_failed,
         "epic_get_failed": epic_get_failed,
+        "jq_missing": shutil.which("jq") is None,
         "findings_failed": findings_failed,
         "gates_failed": gates_failed,
         "episodes_failed": episodes_failed,
@@ -525,6 +527,8 @@ def render(data: dict[str, Any], root: Path, since: str) -> str:
                 f"gate-ledger errored on {len(errors)} call(s) ({window}) — not the same as "
                 f"an empty store; first: {errors[0]}"
             )
+        if data["jq_missing"]:
+            return f"store unreadable — jq not installed, every gate-ledger read verb no-ops ({window})"
         return f"{NO_DATA} ({window})"
     work_unit = "work file(s)" + (" (undercount — work-get errored)" if data["work_get_failed"] else "")
     work_count = "unmeasured" if data["work_list_failed"] else str(len(data["works"]))

@@ -132,6 +132,19 @@ class TestFolds(unittest.TestCase):
         self.assertEqual(self.m.park_reason_bucket("deferred to a follow-up epic: shipping the rest"), "unstated")
         self.assertEqual(self.m.park_reason_bucket(""), "unstated")
 
+    def test_render_names_missing_jq_instead_of_claiming_an_empty_store(self) -> None:
+        """acceptance finding: every `gate-ledger` read verb no-ops (exit 0, empty
+        stdout) when `jq` isn't installed — `Ledger.out` sees a clean return and
+        records no error, so the empty-store branch used to print "no cycle data"
+        exactly as it would for a genuinely empty clone. Distinguish the two."""
+        data = {
+            "works": [], "epics": [], "telemetry": [], "decisions": [],
+            "ledger_errors": [], "jq_missing": True,
+        }
+        out = self.m.render(data, Path("/tmp/some-repo"), "")
+        self.assertIn("jq not installed", out)
+        self.assertNotIn("no cycle data", out)
+
     def test_window_compares_the_date_prefix_without_parsing_the_z(self) -> None:
         self.assertTrue(self.m.in_window("2026-08-02T18:03:58Z", "2026-08-02"))
         self.assertFalse(self.m.in_window("2026-08-01T23:59:59Z", "2026-08-02"))
@@ -154,6 +167,25 @@ class TestTsvColumnSyncPin(unittest.TestCase):
         body = _function_body(GATE_LEDGER.read_text(encoding="utf-8"), "cmd_epic_findings")
         self.assertIn("SYNC NOTE", body)
         self.assertIn("scripts/retro-stats", body)
+
+    def test_epic_findings_column_order_matches_what_retro_stats_unpacks(self) -> None:
+        """acceptance finding: the SYNC NOTE comment only proves a warning exists,
+        never that the order it warns about still matches. Extract
+        `cmd_epic_findings`'s jq row format and `lanes_section`'s positional
+        unpacking straight from source — a future reorder of either side without
+        the other now fails here, not just in a misattributed lanes table at
+        runtime."""
+        body = _function_body(GATE_LEDGER.read_text(encoding="utf-8"), "cmd_epic_findings")
+        row_match = re.search(r'"(?:\\\(\.\w+\)\\t)*\\\(\.\w+\)"', body)
+        self.assertIsNotNone(row_match, "no jq row-format string found in cmd_epic_findings")
+        bash_columns = re.findall(r"\\\(\.(\w+)\)", row_match.group(0))
+        self.assertEqual(bash_columns[:4], ["status", "severity", "story", "lane"])
+
+        source = SCRIPT.read_text(encoding="utf-8")
+        unpack_match = re.search(r"for (\w+), (\w+), (\w+), (\w+), \*_ in rows:", source)
+        self.assertIsNotNone(unpack_match, "lanes_section's positional unpacking line not found")
+        python_columns = [name.removeprefix("_") for name in unpack_match.groups()]
+        self.assertEqual(python_columns, bash_columns[:4])
 
 
 class TestCliEndToEnd(unittest.TestCase):
