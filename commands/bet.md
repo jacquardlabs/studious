@@ -1,5 +1,5 @@
 ---
-description: Choose the work and set its appetite — the entry to every flow, at any scale. With an idea or issue, judges whether it's worth building and records the verdict; with no argument, ranks the open backlog so you can pick. Use for "should we build this", "is this worth it", "what should I work on next", "what's the appetite for this".
+description: Choose the work and set its appetite — the entry to every flow, at any scale. With an idea or issue, judges whether it's worth building and records the verdict; with no argument, ranks the open backlog so you can pick. Use for "should we build this", "is this worth it", "what should I work on next", "what's the appetite for this", "is this a good idea". Do NOT use for general feature brainstorming or for shaping a design once the decision to build is already made — that's the design door.
 argument-hint: "[idea | issue | milestone]  ·  bare: rank the backlog  ·  --intent [tech-debt | maintenance | polish | new-initiative]"
 allowed-tools: Read, Glob, Grep, Bash, Task
 ---

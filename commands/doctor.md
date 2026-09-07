@@ -1,5 +1,5 @@
 ---
-description: Invoke as /studious:doctor — Claude Code's built-in /doctor wins the bare name. Check tooling, plugin registration, and context-doc health for silent-degradation risks
+description: Invoke as /studious:doctor — Claude Code's built-in /doctor wins the bare name. Check tooling, plugin registration, and context-doc health for silent-degradation risks. Use when asked whether the Studious install is healthy, why a review ran with fewer lanes than expected, whether git/gh/jq are present, or whether PRODUCT.md/DESIGN.md/CLAUDE.md are missing or still template stubs — phrasing like "is my studious install healthy", "why did the review skip something", "check my studious setup", "something feels off with studious". Do NOT use for running a review (/review), for choosing or judging work (/bet), for periodic project health reviews (/health), or for first-time scaffolding (/setup)
 allowed-tools: Read, Glob, Grep, Bash
 ---
 

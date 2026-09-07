@@ -512,7 +512,7 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         for lane in ("test-auditor", "architecture-auditor", "code-auditor"):
             with self.subTest(lane=lane):
                 self.assertIn(lane, self.body)
-        self.assertPhraseIn("no `gate-ledger` coupling")
+        self.assertPhraseIn("No `gate-ledger` coupling")
 
     def test_second_defect_recheck_is_bounded_not_open_ended(self) -> None:
         # Pre-mortem risk #4: exactly one more independent dispatch, never unbounded.
@@ -526,7 +526,7 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
 
     def test_paused_is_never_reported_bare(self) -> None:
         self.assertPhraseIn("Never report `PAUSED` bare")
-        self.assertPhraseIn("four distinct causes")
+        self.assertPhraseIn("five distinct causes")
 
     def test_replan_is_overwritable_not_terminal(self) -> None:
         self.assertPhraseIn("overwrites a prior `REPLAN` suffix")
@@ -534,10 +534,14 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
 
     def test_built_hands_off_to_gate_audit_unconditionally(self) -> None:
         # Was conditional on a separate studious plugin being installed (#150);
-        # /review ships in this plugin now, so that fallback branch is
-        # unreachable-but-live and must be gone.
-        self.assertPhraseIn("tell the developer to run `/review` next")
-        self.assertPhraseIn("unconditionally")
+        # /review ships in this plugin now. That fallback branch is gone entirely
+        # now (producers convene their judge, #274/command-surface option B) --
+        # /build no longer hands off to a separately-invoked /review at all, it
+        # convenes the work episode itself, and that convening is unconditional
+        # on the same axis #150 regressed on.
+        self.assertPhraseIn("Convening itself is unconditional")
+        self.assertPhraseIn("never gated on `gate-ledger` being on `PATH`")
+        self.assertPhraseIn("#150")
 
     def test_trust_boundary_is_stated_explicitly(self) -> None:
         # Issue #48: the command-execution trust boundary must be named

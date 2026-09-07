@@ -29,17 +29,17 @@ through bold. The single styling convention: verdict tokens and tier names rende
 ## Vocabulary
 
 The plugin's most important interface contract. Each gate command emits a fixed set of
-verdict tokens; the natural-language skill shims trigger the same commands and must report
-the same tokens.
+verdict tokens; the command's own `description` frontmatter triggers it from natural
+language and must report the same tokens.
 
 ### Gate verdict vocabularies
 
 | Episode | Command | Verdict tokens (canonical) | Source of truth | Consumers |
 |---------|---------|----------------------------|-----------------|-----------|
-| bet | `gate-should-we-build` | `BUILD` · `BUILD SMALLER` · `DEFER` · `DON'T BUILD` | `commands/bet.md` | skill `evaluate-feature-idea` · `/next` |
-| design | `gate-design-review` | `PROCEED TO PLAN` · `REVISE` · `RETHINK` | `commands/review.md` | skill `review-the-work` · `/next` |
-| work | `gate-audit` | `PASS` · `FIX AND RE-REVIEW` · `NEEDS DISCUSSION` | `commands/review.md` | `/next` (no skill shim) |
-| delivery | `gate-acceptance` | `SHIP` · `FIX AND RE-REVIEW` · `HOLD` | `commands/review.md` | skill `review-the-work` · `/next` |
+| bet | `gate-should-we-build` | `BUILD` · `BUILD SMALLER` · `DEFER` · `DON'T BUILD` | `commands/bet.md` | `/next` |
+| design | `gate-design-review` | `PROCEED TO PLAN` · `REVISE` · `RETHINK` | `commands/review.md` | `/next` · `/shape` (convenes) |
+| work | `gate-audit` | `PASS` · `FIX AND RE-REVIEW` · `NEEDS DISCUSSION` | `commands/review.md` | `/next` · `/build` (convenes) |
+| delivery | `gate-acceptance` | `SHIP` · `FIX AND RE-REVIEW` · `HOLD` | `commands/review.md` | `/next` |
 
 Each vocabulary is three or four tokens: one "proceed," one "fix and retry," and (most)
 one "stop/rethink." The canonical listing and per-gate breakdown now live in
@@ -134,9 +134,9 @@ one-paragraph equivalent for the prose lanes it dispatches itself.
   list.
 - **Frontmatter** — commands carry `description` + `allowed-tools`; agents carry `name` +
   `description` + `tools` + `model`. Descriptions are one line, imperative.
-- **Skills as trigger shims** — `skills/<name>/SKILL.md` holds a tightly-scoped `description`
-  so a gate fires from natural language; the body delegates to the matching command rather
-  than duplicating it. Triggers are deliberately conservative.
+- **No separate shim layer** — a door's own `description` frontmatter (command or
+  door-backing `skills/<name>/SKILL.md` alike) is what fires it from natural language.
+  Triggers are deliberately conservative.
 - **Agents do the work; commands orchestrate** — auditors/reviewers are single-purpose
   agents (`agents/*.md`) spawned in parallel; commands compose them and synthesize results.
 - **Propose, never apply** — reviews emit proposed diffs to context docs; they never write
@@ -165,12 +165,13 @@ documents the policy for the interface surface, it does not restate the per-agen
 1. ~~**Third severity tier is named two ways** — `Minor` in `gate-audit`, `Track` in
    `deep-review` and the review agents. Same concept, two labels.~~ Resolved: unified on
    `Track` everywhere; the canonical ladder now lives in `reference/severity-rubric.md`.
-2. **No shared source for gate verdict vocabularies** — partially addressed: the canonical
-   listing now lives in `reference/gate-vocabulary.md`, and `/next` cites it rather than
-   restating token definitions. The three skill shims still restate their gate's tokens
-   independently in a one-line summary and haven't been repointed at the reference file yet.
+2. ~~**No shared source for gate verdict vocabularies**~~ Resolved: the canonical listing
+   lives in `reference/gate-vocabulary.md`, and `/next` cites it rather than restating
+   token definitions. The natural-language skill shims that used to restate each gate's
+   tokens independently are gone — a door's own `description`
+   frontmatter is the only trigger surface now, so there is nothing left to repoint.
 3. ~~**`gate-audit` has no skill shim**~~ Resolved by the persona restructure: the three
-   review gates became one `/review` door with one `review-the-work` shim covering all
-   three intents. The historical note follows. (`evaluate-feature-idea`,
-   `review-the-work`, `do-the-next-piece`) — natural-language access
-   is inconsistent across the gate family.
+   review gates became one `/review` door. The historical note follows. Natural-language
+   access via the bet, review, and next shims was inconsistent across the gate family,
+   and was later removed entirely in favor of each
+   door's own `description` trigger.

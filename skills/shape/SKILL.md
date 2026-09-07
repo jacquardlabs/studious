@@ -1,6 +1,6 @@
 ---
 name: shape
-description: Runs the /shape workflow -- inventories PRODUCT.md, DESIGN.md, CLAUDE.md, and the touched code, a batch interview (viva-qa) of 5-9 tagged questions with forks presented as 2-3 options carrying one recommended_choice, a drafted design-<slug>.md (Problem & persona through Open questions, each section carrying a named consumer), a design-lint pass fixed before viva ever starts, and a viva sign-off loop that distinguishes a fresh round from a REVISED resume via --prior-input/--prior-verdicts. Use when the user says /shape, hands over a feature idea to turn into a design doc, or a /build ESCALATED verdict routes back here for revision. Emits exactly one verdict -- DESIGNED, NEEDS RESEARCH, or REVISED -- and hands off to /review.
+description: Runs the /shape workflow -- inventories PRODUCT.md, DESIGN.md, CLAUDE.md, and the touched code, a batch interview (viva-qa) of 5-9 tagged questions with forks presented as 2-3 options carrying one recommended_choice, a drafted design-<slug>.md (Problem & persona through Open questions, each section carrying a named consumer), a design-lint pass fixed before viva ever starts, and a viva sign-off loop that distinguishes a fresh round from a REVISED resume via --prior-input/--prior-verdicts. Once every section is signed off, convenes /review's design episode itself (product-reviewer, persona walkthrough, pre-mortem, verdict) rather than handing off to a separate /review invocation; a REVISE redrafts and re-convenes once more in the same session before an unresolved REVISE goes back to the human. Use when the user says /shape, hands over a feature idea to turn into a design doc, or a /build ESCALATED verdict routes back here for revision. Emits exactly one verdict -- DESIGNED, NEEDS RESEARCH, or REVISED -- plus the convened episode's own PROCEED TO PLAN, REVISE, or RETHINK.
 ---
 
 # /shape
@@ -249,16 +249,68 @@ A `viva`/`viva-qa` launch failure (the skills' own pre-existing guard --
 surfaces verbatim, exactly as their own `SKILL.md`s already specify --
 `/shape` invents no retry logic on top of it.
 
-## Step 7 -- Hand off
+## Step 7 -- Convene the design episode
 
-Report the verdict and tell the developer to run `/review`
-next. Unconditionally: this skill and that gate ship in the same plugin,
-so the gate is there whenever `/shape` ran.
+Every section of `design-<slug>.md` reached `approved` in Step 6. `/shape` now convenes
+`/review`'s design episode itself, on this same doc, in this same session -- the same
+episode a separately-invoked `/review` would run against it, never a lighter or
+shortcut version. **Convening is not judging: `/shape` may convene the design episode as
+a convenience, but the verdict is always `/review`'s. This door never writes one.**
 
-`gate-ledger` on `PATH` is a separate question -- it governs whether the
-gate can *record* its verdict, not whether the gate exists. Don't probe
-for it here and don't let its absence suppress the hand-off; a broken
-`PATH` is what `/doctor` reports.
+Follow `commands/review.md` inline, exactly as written, from "Locate gauntlet" through the
+design episode's "Persist the register" -- don't restate its steps here and don't shortcut
+them:
+
+1. **Locate gauntlet** (once per session, if a prior step here hasn't already) --
+   `gauntlet:where`, recording `GAUNTLET_ROOT`.
+2. **Design episode, Part 1 -- Design product review.** Skip its "Find the doc" step: the
+   doc is `docs/design/<slug>.md`, already resolved by this skill. Dispatch
+   `gauntlet:product-reviewer` exactly per that Part's invocation and compile.
+3. **Part 2 -- Persona walkthrough.** Narrate it per that Part's rules.
+4. **Part 3 -- Pre-mortem.** Build the list per that Part's rules -- a first pass creates
+   the register; a second pass (the REVISE loop below) amends the one already on disk in
+   place, never regenerating it.
+5. **Part 4 -- Design verdict.** Synthesize `PROCEED TO PLAN` / `REVISE` / `RETHINK`
+   exactly per that Part's criteria -- this door doesn't soften or override it.
+6. **Record it** -- `gate-ledger record --gate design-review --verdict "<verdict>"`,
+   review.md's own recording exception for this gate ("Recording this episode's verdict --
+   the one exception"). The design gate carries no `episode-open`/`episode-round`/
+   `episode-verdict` cycle and no code-enforced round cap the way `audit`/`acceptance`
+   do -- `reference/gate-vocabulary.md` notes it "adopts the episode verbs in a later
+   landing," not yet. Never invent one here.
+7. **Persist the register** -- write or amend `docs/studious/premortems/<slug>.md` per
+   that section, whatever the verdict.
+
+**On `PROCEED TO PLAN`:** stop and report. Session verdict `DESIGNED` (first pass) or
+`REVISED` (this session already redrafted once, below) plus the episode's own
+`PROCEED TO PLAN`, in the same message. Name `/build` as the next door -- `/shape` doesn't
+run it.
+
+**On `REVISE`:** redraft the doc in place, addressing the findings in priority order, in
+the sections they name. Then re-run Step 5 (`design-lint`, fixed to clean) and Step 6 --
+which resolves to case 3, the resume path, since the doc already carries a
+`## Revision History` heading from the sign-off round Step 6 just finished -- until every
+changed section is re-`approved`. Re-convene this episode (steps 1-7 above) against the
+redrafted doc; Part 3 amends the existing register rather than rewriting it. Because the
+design gate has no code-enforced round cap (step 6 above), bound this in prose instead:
+**one redraft-and-reconvene cycle per `/shape` session.** Whatever the second round's
+verdict is -- `PROCEED TO PLAN`, `REVISE` again, or `RETHINK` -- stop there and report it.
+A `REVISE` surviving that second round is the human's call, worked through a fresh
+`/shape` invocation, never a third automatic redraft in the same session.
+
+**On `RETHINK`:** stop immediately, whichever pass produced it. Report session verdict
+`DESIGNED` or `REVISED` (per the rule above) plus the episode's `RETHINK` and its
+reasoning. This is a scope-level problem -- problem validity, principle conflict, or "not
+building" -- not a section to patch; going back to brainstorm is the human's decision to
+make, never another automatic redraft.
+
+**Convening itself is unconditional.** `gate-ledger` on `PATH` is a separate question -- it
+governs whether the design gate and this session's status report can *record*, not whether
+the gate or the episode exist. Don't probe for it before convening and don't let its
+absence suppress convening; a broken `PATH` is what `/doctor` reports. That was a real
+regression once (#150: a hand-off skipped under a gate-ledger presence probe, wrong on
+both counts -- `/review` ships in this same plugin, and a missing binary says nothing
+about whether the gate exists, only whether the ledger can record).
 
 ## Verdicts
 
@@ -266,10 +318,10 @@ for it here and don't let its absence suppress the hand-off; a broken
 |---|---|
 | `DESIGNED` | Every section of `design-<slug>.md` reaches `approved` in the viva loop; `design-lint` was already clean. |
 | `NEEDS RESEARCH` | The interview's round 2 still leaves an unresolved fork that would need a round 3. No doc is drafted or committed. |
-| `REVISED` | A previously-`DESIGNED` (or previously-`REVISED`) doc is re-drafted -- after a studious `/review` REVISE/RETHINK, or a direct human request -- and re-signed-off via the resume path (Step 6, case 3). |
+| `REVISED` | A previously-`DESIGNED` (or previously-`REVISED`) doc is re-drafted -- after this session's own convened design episode (Step 7) returns `REVISE`, after an earlier session's episode returned `RETHINK`, or after a direct human request -- and re-signed-off via the resume path (Step 6, case 3). |
 
-Report exactly one of these three tokens, never more than one, at the end
-of every `/shape` session.
+Report exactly one of these three tokens, never more than one, plus the convened design
+episode's own verdict from Step 7, at the end of every `/shape` session.
 
 ## Open questions this skill inherits (not fixed here)
 

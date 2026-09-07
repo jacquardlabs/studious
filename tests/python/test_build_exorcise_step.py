@@ -1,7 +1,7 @@
 """`/build` runs exorcist's exorcise pass between the last PASS and BUILT (#318, seam 2).
 
 Pins the placement note's design against the prose the Foreman actually reads: the step
-sits after every task's PASS and before the BUILT verdict's `/review` hand-off; it
+sits after every task's PASS and before Step 4 convenes `/review`'s work episode; it
 delegates to `/exorcist:exorcise` rather than reimplementing it; `scripts/verify` re-runs
 after it with each task's own dispatch timestamp; a FAIL is undone with `git checkout -- .`
 and noted as Track, never routed into the Failure routine; exorcist's absence is one line
@@ -38,7 +38,7 @@ def test_step_sits_after_the_task_loop_and_before_the_built_handoff() -> None:
     assert "only when every task in the plan has reached\n`PASS`" in STEP
     built_row = next(line for line in SKILL.splitlines() if line.startswith("| `BUILT` |"))
     assert "Step 3" in built_row, "the BUILT verdict reports the exorcise outcome"
-    assert "tell the developer to run `/review` next" in built_row
+    assert "Step 4" in built_row, "the BUILT verdict reports the convened episode's verdict"
 
 
 def test_step_delegates_to_the_exorcise_skill_and_never_commits_in_the_dispatch() -> None:
