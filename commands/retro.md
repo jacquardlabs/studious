@@ -79,6 +79,14 @@ each spent). If the script prints `no cycle data in this clone`, paste that line
 3 and 4 shrink to what git history and the prior plan support — an empty ledger is an honest
 answer, never an error.
 
+If the header instead reads `gate-ledger errored on N call(s)`, or a `## gate-ledger errors
+(N)` section appears at the bottom, relay whichever appears verbatim and mark any count the
+header called `unmeasured` the same way in your prose — a failed `gate-ledger` call is not an
+empty store, it is missing data, and sections 3 and 4 shrink around it exactly as they would
+around `no cycle data`: claims resting on the unmeasured table drop out, everything else
+stands. When every call fails, the script prints a single line with no `## gate-ledger
+errors` section at all (`scripts/retro-stats`'s `render()`) — relay that line alone.
+
 ### Section 3 — What the numbers say went well and badly
 
 Each claim names the section 2 table and row it rests on. Badly: rounds at the cap, one
