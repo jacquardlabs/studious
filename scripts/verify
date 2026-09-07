@@ -226,7 +226,9 @@ def resolve_command_for_method(method_path: str, repo_root: Path) -> str:
     - Executable on disk: unchanged, verbatim.
     - A `.py` file under one of this repo's two test trees (CLAUDE.md's "Two test
       runners, deliberately"): runs that one file through the runner owning its
-      tree -- `pytest <path> -q` for `tests/python/`, `python3 -m unittest
+      tree -- `uv run --no-project --with pytest pytest <path> -q` for
+      `tests/python/` (CLAUDE.md documents no other invocation, and this
+      environment's bare `python3` has no pytest installed), `python3 -m unittest
       discover -s <dir> -p <basename>` for `tests/jig/` (unittest has no
       single-file invocation; `-p` narrows discovery to that one filename).
 
@@ -243,7 +245,7 @@ def resolve_command_for_method(method_path: str, repo_root: Path) -> str:
         except ValueError:
             parts = ()
         if parts[:2] == ("tests", "python"):
-            return f"python3 -m pytest {shlex.quote(method_path)} -q"
+            return f"uv run --no-project --with pytest pytest {shlex.quote(method_path)} -q"
         if parts[:2] == ("tests", "jig"):
             directory = str(PurePosixPath(*parts[:-1]))
             return f"python3 -m unittest discover -s {shlex.quote(directory)} -p {shlex.quote(parts[-1])}"

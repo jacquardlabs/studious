@@ -721,7 +721,7 @@ class TestResolveCommandForMethod(unittest.TestCase):
             target.write_text("def test_ok():\n    pass\n", encoding="utf-8")
             self.assertEqual(
                 self.module.resolve_command_for_method("tests/python/test_thing.py", repo),
-                "python3 -m pytest tests/python/test_thing.py -q",
+                "uv run --no-project --with pytest pytest tests/python/test_thing.py -q",
             )
 
     def test_a_non_executable_py_file_under_tests_jig_maps_to_unittest_discover(self) -> None:
