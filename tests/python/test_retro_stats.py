@@ -327,6 +327,37 @@ class TestCliEndToEnd(unittest.TestCase):
             out = proc.stdout
             self.assertIn("unmeasured epic(s)", out.splitlines()[0])
             self.assertIn("unmeasured — `epic-list` errored", out)
+
+    def test_per_slug_epic_get_failure_flags_the_count_as_an_undercount(self) -> None:
+        """acceptance finding: `epic-list` can succeed while an individual
+        `epic-get --slug X` call still fails — that record silently drops out of
+        `data["epics"]`, and the surviving `len()` rendered as a plain, measured
+        number with no cue anything was missing. One epic's `epic-get` fails here
+        while `epic-list` itself and a second epic's `epic-get` both succeed; the
+        header must name the undercount, and Parks (which reads `data["epics"]`)
+        must say unmeasured rather than its ordinary empty-state string."""
+        with tmp_repo() as repo:
+            self._gl(repo, "epic-set", "--slug", "e1", "--title", "t1", "--goal", "g", "--branch", "epic/e1", "--status", "running")
+            self._gl(repo, "epic-set", "--slug", "e2", "--title", "t2", "--goal", "g", "--branch", "epic/e2", "--status", "running")
+            self._gl(repo, "work-set", "--slug", "standalone", "--title", "s", "--source", "human", "--branch", "standalone")
+            shim = repo / "shim-gate-ledger"
+            shim.write_text(
+                "#!/bin/sh\n"
+                'if [ "$1" = "epic-get" ] && [ "$3" = "e2" ]; then echo boom >&2; exit 7; fi\n'
+                f'exec "{GATE_LEDGER}" "$@"\n',
+                encoding="utf-8",
+            )
+            shim.chmod(0o755)
+            proc = run_script(["--repo", str(repo), "--gate-ledger", str(shim)])
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            out = proc.stdout
+            header = out.splitlines()[0]
+            # epic-list itself succeeded, so the count is not the blanket
+            # "unmeasured" a list-call failure produces — it's a named undercount.
+            self.assertIn("1 epic(s) (undercount — epic-get errored)", header)
+            parks_start = out.index("## Parks by reason")
+            parks_end = out.index("\n## ", parks_start + 1)
+            self.assertIn("unmeasured — `epic-list`/`epic-get` errored", out[parks_start:parks_end])
             self.assertNotIn("no epic recorded", out)
 
     def test_downstream_ledger_verb_failures_mark_lanes_rounds_and_evidence_unmeasured(self) -> None:
@@ -390,11 +421,28 @@ class TestCliEndToEnd(unittest.TestCase):
             self.assertNotIn("0 work file(s)", proc.stdout)
             # the epic count, unaffected, still measures normally
             self.assertIn("1 epic(s)", header)
-            # a `work-list` failure feeds no dependent table below the header — the
-            # Stories/Rounds/Lanes/Evidence sections all read off `epic-get`,
-            # `gate-get`, `episode-get`, and `evidence-list`, none of which were
-            # touched by this shim, so none of them should say "unmeasured".
-            self.assertNotIn("unmeasured —", proc.stdout)
+            # a `work-list` failure feeds no dependent table below the header for
+            # Stories/Rounds/Lanes/Evidence — those read off `epic-get`, `gate-get`,
+            # `episode-get`, and `evidence-list`, none of which were touched by this
+            # shim, so none of them should say "unmeasured".
+            for section in ("## Stories", "## Rounds", "## Lanes", "## Verification evidence"):
+                start = proc.stdout.index(section)
+                end = proc.stdout.index("\n## ", start + 1) if "\n## " in proc.stdout[start + 1 :] else len(proc.stdout)
+                self.assertNotIn("unmeasured —", proc.stdout[start:end], section)
+            # Scope and Time both read off `data["works"]`, which a `work-list`
+            # failure empties out just as surely as it empties the header count —
+            # they must say "unmeasured", not the plain "no story declared a file
+            # set" / "no two stamps to measure between" empty-state a genuinely
+            # empty store would print (acceptance finding: these fell through to
+            # the empty-state string on a failed call, indistinguishable from a
+            # real zero).
+            self.assertIn("## Scope: declared vs outside", proc.stdout)
+            scope_start = proc.stdout.index("## Scope: declared vs outside")
+            scope_end = proc.stdout.index("\n## ", scope_start + 1)
+            self.assertIn("unmeasured —", proc.stdout[scope_start:scope_end])
+            time_start = proc.stdout.index("## Time per phase")
+            time_end = proc.stdout.index("\n## ", time_start + 1)
+            self.assertIn("unmeasured —", proc.stdout[time_start:time_end])
 
     def test_a_failed_gate_ledger_call_reads_differently_from_an_empty_store(self) -> None:
         """#351: `Ledger.out` returned `""` alike for a failed verb and a legitimately

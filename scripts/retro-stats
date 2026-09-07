@@ -171,12 +171,16 @@ def collect(ledger: Ledger, root: Path, since: str) -> dict[str, Any]:
     before = len(ledger.errors)
     work_rows = ledger.tsv("work-list")
     work_list_failed = len(ledger.errors) > before
+    before = len(ledger.errors)
     works = [ledger.json("work-get", "--slug", row[0]) for row in work_rows if row and row[0] not in ("", "?")]
+    work_get_failed = len(ledger.errors) > before
     works = [w for w in works if w and in_window(str(w.get("updatedAt", "")), since)]
     before = len(ledger.errors)
     epic_rows = ledger.tsv("epic-list")
     epic_list_failed = len(ledger.errors) > before
+    before = len(ledger.errors)
     epics = [ledger.json("epic-get", "--slug", row[0]) for row in epic_rows if row and row[0] not in ("", "?")]
+    epic_get_failed = len(ledger.errors) > before
     epics = [e for e in epics if e and in_window(str(e.get("updatedAt", "")), since)]
 
     before = len(ledger.errors)
@@ -246,6 +250,8 @@ def collect(ledger: Ledger, root: Path, since: str) -> dict[str, Any]:
         "ledger_errors": list(ledger.errors),
         "work_list_failed": work_list_failed,
         "epic_list_failed": epic_list_failed,
+        "work_get_failed": work_get_failed,
+        "epic_get_failed": epic_get_failed,
         "findings_failed": findings_failed,
         "gates_failed": gates_failed,
         "episodes_failed": episodes_failed,
@@ -400,7 +406,10 @@ def parks_section(data: dict[str, Any]) -> list[str]:
                 buckets[park_reason_bucket(str(story.get("reason") or ""))].append(f"`{epic.get('slug')}/{slug}`")
     rows = [[bucket, str(len(stories)), ", ".join(stories)] for bucket, stories in sorted(buckets.items(), key=lambda kv: (-len(kv[1]), kv[0]))]
     lines = ["## Parks by reason (`epic-get` story reasons)", ""]
-    lines += table(["Reason", "Stories", "Which"], rows) if rows else ["no story parked"]
+    if rows:
+        lines += table(["Reason", "Stories", "Which"], rows)
+    else:
+        lines += ["unmeasured — `epic-list`/`epic-get` errored"] if (data["epic_list_failed"] or data["epic_get_failed"]) else ["no story parked"]
     return lines
 
 
@@ -425,7 +434,10 @@ def scope_section(data: dict[str, Any]) -> list[str]:
             ]
         )
     lines = ["## Scope: declared vs outside (`work-get` declaredFiles, scopeDelta)", ""]
-    lines += table(["Story", "Declared", "Outside", "Moments measured", "Unmeasured (reason)", "Amendments"], rows) if rows else ["no story declared a file set"]
+    if rows:
+        lines += table(["Story", "Declared", "Outside", "Moments measured", "Unmeasured (reason)", "Amendments"], rows)
+    else:
+        lines += ["unmeasured — `work-list`/`work-get` errored"] if (data["work_list_failed"] or data["work_get_failed"]) else ["no story declared a file set"]
     if undeclared:
         lines += ["", f"Never declared, never measured: {undeclared} work file(s)"]
     return lines
@@ -443,7 +455,10 @@ def time_section(data: dict[str, Any]) -> list[str]:
         if values
     ]
     lines = ["## Time per phase (`work-get` history stamps; intervals across a run boundary dropped)", ""]
-    lines += table(["Phase", "Intervals", "Median", "Max", "Total"], rows) if rows else ["no two stamps to measure between"]
+    if rows:
+        lines += table(["Phase", "Intervals", "Median", "Max", "Total"], rows)
+    else:
+        lines += ["unmeasured — `work-list`/`work-get` errored"] if (data["work_list_failed"] or data["work_get_failed"]) else ["no two stamps to measure between"]
     return lines
 
 
@@ -511,9 +526,11 @@ def render(data: dict[str, Any], root: Path, since: str) -> str:
                 f"an empty store; first: {errors[0]}"
             )
         return f"{NO_DATA} ({window})"
+    work_unit = "work file(s)" + (" (undercount — work-get errored)" if data["work_get_failed"] else "")
     work_count = "unmeasured" if data["work_list_failed"] else str(len(data["works"]))
+    epic_unit = "epic(s)" + (" (undercount — epic-get errored)" if data["epic_get_failed"] else "")
     epic_count = "unmeasured" if data["epic_list_failed"] else str(len(data["epics"]))
-    header = f"# Cycle numbers — {root.name}, {window}: {work_count} work file(s), {epic_count} epic(s), {len(data['branches'])} branch(es)"
+    header = f"# Cycle numbers — {root.name}, {window}: {work_count} {work_unit}, {epic_count} {epic_unit}, {len(data['branches'])} branch(es)"
     if errors:
         header += f" — gate-ledger errored on {len(errors)} call(s)"
     sections = [
