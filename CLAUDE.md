@@ -98,7 +98,7 @@ jig was absorbed into this plugin (#150), not added beside it. `/shape`, `/build
 in `scripts/`, their unittest suite in `tests/jig/`. One manifest, one version line, one
 install. The manifest declares `dependencies: ["viva", "gauntlet"]` — `/build` and `/shape`
 stop dead without viva; `/health` dispatches nothing without gauntlet, and `/review`'s
-judge lanes repoint to it under #334 S1.
+judge lanes are `gauntlet:*` dispatches too, live since #334 S1 shipped.
 
 Two plugins was considered and rejected: separate installability served an audience of
 zero while costing two version lines, two release paths, a `git-subdir` marketplace
