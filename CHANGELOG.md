@@ -2,6 +2,59 @@
 
 <!-- version list -->
 
+## v4.1.0 (2026-09-07)
+
+### Bug Fixes
+
+- /build's Step 4 skips convening when dispatched under the epic driver
+  ([#350](https://github.com/jacquardlabs/studious/pull/350),
+  [`2642813`](https://github.com/jacquardlabs/studious/commit/2642813f59a1e7cc02ad9b6a68cb45e1a2f6351b))
+
+- Log design/audit gate verdicts under their ledger gate names
+  ([#350](https://github.com/jacquardlabs/studious/pull/350),
+  [`2642813`](https://github.com/jacquardlabs/studious/commit/2642813f59a1e7cc02ad9b6a68cb45e1a2f6351b))
+
+- Pin the convening hand-off's unconditional guarantee, not the retired hand-off text
+  ([#350](https://github.com/jacquardlabs/studious/pull/350),
+  [`2642813`](https://github.com/jacquardlabs/studious/commit/2642813f59a1e7cc02ad9b6a68cb45e1a2f6351b))
+
+- Run the new SessionStart hook's tests and shellcheck in CI
+  ([#350](https://github.com/jacquardlabs/studious/pull/350),
+  [`2642813`](https://github.com/jacquardlabs/studious/commit/2642813f59a1e7cc02ad9b6a68cb45e1a2f6351b))
+
+### Documentation
+
+- Register /shape and /build as gate-verdict-token consumers
+  ([#350](https://github.com/jacquardlabs/studious/pull/350),
+  [`2642813`](https://github.com/jacquardlabs/studious/commit/2642813f59a1e7cc02ad9b6a68cb45e1a2f6351b))
+
+### Features
+
+- Add SessionStart flow-position heads-up hook
+  ([#350](https://github.com/jacquardlabs/studious/pull/350),
+  [`2642813`](https://github.com/jacquardlabs/studious/commit/2642813f59a1e7cc02ad9b6a68cb45e1a2f6351b))
+
+- Producers convene their judge at exit; /next collapses to five pieces
+  ([#350](https://github.com/jacquardlabs/studious/pull/350),
+  [`2642813`](https://github.com/jacquardlabs/studious/commit/2642813f59a1e7cc02ad9b6a68cb45e1a2f6351b))
+
+- Producers convene their judge, /next collapses to five pieces, shim deletion, #274 pinning test,
+  SessionStart hook ([#350](https://github.com/jacquardlabs/studious/pull/350),
+  [`2642813`](https://github.com/jacquardlabs/studious/commit/2642813f59a1e7cc02ad9b6a68cb45e1a2f6351b))
+
+### Refactoring
+
+- Fold the five trigger shims into their doors' descriptions
+  ([#350](https://github.com/jacquardlabs/studious/pull/350),
+  [`2642813`](https://github.com/jacquardlabs/studious/commit/2642813f59a1e7cc02ad9b6a68cb45e1a2f6351b))
+
+### Testing
+
+- Pin the audit lane roster against review.md and epic-driver.js
+  ([#350](https://github.com/jacquardlabs/studious/pull/350),
+  [`2642813`](https://github.com/jacquardlabs/studious/commit/2642813f59a1e7cc02ad9b6a68cb45e1a2f6351b))
+
+
 ## v4.0.0 (2026-09-07)
 
 ### Bug Fixes
