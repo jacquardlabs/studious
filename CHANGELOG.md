@@ -2,6 +2,94 @@
 
 <!-- version list -->
 
+## v4.1.1 (2026-09-07)
+
+### Bug Fixes
+
+- Address gauntlet audit findings on health/review degrade story
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- Distinguish missing jq from an empty store, pin the TSV column-sync order
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- Flag every ledger-derived count unmeasured when jq is missing
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- Four retro-stats render defects, its tests moved and expanded, retro.md pinned
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- Four retro-stats render defects, move its tests to CI, pin retro.md
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- Mark every dependent retro-stats table unmeasured on ledger failure
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- Mark Parks/Scope/Time unmeasured on ledger failure, flag per-slug undercounts
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- Pin gauntlet-not-installed stop line, untrusted-content posture, and context-doc scope for /health
+  and /review ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- Pin TSV column sync, surface partial ledger failures, carry stderr cause
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- Reconcile doctor.md's local-dispatch framing and stale doc claims
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- Reconcile PLAN.md with the three-door posture fix and pin its tests
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- Resolve instruction conflict and a weak assertion from the prior commit
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- Scripts/verify's test-backed pytest invocation needs uv's pytest
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- V4 shakedown ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+### Chores
+
+- Remove PLAN.md, which status-flip force-added
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+### Documentation
+
+- Add epic pre-mortem register for v4-shakedown
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- Disclose health.md's dispatched/not-dispatched rule addition in PLAN.md
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- Fix five stale prose spots the judge-fleet epic (#349) left behind
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- Fix stale gh-dependency, gauntlet-lane, and #334 S1 wording
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+- Match build/SKILL.md's Concepts-kept wording to ship's, fix door count
+  ([#375](https://github.com/jacquardlabs/studious/pull/375),
+  [`1c19fa0`](https://github.com/jacquardlabs/studious/commit/1c19fa0bc23bec79c607e7495e66560ba80ce978))
+
+
 ## v4.1.0 (2026-09-07)
 
 ### Bug Fixes
