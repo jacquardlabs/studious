@@ -2,6 +2,179 @@
 
 <!-- version list -->
 
+## v4.0.0 (2026-09-07)
+
+### Bug Fixes
+
+- /health builds invocations with dispatch.py and compiles with report.py, mirroring /review
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- /review resolves gauntlet's root through /gauntlet:where; /doctor flags /retro <area>; README and
+  CONTRIBUTING follow the epic ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- A returned digest fingerprint is a re-open proposal, never an --status open write (#334 S1)
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- Code-auditor telemetry maps to gate-audit now that /review is its only dispatcher
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- Declare gauntlet as a plugin dependency so /health can dispatch its judges
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- Doctor's gauntlet row states S0's true consequence, not S1's
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- Keep the local roster's severity tables for the epic driver; round-2 ledger speaks the findings
+  document (#334 S1) ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- Locate gauntlet's root through /gauntlet:review when the installed fleet ships no where skill
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- **build**: An exorcise pass that removes nothing skips the commit and re-verify but still captures
+  its report (#318 seam 2) ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- **build**: The exorcise subagent runs git diff by design — the never-read-a-diff rule stays the
+  Foreman's (#318 seam 2) ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- **driver**: Build judge invocations via gauntlet's dispatch.py
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- **health**: Simplify hands exorcise register.json — its mode test and approval both read it
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- **health**: Simplify takes no ref — a second argument matches no keyword
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- **ship**: Resolve the exorcise report so its `## Held` section reaches the PR body (#318 seam 2)
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+### Documentation
+
+- DESIGN.md names /retro as the retrospective, not outcome grading alone
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- Drop the retired code-auditor ambiguity note from telemetry-format
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- Name /health and /retro with their cadences across README, setup, and the charter's consumers
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- Pre-mortem register for exorcise inside /build (#318 seam 2)
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- The driver takes no prompt-contract handoff; rubric, telemetry, and compilation prose follow S2
+  (#334 S2) ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+### Features
+
+- /review dispatches gauntlet judges and compiles findings documents (#334 S1)
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- /setup proposes the exorcist ward after wiring CLAUDE.md (#318 seam 1)
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- Declare /health and move the seven inspections there from /retro (#330, #334 S3)
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- Declare gauntlet as a dependency and record the judge-fleet ruling (#334 S0)
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- Dispatch gauntlet for every judge lane, split /retro into /health and /retro, wire exorcist into
+  /setup, /build, and /health ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- Record gauntlet dispatches in routing telemetry with a fleet field (#334 S1)
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- **build**: Exorcise pass between the last PASS and BUILT, re-verified by script (#318 seam 2)
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- **driver**: Dispatch gauntlet judges with contract-v1 invocations and read findings documents
+  (#334 S2) ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- **driver**: Dispatch the exorcise pass after a confirmed build, inside the worker-dispatch region
+  (#318 seam 2) ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- **gate-ledger**: Episode-get takes --branch so a reader on main can fold a story branch's episodes
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- **health**: Add simplify mode running /exorcist:seance (#318 seam 3)
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- **retro**: Scripts/retro-stats renders the cycle's numbers from the ledger through gate-ledger
+  verbs ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- **retro**: The retrospective reads the cycle's ledger and opens with the last plan; idiom proposal
+  moves here from /health ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- **telemetry**: Label gauntlet posture dispatches as health in the dispatch hook
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+### Refactoring
+
+- Consolidate docs/jig/ report and demonstration paths onto their live homes
+  ([#332](https://github.com/jacquardlabs/studious/pull/332),
+  [`749cfbb`](https://github.com/jacquardlabs/studious/commit/749cfbbefa6bcc10f859a0209a194236fa8977bc))
+
+- Retire the per-auditor severity mapping; judges emit tiers, gauntlet's charter owns anchors (#334
+  S1) ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- Trim verbose comments and docstrings repo-wide
+  ([#333](https://github.com/jacquardlabs/studious/pull/333),
+  [`965eb1b`](https://github.com/jacquardlabs/studious/commit/965eb1b31cd91f1eb2ba13698baa1a121a177b07))
+
+### Testing
+
+- Delete test_contract_injection.py — the driver stops stamping a shared contract (#334 S2)
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- Drop the plugin-cache glob from the dispatch tests; refresh stale product-lane docstrings (#334
+  S2) ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- Pin /review's gauntlet lanes and the a11y-only severity row (#334 S1)
+  ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+- Pin the exorcise step's order, FAIL rule, degrade line, label, and the driver's dispatch placement
+  (#318 seam 2) ([#349](https://github.com/jacquardlabs/studious/pull/349),
+  [`f562f58`](https://github.com/jacquardlabs/studious/commit/f562f58db8520c46dccedbd9816d696fe1039c70))
+
+
 ## v3.8.1 (2026-09-06)
 
 ### Bug Fixes
