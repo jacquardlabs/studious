@@ -2298,6 +2298,21 @@ check "override is an accepted routing reason" "override" "$(jq -rs '.[1].routin
 ( cd "$dt" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id run-7 --step-id lane-3 \
     --role fix-delta --routing-reason static ) >/dev/null
 check "unknown role leaves model empty" "" "$(jq -rs '.[2].model' "$tf")"
+check "fleet is empty when the caller named none" "" "$(jq -rs '.[2].fleet' "$tf")"
+
+# --fleet gauntlet suppresses the local frontmatter lookup even when a local agent
+# shares the name: the pin that ran lives in gauntlet, which this plugin never reads
+( cd "$dt" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id run-7 --step-id lane-4 \
+    --role security-auditor --fleet gauntlet --routing-reason static ) >/dev/null
+check "fleet is recorded verbatim" "gauntlet" "$(jq -rs '.[3].fleet' "$tf")"
+check "a gauntlet role leaves model empty despite a same-named local agent" "" "$(jq -rs '.[3].model' "$tf")"
+check "a gauntlet role leaves effort empty too" "" "$(jq -rs '.[3].effort' "$tf")"
+( cd "$dt" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id run-7 --step-id lane-5 \
+    --role security-auditor --fleet studious --routing-reason static ) >/dev/null
+check "an explicit studious fleet still resolves the local pin" "opus" "$(jq -rs '.[4].model' "$tf")"
+( cd "$dt" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id run-7 --step-id lane-6 \
+    --role security-auditor --fleet gauntlet --model sonnet --routing-reason static ) >/dev/null
+check "an explicit --model is kept for a gauntlet role" "sonnet" "$(jq -rs '.[5].model' "$tf")"
 
 # --- telemetry-dispatch validation ---
 check "missing --role exits 2" "2" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s --routing-reason static >/dev/null 2>&1; echo $?)"
@@ -2311,6 +2326,9 @@ check "multi-digit classifier reason is accepted" "0" "$(cd "$dt" && "$LEDGER" t
 check "ab arm with whitespace exits 2" "2" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s9 --role x --routing-reason "ab:arm a" >/dev/null 2>&1; echo $?)"
 check "hyphenated ab arm is accepted" "0" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s10 --role x --routing-reason ab:arm-a >/dev/null 2>&1; echo $?)"
 check "unknown capturer exits 2" "2" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s --role x --routing-reason static --capturer agent >/dev/null 2>&1; echo $?)"
+check "unknown fleet exits 2" "2" "$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s --role x --routing-reason static --fleet viva >/dev/null 2>&1; echo $?)"
+err=$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s --role x --routing-reason static --fleet viva 2>&1 1>/dev/null)
+contains "the fleet refusal names the closed set" "--fleet must be 'studious' or 'gauntlet'" "$err"
 err=$(cd "$dt" && "$LEDGER" telemetry-dispatch --run-id r --step-id s --role x --routing-reason static --capturer agent 2>&1 1>/dev/null)
 contains "the capturer refusal names the closed set" "--capturer must be 'hook' or 'driver'" "$err"
 
@@ -2331,6 +2349,15 @@ check "an absolute --role is refused too" "2" \
 check "a dash-leading --role is refused too" "2" \
   "$(cd "$drl" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id r --step-id s3 \
       --role "-n" --routing-reason static >/dev/null 2>&1; echo $?)"
+# a qualified dispatch string is refused: every caller strips the prefix into --fleet
+err=$(cd "$drl" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id r --step-id s5 \
+    --role "gauntlet:security-auditor" --routing-reason static 2>&1 1>/dev/null; echo "rc=$?")
+contains "a qualified --role is refused" "no ':'" "$err"
+contains "a qualified --role exits 2" "rc=2" "$err"
+check "a studious-qualified --role is refused the same way" "2" \
+  "$(cd "$drl" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id r --step-id s6 \
+      --role "studious:security-auditor" --routing-reason static >/dev/null 2>&1; echo $?)"
+check "a refused qualified --role writes no telemetry line" "no" "$([ -f "$rf" ] && echo yes || echo no)"
 ( cd "$drl" && CLAUDE_PLUGIN_ROOT="$ROOT" "$LEDGER" telemetry-dispatch --run-id r --step-id s4 \
     --role security-auditor --routing-reason static ) >/dev/null 2>&1
 check "a real agent name still dispatches and still resolves its model pin" "opus" "$(jq -rs '.[0].model' "$rf")"
@@ -2700,6 +2727,24 @@ check "work-assign preserves fields work-set already wrote" "Fancy" \
   "$(cd "$di" && "$LEDGER" work-set --slug asg-epic--s2 --title Fancy >/dev/null; \
      "$LEDGER" work-assign --slug asg-epic--s2 --phase design --brief b >/dev/null; \
      jq -r '.title' "$di/.studious/work/asg-epic-s2.json")"
+
+# --- episode-get --branch (#330): read another branch's episodes from main ---
+# scripts/retro-stats runs on main and reads every story branch's record from
+# there, the same way gate-get and evidence-list already take --branch.
+deb=$(sandbox)
+( cd "$deb" && "$LEDGER" episode-open --gate audit \
+    && "$LEDGER" episode-finding --gate audit --lane security-auditor --severity Critical \
+         --fingerprint eb-1 --status waived --waiver "accepted for the fixture" ) >/dev/null
+git -C "$deb" checkout -q -b other/branch
+check "episode-get on a branch with no episodes prints nothing" "" \
+  "$(cd "$deb" && "$LEDGER" episode-get --gate audit --history)"
+ebhist=$(cd "$deb" && "$LEDGER" episode-get --gate audit --history --branch feat/foo)
+contains "episode-get --branch --history reads the named branch's episode" "episode 1 (current)" "$ebhist"
+contains "episode-get --branch --history carries that branch's waiver line" "eb-1" "$ebhist"
+contains "episode-get --branch --findings reads the named branch's digest" $'digest\tsecurity-auditor\teb-1\twaived' \
+  "$(cd "$deb" && "$LEDGER" episode-get --gate audit --findings --branch feat/foo)"
+contains "episode-get --branch (summary) reads the named branch" "round 1 of" \
+  "$(cd "$deb" && "$LEDGER" episode-get --gate audit --branch feat/foo)"
 
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

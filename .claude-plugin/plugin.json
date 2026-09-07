@@ -18,6 +18,7 @@
     "tdd"
   ],
   "dependencies": [
-    "viva"
+    "viva",
+    "gauntlet"
   ]
 }

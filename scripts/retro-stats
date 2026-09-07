@@ -1,0 +1,480 @@
+#!/usr/bin/env python3
+"""retro-stats — render one cycle's numbers from the ledger, for `/retro` (#330).
+
+Code owns the counting; the door narrates. Every `.studious/` read goes through
+`bin/gate-ledger` verbs — `work-list`/`work-get`, `epic-list`/`epic-get`/
+`epic-findings`, `gate-get`, `episode-get --branch`, `evidence-list` — never a
+raw file. The two stores with no read verb are read as files, by their own
+contracts: `.studious/telemetry/*.jsonl` (`reference/telemetry-format.md`) and
+`docs/studious/decisions.jsonl` (`reference/decision-journal-format.md`).
+
+Each table names the record it came from, and a number the store does not hold
+renders as an honest gap ("—", "unmeasured", "none recorded"), never a zero.
+Tokens per story is one of those: telemetry records which dispatches went out,
+not what each spent (`reference/epic-pricing.md`, rung 1), so the cost table
+counts dispatches and the epic table sums `runs[].tokensSpent` where a driver
+recorded it.
+
+`--since YYYY-MM-DD` narrows the window on each record's own stamp: `updatedAt`
+(work files, epics), `at` (telemetry), `capturedAt` (evidence), `date`
+(decisions). Timestamps compare as fixed-width strings — `datetime.fromisoformat`
+rejects the trailing `Z` below 3.11, a runtime break under this directory's 3.9
+floor that vermin can't see.
+
+Exit codes: 0 always, including an empty store (prints the no-data line);
+2 usage error or no `bin/gate-ledger` beside this script.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import statistics
+import sys
+from collections import Counter, defaultdict
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import main_checkout_root, run  # noqa: E402
+
+GATE_LEDGER = Path(__file__).resolve().parent.parent / "bin" / "gate-ledger"
+NO_DATA = "no cycle data in this clone"
+#: The episode gates `bin/gate-ledger` records rounds for (`reference/gate-vocabulary.md`).
+GATES = ("design-review", "audit", "acceptance")
+#: Story-timeline steps, in flow order (`commands/next.md`), for the time-per-phase table.
+PHASES = ("decide", "design", "design-review", "build", "audit", "acceptance", "merge", "finish")
+#: A driver invocation boundary, not work — never attributed to a phase's wall time.
+RUN_BOUNDARY = "run-boundary"
+STAMP = "%Y-%m-%dT%H:%M:%SZ"
+
+EPISODE_LINE = re.compile(
+    r"^episode (?P<n>\d+)(?P<current> \(current\))? — opened \S+ at \S+, "
+    r"round (?P<round>\d+) of (?P<cap>\d+), (?:verdict (?P<verdict>.+?)|no verdict yet) — "
+    r"(?P<open>\d+) open, (?P<carried>\d+) carried$"
+)
+
+
+class Ledger:
+    """`bin/gate-ledger`, run against one main checkout; stdout or "" on any failure."""
+
+    def __init__(self, exe: Path, root: Path) -> None:
+        self.exe = exe
+        self.root = root
+
+    def out(self, *args: str) -> str:
+        try:
+            proc = run([str(self.exe), *args], cwd=self.root)
+        except OSError:
+            return ""
+        return proc.stdout if proc.returncode == 0 else ""
+
+    def json(self, *args: str) -> dict[str, Any]:
+        text = self.out(*args).strip()
+        if not text:
+            return {}
+        try:
+            record = json.loads(text)
+        except ValueError:
+            return {}
+        return record if isinstance(record, dict) else {}
+
+    def tsv(self, *args: str) -> list[list[str]]:
+        return [line.split("\t") for line in self.out(*args).splitlines() if line.strip()]
+
+
+def parse_jsonl(text: str) -> list[dict[str, Any]]:
+    """Every well-formed object in `.jsonl` text; a malformed line is skipped, never fatal."""
+    out: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        try:
+            record = json.loads(line) if line.strip() else None
+        except ValueError:
+            continue
+        if isinstance(record, dict):
+            out.append(record)
+    return out
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    try:
+        return parse_jsonl(path.read_text(encoding="utf-8", errors="replace"))
+    except OSError:
+        return []
+
+
+def in_window(stamp: str, since: str) -> bool:
+    return not since or str(stamp)[:10] >= since
+
+
+def parse_stamp(stamp: str) -> datetime | None:
+    try:
+        return datetime.strptime(stamp, STAMP)
+    except (TypeError, ValueError):
+        return None
+
+
+def branch_of(work: dict[str, Any]) -> str:
+    branch = str(work.get("branch") or "")
+    return branch if branch and branch != "-" else str(work.get("slug", "?"))
+
+
+def park_reason_bucket(reason: str) -> str:
+    """`story-supervised: …` / `<gate>: <verdict> — …` -> the prefix; free text -> `unstated`."""
+    head, sep, _ = reason.partition(":")
+    return head.strip() if sep and head.strip() and " " not in head.strip() else "unstated"
+
+
+def phase_durations(work: dict[str, Any]) -> list[tuple[str, float]]:
+    """(step, hours) per history entry, measured from the entry before it (or `createdAt`).
+
+    An interval touching a `run-boundary` entry on either end is dropped — that is
+    time the driver was not running, not time a phase took.
+    """
+    history = [h for h in work.get("history", []) if isinstance(h, dict)]
+    prior_step, prior_at = "", parse_stamp(str(work.get("createdAt", "")))
+    out: list[tuple[str, float]] = []
+    for entry in history:
+        step, at = str(entry.get("step", "")), parse_stamp(str(entry.get("at", "")))
+        if at and prior_at and RUN_BOUNDARY not in (step, prior_step) and step in PHASES:
+            out.append((step, (at - prior_at).total_seconds() / 3600))
+        prior_step, prior_at = step, at or prior_at
+    return out
+
+
+def hours(value: float) -> str:
+    return f"{value:.1f}h" if value >= 1 else f"{value * 60:.0f}m"
+
+
+def collect(ledger: Ledger, root: Path, since: str) -> dict[str, Any]:
+    works = [
+        ledger.json("work-get", "--slug", row[0])
+        for row in ledger.tsv("work-list")
+        if row and row[0] not in ("", "?")
+    ]
+    works = [w for w in works if w and in_window(str(w.get("updatedAt", "")), since)]
+    epics = [ledger.json("epic-get", "--slug", row[0]) for row in ledger.tsv("epic-list") if row]
+    epics = [e for e in epics if e and in_window(str(e.get("updatedAt", "")), since)]
+
+    findings = {
+        str(e.get("slug", "")): [
+            row for row in ledger.tsv("epic-findings", "--epic", str(e.get("slug", ""))) if len(row) == 7
+        ]
+        for e in epics
+    }
+    branches = sorted(
+        {branch_of(w) for w in works if w.get("branch")}
+        | {str(e.get("branch")) for e in epics if e.get("branch")}
+        | {f"epic/{e.get('slug')}--{s}" for e in epics for s in (e.get("stories") or {})}
+    )
+    gates = {b: ledger.json("gate-get", "--branch", b) for b in branches}
+    episodes = {
+        (b, g): ledger.out("episode-get", "--gate", g, "--history", "--branch", b).splitlines()
+        for b in branches
+        for g in GATES
+    }
+    episode_findings = {
+        (b, g): [
+            row
+            for row in ledger.tsv("episode-get", "--gate", g, "--findings", "--branch", b)
+            if row[0] in ("open", "carried", "digest")
+        ]
+        for b in branches
+        for g in GATES
+    }
+    evidence = {
+        b: [
+            r
+            for r in parse_jsonl(ledger.out("evidence-list", "--branch", b))
+            if in_window(str(r.get("capturedAt", "")), since)
+        ]
+        for b in branches
+    }
+    telemetry = [
+        r
+        for p in sorted((root / ".studious" / "telemetry").glob("*.jsonl"))
+        for r in read_jsonl(p)
+        if in_window(str(r.get("at", "")), since)
+    ]
+    decisions_file = root / "docs" / "studious" / "decisions.jsonl"
+    decisions = [r for r in read_jsonl(decisions_file) if in_window(str(r.get("date", "")), since)]
+    return {
+        "works": works,
+        "epics": epics,
+        "findings": findings,
+        "branches": branches,
+        "gates": gates,
+        "episodes": episodes,
+        "episode_findings": episode_findings,
+        "evidence": evidence,
+        "telemetry": telemetry,
+        "decisions": decisions,
+        "has_journal": decisions_file.is_file(),
+    }
+
+
+def table(header: list[str], rows: list[list[str]]) -> list[str]:
+    return [
+        "| " + " | ".join(header) + " |",
+        "|" + "|".join("---" for _ in header) + "|",
+        *("| " + " | ".join(row) + " |" for row in rows),
+    ]
+
+
+def stories_section(data: dict[str, Any]) -> list[str]:
+    rows = []
+    for epic in data["epics"]:
+        stories = epic.get("stories") or {}
+        counts = Counter(str(s.get("status", "pending")) for s in stories.values())
+        runs = [r for r in epic.get("runs") or [] if isinstance(r, dict)]
+        tokens = sum(int(r.get("tokensSpent", 0) or 0) for r in runs)
+        rows.append(
+            [
+                f"`{epic.get('slug', '?')}`",
+                str(epic.get("status", "?")),
+                str(counts["landed"]),
+                str(counts["parked"]),
+                str(counts["dropped"]),
+                str(len(stories) - counts["landed"] - counts["parked"] - counts["dropped"]),
+                f"{len(runs)} ({sum(int(r.get('landed', 0) or 0) for r in runs)} landed)" if runs else "none recorded",
+                f"{tokens:,}" if tokens else "—",
+            ]
+        )
+    standalone = [w for w in data["works"] if not str(w.get("source", "")).startswith("epic:")]
+    phases = Counter(str(w.get("phase", "?")) for w in standalone)
+    lines = ["## Stories (`epic-get`)", ""]
+    lines += table(["Epic", "Status", "Landed", "Parked", "Dropped", "Open", "Driver runs", "Tokens spent"], rows) if rows else ["no epic recorded"]
+    if standalone:
+        lines += ["", f"Standalone work files (`work-list`): {len(standalone)} — " + ", ".join(f"{n} {p}" for p, n in sorted(phases.items()))]
+    return lines
+
+
+def rounds_section(data: dict[str, Any]) -> list[str]:
+    rows = []
+    for work in data["works"]:
+        branch = branch_of(work)
+        history = [h for h in work.get("history", []) if isinstance(h, dict)]
+        for gate in GATES:
+            entries = [h for h in history if h.get("step") == gate]
+            episodes = [EPISODE_LINE.match(line) for line in data["episodes"].get((branch, gate), [])]
+            matched = [m for m in episodes if m]
+            escalated = any(line.startswith("escalated\t") for line in data["episodes"].get((branch, gate), []))
+            if not entries and not matched:
+                continue
+            ledger_cell = "—"
+            if matched:
+                last = matched[-1]
+                ledger_cell = f"{len(matched)} episode(s), round {last.group('round')} of {last.group('cap')}, {last.group('verdict') or 'no verdict yet'}"
+                ledger_cell += ", escalated" if escalated else ""
+            rows.append(
+                [
+                    f"`{branch}`",
+                    gate,
+                    str(len(entries)) if entries else "—",
+                    str(entries[-1].get("outcome", "?")) if entries else "—",
+                    ledger_cell,
+                ]
+            )
+    lines = ["## Rounds per episode (`work-get` history, `episode-get --history`)", ""]
+    lines += table(["Story", "Gate", "Rounds logged", "Last outcome", "Episode ledger"], rows) if rows else ["no gate round logged"]
+    return lines
+
+
+def lanes_section(data: dict[str, Any]) -> list[str]:
+    per_lane: dict[str, Counter] = defaultdict(Counter)
+    for rows in data["findings"].values():
+        for status, severity, _story, lane, *_ in rows:
+            per_lane[lane]["findings"] += 1
+            per_lane[lane][status] += 1
+            per_lane[lane]["Critical"] += severity == "Critical"
+    for (branch, gate), rows in data["episode_findings"].items():
+        # A digest line carries lane, fingerprint, status, round — not severity;
+        # that is read back from the same branch's `gate-get` record.
+        recorded = {
+            fp: str(f.get("severity", ""))
+            for episode in [*(data["gates"].get(branch, {}).get("episodeHistory") or {}).get(gate, []),
+                            (data["gates"].get(branch, {}).get("episodes") or {}).get(gate) or {}]
+            for fp, f in (episode.get("findings") or {}).items()
+            if isinstance(f, dict)
+        }
+        for row in rows:
+            if len(row) < 4:
+                continue
+            if row[0] == "digest":
+                lane, status, severity = row[1], row[3], recorded.get(row[2], "")
+            else:
+                status, severity, lane = row[0], row[1], row[2]
+            per_lane[lane]["findings"] += 1
+            per_lane[lane][status] += 1
+            per_lane[lane]["Critical"] += severity == "Critical"
+    for record in data["gates"].values():
+        for entry in (record.get("gates") or {}).values():
+            if isinstance(entry, dict):
+                for lane in entry.get("blockingLanes") or []:
+                    per_lane[str(lane)]["blocking"] += 1
+    rows = [
+        [
+            f"`{lane}`",
+            str(c["findings"]),
+            str(c["Critical"]),
+            str(c["open"] + c["carried"]),
+            str(c["waived"]),
+            str(c["rejected-as-noise"]),
+            str(c["blocking"]),
+        ]
+        for lane, c in sorted(per_lane.items(), key=lambda kv: (-kv[1]["findings"], kv[0]))
+    ]
+    lines = ["## Lanes (`epic-findings`, `episode-get --findings`, `gate-get` blockingLanes)", ""]
+    lines += (
+        table(["Lane", "Findings", "Critical", "Unresolved", "Waived", "Ruled noise", "Named blocking"], rows)
+        if rows
+        else ["no finding recorded in either ledger"]
+    )
+    return lines
+
+
+def parks_section(data: dict[str, Any]) -> list[str]:
+    buckets: dict[str, list[str]] = defaultdict(list)
+    for epic in data["epics"]:
+        for slug, story in (epic.get("stories") or {}).items():
+            if story.get("status") == "parked":
+                buckets[park_reason_bucket(str(story.get("reason") or ""))].append(f"`{epic.get('slug')}/{slug}`")
+    rows = [[bucket, str(len(stories)), ", ".join(stories)] for bucket, stories in sorted(buckets.items(), key=lambda kv: (-len(kv[1]), kv[0]))]
+    lines = ["## Parks by reason (`epic-get` story reasons)", ""]
+    lines += table(["Reason", "Stories", "Which"], rows) if rows else ["no story parked"]
+    return lines
+
+
+def scope_section(data: dict[str, Any]) -> list[str]:
+    rows, undeclared = [], 0
+    for work in data["works"]:
+        declared, moments = work.get("declaredFiles"), [m for m in work.get("scopeDelta") or [] if isinstance(m, dict)]
+        if declared is None and not moments:
+            undeclared += 1
+            continue
+        measured = [m for m in moments if not m.get("unmeasured")]
+        outside = {f for m in measured for f in m.get("outsideFiles") or []}
+        unmeasured = [f"{m.get('phase', '?')} ({m.get('reason', 'unspecified')})" for m in moments if m.get("unmeasured")]
+        rows.append(
+            [
+                f"`{branch_of(work)}`",
+                str(len(declared)) if declared is not None else "never declared",
+                str(len(outside)) if measured else "unmeasured",
+                f"{len(measured)} of {len(moments)}",
+                ", ".join(unmeasured) or "—",
+                str(len(work.get("amendments") or [])),
+            ]
+        )
+    lines = ["## Scope: declared vs outside (`work-get` declaredFiles, scopeDelta)", ""]
+    lines += table(["Story", "Declared", "Outside", "Moments measured", "Unmeasured (reason)", "Amendments"], rows) if rows else ["no story declared a file set"]
+    if undeclared:
+        lines += ["", f"Never declared, never measured: {undeclared} work file(s)"]
+    return lines
+
+
+def time_section(data: dict[str, Any]) -> list[str]:
+    per_phase: dict[str, list[float]] = defaultdict(list)
+    for work in data["works"]:
+        for step, value in phase_durations(work):
+            per_phase[step].append(value)
+    rows = [
+        [phase, str(len(values)), hours(statistics.median(values)), hours(max(values)), hours(sum(values))]
+        for phase in PHASES
+        for values in [per_phase.get(phase, [])]
+        if values
+    ]
+    lines = ["## Time per phase (`work-get` history stamps; intervals across a run boundary dropped)", ""]
+    lines += table(["Phase", "Intervals", "Median", "Max", "Total"], rows) if rows else ["no two stamps to measure between"]
+    return lines
+
+
+def cost_section(data: dict[str, Any]) -> list[str]:
+    dispatches = [r for r in data["telemetry"] if r.get("kind") == "dispatch"]
+    outcomes = Counter(str(r.get("task_id", "")) for r in data["telemetry"] if r.get("kind") == "outcome")
+    by_task: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for record in dispatches:
+        by_task[str(record.get("task_id", ""))].append(record)
+    rows = [
+        [
+            f"`{task or '?'}`",
+            str(len(records)),
+            ", ".join(f"{m or 'unpinned'}:{n}" for m, n in sorted(Counter(str(r.get("model", "")) for r in records).items())),
+            ", ".join(f"{s or '?'}:{n}" for s, n in sorted(Counter(str(r.get("skill", "")) for r in records).items())),
+            str(outcomes.get(task, 0)),
+            "—",
+        ]
+        for task, records in sorted(by_task.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    ]
+    lines = ["## Cost per story (`.studious/telemetry/*.jsonl`; tokens are not recorded per dispatch — `reference/epic-pricing.md` rung 1)", ""]
+    lines += table(["Story", "Dispatches", "Models", "Skills", "Verdicts", "Tokens"], rows) if rows else ["no dispatch telemetry"]
+    unjoined = sum(n for task, n in outcomes.items() if task not in by_task)
+    if unjoined:
+        lines += ["", f"Verdicts with no dispatch line to join: {unjoined}"]
+    return lines
+
+
+def evidence_section(data: dict[str, Any]) -> list[str]:
+    rows = [
+        [
+            f"`{branch}`",
+            str(len({str(r.get('command', '')) for r in records})),
+            str(sum(1 for r in records if str(r.get("exitCode", "0")) != "0")),
+        ]
+        for branch, records in sorted(data["evidence"].items())
+        if records
+    ]
+    lines = ["## Verification evidence (`evidence-list`)", ""]
+    lines += table(["Story", "Distinct commands", "Failed runs"], rows) if rows else ["no evidence captured"]
+    return lines
+
+
+def decisions_section(data: dict[str, Any]) -> list[str]:
+    lines = ["## Bets (`docs/studious/decisions.jsonl`)", ""]
+    if not data["has_journal"]:
+        return [*lines, "no decision journal"]
+    counts = Counter(str(r.get("verdict", "?")) for r in data["decisions"])
+    rows = [[verdict, str(n)] for verdict, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+    return lines + (table(["Verdict", "Count"], rows) if rows else ["no verdict in window"])
+
+
+def render(data: dict[str, Any], root: Path, since: str) -> str:
+    window = f"since {since}" if since else "whole store"
+    if not (data["works"] or data["epics"] or data["telemetry"] or data["decisions"]):
+        return f"{NO_DATA} ({window})"
+    sections = [
+        [f"# Cycle numbers — {root.name}, {window}: {len(data['works'])} work file(s), {len(data['epics'])} epic(s), {len(data['branches'])} branch(es)"],
+        stories_section(data),
+        rounds_section(data),
+        lanes_section(data),
+        parks_section(data),
+        scope_section(data),
+        time_section(data),
+        cost_section(data),
+        evidence_section(data),
+        decisions_section(data),
+    ]
+    return "\n\n".join("\n".join(section) for section in sections)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Render one cycle's numbers from the Studious ledger, as Markdown tables.")
+    parser.add_argument("--repo", default=".", help="repository to read (default: the main working tree containing cwd)")
+    parser.add_argument("--since", default="", help="window start, YYYY-MM-DD (default: the whole store)")
+    parser.add_argument("--gate-ledger", default=str(GATE_LEDGER), help="path to bin/gate-ledger (default: the one beside this script)")
+    args = parser.parse_args(argv)
+
+    if args.since and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", args.since):
+        print("error: --since takes YYYY-MM-DD", file=sys.stderr)
+        return 2
+    exe = Path(args.gate_ledger)
+    if not exe.is_file():
+        print(f"error: no gate-ledger at '{exe}'", file=sys.stderr)
+        return 2
+    root = main_checkout_root(Path(args.repo).resolve())
+    print(render(collect(Ledger(exe, root), root, args.since), root, args.since))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -40,17 +40,18 @@ JIG_PRE_MERGE_REPORTS = (
 #: The date of jig's sweep, and so of the one `metrics.jsonl` row that moved with it.
 JIG_BASELINE_DATE = "2026-07-17"
 
-#: Scaffolded by `commands/setup.md:61-66`, each keeping a `.gitkeep` so it survives
-#: empty. Two neighbours are deliberately excluded: `docs/studious/prompt-reviews/`
-#: (7th dir listed at line 67) was never scaffolded here, so has no `.gitkeep` to
-#: preserve; `docs/studious/reviews/` is created at write time by `commands/retro.md:119`
-#: and must not acquire one.
+#: Scaffolded by `commands/setup.md` Step 5, each keeping a `.gitkeep` so it survives
+#: empty. Two neighbours are deliberately excluded: `docs/studious/prompt-reviews/` and
+#: `docs/studious/outcome-reviews/` are listed there but were never scaffolded in this
+#: repo, so have no `.gitkeep` to preserve. `retros/` is `/retro`'s report directory
+#: (#330), scaffolded here because the first run reads it for the previous plan.
 SCAFFOLDED_REVIEW_DIRS = (
     "architecture-reviews",
     "health-reviews",
     "interface-reviews",
     "product-reviews",
     "readme-reviews",
+    "retros",
     "security-reviews",
 )
 

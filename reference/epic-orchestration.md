@@ -484,33 +484,20 @@ plugin_root="$(cd "$(dirname "$(command -v gate-ledger)")/.." && pwd)"
 # driver script: $plugin_root/workflows/epic-driver.js
 ```
 
-Read `${plugin_root}/reference/prompt-contract.md` once (the same plugin-root
-resolution the four gate commands use; if it isn't there, locate
-`reference/prompt-contract.md` inside the plugin install with Glob — never guess a
-path or skip this read). The script has no hands to read a file itself: hand it the
-five blocks — the injection-defense preamble, the read-only/diff-scope convention, the
-output-row schema, the calibrate-don't-suppress closer, and the writing-style rules —
-verbatim as `args.contract`, so it can stamp them into every audit and premortem dispatch it
-builds, per-story and at the finale, exactly as the four gate commands stamp them into
-their own Task dispatches. This is the whole handoff — no runtime-pointer resolution
-happens on this path. The script fails closed at any dispatch that needed the contract
-if it arrives empty or missing, so treat a missing file here as a stop, not a skip.
-
-Resolve the epic's worktree layout the same way — one call, handed over as data:
+Resolve the epic's worktree layout — one call, handed over as data:
 
 ```bash
 worktrees_json=$(gate-ledger worktree-path --slug "<slug>" --json)
 ```
 
-The script has no hands to run that verb itself, exactly as it has none to read the
-contract file, so this is the second and last thing it is handed rather than told
-where to find. Pass the output verbatim as `args.worktrees`; it names the `__epic`
+The script has no hands to run that verb itself, so this is handed over rather than
+told where to find. Pass the output verbatim as `args.worktrees`; it names the `__epic`
 integration checkout and every story's checkout, and the script throws on the spot if
 an entry it needs is absent — never patch around that by writing a
 `.studious/worktrees/...` path into the args yourself.
 
-Hand over each story's **recorded assignment phase** the same way — the third and last
-thing the script is given rather than told where to find, for the same reason
+Hand over each story's **recorded assignment phase** the same way — the last thing
+the script is given rather than told where to find, for the same reason
 ([#295](https://github.com/jacquardlabs/studious/issues/295)). A story parked or crashed
 at `design` or `build` on an earlier invocation already has that dispatch's assignment on
 the record; the script rehydrates the successor from it instead of authoring a fresh
@@ -540,7 +527,6 @@ Call the Workflow tool with `scriptPath` set to that file and `args`:
   "repoRoot": "<absolute path of the main working tree>",
   "worktrees": "<$worktrees_json, verbatim>",
   "defaultBranch": "<resolved default branch>",
-  "contract": "<reference/prompt-contract.md's five blocks, verbatim>",
   "timestamp": "<current ISO time>"
 }
 ```
@@ -575,14 +561,10 @@ phase with dispatched agents — runnable = every dependency `landed` ∧ not
 `parked`/`dropped` ∧ under the epic's cap — dispatching independent stories in
 parallel (one message, multiple Task calls). Workers follow
 `reference/worker-contract.md`; gate agents run the gate command workflows and
-record their own verdicts from inside the story worktree. Design-review and
-acceptance need no extra step — the single dispatched agent reads its gate command
-and self-injects exactly as it would from the script path. Audit is different here
-too: read `${CLAUDE_PLUGIN_ROOT}/reference/prompt-contract.md` yourself (same
-anchored resolution, Glob fallback if it doesn't substitute) and stamp its five
-blocks into every audit and premortem Task prompt you dispatch in this mode — you
-are the assembly point on this path exactly as your own read is on the script path.
-Log every step with
+record their own verdicts from inside the story worktree. No posture is stamped into
+any of them: every judge lane is a `gauntlet:<judge>` dispatch carrying its own
+(`commands/review.md`, "Locate gauntlet"), and the gate agent builds each invocation
+the way that door does. Log every step with
 `gate-ledger work-log --slug "<slug>--<story>" --step <phase> --outcome "<token>" --phase "<next phase>"`
 (the same epic-qualified slug as script mode — see Record keeping).
 
@@ -654,7 +636,7 @@ mode, run it in the `__epic` worktree):
 1. The audit fan-out across the full epic diff (against the merge-base with the
    default branch) — the cross-story integration pass no per-story audit saw.
 2. `/review --delivery` against the epic goal statement, not any single story.
-3. `@agent-premortem-auditor` over the epic pre-mortem register.
+3. `gauntlet:premortem-auditor` over the epic pre-mortem register.
 
 Verdicts record to the epic branch's ledger — the PR-time hook reads the same file.
 All pass → `gate-ledger epic-set --slug "<slug>" --status ready`, then release the
@@ -1057,7 +1039,7 @@ End with exactly this shape and nothing after it:
 Epic: <slug> — <landed>/<total> landed, <parked> parked, <held> held, <blocked> blocked on them.
 Budget: <no runtime ceiling — the approved appetite was not enforced this run | enforced, <remaining> tokens left of <approvedTokens> | enforced, <remaining> tokens left — this epic has no recorded appetite to compare it against>
 Canary: <story> — <landed | parked>; <released the rest | the rest stayed held>
-Degraded narrowings: <degradedNarrowings> — this many ledger-scope-check rounds this run couldn't be trusted (a resolved-branch mismatch, an unconfirmed narrowing, or the check itself unavailable) and paid a full unnarrowed round instead. Which story and which of the three, story by story, is in the run's log lines, not this count.
+Degraded narrowings: <degradedNarrowings> — this many ledger-scope-check rounds this run couldn't be trusted (a resolved-branch mismatch, an unconfirmed narrowing, a narrowable verdict whose epic-findings read could not say which lanes carry a recorded Critical, or the check itself unavailable) and paid a full unnarrowed round instead. Which story and which of the four, story by story, is in the run's log lines, not this count.
 Anomalies (facts, not verdicts — nothing here is waiting on a decision, but read it):
   - <kind> at <where>: <the driver's own detail, verbatim>
 Held (nothing to decide — a ceiling stopped dispatch, not a verdict):
@@ -1183,7 +1165,14 @@ pre-check `auditRound` runs before a resumed audit to decide whether it can narr
 When that check itself throws (its worktree doesn't resolve as a worktree at all), the
 story parks under that name rather than `audit`'s, since the audit dispatch this check
 gates never ran. Read it as "stuck before the audit gate could even start," not as a
-fourth thing to re-run by hand.
+fourth thing to re-run by hand. It can also read `invocations`: the one cheap dispatch
+every judge round opens with, which runs gauntlet's `dispatch.py` (located by loading
+one gauntlet command — `gauntlet:where`, else `gauntlet:review --help` — exactly as
+`commands/review.md`'s "Locate gauntlet" step does) and hands the driver the round's
+invocations verbatim. A judge's input is its invocation, so nothing degrades when none
+came back — the story parks with the builder's own line: the `/plugin install
+gauntlet@jacquardlabs-marketplace` line when gauntlet is not installed, else
+`dispatch.py`'s stderr. The remedy is that line, not a worktree recreate.
 
 A story parked at plan time as `story-supervised` is the one entry with no gate and no
 verdict at all — its recorded reason starts `story-supervised:`, and it takes the

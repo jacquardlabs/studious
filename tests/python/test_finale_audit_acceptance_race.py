@@ -20,6 +20,7 @@ reimplemented.
 from __future__ import annotations
 
 from test_driver_crash_hardening import (
+    clean_document,
     FINALE_AUDITORS_PASS,
     LAND_STORY_A_RULES,
     MAX_FIX_CYCLES,
@@ -79,7 +80,7 @@ def test_common_case_clean_audit_dispatches_acceptance_and_premortem_exactly_onc
         {"match": r"^finale:seams$", "result": {"findings": "no cross-story seam findings"}},
         {"match": r"^finale:audit-compile$", "result": {"verdict": "PASS", "sha": "f1", "summary": "clean"}},
         {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "f2", "summary": "ship it"}},
-        {"match": r"^finale:premortem$", "result": {"findings": "register verified clean"}},
+        {"match": r"^finale:premortem$", "result": clean_document("premortem-auditor", coverage="register verified clean")},
         {"match": r"^finale:ready$", "result": {"verdict": "READY", "sha": "f3", "summary": "marked ready"}},
     ]
     out = _run_driver(epic, rules)
@@ -89,7 +90,7 @@ def test_common_case_clean_audit_dispatches_acceptance_and_premortem_exactly_onc
     assert labels.count("finale:premortem") == 1, f"expected exactly one finale:premortem dispatch: {labels}"
     result = out["result"]
     assert result["finale"]["ready"] is True
-    assert result["finale"]["premortem"] == "register verified clean"
+    assert result["finale"]["premortem"]["coverage"] == "register verified clean"
 
 
 # ---------- AC2, AC4: discard-and-redo signal ----------
@@ -111,7 +112,7 @@ def test_audit_fix_cycles_discard_and_redo_both_acceptance_and_premortem() -> No
         {"match": r"^finale:audit-compile$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "f1", "summary": "still broken"}},
         {"match": r"^finale:fix:audit$", "result": {"status": "done", "sha": "f2", "summary": "attempted a fix", "evidence": "ran tests"}},
         {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "f3", "summary": "ok"}},
-        {"match": r"^finale:premortem$", "result": {"findings": "register verified clean"}},
+        {"match": r"^finale:premortem$", "result": clean_document("premortem-auditor", coverage="register verified clean")},
     ]
     out = _run_driver(epic, rules)
     assert out["ok"], f"driver crashed end-to-end: {out.get('error')}"
@@ -148,7 +149,7 @@ def test_premortem_redo_still_fires_on_acceptances_own_fix_cycles_when_audit_is_
         {"match": r"^finale:audit-compile$", "result": {"verdict": "PASS", "sha": "f1", "summary": "clean"}},
         {"match": r"^finale:acceptance$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "f3", "summary": "not shippable"}},
         {"match": r"^finale:fix:acceptance$", "result": {"status": "done", "sha": "f4", "summary": "attempted a fix", "evidence": "ran tests"}},
-        {"match": r"^finale:premortem$", "result": {"findings": "register verified clean"}},
+        {"match": r"^finale:premortem$", "result": clean_document("premortem-auditor", coverage="register verified clean")},
     ]
     out = _run_driver(epic, rules)
     assert out["ok"], f"driver crashed end-to-end: {out.get('error')}"
@@ -194,7 +195,7 @@ def test_premortem_redispatches_a_third_time_when_the_audit_triggered_redo_itsel
         {"match": r"^finale:fix:audit$", "result": {"status": "done", "sha": "f2", "summary": "attempted a fix", "evidence": "ran tests"}},
         {"match": r"^finale:acceptance$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "f3", "summary": "not shippable"}},
         {"match": r"^finale:fix:acceptance$", "result": {"status": "done", "sha": "f4", "summary": "attempted a fix", "evidence": "ran tests"}},
-        {"match": r"^finale:premortem$", "result": {"findings": "register verified clean"}},
+        {"match": r"^finale:premortem$", "result": clean_document("premortem-auditor", coverage="register verified clean")},
     ]
     out = _run_driver(epic, rules)
     assert out["ok"], f"driver crashed end-to-end: {out.get('error')}"

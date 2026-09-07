@@ -25,7 +25,9 @@ products. Repo boundaries follow license, audience, lifecycle, and — since #15
 quality of the interface across the boundary (the rule is recorded in CLAUDE.md).
 The initiative altitude — formerly the separate `brigade` design repo, now archived —
 is recorded at `docs/initiative-altitude.md` and becomes an entrypoint here if its
-entry gate fires.
+entry gate fires. Extended 2026-09-06 (#334, direction B): judge lanes are dispatched
+from `gauntlet`, a declared dependency; studious ships the consumers, the ledgers, and
+verdict derivation — never the judges.
 
 jig — the build-execution workflow (`/shape`, `/build`, `/ship`)
 — was absorbed into this plugin on 2026-07-25 under #150. Not as a second installable:
@@ -57,7 +59,7 @@ Evidence:
   after you build it"; periodic reviews "run against main, not feature branches"; a
   `PreToolUse` hook fires on `gh pr create` (`hooks/gate-reminder.sh`).
 - The backlog commands operate on GitHub Issues via the `gh` CLI
-  (`/bet`, `/retro`), so the user works in a GitHub repo.
+  (`/bet`, `/health backlog`), so the user works in a GitHub repo.
 - The whole system reads three context docs (PRODUCT.md, DESIGN.md, CLAUDE.md) the
   user maintains — a user who values durable, shared context over per-prompt
   re-explanation.
@@ -169,9 +171,9 @@ Traced from the commands and the README's two-rhythm description.
    walks that sequence one piece per invocation and never auto-advances. Each episode
    catches a specific failure; the user narrows or skips what the risk doesn't warrant.
 
-3. **Per-project health loop** — `/retro` dispatches the periodic review agents against main
-   in parallel, compiles a cross-referenced master summary with a prioritized action
-   plan, and proposes (never applies) updates to the context docs. `/retro backlog`
+3. **Per-project health loop** — `/health` dispatches gauntlet's posture judges against
+   main in parallel, compiles a cross-referenced master summary with a prioritized action
+   plan, and proposes (never applies) updates to the context docs. `/health backlog`
    then flags resolved/obsolete/duplicated issues against the cycle's fixes, and
    `/retro outcomes` grades what shipped against the fixes that followed.
 
@@ -229,6 +231,9 @@ itself" violation this document states below.
   the build if any gate command, agent, driver, hook, or the ledger invokes a build
   skill or requires a build artifact. Superpowers, a human, or any other executor
   satisfies the same contract.
+- **Shipping our own judge fleet** — the judge lanes `/review` and `/health` fan out to
+  are gauntlet's (#334, 2026-09-06). Studious keeps its three local agents and the verdict
+  derivation around every lane; it adds no judge of its own.
 - **A separate orchestration product** — the initiative altitude was chartered as a
   separate product (brigade) and deliberately absorbed as a future entrypoint
   (`docs/initiative-altitude.md`, 2026-07-07). Its build waits on its entry gate: a

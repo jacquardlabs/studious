@@ -36,9 +36,9 @@ import re
 
 import pytest
 from test_driver_crash_hardening import (
-    DEFAULT_TEST_CONTRACT,
     DRIVER,
     _extract_function,
+    _extract_symbol,
     _run_node,
 )
 from test_epic_driver_decomposition import _extract_async_function
@@ -47,6 +47,9 @@ from test_epic_driver_decomposition import _extract_async_function
 PROBE_DIR = "/tmp/probe-worktree"
 PROBE_BASE = "main"
 PROBE_SLUG = "some-epic--some-story"
+PROBE_EPIC = "some-epic"
+PROBE_STORY = "some-story"
+LEDGER_ARGS = [json.dumps(PROBE_DIR), json.dumps(PROBE_EPIC), json.dumps(PROBE_STORY)]
 
 # Every git invocation must carry its own -C. Anchored on the subcommand rather than on
 # `git` alone, so prose about a "git command" is not mistaken for one.
@@ -60,19 +63,20 @@ _UNANCHORED_GIT = re.compile(rf"\bgit\s+(?!-C\b)(?={_GIT_SUBCOMMANDS})\b")
 _CWD_DIRECTIVE = re.compile(r"From\s+/tmp/probe-worktree[:,]")
 
 
-# routingScopeCheckPrompt calls requireContract/injectionDefensePreamble internally
-# (gate-audit round 1, #271: the §1 injection-defense preamble it slices out of
-# `contract`) — must be extracted alongside it or the probe script raises
-# ReferenceError (same reason test_audit_first_round_routing.py does the same).
+# The two changeset probes read two module constants (#334 S2: the inline
+# injection-defense sentence, and the shas/receipts asks every judge invocation is
+# built from) — extracted alongside them or the probe script raises ReferenceError
+# (same reason test_audit_first_round_routing.py does the same).
 _EXTRA_DEPS = {
-    "routingScopeCheckPrompt": ("requireContract", "injectionDefensePreamble"),
+    "routingScopeCheckPrompt": ("INJECTION_DEFENSE", "shasAndReceiptsAsk", "SHAS_AND_RECEIPTS_FIELDS"),
+    "acceptanceScopeCheckPrompt": ("shasAndReceiptsAsk", "SHAS_AND_RECEIPTS_FIELDS"),
 }
 
 
 def _build_prompt(fn_name: str, args: list[str]) -> str:
     source = DRIVER.read_text()
     fns = "\n\n".join(
-        _extract_function(source, name) for name in (*_EXTRA_DEPS.get(fn_name, ()), fn_name)
+        _extract_symbol(source, name) for name in (*_EXTRA_DEPS.get(fn_name, ()), fn_name)
     )
     script = f"""
 {fns}
@@ -83,8 +87,8 @@ process.stdout.write(JSON.stringify({{ prompt: {fn_name}({", ".join(args)}) }}))
 
 SCOPE_PROBES = [
     ("acceptanceScopeCheckPrompt", [json.dumps(PROBE_DIR), json.dumps(PROBE_BASE), json.dumps(PROBE_SLUG)]),
-    ("routingScopeCheckPrompt", [json.dumps(PROBE_DIR), json.dumps(PROBE_BASE), json.dumps(DEFAULT_TEST_CONTRACT)]),
-    ("ledgerScopeCheckPrompt", [json.dumps(PROBE_DIR)]),
+    ("routingScopeCheckPrompt", [json.dumps(PROBE_DIR), json.dumps(PROBE_BASE)]),
+    ("ledgerScopeCheckPrompt", LEDGER_ARGS),
 ]
 
 
@@ -137,7 +141,7 @@ def test_ledger_scope_check_never_calls_gate_get_without_an_explicit_branch():
     git commands. `--branch` must be computed via the anchored `git -C` lookup and
     passed explicitly, never left to gate-ledger's own cwd inference.
     """
-    prompt = _build_prompt("ledgerScopeCheckPrompt", [json.dumps(PROBE_DIR)])
+    prompt = _build_prompt("ledgerScopeCheckPrompt", LEDGER_ARGS)
     assert "gate-ledger gate-get --branch" in prompt, (
         "ledgerScopeCheckPrompt calls `gate-ledger gate-get` without an explicit "
         "--branch — its branch would be resolved from the agent's own cwd, not the "
@@ -154,7 +158,7 @@ def test_ledger_scope_check_scopes_the_gate_get_read_with_a_cd():
     an unrelated repo or none, where `repo_root()` fails and `ledger_dir()` silently
     degrades to a cwd-relative path.
     """
-    prompt = _build_prompt("ledgerScopeCheckPrompt", [json.dumps(PROBE_DIR)])
+    prompt = _build_prompt("ledgerScopeCheckPrompt", LEDGER_ARGS)
     assert f'(cd "{PROBE_DIR}" && gate-ledger gate-get' in prompt, (
         f"ledgerScopeCheckPrompt does not scope its gate-get read to {PROBE_DIR} with "
         "a cd — gate-ledger has no -C of its own, so this is the only way to anchor "
@@ -169,7 +173,7 @@ def test_ledger_scope_check_forbids_the_error_key_on_a_successful_empty_read():
     turns every legitimate non-narrowable verdict into a parked story. This assertion
     only proves the prompt says not to, not that an agent won't do it anyway.
     """
-    prompt = _build_prompt("ledgerScopeCheckPrompt", [json.dumps(PROBE_DIR)])
+    prompt = _build_prompt("ledgerScopeCheckPrompt", LEDGER_ARGS)
     assert "ONLY when a command actually failed" in prompt, (
         "ledgerScopeCheckPrompt does not tell the agent to withhold the \"error\" key "
         "on a successful-but-empty read — an over-helpful agent could attach it as "
@@ -203,6 +207,10 @@ def _run_ledger_audit_prior(
     source = DRIVER.read_text()
     ledger_scope_fn = _extract_function(source, "ledgerScopeCheckPrompt")
     ledger_prior_fn = _extract_async_function(source, "ledgerAuditPrior")
+    # The resumed path restricts the ledger's blockingLanes through the same helper
+    # the in-run path calls — extracted beside the two functions or the probe script
+    # raises ReferenceError.
+    restrict_fn = _extract_function(source, "restrictBlockingLanes")
     if agent_throws:
         agent_body = "async function agent() { throw new Error('dispatch died') }"
     else:
@@ -211,13 +219,14 @@ def _run_ledger_audit_prior(
     script = f"""
 {ledger_scope_fn}
 {ledger_prior_fn}
+{restrict_fn}
 const GATES = {{ audit: {{ retry: 'FIX AND RE-AUDIT' }} }}
 const REPORT = {{ type: 'object', properties: {{ findings: {{ type: 'string' }} }}, required: ['findings'] }}
 const LOGS = []
 function log(line) {{ LOGS.push(line) }}
 let degradedNarrowings = 0
 {agent_body}
-ledgerAuditPrior({json.dumps(PROBE_DIR)}, {json.dumps(expected_branch)}, 'label', 'phase')
+ledgerAuditPrior({json.dumps(PROBE_DIR)}, {json.dumps(expected_branch)}, {json.dumps(PROBE_EPIC)}, {json.dumps(PROBE_STORY)}, 'label', 'phase')
   .then(value => {{ console.log(JSON.stringify({{ threw: false, value, logs: LOGS, degradedNarrowings }})) }})
   .catch(err => {{ console.log(JSON.stringify({{ threw: true, message: err.message, parkGate: err.parkGate || null, logs: LOGS, degradedNarrowings }})) }})
 """
@@ -301,6 +310,7 @@ def test_ledger_audit_prior_never_throws_on_a_narrowable_verdict_even_with_a_str
             "hasNarrowableVerdict": True,
             "sha": "abc1234",
             "blockingLanes": ["security"],
+            "criticalLanes": ["security"],
             "error": "just a note, everything succeeded",
             "resolvedBranch": EXPECTED_STORY_BRANCH,
         }
@@ -349,7 +359,7 @@ def test_ledger_scope_check_requires_resolved_branch_in_every_returned_outcome()
     exactly the outcome where a #261-pattern wrong-cwd read is otherwise invisible: a
     well-formed, error-free `hasNarrowableVerdict:false`.
     """
-    prompt = _build_prompt("ledgerScopeCheckPrompt", [json.dumps(PROBE_DIR)])
+    prompt = _build_prompt("ledgerScopeCheckPrompt", LEDGER_ARGS)
     missing = re.findall(r'\{"hasNarrowableVerdict":(?:true|false)(?!,"resolvedBranch")', prompt)
     assert not missing, (
         f"ledgerScopeCheckPrompt has {len(missing)} returned JSON shape(s) that don't "
@@ -432,6 +442,7 @@ def test_ledger_audit_prior_trusts_a_matching_resolved_branch():
             "hasNarrowableVerdict": True,
             "sha": "abc1234",
             "blockingLanes": ["security"],
+            "criticalLanes": ["security"],
             "resolvedBranch": EXPECTED_STORY_BRANCH,
         }
     )
@@ -442,6 +453,73 @@ def test_ledger_audit_prior_trusts_a_matching_resolved_branch():
         "blockingLanes": ["security"],
     }, result
     assert not result["logs"], "a matching resolvedBranch is not a mismatch and must not log"
+
+
+# ---------- the resumed path restricts the ledger's lanes the way the in-run path does ----------
+
+
+def test_ledger_audit_prior_restricts_the_ledgers_blocking_lanes_to_lanes_with_a_recorded_critical():
+    """The ledger's `.gates.audit.blockingLanes` is the compiler's raw answer, recorded
+    before `restrictBlockingLanes` ran in-run; the epic findings ledger is where the
+    same compiler recorded each surviving Critical with its lane. A resumed round
+    narrows to the intersection — the same restriction the in-run path applies."""
+    result = _run_ledger_audit_prior(
+        {
+            "hasNarrowableVerdict": True,
+            "sha": "abc1234",
+            "blockingLanes": ["security", "code"],
+            "criticalLanes": ["security"],
+            "resolvedBranch": EXPECTED_STORY_BRANCH,
+        }
+    )
+    assert not result["threw"], result
+    assert result["value"] == {"verdict": "FIX AND RE-AUDIT", "sha": "abc1234", "blockingLanes": ["security"]}, result
+    assert any("code" in line and "no recorded Critical" in line for line in result["logs"]), result
+
+
+def test_ledger_audit_prior_strips_blocking_lanes_when_no_lane_has_a_recorded_critical():
+    """Nothing survives the restriction → no lane profile at all (an empty list is
+    not one), exactly as `restrictBlockingLanes` leaves the in-run result — the next
+    round runs full through resolveReauditScope's own well-formedness check."""
+    result = _run_ledger_audit_prior(
+        {
+            "hasNarrowableVerdict": True,
+            "sha": "abc1234",
+            "blockingLanes": ["security"],
+            "criticalLanes": [],
+            "resolvedBranch": EXPECTED_STORY_BRANCH,
+        }
+    )
+    assert not result["threw"], result
+    assert result["value"] == {"verdict": "FIX AND RE-AUDIT", "sha": "abc1234"}, result
+
+
+@pytest.mark.parametrize("critical_lanes", [None, "missing"], ids=["errored-read", "field-absent"])
+def test_ledger_audit_prior_degrades_to_a_full_round_when_the_critical_lanes_read_could_not_say(critical_lanes):
+    """An errored epic-findings read (null) or an agent predating the field is this
+    check's own limitation: never narrow off the ledger's unrestricted list — degrade
+    loudly to a full round, counted like every other degraded narrowing."""
+    findings = {
+        "hasNarrowableVerdict": True,
+        "sha": "abc1234",
+        "blockingLanes": ["security"],
+        "resolvedBranch": EXPECTED_STORY_BRANCH,
+    }
+    if critical_lanes is None:
+        findings["criticalLanes"] = None
+    result = _run_ledger_audit_prior(findings)
+    assert not result["threw"], result
+    assert result["value"] is None, result
+    assert any("criticalLanes" in line for line in result["logs"]), result
+    assert result["degradedNarrowings"] == 1, result
+
+
+def test_ledger_scope_check_reads_the_epic_findings_ledger_for_this_story_inside_the_worktree():
+    prompt = _build_prompt("ledgerScopeCheckPrompt", LEDGER_ARGS)
+    assert f'(cd "{PROBE_DIR}" && gate-ledger epic-findings --epic "{PROBE_EPIC}" --unresolved)' in prompt
+    assert f'<story> is exactly "{PROBE_STORY}"' in prompt
+    assert '"criticalLanes":<as just described>' in prompt
+    assert "null — never an empty array — if the command errored" in prompt
 
 
 def test_ledger_audit_prior_never_trusts_a_narrowable_verdict_with_no_resolved_branch():

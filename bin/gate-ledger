@@ -1046,7 +1046,7 @@ cmd_episode_finding() {
     --arg waiver "$waiver" --arg t "$(now_iso)"
 }
 
-cmd_episode_get() { # --gate G [--findings | --history] -> one line a prose surface can quote verbatim: "round R of C — N open, M carried"
+cmd_episode_get() { # --gate G [--findings | --history] [--branch B] -> one line a prose surface can quote verbatim: "round R of C — N open, M carried"
   # Findings ledger's read side. Counts only `open`/`carried` — what a verdict
   # has to answer for (`closed` resolved, `waived`/`rejected-as-noise` set
   # aside). Prints nothing when no episode is recorded, mirroring gate-get/epic-get.
@@ -1064,12 +1064,17 @@ cmd_episode_get() { # --gate G [--findings | --history] -> one line a prose surf
   #
   # --history (#300): every archived episode plus the current one, each with
   # verdict, counts, escalation, and the waiver text the operator typed.
-  local gate="" findings=0 history=0
+  #
+  # --branch (#330): read another branch's episodes, same as gate-get and
+  # evidence-list — `scripts/retro-stats` runs on main and reads every story
+  # branch's record from there. Default stays the current branch.
+  local gate="" findings=0 history=0 branch=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --gate)     gate="$2"; shift 2 ;;
       --findings) findings=1; shift ;;
       --history)  history=1; shift ;;
+      --branch)   branch="$2"; shift 2 ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
@@ -1082,7 +1087,7 @@ cmd_episode_get() { # --gate G [--findings | --history] -> one line a prose surf
     return 2
   fi
   if ! have jq || ! have git; then return 0; fi
-  local file; file="$(ledger_dir)/$(branch_slug).json"
+  local file; file="$(ledger_dir)/$(branch_slug "$branch").json"
   [ -f "$file" ] || return 0
   if [ "$history" -eq 1 ]; then
     # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
@@ -2485,7 +2490,7 @@ cmd_evidence_append() { # append-only: one jq -nc object per call, >> the branch
 
 cmd_telemetry_dispatch() { # append-only: one `dispatch` line per review agent sent out
   local run_id="" step_id="" parent_step_id="" task_id="" skill="" role=""
-  local model="" effort="" routing_reason="" capturer="driver"
+  local model="" effort="" routing_reason="" capturer="driver" fleet=""
   local features=()
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -2499,6 +2504,7 @@ cmd_telemetry_dispatch() { # append-only: one `dispatch` line per review agent s
       --effort)         effort="$2"; shift 2 ;;
       --routing-reason) routing_reason="$2"; shift 2 ;;
       --capturer)       capturer="$2"; shift 2 ;;
+      --fleet)          fleet="$2"; shift 2 ;;
       --feature)        features+=("$2"); shift 2 ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
@@ -2510,6 +2516,12 @@ cmd_telemetry_dispatch() { # append-only: one `dispatch` line per review agent s
   case "$capturer" in
     hook|driver) ;;
     *) echo "gate-ledger: --capturer must be 'hook' or 'driver'" >&2; return 2 ;;
+  esac
+  # Which plugin's agent `role` names. Optional and caller-claimed like
+  # --capturer: the hook always says, the driver says nothing until #334 S2.
+  case "$fleet" in
+    ""|studious|gauntlet) ;;
+    *) echo "gate-ledger: --fleet must be 'studious' or 'gauntlet'" >&2; return 2 ;;
   esac
   # routing_reason is a closed prefix set, validated here: free text would make
   # the column unqueryable, the one thing this record exists for. `override`
@@ -2537,13 +2549,15 @@ cmd_telemetry_dispatch() { # append-only: one `dispatch` line per review agent s
   # --role becomes a filesystem path below
   # ("$CLAUDE_PLUGIN_ROOT/agents/<role>.md"), so it's validated at the
   # boundary: a role is an agent's `name`, never a path — `--role ../CLAUDE`
-  # would otherwise read a file outside agents/. hooks/dispatch-telemetry.sh's
-  # roster check happens to exclude these today, but this verb accepts a role
-  # from any caller.
+  # would otherwise read a file outside agents/. Nor a qualified dispatch
+  # string: the fleet prefix belongs in --fleet, and every caller strips it
+  # (the hook and the driver both), so a colon is a caller bug, not a fleet.
+  # hooks/dispatch-telemetry.sh's roster check happens to exclude these
+  # today, but this verb accepts a role from any caller.
   case "$role" in
-    */*|*..*|-*)
-      echo "gate-ledger: --role must be an agent name, not a path" \
-           "(no '/', no '..', no leading '-')" >&2
+    */*|*..*|-*|*:*)
+      echo "gate-ledger: --role must be an agent name, not a path or a qualified dispatch string" \
+           "(no '/', no '..', no ':', no leading '-')" >&2
       return 2 ;;
   esac
   if ! have jq || ! have git; then
@@ -2554,9 +2568,12 @@ cmd_telemetry_dispatch() { # append-only: one `dispatch` line per review agent s
   # model/effort resolve from the agent's own frontmatter when the caller
   # didn't state them, so both write paths get the pin from ONE place. `inherit`
   # is recorded verbatim — it's the live signal for #136, not normalized away.
-  # A role with no agent file (e.g. the driver's fix-delta pass) leaves both empty.
+  # Empty is the normal case, not an exception: every gauntlet role (its pins
+  # live in gauntlet's own agent files, which this plugin never reads — a
+  # same-named local agent is not consulted, since its pin is not the one that
+  # ran), and a local role with no agent file (the driver's fix-delta pass).
   local agent_file="${CLAUDE_PLUGIN_ROOT:-}/agents/${role}.md"
-  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$agent_file" ]; then
+  if [ "$fleet" != gauntlet ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$agent_file" ]; then
     [ -n "$model" ]  || model=$(sed -n 's/^model:[[:space:]]*//p' "$agent_file" | head -n 1)
     [ -n "$effort" ] || effort=$(sed -n 's/^effort:[[:space:]]*//p' "$agent_file" | head -n 1)
   fi
@@ -2580,10 +2597,10 @@ cmd_telemetry_dispatch() { # append-only: one `dispatch` line per review agent s
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   append_telemetry "$capturer" "dispatch" \
     '{run_id: $run_id, step_id: $step_id, parent_step_id: $parent_step_id, task_id: $task_id,
-      skill: $skill, role: $role, model: $model, effort: $effort,
+      skill: $skill, role: $role, fleet: $fleet, model: $model, effort: $effort,
       routing_reason: $routing_reason, features: $features}' \
     --arg run_id "$run_id" --arg step_id "$step_id" --arg parent_step_id "$parent_step_id" \
-    --arg task_id "$task_id" --arg skill "$skill" --arg role "$role" \
+    --arg task_id "$task_id" --arg skill "$skill" --arg role "$role" --arg fleet "$fleet" \
     --arg model "$model" --arg effort "$effort" --arg routing_reason "$routing_reason" \
     --argjson features "$feature_json"
 
@@ -2663,5 +2680,5 @@ case "${1:-}" in
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   telemetry-dispatch) shift; cmd_telemetry_dispatch "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-assign --slug S --phase PH --brief B [--artifacts A1,A2] [--branch BR] [--worktree W] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] [--appetite-tokens N] [--appetite-episodes N] [--canary on|off] [--acceptance-altitude per-story|delivery-boundary] [--approval interactive|viva:REF] | epic-run-log --slug E --landed N [--tokens-spent N] | epic-finding --epic E --story S --lane L --severity Critical|Important|Track --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--waiver R] [--sha X] | epic-attest --epic E --story S --lane L [--sha X] | epic-findings --epic E [--unresolved | --attestations] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] [--merge-class auto-merge|human-approve|never-unattended] | epic-get --slug S | epic-reconcile --slug S [--override-stop-loss] | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | telemetry-dispatch --run-id R --step-id S --role RL --routing-reason static|override|classifier:vN|ab:ARM [--parent-step-id P] [--task-id T] [--skill K] [--model M] [--effort E] [--capturer hook|driver] [--feature k=v ...] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-assign --slug S --phase PH --brief B [--artifacts A1,A2] [--branch BR] [--worktree W] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] [--appetite-tokens N] [--appetite-episodes N] [--canary on|off] [--acceptance-altitude per-story|delivery-boundary] [--approval interactive|viva:REF] | epic-run-log --slug E --landed N [--tokens-spent N] | epic-finding --epic E --story S --lane L --severity Critical|Important|Track --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--waiver R] [--sha X] | epic-attest --epic E --story S --lane L [--sha X] | epic-findings --epic E [--unresolved | --attestations] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] [--merge-class auto-merge|human-approve|never-unattended] | epic-get --slug S | epic-reconcile --slug S [--override-stop-loss] | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | telemetry-dispatch --run-id R --step-id S --role RL --routing-reason static|override|classifier:vN|ab:ARM [--parent-step-id P] [--task-id T] [--skill K] [--fleet studious|gauntlet] [--model M] [--effort E] [--capturer hook|driver] [--feature k=v ...] | gc [--force]}" >&2; exit 2 ;;
 esac

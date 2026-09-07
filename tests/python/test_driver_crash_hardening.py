@@ -38,13 +38,38 @@ DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 
 MAX_FIX_CYCLES = 2
 
-# gate-audit round 1 (#271 fix cycle): `injectionDefensePreamble` slices real
-# `## 1.`/`## 2.` markers out of the contract text; the old bare placeholder
-# "CONTRACT-TEXT" has neither, so routing-scope dispatch throws before the
-# mocked agent() rule is ever reached, silently exercising fail-open instead
-# of the test's intended routing flags. The real contract file has both
-# markers, so it's a faithful default for every dispatch.
-DEFAULT_TEST_CONTRACT = (REPO_ROOT / "reference" / "prompt-contract.md").read_text()
+
+def clean_document(judge: str, findings: list[dict] | None = None, coverage: str = "clean") -> dict:
+    """A findings document (gauntlet contract v1) as a mocked judge lane returns it.
+
+    Since #334 S2 every judge dispatch returns one of these, not a `{"findings":
+    "<prose>"}` report — the driver treats any other shape as a died lane.
+    """
+    return {
+        "contract_version": 1,
+        "judge": judge,
+        "mount": "acceptance",
+        "artifact": {"kind": "changeset", "base": "b0", "head": "h0"},
+        "standard": {"name": judge},
+        "findings": findings or [],
+        "coverage": coverage,
+    }
+
+
+def invocation(judge: str, **extra) -> dict:
+    """One contract-v1 invocation as gauntlet's dispatch.py emits it — what the
+    builder dispatch returns verbatim and a judge is handed unchanged."""
+    return {
+        "contract_version": 1, "judge": judge, "mount": "acceptance",
+        "artifact": {"kind": "changeset", "base": "b0", "head": "h0", "root": "/r"},
+        "standard": {"name": judge}, **extra,
+    }
+
+
+def finding(tier: str, summary: str = "a finding", **extra) -> dict:
+    """One contract-v1 finding row; `extra` overrides (an `anchor`, a `basis`)."""
+    return {"dimension": "check", "tier": tier, "summary": summary,
+            "locus": {"path": "a.py", "line": 1}, "basis": "sourced", **extra}
 
 
 def _extract_function(source: str, name: str) -> str:
@@ -67,6 +92,32 @@ def _extract_function(source: str, name: str) -> str:
                 break
         i += 1
     return source[start : i + 1]
+
+
+def _extract_symbol(source: str, name: str) -> str:
+    """A top-level function, or a top-level `const NAME = ...` statement — one line, a
+    template literal, or a brace/bracket-balanced object or array literal — verbatim,
+    for the driver's module constants a builder reads (`INJECTION_DEFENSE`, `TIERS`,
+    `INVOCATIONS`, ...)."""
+    if f"function {name}(" in source:
+        return _extract_function(source, name)
+    start = source.index(f"const {name} = ")
+    value_at = start + len(f"const {name} = ")
+    opener = source[value_at]
+    if opener not in "{[":
+        return source[start:source.index("\n", start)]
+    closer = {"{": "}", "[": "]"}[opener]
+    depth = 0
+    i = value_at
+    while True:
+        ch = source[i]
+        if ch == opener:
+            depth += 1
+        elif ch == closer:
+            depth -= 1
+            if depth == 0:
+                return source[start : i + 1]
+        i += 1
 
 
 def _run_node(script: str) -> dict:
@@ -237,12 +288,21 @@ AUDITOR_SHORT_NAMES = [
     "prompt-auditor", "ux-reviewer", "frontend-reviewer",
 ]
 
+# Every audit and acceptance round (story and finale) opens with one builder dispatch
+# that runs gauntlet's dispatch.py and returns the roster's invocations verbatim.
+# Appended after a test's own rules (first match wins), so a test can still override
+# it to drop a lane or return the builder's error.
+INVOCATIONS_LABELS = r"^(invocations:|acceptance:invocations:|finale:invocations$|finale:premortem-invocations$)"
+DEFAULT_INVOCATIONS_RULE = {
+    "match": INVOCATIONS_LABELS,
+    "result": {"invocations": [invocation(j) for j in (*AUDITOR_SHORT_NAMES, "product-reviewer", "premortem-auditor")]},
+}
+
 
 def _run_driver(
     epic: dict,
     agent_rules: list[dict],
     phases: dict | None = None,
-    contract: str = DEFAULT_TEST_CONTRACT,
     preamble: str = "",
 ) -> dict:
     """Runs the real, unmodified driver source per the `harnessShape` processor
@@ -252,7 +312,9 @@ def _run_driver(
     `agent_rules` is an ordered list of ``{"match": <regex on the dispatch
     label>, "throw": <str>}`` or ``{"match": ..., "result": <json-able>}``;
     first match wins. An unmatched label rejects loudly in the mock, so a
-    test can't silently pass by leaving a dispatch unmocked.
+    test can't silently pass by leaving a dispatch unmocked. The one default,
+    `DEFAULT_INVOCATIONS_RULE`, is appended last: every judge round opens with
+    a builder dispatch, and a test that isn't about it need not mock it.
 
     The returned dict also carries ``calls``: every ``{label, prompt}`` the
     mock `agent()` was invoked with, in order. `test_delta_scoped_reaudit.py`
@@ -279,7 +341,6 @@ def _run_driver(
             "stories": {s: f"{_wt}/{s}" for s in (epic.get("stories") or {})},
         },
         "defaultBranch": "main",
-        "contract": contract,
     }
     # `preamble` lets a test inject a substrate global this mock doesn't take
     # as a parameter — today only `globalThis.budget` (#144). Empty by default
@@ -290,7 +351,7 @@ async function __driver(args, agent, parallel, log, phase) {{
 {stripped}
 }}
 
-const RULES = {json.dumps(agent_rules)}
+const RULES = {json.dumps([*agent_rules, DEFAULT_INVOCATIONS_RULE])}
 const CALLS = []
 function agent(prompt, opts) {{
   const label = (opts && opts.label) || ''
@@ -344,7 +405,7 @@ SIBLING_LANDS_RULES = [
     {"match": r"^acceptance:scope:b$", "result": {"findings": json.dumps({"files": ["b.py"], "designDoc": ""})}},
     # b.py names no premortem register, so the Task 3 fallback lookup fires (confirmed empty).
     {"match": r"^acceptance:premortem-fallback:b$", "result": {"findings": json.dumps({"status": "empty"})}},
-    {"match": r"^acceptance:product-review:b$", "result": {"findings": "looks good"}},
+    {"match": r"^acceptance:product-review:b$", "result": clean_document("product-reviewer", coverage="looks good")},
     {"match": r"^acceptance:walkthrough:b$", "result": {"findings": "looks good"}},
     {"match": r"^acceptance:compile:b$", "result": {"verdict": "SHIP", "sha": "b1", "summary": "ok"}},
     {"match": r"^merge:b$", "result": {"merged": True, "sha": "b2", "notes": "clean"}},
@@ -445,7 +506,7 @@ def test_gate_throw_parks_that_story_blocked_and_sibling_lands() -> None:
         # try/catch or parallel()'s fault isolation — equivalent to the old single
         # `acceptance:a` dispatch throwing.
         {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "looks good"}},
         {"match": r"^acceptance:compile:a$", "throw": "gate agent exploded"},
         *SIBLING_LANDS_RULES,
@@ -474,7 +535,7 @@ def test_merge_throw_parks_that_story_blocked_and_sibling_lands() -> None:
         # a.py names no premortem register, so the Task 3 fallback fires (confirmed
         # empty) — acceptance still resolves SHIP and reaches the throwing merge step.
         {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "looks good"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
         {"match": r"^merge:a$", "throw": "merge agent exploded"},
@@ -525,13 +586,13 @@ LAND_STORY_A_RULES = [
     {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
     # a.py names no premortem register, so the Task 3 fallback lookup fires (confirmed empty).
     {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
-    {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+    {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
     {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "looks good"}},
     {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ok"}},
     {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
 ]
 FINALE_AUDITORS_PASS = [
-    {"match": rf"^finale:{name}$", "result": {"findings": "clean"}} for name in AUDITOR_SHORT_NAMES
+    {"match": rf"^finale:{name}$", "result": clean_document(name)} for name in AUDITOR_SHORT_NAMES
 ]
 
 

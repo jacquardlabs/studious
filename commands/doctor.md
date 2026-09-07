@@ -15,15 +15,16 @@ Run each check and classify the result:
 - **`jq` present** — run `command -v jq`. If it fails: **Critical** — "jq missing: `gate-ledger record` silently no-ops (see `bin/gate-ledger`'s own comment: 'Degrades silently when git or jq is unavailable') — no gate verdict, and no `/next` flow position, will ever be recorded."
 - **`gh` authenticated** — run `gh auth status`. If `gh` itself is missing, or the command exits non-zero: **Important** — "gh missing or unauthenticated: `/bet`, `/retro`, and the PR-time gate reminder's context all depend on it."
 - **`python3` present** — run `command -v python3`. If it fails: **Critical** — "python3 missing: every build script (`plan-lint`, `design-lint`, `verify`, `status-flip`, `evidence-capture`, `evidence-freshness`, `build-report`, `worktree-setup`) is a Python CLI, so `/build` cannot lint a plan and `/build` cannot verify a single task — it would report success off nothing but the executor's own claim."
-- **`viva` available** — the plugin manifest's only declared dependency. Check the way `skills/shape/SKILL.md` already reasons about it: look for the `viva` skill in this session's registered skill listing. If absent: **Critical** — "viva missing: `/shape` and `/build` both end in a human sign-off round they cannot run, so neither completes."
+- **`viva` available** — a declared dependency of the plugin manifest. Check the way `skills/shape/SKILL.md` already reasons about it: look for the `viva` skill in this session's registered skill listing. If absent: **Critical** — "viva missing: `/shape` and `/build` both end in a human sign-off round they cannot run, so neither completes."
+- **`gauntlet` available** — the manifest's other declared dependency. A dispatch needs two things, so check both: `gauntlet:*` judges in this session's registered agent listing (the same system-context listing section 2 reads — the `Task` tool's `subagent_type` resolves against it), and one loadable gauntlet command in the skill listing — `gauntlet:where` or `gauntlet:review` — which is how a consumer learns gauntlet's root for `scripts/dispatch.py` (`commands/review.md`, "Locate gauntlet"). If either is absent: **Critical** — "gauntlet missing: a declared dependency did not install or register. Every `/health` lane dispatches a `gauntlet:*` posture judge (`commands/health.md`'s area table) and every `/review` judge lane is a `gauntlet:*` dispatch (#334 S1, S3), so no inspection and no review episode can run a single lane. `/retro outcomes` is the one dispatch still local."
 
-Report each check as **OK** when it succeeds. The first three are gate-side tools, the last two build-side.
+Report each check as **OK** when it succeeds. Git, `jq`, and `gh` are gate-side; `python3` and `viva` build-side; `gauntlet` gate- and inspection-side.
 
 ## 2. Plugin health
 
 Every agent and skill Studious ships must actually be registered this session — a file present on disk with malformed frontmatter fails to register but leaves no error, silently dropping a `/review` lane or a natural-language trigger.
 
-1. Locate the plugin's own shipped roster: glob `${CLAUDE_PLUGIN_ROOT}/agents/*.md` for agent names (filename minus `.md`) and `${CLAUDE_PLUGIN_ROOT}/skills/*/SKILL.md` for skill names (parent directory name). If `${CLAUDE_PLUGIN_ROOT}` doesn't resolve, locate the plugin's own `agents/` and `skills/` directories with Glob instead (same fallback `/setup` uses for templates) — don't guess a path.
+1. Locate the plugin's own shipped roster: glob `${CLAUDE_PLUGIN_ROOT}/agents/*.md` for agent names (filename minus `.md`) and `${CLAUDE_PLUGIN_ROOT}/skills/*/SKILL.md` for skill names (parent directory name). If `${CLAUDE_PLUGIN_ROOT}` doesn't resolve, locate the plugin's own `agents/` and `skills/` directories with Glob instead (same fallback `/setup` uses for templates) — don't guess a path. That local roster is what `/retro` dispatches; `/review`'s judge lanes (#334 S1) and `/health`'s (#334 S3) are the session listing's `gauntlet:*` entries, so the roster is these agents **and** those entries, and a local-only roster — three agents after S4 — never reads healthy on its own (their absence is section 1's `gauntlet` row).
 2. Compare that shipped roster against what this session actually has registered: the agent names available to the Agent tool and the skill names available to the Skill tool, both already present in your own system context for this conversation (the "Available agent types" and available-skills listings injected at session start). Do not re-derive this list by reading files a second time — the whole point is to check what got registered, not what's on disk. If that system-context listing itself isn't present or isn't clearly readable this session (its format is a Claude Code internal, not a stable contract this command controls), do not guess — report plugin health as **Inconclusive**: "could not read this session's registered agent/skill listing — re-run in a session where it's present" rather than emitting a false Critical.
 3. Any shipped agent or skill absent from the session's registered list is **Critical** — name it and state the consequence: "`<name>` shipped but not registered this session — `/review` (or the matching gate) silently runs without this lane."
 4. Report the roster size as counts derived from step 1 (e.g. "15 agents, 4 skills shipped") — never hardcode a count.
@@ -69,6 +70,12 @@ Read `reference/personas.md`'s `Absorbed` column: each row lists the names that 
 over. Grep the consuming project's `CLAUDE.md`, `README.md`, and `.github/workflows/*.yml`
 for any of them as a slash-command invocation (`/work-on`, not `docs/design/`), and report
 each hit with the door that replaced it.
+
+One rename the `Absorbed` column cannot express, because the door is still live: `/retro`'s
+area arguments moved to `/health` (#330). Grep the same files for `/retro <area>` where
+`<area>` is any keyword in `commands/health.md`'s area table — read the table, don't
+restate it — and report each hit with `/health <area>` as the replacement. Bare `/retro`
+and `/retro outcomes` are current; leave them alone.
 
 **Propose, don't apply.** Print the rewire as a diff the human can apply; never edit their
 files. This is the same posture every other check here takes — `/doctor` fixes nothing.

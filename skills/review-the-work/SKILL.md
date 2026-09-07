@@ -1,6 +1,6 @@
 ---
 name: review-the-work
-description: Use when the user wants something judged — a design vetted before build ("review this design", "is this design sound"), a built branch audited ("audit this", "review this branch", "check this before I merge"), or a finished feature checked against what it promised ("did we ship the right thing", "does this deliver", "acceptance check"). This routes to /review, which picks the matching episode itself. Do NOT use for deciding whether to build at all (that's /bet), for periodic whole-project health sweeps (that's /retro), or for install diagnostics (that's /doctor).
+description: Use when the user wants something judged — a design vetted before build ("review this design", "is this design sound"), a built branch audited ("audit this", "review this branch", "check this before I merge"), or a finished feature checked against what it promised ("did we ship the right thing", "does this deliver", "acceptance check"). This routes to /review, which picks the matching episode itself. Do NOT use for deciding whether to build at all (that's /bet), for periodic whole-project health sweeps (that's /health), or for install diagnostics (that's /doctor).
 ---
 
 # Judge the work

@@ -128,8 +128,8 @@ def test_acceptance_round_delegates_premortem_discovery_to_one_resolver() -> Non
 
 def test_resolver_and_helper_stay_outside_the_worker_dispatch_region() -> None:
     """`scripts/check_gate_independence.py` exempts exactly one region (#212) —
-    it wraps `workerPrompt` and nothing else. Neither new function may drift
-    inside it."""
+    it wraps the worker-class dispatch prompts (`workerPrompt`, and since #318
+    `exorcisePrompt`) and nothing else. Neither new function may drift inside it."""
     source = DRIVER.read_text()
     begin = source.index("// gate-independence: begin worker-dispatch")
     end = source.index("// gate-independence: end worker-dispatch")
@@ -137,7 +137,7 @@ def test_resolver_and_helper_stay_outside_the_worker_dispatch_region() -> None:
     for name in ("resolvePremortemLane", "missingLane"):
         assert name not in region, (
             f"{name} moved inside the worker-dispatch exemption region, which must "
-            "wrap workerPrompt and nothing else"
+            "wrap the worker-class dispatch prompts and nothing else"
         )
 
 
@@ -338,23 +338,24 @@ console.log(JSON.stringify({{ missing, first, second }}))
     assert out["second"] == "--- walkthrough --- (EMPTY CHANGESET — nothing to read)"
 
 
-def test_all_eight_missing_lane_sites_go_through_the_helper() -> None:
-    """The 8 call sites #170 counted are all routed through `missingLane`, and
-    no bare `missing.push(` survives in `acceptanceRound` — a re-inlined pair
-    could push a reason and forget the block, the failure mode the helper
-    exists to make unrepresentable."""
+def test_all_ten_missing_lane_sites_go_through_the_helper() -> None:
+    """The 8 call sites #170 counted, plus the two no-invocation causes the
+    builder dispatch added (a lane gauntlet's dispatch.py emitted nothing for),
+    are all routed through `missingLane`, and no bare `missing.push(` survives
+    in `acceptanceRound` — a re-inlined pair could push a reason and forget the
+    block, the failure mode the helper exists to make unrepresentable."""
     source = DRIVER.read_text()
     fn = _extract_function(source, "acceptanceRound")
-    assert fn.count("missingLane(missing,") == 8, (
-        f"expected 8 missing-lane call sites, found {fn.count('missingLane(missing,')}"
+    assert fn.count("missingLane(missing,") == 10, (
+        f"expected 10 missing-lane call sites, found {fn.count('missingLane(missing,')}"
     )
     assert "missing.push(" not in fn, (
         "acceptanceRound pushes onto `missing` directly again — every missing lane "
         "must go through missingLane so the reason and the block can't diverge"
     )
-    assert source.count("missingLane(missing,") == 9, (
+    assert source.count("missingLane(missing,") == 11, (
         "missingLane gained a caller outside acceptanceRound — one declaration plus "
-        "8 call sites is the whole surface"
+        "10 call sites is the whole surface"
     )
 
 
@@ -369,18 +370,19 @@ def test_each_missing_lane_site_keeps_its_own_load_bearing_prose() -> None:
     calls = re.findall(
         r"missingLane\(missing, '([^']*)', '([^']*)',\s*\n?\s*'([^']*)'\)", fn
     )
-    assert len(calls) == 8, f"could not parse all 8 missing-lane calls: {calls}"
+    assert len(calls) == 10, f"could not parse all 10 missing-lane calls: {calls}"
 
     entries = [f"{label} ({reason})" for label, reason, _ in calls]
-    assert len(set(entries)) == 8, f"two missing-lane reasons collapsed: {entries}"
+    assert len(set(entries)) == 10, f"two missing-lane reasons collapsed: {entries}"
     # Per lane, not globally: `walkthrough` and `premortem-auditor` share the
     # plain "AGENT DIED — no report" wording; their labels distinguish them.
     blocks = [(label, message) for label, _, message in calls]
-    assert len(set(blocks)) == 8, f"two missing-lane blocks collapsed: {blocks}"
+    assert len(set(blocks)) == 10, f"two missing-lane blocks collapsed: {blocks}"
 
     premortem_reasons = {reason for label, reason, _ in calls if label == "premortem-auditor"}
     assert premortem_reasons == {
         "agent died",
+        "no invocation",
         "multiple candidate registers in changeset",
         "multiple branch-matching candidate registers outside changeset",
         "fallback lookup agent died",

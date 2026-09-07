@@ -61,12 +61,13 @@ def test_every_door_class_is_one_the_check_understands() -> None:
         )
 
 
-def test_the_surface_is_nine_doors_seven_of_them_day_to_day() -> None:
+def test_the_surface_is_ten_doors_eight_of_them_day_to_day() -> None:
     """Door count is the restructure's own success metric. Change this assertion first if
-    the surface genuinely grows; a door added without touching it is drift."""
+    the surface genuinely grows; a door added without touching it is drift. Ten since
+    `/health` took the inspections off `/retro` (#330)."""
     rows = doors()
-    assert len(rows) == 9, f"charter lists {len(rows)} doors, not 9"
-    assert len([d for d in rows if d["cls"] != "infra"]) == 7
+    assert len(rows) == 10, f"charter lists {len(rows)} doors, not 10"
+    assert len([d for d in rows if d["cls"] != "infra"]) == 8
 
 
 def test_no_absorbed_name_is_still_a_live_door() -> None:

@@ -4,7 +4,7 @@
 dispatch product-review and the walkthrough as one serial self-performing
 step — the shape behind issue #142 (a single acceptance dispatch took 117
 minutes). This adds a fan-out mirroring auditRound: a mechanical scope-check
-(product-reviewer has no Bash — issue #89), then product-review and
+(the product lane reviews a named scope, never one it improvises — issue #89), then product-review and
 walkthrough dispatched concurrently, then a compile step.
 
 Scope: story-level only; the finale acceptance dispatch and design-review gate
@@ -24,6 +24,7 @@ from test_driver_crash_hardening import (
     FINALE_AUDITORS_PASS,
     _one_story_acceptance_epic,
     _run_driver,
+    clean_document,
 )
 
 SCOPE_WITH_DOC = {"findings": json.dumps({"files": ["foo.py"], "designDoc": "docs/design-foo.md"})}
@@ -45,7 +46,7 @@ def test_normal_round_dispatches_all_four_lanes_in_shape() -> None:
     rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_WITH_DOC},
         PREMORTEM_FALLBACK_EMPTY,
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
         {"match": r"^merge:a$", "result": {"merged": True, "sha": "a1", "notes": "clean"}},
@@ -74,12 +75,12 @@ def test_normal_round_dispatches_all_four_lanes_in_shape() -> None:
 
 def test_product_review_prompt_names_the_resolved_design_doc() -> None:
     """The product-review dispatch gets the design doc the scope-check resolved,
-    not a pointer it has to go discover itself (product-reviewer has no Bash)."""
+    not a pointer it has to go discover itself (issue #89)."""
     epic = _one_story_acceptance_epic()
     rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_WITH_DOC},
         PREMORTEM_FALLBACK_EMPTY,
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
         # merge:a deliberately unmocked — the crashed merge keeps this test
@@ -104,7 +105,7 @@ def test_product_review_prompt_falls_back_when_no_design_doc_recorded() -> None:
     rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_NO_DOC},
         PREMORTEM_FALLBACK_EMPTY,
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "ship it"}},
         # merge:a deliberately unmocked — see the same note in
@@ -153,7 +154,7 @@ def test_died_product_review_lane_forces_a_ship_compile_down_to_hold() -> None:
 
 def test_died_scope_check_skips_the_product_review_dispatch_entirely() -> None:
     """A died/unparseable scope-check must not hand product-reviewer an empty
-    scope — it has no Bash to fall back on, and an empty scope is the exact
+    scope — it never improvises one, and an empty scope is the exact
     failure mode issue #89 fixed the interactive command against. The lane is
     marked UNREVIEWED without ever being dispatched."""
     epic = _one_story_acceptance_epic()
@@ -190,7 +191,7 @@ def test_empty_changeset_skips_product_review_dispatch_and_caps_hold() -> None:
     epic = _one_story_acceptance_epic()
     rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_EMPTY},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "looked fine to me"}},
     ]
@@ -219,7 +220,7 @@ def test_empty_changeset_cause_never_reads_the_same_as_agent_death() -> None:
     epic = _one_story_acceptance_epic()
     empty_rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_EMPTY},
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "no complaints"}},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "looked fine to me"}},
     ]
@@ -255,7 +256,7 @@ def test_died_walkthrough_lane_also_forces_hold() -> None:
     rules = [
         {"match": r"^acceptance:scope:a$", "result": SCOPE_WITH_DOC},
         PREMORTEM_FALLBACK_EMPTY,
-        {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+        {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
         {"match": r"^acceptance:walkthrough:a$", "result": None},
         {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a0", "summary": "looked fine to me"}},
     ]
@@ -345,4 +346,4 @@ def test_product_review_dispatch_uses_the_registered_agent_type() -> None:
     product-reviewer subagent — not a generic agent told to imitate it, which
     was the old single-dispatch shape's whole limitation."""
     source = DRIVER.read_text()
-    assert "agentType: 'studious:product-reviewer'" in source
+    assert "agentType: 'gauntlet:product-reviewer'" in source

@@ -11,7 +11,7 @@ exits; naming the roles below creates no standing ones.
 
 ## Doors
 
-Nine doors, seven of them day-to-day. The `Class` column is load-bearing: it is what
+Ten doors, eight of them day-to-day. The `Class` column is load-bearing: it is what
 `check_gate_independence.py` reads to decide which files it guards and which command
 names count as producer invocations.
 
@@ -32,7 +32,8 @@ excluded from its own Absorbed cell — including it would make `/doctor` flag e
 | `/build` | Builder | producer | `skills/build/SKILL.md` | plan |
 | `/ship` | Shipper | producer | `skills/ship/SKILL.md` | finish, handback |
 | `/next` | Navigator, Orchestrator | navigator | `commands/next.md` | work-on, work-through, coach |
-| `/retro` | Health Officer | periodic | `commands/retro.md` | deep-review, backlog-hygiene, review-outcomes |
+| `/health` | Health Officer | periodic | `commands/health.md` | deep-review, backlog-hygiene |
+| `/retro` | Health Officer | periodic | `commands/retro.md` | review-outcomes |
 | `/setup` | — | infra | `commands/setup.md` | studious-init, extract-product-context, extract-design-system |
 | `/doctor` | — | infra | `commands/doctor.md` | studious-doctor |
 
@@ -85,9 +86,10 @@ episode to the door that convenes it, and nothing else.
 ## Specialists
 
 These are the agents shipping today, each keeping the lane and rubric it owns now. One
-specialist serves both cadences: a
-diff-scoped lane inside a `/review` episode, and a whole-project duty under `/retro`.
-The title is keyed to the agent filename here so a title/agent pair cannot drift.
+specialist serves both cadences: a diff-scoped lane inside a `/review` episode, and a
+whole-project duty under `/health` — which dispatches gauntlet's posture judges for it
+(#334 S3); the local `review-*` files stay until #334 S4 retires them. The title is keyed
+to the agent filename here so a title/agent pair cannot drift.
 
 | Specialist | Episode lane (diff-scoped) | Periodic duty |
 |---|---|---|

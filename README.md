@@ -34,7 +34,8 @@ milestone — the doors don't change. [Full definition below](#bets).
 | `/review` | Judge it — design, work, or delivery | review column · sprint review |
 | `/ship` | Deliver and close out | done · increment · small releases |
 | `/next [anything]` | The standup question, at any scale | standup · pull · hill chart |
-| `/retro [area]` | The periodic look-back | retrospective · kaizen · cool-down |
+| `/health [area]` | The periodic inspection | health check · standing review |
+| `/retro [outcomes]` | The periodic look-back | retrospective · kaizen · cool-down |
 
 Plus two you'll run rarely: `/setup` (first-time scaffolding) and `/studious:doctor`
 (install diagnostics — namespaced, because Claude Code ships its own `/doctor`).
@@ -66,8 +67,10 @@ Via the Jacquard Labs marketplace:
 /plugin install studious@jacquardlabs-marketplace
 ```
 
-That also installs [viva](https://github.com/jacquardlabs/viva), a declared dependency:
-`/shape` and `/build` drive it for their human sign-off rounds.
+That also installs the two declared dependencies: [viva](https://github.com/jacquardlabs/viva),
+which `/shape` and `/build` drive for their human sign-off rounds, and
+[gauntlet](https://github.com/jacquardlabs/gauntlet), whose judges `/review` and `/health`
+dispatch.
 
 Then, in any project:
 
@@ -77,7 +80,9 @@ Then, in any project:
 
 This creates your context documents — PRODUCT.md and DESIGN.md, extracted from the codebase
 as it actually is — scaffolds the `docs/studious/` report directories, and wires the
-workflow into CLAUDE.md. Review PRODUCT.md first: the extraction is evidence-based, but your
+workflow into CLAUDE.md. If [exorcist](https://github.com/jacquardlabs/exorcist) is
+installed, it also offers to install the ward, so every executor builds under the same
+simplification rules the judges hold it to. Review PRODUCT.md first: the extraction is evidence-based, but your
 product principles and your "not building" list need your voice.
 
 Then stop reading and run one command:
@@ -195,8 +200,10 @@ perform. It ships a route through both. Use it, or don't; the judges can't tell.
   one task at a time in a fresh, isolated executor, verifies each by running the task's own
   commands, and captures the output as evidence. Status flips are written by scripts, never
   by the model, and load-bearing tasks get a fresh inspector judging exactly three things:
-  test self-dealing, contract match, technicality gaming. Reports `BUILT`, `PAUSED`, or
-  `ESCALATED`, and never auto-continues past a pause.
+  test self-dealing, contract match, technicality gaming. After the last task passes, an
+  exorcist pass strips what no criterion asked for, the scripts re-verify, and one
+  `exorcise:` commit lands (skipped with a note when exorcist is not installed). Reports
+  `BUILT`, `PAUSED`, or `ESCALATED`, and never auto-continues past a pause.
 - **`/ship`** closes out a `BUILT` branch: an evidence table mapping each done-means item to
   how it was verified, follow-ups filed only on per-item confirmation, proposed (never
   applied) patches to your context docs, and a dated build report. Reports `MERGE`, `PR`,
@@ -242,12 +249,13 @@ never ran, ran on an older commit, or didn't pass. It's a reminder, not a block.
 
 ## Where your state lives
 
-Two directories, one committed and one not. Nothing else is written on your behalf.
+Two directories, one committed and one not, plus `docs/exorcist/` when you run
+`/health simplify` (exorcist's own register path). Nothing else is written on your behalf.
 
 | Path | Committed | What's in it |
 |---|---|---|
 | `.studious/` | No — gitignored | The per-branch gate ledger (verdicts, episode rounds, the findings ledger), `/next`'s per-feature work files, approved epic plans and their appetite, routing telemetry, and the verification evidence a hook captures while a story is armed |
-| `docs/studious/` | Yes | `/retro` review reports, pre-mortem registers, dated build reports, and the decision journal |
+| `docs/studious/` | Yes | `/health` and `/retro` review reports, pre-mortem registers, dated build reports, and the decision journal |
 
 `.studious/` is flow state: local, disposable, and never in the diff — which is why the flow
 survives a session ending but not a fresh clone. `bin/gate-ledger status` prints what's
@@ -265,7 +273,7 @@ working documents for one branch, not project records.
 Studious degrades quietly by design — a missing tool or an unregistered agent drops a lane
 without erroring. `/studious:doctor` is the read-only pass that surfaces it, in five checks:
 
-1. **Tooling** — `git`, `jq`, `gh`, `python3`, `viva`. Missing `jq` is the quiet one:
+1. **Tooling** — `git`, `jq`, `gh`, `python3`, `viva`, `gauntlet`. Missing `jq` is the quiet one:
    `gate-ledger record` no-ops, so no verdict and no flow position is ever written.
 2. **Plugin health** — whether every agent and skill Studious ships actually registered this
    session. Malformed frontmatter drops a `/review` lane without an error.
@@ -280,22 +288,37 @@ review.
 
 ## Keeping the project healthy
 
-Separate from the feature flow: `/retro` runs periodic reviews against main, not feature
-branches. Bare `/retro` dispatches the 7 health reviews in parallel and compiles a master
-summary — cross-referenced findings, a prioritized action plan, and proposed context-doc
-updates for your approval. Metrics are captured each run for trend tracking. The last two
-rows below are modes, not reviews: they run only when you name them.
+Separate from the feature flow, two doors run against main, not feature branches.
+`/health` inspects what the project *is*: bare `/health` dispatches gauntlet's 7 posture
+judges in parallel and compiles a master summary — cross-referenced findings, a
+prioritized action plan, and proposed context-doc updates for your approval. `/retro`
+looks back at how the cycle went. Trend lives in your issue tracker, not in a report store —
+every run reports a baseline. The last four rows below are modes, not lanes: they run only
+when you name them.
+
+`/retro` is the retrospective: it reads what Studious recorded while the work happened — the
+gate ledger, dispatch telemetry, the decision journal, git history — never the code. It opens
+by checking the previous retro's plan item by item, renders the cycle's numbers with
+`scripts/retro-stats` (stories landed and parked, rounds per episode, which lanes blocked,
+findings waived or ruled noise, parks by reason, declared-vs-outside scope, time per phase),
+says what those rows show went well and badly, proposes changes to the surfaces that govern
+the next cycle as diffs — context docs, audit routing, the appetite's measured rung,
+story-class heuristics, noise suppressions, idiom rubric lines — and closes with the plan
+the next retro opens with. The report lands in `docs/studious/retros/`; a clone with no
+ledger gets "no cycle data in this clone", not an error.
 
 | Area | What it checks | Cadence |
 |------|----------------|---------|
-| `/retro codebase` | Architecture coherence, tech debt, dependencies, test gaps | Weekly or pre-milestone |
-| `/retro interface` | Cross-surface consistency, design drift, accessibility, interface code | Monthly or post-UI work |
-| `/retro architecture` | Module boundaries, complexity, evolution readiness | Quarterly |
-| `/retro product` | PRODUCT.md accuracy, persona drift, scope creep | Monthly |
-| `/retro security` | Whole-repo vulnerability posture, secrets in history, config posture | Monthly |
-| `/retro readme` | Stale claims, broken commands, voice drift | After a release |
-| `/retro prompts` | Trigger coverage, contract alignment, duplication, injection posture | Monthly |
-| `/retro backlog` | Open issues that are resolved, obsolete, or duplicated | After a review cycle |
+| `/health codebase` | Structural drift, debt, dead code, dependencies, test health | Weekly or pre-milestone |
+| `/health interface` | Cross-surface consistency, design drift, accessibility, interface code | Monthly or post-UI work |
+| `/health architecture` | Module boundaries, complexity, evolution readiness | Quarterly |
+| `/health product` | PRODUCT.md accuracy, persona drift, scope creep | Monthly |
+| `/health security` | Whole-repo vulnerability posture, secrets in history, config posture | Monthly |
+| `/health readme` | User-facing docs: stale claims, broken commands, voice drift | After a release |
+| `/health prompts` | Trigger coverage, contract alignment, duplication, injection posture | Monthly |
+| `/health backlog` | Open issues that are resolved, obsolete, or duplicated | After a review cycle |
+| `/health simplify` | Exorcist's séance: standing simplification targets as a register you approve, then `/bet` or `/exorcist:exorcise` (needs exorcist installed) | Quarterly, or before a large refactor |
+| `/retro` | The cycle's own ledger: last plan checked, numbers, proposed changes, next plan | After each epic or milestone closes |
 | `/retro outcomes` | Shipped merges graded against the fixes and reverts that followed | Quarterly |
 
 Every mode is recommend-only. It writes reports; it never writes code, closes an issue, or
@@ -308,9 +331,9 @@ Refresh one on its own with `/setup extract-product` or `/setup extract-design`.
 
 | Document | What it holds | Updated by |
 |----------|---------------|------------|
-| PRODUCT.md | Personas, principles, known problems, "not building" list | You + `/retro product` |
-| DESIGN.md | Interface conventions per surface — web UI, CLI, TUI, API, or report | You + `/retro interface` |
-| CLAUDE.md | Technical conventions, workflow reference | You + `/retro architecture` |
+| PRODUCT.md | Personas, principles, known problems, "not building" list | You + `/health product` |
+| DESIGN.md | Interface conventions per surface — web UI, CLI, TUI, API, or report | You + `/health interface` |
+| CLAUDE.md | Technical conventions, workflow reference | You + `/health architecture` |
 
 Reviews propose updates to these docs. They never apply them. If a doc goes stale, the
 reviews tell you. That's the point.
@@ -341,9 +364,14 @@ skips diffs over 40 changed files to bound the fan-out's cost.
   automatically. `/shape` and `/build` drive it for their sign-off rounds, through viva's
   published headless contract. It stays a separate repo because that contract is versioned
   and tested, not a format convention.
+- [gauntlet](https://github.com/jacquardlabs/gauntlet) — a declared dependency, installed
+  automatically. `/health` dispatches its seven posture judges and renders their findings
+  through gauntlet's published findings contract — separate under the same criterion —
+  and `/review`'s changeset lanes follow under #334 S1. Studious ships the consumers and
+  verdict derivation, never the judges (#334).
 - [Superpowers](https://github.com/obra/superpowers) — an optional alternative to the
   built-in build loop. Any executor satisfying `reference/worker-contract.md` works.
-- GitHub Issues — `/bet` and `/retro backlog` read your tracker via the `gh` CLI.
+- GitHub Issues — `/bet` and `/health backlog` read your tracker via the `gh` CLI.
 
 ## Contributing
 

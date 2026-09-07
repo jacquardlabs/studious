@@ -10,13 +10,15 @@ object per line, same store shape and root-anchoring as `.studious/evidence/`. W
 by `bin/gate-ledger` (`telemetry-dispatch`, and `record`'s own outcome side effect);
 `hooks/dispatch-telemetry.sh` is a caller of the first, never a second writer.
 
-## Scope: a pure writer, no reader yet
+## Scope: one reader, and nothing branches on it
 
-Like `reference/events-format.md`'s store, this one ships with no read verb and no
-consumer in this plugin. A missing, empty, or malformed telemetry file changes no verdict
-anywhere. It exists so the routing work has a left side to join against, and so the two
-write paths below don't drift from each other. This file, not either implementation, is
-the contract.
+This store ships with no read verb; its one consumer in this plugin is `/retro`'s
+`scripts/retro-stats` (#330), which reads the files directly under this contract and renders
+dispatch counts per story and verdicts per branch for the retrospective's cycle numbers. A
+missing, empty, or malformed telemetry file changes no verdict anywhere — the reader reports
+a gap, never a zero. The store exists so the routing work has a left side to join against,
+and so the two write paths below don't drift from each other. This file, not either
+implementation, is the contract.
 
 ## Envelope
 
@@ -45,7 +47,7 @@ no cross-surface consumer reads them.
 ## `kind: "dispatch"`
 
 ```json
-{"at":"2026-08-02T14:02:03Z","kind":"dispatch","capturer":"hook","run_id":"3f9c…","step_id":"toolu_01ABC…","parent_step_id":"","task_id":"feat/telemetry","skill":"gate-audit","role":"security-auditor","model":"opus","effort":"high","routing_reason":"static","features":{"prompt_bytes":8214}}
+{"at":"2026-08-02T14:02:03Z","kind":"dispatch","capturer":"hook","run_id":"3f9c…","step_id":"toolu_01ABC…","parent_step_id":"","task_id":"feat/telemetry","skill":"gate-audit","role":"security-auditor","fleet":"studious","model":"opus","effort":"high","routing_reason":"static","features":{"prompt_bytes":8214}}
 ```
 
 | Field | Source | Notes |
@@ -54,9 +56,10 @@ no cross-surface consumer reads them.
 | `step_id` | `--step-id` | Unique within the run. The hook passes `tool_use_id`; the driver passes `<story>:<gate>:r<round>:<lane>`. |
 | `parent_step_id` | `--parent-step-id` | The step this dispatch hangs off. The driver passes the gate step (`<branch-slug>:<gate>`), which is exactly what an outcome line's `step_id` defaults to — that is the join. The hook passes the enclosing subagent's `agent_id`, or `""` at top level. |
 | `task_id` | `--task-id`, defaulting to the current branch name | The unit of work under review. |
-| `skill` | `--skill` | The dispatch surface: `gate-audit`, `gate-acceptance`, `deep-review`, `review-outcomes`. |
-| `role` | `--role` | The agent's own `name` (`security-auditor`), never the `studious:`-qualified dispatch string. |
-| `model` | `--model`, else resolved from `agents/<role>.md`'s frontmatter | `inherit` is recorded verbatim when that is what the agent declares — that is live evidence for #136, not a gap to paper over. Empty only when neither a flag nor an agent file supplied one. |
+| `skill` | `--skill` | The dispatch surface: `gate-audit`, `gate-acceptance`, `health`, `review-outcomes`, or `deep-review` for a local `review-*` agent dispatched by hand (the retired `/retro` sweep's key, kept until #334 S4 deletes those files). |
+| `role` | `--role` | The agent's own `name` (`security-auditor`, `codebase-posture-auditor`), never the `studious:`- or `gauntlet:`-qualified dispatch string — `telemetry-dispatch` refuses a colon. `fleet` says which plugin the name belongs to. |
+| `fleet` | `--fleet` | `studious` or `gauntlet`: whose agent `role` names. Optional and caller-claimed like `capturer`; the hook always sets it, the driver sets `gauntlet` on every judge lane and nothing on its own prose lanes (the fix-delta pass), so `""` means a local role with no agent file, or a line from before #334 S2. A same-named lane in both fleets (`security-auditor`) is two different judges with two different pins — this is the field that keeps them apart. Added as an optional field, which is not a bump: no per-line schema version exists to bump (above), and a reader that ignores it reads every line as before. |
+| `model` | `--model`, else resolved from `agents/<role>.md`'s frontmatter unless `fleet` is `gauntlet` (an unstated fleet still resolves) | `inherit` is recorded verbatim when that is what the agent declares — that is live evidence for #136, not a gap to paper over. Empty is the normal case for a `gauntlet` role — its pin lives in gauntlet's own plugin, which this one never reads, and a same-named local agent is not consulted — so the #136 `inherit` evidence stream ends for each lane the moment it migrates (gauntlet's pins are that issue's fix). Also empty for a local role with no agent file. |
 | `effort` | `--effort`, same fallback | The other half of the cost dial (CLAUDE.md pins `model` and `effort` independently). |
 | `routing_reason` | `--routing-reason` | Closed set: `static` (a fixed roster), `override` (something displaced the static roster — a narrowed re-audit round is `override`), `classifier:v<digits>` (a literal `v` followed by digits only), or `ab:<arm>` (`<arm>` is one non-empty token with no whitespace or control characters). Rejected otherwise. |
 | `features` | zero or more `--feature <name>=<value>` | Classifier features cheaply available at dispatch time. Values coerce to number or boolean when they parse as one, else stay strings. Names align with #186 where the concept carries over (`input_bytes`, `files_touched`, `load_bearing`); gate-specific names used today are `prompt_bytes` (hook) and `round`, `narrowed`, `lane_count` (driver). The set is open by design — a new feature is a new `--feature`, never a schema change. |
@@ -111,7 +114,7 @@ branch — the honest limit of what a `PreToolUse` hook can know.
 ## What each surface emits
 
 **The interactive commands emit nothing themselves.** `/review`, `/review --delivery`,
-and `/retro` are prose read by a human-invoked session; a per-lane ledger call in their
+and `/health` are prose read by a human-invoked session; a per-lane ledger call in their
 fan-out would spend 11–13 extra Bash round-trips per round recording what the hook
 already sees for free. `hooks/dispatch-telemetry.sh` fires on the `Task` tool and writes
 one dispatch line per lane; the commands carry a pointer to this file, nothing else.
@@ -140,28 +143,33 @@ and `PreToolUse` matchers match the tool name, so `"Task"` is a valid matcher.
 silently — no record, no error — when `subagent_type` is absent or empty, so a wrong
 assumption here degrades to zero telemetry rather than to wrong telemetry. The `Task`
 input carries no model field of any kind, verified or otherwise, which is why `model`
-resolves from `agents/<role>.md` inside `telemetry-dispatch` instead.
+resolves from `agents/<role>.md` inside `telemetry-dispatch` unless `fleet` is
+`gauntlet`, in which case it stays empty.
 
 The hook deliberately does **not** require the branch to be armed the way
-`hooks/evidence-capture.sh` does. `/retro` runs on `main`, against no story, with no work
+`hooks/evidence-capture.sh` does. `/health` runs on `main`, against no story, with no work
 file — an armed check would silence half of what this store exists to record. The
-dispatch of a named Studious reviewer is itself the signal; the roster table in the hook
-is the whole filter.
+dispatch of a named reviewer is itself the signal; the roster table in the hook is the
+whole filter.
 
 ### `skill` on the hook path
 
-The hook derives `skill` from the role by pattern — `review-*` is `/retro`'s,
-`*-auditor`/`*-reviewer` is `/review`'s — plus carve-outs the patterns can't carry:
-`product-reviewer` and `premortem-auditor` belong to `/review --delivery`;
-`review-outcomes` matches `review-*` but is dispatched by its own `/retro` command
-outside the `/retro` sweep, so it's mapped before the pattern is consulted; `code-auditor`
-serves both `/review`'s lane 2 and `/retro`'s idiom-feedback step, genuinely ambiguous,
-so its lines carry `skill: ""` and a joiner resolves them from the run's other lines.
-Every carve-out is tested before the patterns, since all four names match one.
+The hook derives `skill` from the role by pattern — `*-posture-*` is `/health`'s
+(gauntlet's posture judges, #334 S3), `review-*` is the retired local sweep's
+`deep-review`, `*-auditor`/`*-reviewer` is `/review`'s — plus carve-outs the patterns
+can't carry: `product-reviewer` and `premortem-auditor` belong to `/review --delivery`;
+`review-outcomes` matches `review-*` but is dispatched by `/retro`, so it's mapped before
+the pattern is consulted. Every carve-out is tested before the patterns, since all three
+names match one. Both fleets map alike: gauntlet's acceptance lanes carry the same names
+as the local ones.
 
-The allow-list is `agents/<role>.md` existing: a role that matches no pattern, or matches
-one but names no shipped agent, produces no record — same conservative posture as the
-evidence hook's token list. Deliberately a pattern and not a roster copy:
+The allow-list is `agents/<role>.md` existing for a local role, and the `gauntlet:` prefix
+itself for one of gauntlet's judges — its roster is gauntlet's charter, not a file here,
+and `model`/`effort` stay empty for the same reason. The two rules never blend: a
+`gauntlet:` dispatch never consults a same-named local file, and a local dispatch never
+records under the wrong fleet. A role that matches no pattern, or matches one but names
+no shipped agent, produces no record — same conservative posture as the evidence hook's
+token list. Deliberately a pattern and not a roster copy:
 `workflows/epic-driver.js`'s `AUDITORS` comment already names three hand-maintained
 copies of the auditor list as a standing drift risk (#271); a fourth would silently drop
 whichever lane ships next.
@@ -186,8 +194,13 @@ branch it describes — a routing comparison reads runs that finished long ago.
 ## Consumers that must stay in sync
 
 - `tests/test_gate_ledger.sh` asserts `telemetry-dispatch`'s field shape, its validation,
-  the agent-frontmatter model fallback, and `record`'s outcome side effect.
-- `tests/test_dispatch_telemetry.sh` asserts the hook's roster filter, skill mapping,
-  sentinel suppression, and defensive exits.
+  the agent-frontmatter model fallback and its `fleet` gate, and `record`'s outcome side
+  effect.
+- `tests/test_dispatch_telemetry.sh` asserts the hook's two-fleet allow-list, skill
+  mapping, sentinel suppression, and defensive exits.
 - `workflows/epic-driver.js`'s audit fan-out builds the driver-side call; changing the
-  flag set means changing that prompt builder in the same commit.
+  flag set means changing that prompt builder in the same commit. `--fleet` is optional
+  there: the driver passes it on judge lanes (#334 S2) and omits it on its own prose
+  lanes — not drift.
+- `scripts/retro-stats` reads `kind`, `task_id`, `model`, and `skill` off dispatch lines and
+  `task_id` off outcome lines; renaming any of those means changing its cost table.

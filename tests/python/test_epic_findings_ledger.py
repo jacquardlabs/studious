@@ -25,6 +25,10 @@ from test_driver_crash_hardening import (
     AUDITOR_SHORT_NAMES as AUDIT_LANES,
 )
 from test_driver_crash_hardening import (
+    clean_document,
+    finding,
+)
+from test_driver_crash_hardening import (
     DRIVER,
     _extract_function,
     _run_driver,
@@ -45,7 +49,7 @@ def _story_audit_rules(story: str, *, verdict: str = "PASS", open_criticals: lis
         compile_result["openCriticals"] = open_criticals
     return [
         {"match": rf"^audit:routing-scope:{story}$", "result": {"findings": _ROUTING_ALL_IN}},
-        *[{"match": rf"^audit:{lane}:{story}$", "result": {"findings": "clean"}} for lane in AUDIT_LANES],
+        *[{"match": rf"^audit:{lane}:{story}$", "result": clean_document(lane)} for lane in AUDIT_LANES],
         {"match": rf"^audit:compile:{story}$", "result": compile_result},
         {"match": rf"^merge:{story}$", "result": {"merged": True, "sha": f"{story}2", "notes": "clean"}},
         {"match": rf"^merge:verify:{story}$", "result": {"findings": json.dumps(
@@ -60,7 +64,7 @@ def _finale_rules(attestations: list | None = None) -> list[dict]:
             {"attestations": attestations or []})}},
         {"match": r"^finale:findings-closure$", "result": {"findings": "every recorded finding reached a resolved sha"}},
         {"match": r"^finale:seams$", "result": {"findings": "no cross-story seam findings"}},
-        *[{"match": rf"^finale:{lane}$", "result": {"findings": "clean"}} for lane in AUDIT_LANES],
+        *[{"match": rf"^finale:{lane}$", "result": clean_document(lane)} for lane in AUDIT_LANES],
         {"match": r"^finale:audit-compile$", "result": {"verdict": "PASS", "sha": "f1", "summary": "clean"}},
         {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "f2", "summary": "ship it"}},
         {"match": r"^finale:ready$", "result": {"verdict": "READY", "sha": "f3", "summary": "marked ready"}},
@@ -98,10 +102,10 @@ def test_a_lane_every_landed_story_attested_carries_forward_with_its_shas() -> N
     got = _attested(
         [{"lane": "doc-auditor", "story": "a", "sha": "s1"},
          {"lane": "doc-auditor", "story": "b", "sha": "s2"}],
-        ["studious:doc-auditor", "studious:security-auditor"],
+        ["gauntlet:doc-auditor", "gauntlet:security-auditor"],
         ["a", "b"],
     )
-    assert got == [{"lane": "studious:doc-auditor", "shas": ["s1", "s2"]}], got
+    assert got == [{"lane": "gauntlet:doc-auditor", "shas": ["s1", "s2"]}], got
 
 
 def test_one_missing_story_leaves_the_lane_in_the_roster() -> None:
@@ -109,16 +113,16 @@ def test_one_missing_story_leaves_the_lane_in_the_roster() -> None:
     read every line of the integration diff, so it runs."""
     assert _attested(
         [{"lane": "doc-auditor", "story": "a", "sha": "s1"}],
-        ["studious:doc-auditor"],
+        ["gauntlet:doc-auditor"],
         ["a", "b"],
     ) == []
 
 
 def test_no_attestations_no_landed_stories_or_a_malformed_entry_carry_nothing() -> None:
-    assert _attested([], ["studious:doc-auditor"], ["a"]) == []
-    assert _attested([{"lane": "doc-auditor", "story": "a", "sha": "s1"}], ["studious:doc-auditor"], []) == []
+    assert _attested([], ["gauntlet:doc-auditor"], ["a"]) == []
+    assert _attested([{"lane": "doc-auditor", "story": "a", "sha": "s1"}], ["gauntlet:doc-auditor"], []) == []
     # A shape the mechanical read could not validate — no sha — is not an attestation.
-    assert _attested([{"lane": "doc-auditor", "story": "a", "sha": ""}], ["studious:doc-auditor"], ["a"]) == []
+    assert _attested([{"lane": "doc-auditor", "story": "a", "sha": ""}], ["gauntlet:doc-auditor"], ["a"]) == []
 
 
 # ---------- severity is code-ruled: a Critical parks the dependent subtree ----------
@@ -213,6 +217,7 @@ def test_a_narrowed_retry_round_still_runs_both_new_lanes() -> None:
     blockingLanes — that list only ever names AUDITORS members."""
     out = _run_driver(_one_story_epic(), [
         *_story_audit_rules("a"),
+        {"match": r"^finale:security-auditor$", "result": clean_document("security-auditor", [finding("critical", anchor="named anchor at a.py:1")])},
         {"match": r"^finale:audit-compile$", "result": {
             "verdict": "FIX AND RE-REVIEW", "sha": "f1", "summary": "seam contract disagreement",
             "blockingLanes": ["security-auditor"]}},
@@ -312,7 +317,7 @@ def _acceptance_epic(altitude: str | None) -> dict:
 _PER_STORY_ACCEPTANCE_RULES = [
     {"match": r"^acceptance:scope:a$", "result": {"findings": json.dumps({"files": ["a.py"], "designDoc": ""})}},
     {"match": r"^acceptance:premortem-fallback:a$", "result": {"findings": json.dumps({"status": "empty"})}},
-    {"match": r"^acceptance:product-review:a$", "result": {"findings": "looks good"}},
+    {"match": r"^acceptance:product-review:a$", "result": clean_document("product-reviewer", coverage="looks good")},
     {"match": r"^acceptance:walkthrough:a$", "result": {"findings": "looks good"}},
     {"match": r"^acceptance:compile:a$", "result": {"verdict": "SHIP", "sha": "a1", "summary": "ok"}},
     {"match": r"^merge:a$", "result": {"merged": True, "sha": "a2", "notes": "clean"}},

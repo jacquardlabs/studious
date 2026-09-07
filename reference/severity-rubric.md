@@ -1,9 +1,12 @@
-# Severity rubric — canonical tiers and per-auditor mapping
+# Severity rubric — canonical tiers, the one row `/review` still maps, and the local roster's tables
 
-Canonical three-tier severity ladder for `/review`, plus the label→tier mapping from each
-auditor's own vocabulary. `commands/review.md` cites this file instead of embedding the
-mapping table. The periodic review family (`commands/retro.md`, `agents/review-*.md`)
-already emits directly in this vocabulary and needs no mapping.
+Canonical three-tier severity ladder for `/review` and the epic driver. Both dispatch
+gauntlet's judges, which emit these tiers directly (its findings contract,
+`docs/findings-contract.md` §5), so `/review` maps one vocabulary only: the
+`web-design-guidelines` skill's, on its inline lane-8 path, which returns no findings
+document. The per-auditor tables survive in one place — the "Local roster" section at the
+end — beside the local `agents/` they describe, until S4 removes both. The periodic review
+family (`agents/review-*.md`) already emits directly in this vocabulary.
 
 ## The three tiers
 
@@ -11,9 +14,44 @@ already emits directly in this vocabulary and needs no mapping.
 - **Important** — should fix. Fix this cycle.
 - **Track** — not urgent; log it and revisit later.
 
-Never introduce a fourth tier; map every auditor's labels into these three.
+Never introduce a fourth tier.
 
-## Per-auditor label → tier mapping
+## The one label → tier row
+
+| Lane | → Critical (blocks merge) | → Important (should fix) | → Track |
+|------|---------------------------|--------------------------|-----------------|
+| web-design-guidelines (a11y) | blocking a11y failures (no keyboard access, contrast failures on core flows) | other a11y gaps | polish |
+
+## Objective anchors — what a Critical must cite
+
+A tier is not a self-assessment: a Critical must cite the objective anchor its lane owns — a fact
+a reader can check without re-running the reviewer's judgment. For every gauntlet judge the
+anchor is named in gauntlet's charter (`charter.md` under its `reference/` directory, "Anchors —
+what a critical must cite"), and gauntlet's `scripts/report.py` records an anchorless critical
+as `important` at ingest and names the demotion in the compiled report. **A finding labelled
+Critical that cites no anchor is recorded Important instead** — the gate door applies this before
+the ledger write, and the compiled report names the anchor that was missing. The one anchor
+studious states for `/review` itself is the inline lane's (the local roster's are in the
+section at the end):
+
+| Lane | A Critical must cite |
+|------|----------------------|
+| web-design-guidelines (a11y) | the named guideline that fails (keyboard access, contrast ratio) and the core flow it fails on |
+
+Disposition history is the second filter: a finding already recorded `rejected-as-noise` on this
+episode (`bin/gate-ledger episode-finding`) is settled, and re-raising it at a higher tier does not
+make it a Critical. Re-opening a settled finding needs a new anchor, not a new adjective.
+
+## Local roster — the local `agents/`' own labels, until S4
+
+No door reads these tables since #334 S2: the epic driver dispatches gauntlet's judges
+too, and its `epicLedgerInstruction` takes tiers as emitted (the driver applies
+anchor-or-demote in code before the compiler sees a block). They stay beside the local
+`agents/` they describe — the same lane names, invocable directly until S4 deletes both —
+so a label one of them emits still has its row. A new local auditor registers a row in both
+here.
+
+### Label → tier
 
 | Auditor | → Critical (blocks merge) | → Important (should fix) | → Track |
 |---------|---------------------------|--------------------------|-----------------|
@@ -28,18 +66,10 @@ Never introduce a fourth tier; map every auditor's labels into these three.
 | doc-auditor | — (docs rarely block; escalate only if a wrong command/path ships) | High | Medium, Low |
 | ux-reviewer | VISUAL BUG | INCONSISTENCY | IMPROVEMENT, SUGGESTION |
 | frontend-reviewer | BUG | PERFORMANCE, ARCHITECTURE | CLEANUP |
-| web-design-guidelines (a11y) | blocking a11y failures (no keyboard access, contrast failures on core flows) | other a11y gaps | polish |
 | premortem-auditor | BLOCKER (REALIZED) | SHOULD FIX (REALIZED, register-integrity) | OBSERVATION (CAN'T VERIFY / staleness) |
 | product-reviewer (criteria conformance) | BLOCKER | SHOULD FIX | MINOR, OBSERVATION |
 
-A new auditor registers its own row in both tables here rather than requiring a hand-edit anywhere else.
-
-## Objective anchors — what a Critical must cite
-
-A tier is not a self-assessment: a Critical must cite the objective anchor its lane owns — a fact
-a reader can check without re-running the reviewer's judgment. **A finding labelled Critical that
-cites no anchor is recorded Important instead** — the gate door applies this before the ledger
-write, and the compiled report names the anchor that was missing.
+### Anchors — what a Critical must cite
 
 | Auditor | A Critical must cite |
 |---------|----------------------|
@@ -52,11 +82,7 @@ write, and the compiled report names the anchor that was missing.
 | architecture-auditor | the contract that broke and the downstream consumer that relies on it, named by path |
 | prompt-auditor | the instruction or invariant the prompt surface contradicts, quoted, with the file it comes from |
 | doc-auditor | a command or path the docs state that does not exist or does not work as written (docs rarely reach Critical at all) |
-| ux-reviewer / frontend-reviewer | a reproducible broken flow: the steps, the expected result, the observed one |
-| web-design-guidelines (a11y) | the named guideline that fails (keyboard access, contrast ratio) and the core flow it fails on |
+| ux-reviewer | a reproducible broken flow: the steps, the expected result, the observed one |
+| frontend-reviewer | a reproducible broken flow: the steps, the expected result, the observed one |
 | premortem-auditor | the register item, by id, marked REALIZED, plus the evidence that realized it |
 | product-reviewer (criteria conformance) | the stated acceptance criterion, quoted, that the changeset does not deliver |
-
-Disposition history is the second filter: a finding already recorded `rejected-as-noise` on this
-episode (`bin/gate-ledger episode-finding`) is settled, and re-raising it at a higher tier does not
-make it a Critical. Re-opening a settled finding needs a new anchor, not a new adjective.
