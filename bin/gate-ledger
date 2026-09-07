@@ -1058,6 +1058,9 @@ cmd_episode_get() { # --gate G [--findings | --history] [--branch B] -> one line
   #   detail (open, carried):   <status>\t<severity>\t<lane>\t<fingerprint>
   #   digest (everything else): digest\t<lane>\t<fingerprint>\t<status>\t<round>
   #
+  # SYNC NOTE: `scripts/retro-stats` (`lanes_section`) unpacks both layouts by
+  # position. Change either column order here and update that unpacking too.
+  #
   # A disposed finding costs one line — lane and fingerprint, the suppression
   # contract's (#292) two match keys, as fields rather than parsed out of a
   # naming convention.
@@ -1968,6 +1971,10 @@ cmd_epic_findings() { # --epic E [--unresolved | --attestations] -> one summary 
   #
   #   epic <slug> — N finding(s), U unresolved, A attestation(s)
   #   <status>\t<severity>\t<story>\t<lane>\t<fingerprint>\t<raisedSha>\t<resolvedSha>
+  #
+  # SYNC NOTE: `scripts/retro-stats` (`lanes_section`, `collect`'s findings fold)
+  # unpacks this row by position and filters on `len(row) == 7`. Change the
+  # column count or order here and update that unpacking too.
   #
   # `--unresolved` keeps only `open`/`carried`, same states `episode-get`
   # counts. `--attestations` prints the clean-lane trail instead:
