@@ -81,6 +81,12 @@ Not here:   Do not touch the gauntlet-absent stop line's actual wording if it al
             worse than the boundary crossing. The edit is scoped to that one line and
             nothing else in retro.md.
 
+            Also undescribed by the original Do-items, added during round-2 fix-up:
+            commands/health.md's lane-filter step gained review.md's "report which judges
+            the run dispatches and which it does not, and why" honesty rule (Track finding
+            4 from the round-1 delivery review) — parity with review.md's existing rule,
+            pinned by `test_dispatch_hands_each_invocation_over_verbatim_and_filters_by_judge`.
+
 Done means:
 1. [cap]  Both commands/health.md and commands/review.md's gauntlet-absent stop lines are pinned by a test that fails if either is removed   (tier: test-backed `tests/python/test_health_gauntlet_dispatch.py`)
 2. [cap]  commands/health.md, commands/review.md, and commands/retro.md each carry an untrusted-content line for their context-doc reads, and both health.md and review.md's context-file existence check names the worktree root, not the ambient checkout   (tier: probe)
