@@ -70,6 +70,26 @@ def test_pass_commits_once_then_captures_the_report_under_the_pinned_label() -> 
     assert "routes to step 2.7's rule, never\n   the Failure routine" in passed
 
 
+def test_a_pass_that_removes_nothing_skips_commit_and_verify_but_still_captures() -> None:
+    """A clean tree after the dispatch has nothing to commit; `git commit` with no diff is
+    not a branch. The report is still captured — a hold-everything pass is clean too, and
+    its `## Held` section rides nothing else."""
+    empty = STEP[STEP.index("**Nothing cast out.**") : STEP.index("**Verify, independently.**")]
+    assert STEP.index("/exorcist:exorcise") < STEP.index("**Nothing cast out.**")
+    assert "`git status --porcelain` is empty" in empty
+    assert "every finding held" in empty, "a held-everything pass leaves the tree clean too"
+    assert "Skip steps 4 and 5" in empty, "no re-verify, no commit"
+    assert '"exorcise: nothing to cast out — every hunk traced"' in empty
+    assert "`<scratch-path>/exorcise-report.md`" in empty
+    assert "step 5's exact `evidence-capture` call" in empty, "delegates, never repeats the call"
+    assert "`## Held`" in empty
+    assert "Track" not in empty.replace("Not a Track note", ""), "Track is failure vocabulary"
+    assert "Not a Track note" in empty
+    built_row = next(line for line in SKILL.splitlines() if line.startswith("| `BUILT` |"))
+    assert "the nothing-cast-out line" in built_row
+    assert "when the pass left the tree\nclean, with neither" in EVIDENCE_FORMAT
+
+
 def test_fail_checks_out_the_built_tree_and_records_a_track_note() -> None:
     failed = STEP[STEP.index("**FAIL on any item.**") : STEP.index("**The subagent died")]
     assert "`git checkout -- .`" in failed
@@ -88,9 +108,13 @@ def test_absent_exorcist_is_one_line_naming_the_install() -> None:
 
 
 def test_the_foreman_still_never_reads_a_diff() -> None:
-    # `git diff` appears in Step 3 only inside the subagent's "never" clause (premortem #5).
-    for match in re.finditer(r"git diff", STEP):
-        assert "never" in STEP[max(0, match.start() - 120) : match.start()]
+    # e537c47 dropped the subagent's `git diff` clause (exorcise runs it by design), so the
+    # rule is now the stronger one: the step names no diff command at all (premortem #5).
+    # The Foreman's only tree inspection is `git status --porcelain` (steps 3, 6, 7).
+    assert "git diff" not in STEP
+    assert "git show" not in STEP
+    assert "never run `git diff` yourself" in SKILL
+    assert set(re.findall(r"`git (?:status|diff|show)[^`]*`", STEP)) == {"`git status --porcelain`"}
     assert "Four roles, never blurred" in SKILL
     assert "not a fifth role" in SKILL
 
