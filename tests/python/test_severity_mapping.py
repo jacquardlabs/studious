@@ -16,6 +16,7 @@ import re
 from run_gate_audit_fixtures import REPO_ROOT
 
 RUBRIC = REPO_ROOT / "reference" / "severity-rubric.md"
+UX_REVIEWER = REPO_ROOT / "agents" / "ux-reviewer.md"
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 A11Y_ROW_RE = re.compile(r"^\|\s*web-design-guidelines \(a11y\)\s*\|.*$", re.MULTILINE)
 LOCAL_ROSTER_HEADING = "## Local roster"
@@ -107,6 +108,90 @@ def test_local_roster_tables_cover_exactly_the_epic_drivers_dispatches() -> None
             f"dispatches: missing {sorted(expected - named)}, extra {sorted(named - expected)}"
         )
         assert len(first_cells) == len(named), "a lane has two rows in one table"
+
+
+# ---------- #91 regression pins, restored (deleted without disclosure at #349/af358ba) ----------
+#
+# ux-reviewer's local-roster row and agents/ux-reviewer.md's own output block must keep
+# agreeing that IMPROVEMENT is Track, not Important, and that INCONSISTENCY stays
+# Important — the local roster is unread by any door since #334 S2, but
+# agents/ux-reviewer.md is still directly invocable outside `/review`, so its own labels
+# must still match the row that documents them.
+
+
+def _rubric_ux_reviewer_row() -> list[str]:
+    """The `ux-reviewer` row's cells from the local roster's Label → tier table
+    (`Auditor | Critical | Important | Track`), via the shared `_rows()` parser —
+    never a hand-split of the raw row string."""
+    label_to_tier_table = _local_roster().split("### ")[1]
+    for row in _rows(label_to_tier_table):
+        if row[0] == "ux-reviewer":
+            return row
+    raise AssertionError("severity-rubric.md's local roster has no ux-reviewer row")
+
+
+def _ux_reviewer_output_lines() -> str:
+    text = UX_REVIEWER.read_text()
+    match = re.search(
+        r"Severity labels and their mapped tiers:\n\n(.*?)\n\nThis agent",
+        text,
+        re.DOTALL,
+    )
+    assert match, "ux-reviewer.md has no 'Severity labels and their mapped tiers' block"
+    return match.group(1)
+
+
+def test_rubric_ux_reviewer_row_maps_improvement_to_track() -> None:
+    cells = _rubric_ux_reviewer_row()
+    # Auditor | Critical | Important | Track
+    assert cells[0] == "ux-reviewer"
+    assert "IMPROVEMENT" not in cells[2], (
+        f"severity-rubric.md still maps IMPROVEMENT into the Important cell: {cells!r}"
+    )
+    assert "IMPROVEMENT" in cells[3], (
+        f"severity-rubric.md does not map IMPROVEMENT into the Track cell: {cells!r}"
+    )
+
+
+def test_rubric_ux_reviewer_row_keeps_inconsistency_important() -> None:
+    cells = _rubric_ux_reviewer_row()
+    assert "INCONSISTENCY" in cells[2], (
+        f"severity-rubric.md no longer maps INCONSISTENCY to Important: {cells!r}"
+    )
+
+
+def test_ux_reviewer_agent_maps_improvement_to_track() -> None:
+    block = _ux_reviewer_output_lines()
+    match = re.search(r"^- \*\*IMPROVEMENT → (\w+)\*\*", block, re.MULTILINE)
+    assert match, f"ux-reviewer.md has no IMPROVEMENT mapping line: {block!r}"
+    assert match.group(1) == "Track", (
+        f"ux-reviewer.md still maps IMPROVEMENT to {match.group(1)!r}, not Track"
+    )
+
+
+def test_ux_reviewer_agent_keeps_inconsistency_important() -> None:
+    block = _ux_reviewer_output_lines()
+    match = re.search(r"^- \*\*INCONSISTENCY → (\w+)\*\*", block, re.MULTILINE)
+    assert match, f"ux-reviewer.md has no INCONSISTENCY mapping line: {block!r}"
+    assert match.group(1) == "Important", (
+        f"ux-reviewer.md no longer maps INCONSISTENCY to Important: {match.group(1)!r}"
+    )
+
+
+def test_rubric_and_agent_agree_on_improvement_tier() -> None:
+    """The two load-bearing sites must never disagree at runtime."""
+    cells = _rubric_ux_reviewer_row()
+    rubric_tier = "Track" if "IMPROVEMENT" in cells[3] else "Important"
+
+    block = _ux_reviewer_output_lines()
+    match = re.search(r"^- \*\*IMPROVEMENT → (\w+)\*\*", block, re.MULTILINE)
+    assert match
+    agent_tier = match.group(1)
+
+    assert rubric_tier == agent_tier == "Track", (
+        f"severity-rubric.md and ux-reviewer.md disagree on IMPROVEMENT's tier: "
+        f"rubric={rubric_tier!r} agent={agent_tier!r}"
+    )
 
 
 def test_three_tiers_and_no_fourth() -> None:
