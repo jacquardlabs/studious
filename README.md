@@ -283,13 +283,14 @@ working documents for one branch, not project records.
 
 ## When something looks wrong
 
-Studious degrades quietly by design — a missing tool or an unregistered agent drops a lane
+Studious degrades quietly by design — a missing tool or an unregistered skill drops a door
 without erroring. `/studious:doctor` is the read-only pass that surfaces it, in five checks:
 
 1. **Tooling** — `git`, `jq`, `gh`, `python3`, `viva`, `gauntlet`. Missing `jq` is the quiet one:
    `gate-ledger record` no-ops, so no verdict and no flow position is ever written.
 2. **Plugin health** — whether every agent and skill Studious ships actually registered this
-   session. Malformed frontmatter drops a `/review` lane without an error.
+   session. Malformed frontmatter on `backlog-priorities` means `/bet` silently runs without
+   its ranking lane, without an error.
 3. **Context docs** — populated, missing, or still the shipped template.
 4. **Flow-state hygiene** — how many active work files have piled up in `.studious/`. Past
    ten, bare `/next` stops resuming one feature and starts asking you to pick from a list.

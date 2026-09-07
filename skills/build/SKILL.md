@@ -673,7 +673,8 @@ with the build proceeding to its verdict.
    exorcise's own documented undo — and confirm `git status --porcelain` is
    empty: the tree is exactly the `BUILT` tree again. Record one **Track**
    note for the session report naming the failing task and item and the
-   report's `Concepts removed:` and `Concepts kept:` lines, and proceed to
+   report's `Concepts removed:` line, plus its `Concepts kept:` line too when
+   the report carries one, and proceed to
    the Session verdict. No
    fix cycle, no re-dispatch, no Failure routine.
 7. **The subagent died or returned no report.** Treat as FAIL's cleanup

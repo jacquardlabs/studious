@@ -17,7 +17,7 @@ effort: medium
 
 1. Read PRODUCT.md and CLAUDE.md for product context. If PRODUCT.md is absent, fall back to README.md as the product proxy and note it. Then read the decision journal `docs/studious/decisions.jsonl` if present — one prior `/bet` verdict per line, format pinned in `reference/decision-journal-format.md`. Absent file = no prior verdicts; never create it at read time. Skip and note malformed lines rather than failing.
 2. Fetch all open issues via `gh issue list --json number,title,body,labels,createdAt`.
-3. Read the most recent health summary (`docs/studious/health-reviews/*-health-summary.md`) and any individual review reports for cross-referencing severity and findings.
+3. Read the most recent health summary (`docs/studious/health-reviews/*-health-summary.md`; older `*-deep-review-summary.md` reports count too) and any individual review reports for cross-referencing severity and findings.
 4. **Determine the mode.**
    - **Deep-dive mode** — intent argument supplied (tech-debt / maintenance / polish / new-initiative): proceed through steps 5–8 for that intent and present the full ranked list. Do not ask the user to pick.
    - **Overview mode** — no argument: run steps 5–8 for **all 4 intents** using the same issue data fetched in step 2. Pick the top-1 ranked item per intent. Do not ask the user to pick an intent. Present the overview output.
