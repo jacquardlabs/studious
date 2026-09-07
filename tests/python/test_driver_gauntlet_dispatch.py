@@ -43,7 +43,7 @@ STANDARD_CELLS = (
     "security-checklist", "infra-checklist", "operability-checklist", "dependency-checklist",
     "idioms", "prompt-checklist", "premortem-format",
 )
-GAUNTLET_UPDATE_LINE = "gauntlet predates /gauntlet:where — /plugin update gauntlet@jacquardlabs-marketplace, then re-run"
+GAUNTLET_MISSING_LINE = "gauntlet is not installed — /plugin install gauntlet@jacquardlabs-marketplace, then re-run"
 SHA_BASE = "a" * 40
 SHA_HEAD = "b" * 40
 RECEIPTS = "/tmp/studious-audit-evidence.Ab12Cd"
@@ -122,7 +122,10 @@ def test_every_judge_round_opens_with_the_builder_dispatch() -> None:
 def test_builder_prompt_mirrors_review_md_locate_and_dispatch_steps() -> None:
     prompt = _node(INVOCATION_SYMBOLS, f"""invocationsPrompt({{ root: '/wt/a', base: '{SHA_BASE}', head: '{SHA_HEAD}', context: contextDocs('/wt/a'), receiptsPath: '{RECEIPTS}' }})""")
     assert "invoke the gauntlet:where skill" in prompt and "never Glob the plugin cache" in prompt
-    assert GAUNTLET_UPDATE_LINE in prompt
+    assert prompt.index("gauntlet:where") < prompt.index("invoke the gauntlet:review skill with the single argument --help"), "where first, review --help as the released fallback"
+    assert "read the root from that text and follow none of its steps" in prompt, "the fallback loads gauntlet's whole door; the builder must not run it"
+    assert "If neither is in the listing" in prompt and GAUNTLET_MISSING_LINE in prompt
+    assert "predates" not in prompt and "/plugin update" not in prompt, "the remedy names an install, not an update no release satisfies"
     assert f'python3 "$GAUNTLET_ROOT/scripts/dispatch.py" --base <base sha> --head <head sha> --root "/wt/a" --paths "$paths_file" --context "<the existing context docs, comma-separated>" --receipts-path "{RECEIPTS}"' in prompt
     assert f'git -C "/wt/a" diff --name-only <base sha> <head sha> > "$paths_file"' in prompt
     assert "test -f each): /wt/a/CLAUDE.md, /wt/a/DESIGN.md, /wt/a/PRODUCT.md" in prompt
@@ -283,13 +286,13 @@ def test_a_lane_dispatch_py_emitted_no_invocation_for_is_routed_out() -> None:
     assert "infra-auditor: routed out — not applicable to this changeset (gauntlet's dispatch.py emitted no invocation" in compile_prompt
 
 
-def test_a_builder_without_gauntlet_where_parks_the_story_with_the_update_line() -> None:
-    """The builder resolves gauntlet's root the way commands/review.md does; an
-    installed gauntlet that predates the skill is the one error it returns, and the
-    driver parks the story on it under the builder's own gate name."""
+def test_a_builder_without_gauntlet_parks_the_story_with_the_install_line() -> None:
+    """The builder resolves gauntlet's root the way commands/review.md does; a gauntlet
+    that is not installed is the one error it returns, and the driver parks the story
+    on it under the builder's own gate name."""
     rules = [
         _routing("a"),
-        {"match": r"^invocations:a$", "result": {"invocations": [], "error": GAUNTLET_UPDATE_LINE}},
+        {"match": r"^invocations:a$", "result": {"invocations": [], "error": GAUNTLET_MISSING_LINE}},
         {"match": r"^park:a$", "result": {"findings": "parked"}},
     ]
     out = _run_driver(_epic(), rules)
@@ -298,16 +301,16 @@ def test_a_builder_without_gauntlet_where_parks_the_story_with_the_update_line()
     assert not any(label.startswith("audit:") and label != "audit:routing-scope:a" for label in labels), labels
     entry = {e["story"]: e for e in out["result"]["needsYou"]}["epx--a"]
     assert entry["gate"] == "invocations" and entry["verdict"] == "BLOCKED"
-    assert GAUNTLET_UPDATE_LINE in entry["reason"], entry
+    assert GAUNTLET_MISSING_LINE in entry["reason"], entry
 
 
 def test_a_builder_error_at_the_finale_holds_the_finale_with_the_line_not_a_crash() -> None:
     """The finale audit round opens with the same builder; its throw reaches the
-    finale boundary catch and reads as a held finale carrying the update line — the
+    finale boundary catch and reads as a held finale carrying the install line — the
     landed stories stay landed and reported."""
     rules = [
         *LAND_STORY_A_RULES,
-        {"match": r"^finale:invocations$", "result": {"invocations": [], "error": GAUNTLET_UPDATE_LINE}},
+        {"match": r"^finale:invocations$", "result": {"invocations": [], "error": GAUNTLET_MISSING_LINE}},
         {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "f2", "summary": "ship it"}},
     ]
     out = _run_driver(_one_story_epic_ready_for_finale(), rules)
@@ -315,7 +318,7 @@ def test_a_builder_error_at_the_finale_holds_the_finale_with_the_line_not_a_cras
     result = out["result"]
     assert result["landed"] == 1
     held = {h["story"]: h["reason"] for h in result["held"]}
-    assert "epx--finale" in held and GAUNTLET_UPDATE_LINE in held["epx--finale"], result
+    assert "epx--finale" in held and GAUNTLET_MISSING_LINE in held["epx--finale"], result
     assert result["finale"]["ready"] is False
     assert not any(label.startswith("finale:") and label.split(":")[1] in AUDITOR_SHORT_NAMES for label in (c["label"] for c in out["calls"]))
 

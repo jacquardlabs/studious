@@ -13,6 +13,7 @@ import re
 from run_gate_audit_fixtures import REPO_ROOT
 
 DOOR = REPO_ROOT / "commands" / "review.md"
+DOCTOR = REPO_ROOT / "commands" / "doctor.md"
 COMPILATION = REPO_ROOT / "reference" / "audit-compilation.md"
 CONTRACT = REPO_ROOT / "reference" / "prompt-contract.md"
 
@@ -27,6 +28,31 @@ JUDGES = (
 
 def _door() -> str:
     return DOOR.read_text(encoding="utf-8")
+
+
+def test_locate_step_falls_back_to_gauntlet_review_when_where_is_not_shipped() -> None:
+    """gauntlet 0.15.0 — the released fleet — ships no `where`; the root is learned by
+    loading any gauntlet command, so the door tries `gauntlet:where` first and falls back
+    to `gauntlet:review --help`. It stops only when neither is listed (gauntlet is not
+    installed), and never with an update line no release could satisfy."""
+    text = _door()
+    tools = re.search(r"^allowed-tools: (.*)$", text, re.MULTILINE).group(1)
+    assert "Skill" in tools.split(", ")
+    locate = text[text.index("## Locate gauntlet"):text.index("## Establish the changeset")]
+    assert "`gauntlet:where`" in locate and "GAUNTLET_ROOT" in locate
+    assert locate.index("`gauntlet:where`") < locate.index("`gauntlet:review` with `--help`"), "where is tried first"
+    assert "If neither is in the listing" in locate
+    assert "/plugin install gauntlet@jacquardlabs-marketplace" in locate
+    assert "predates" not in locate and "/plugin update" not in locate, "the remedy names an install, not an update no release satisfies"
+    assert "Never Glob the plugin cache" in locate
+
+
+def test_doctor_checks_the_root_lookup_command_beside_the_agents() -> None:
+    row = next(line for line in DOCTOR.read_text(encoding="utf-8").splitlines() if line.startswith("- **`gauntlet` available**"))
+    assert "`gauntlet:*` judges" in row and "registered agent listing" in row
+    assert "`gauntlet:where` or `gauntlet:review`" in row, "the root lookup is the second thing a dispatch needs"
+    assert "If either is absent: **Critical**" in row
+    assert "not the `gauntlet:review` skill" not in row
 
 
 def test_no_local_agent_token_remains() -> None:

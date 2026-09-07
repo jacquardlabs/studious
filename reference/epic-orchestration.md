@@ -1166,13 +1166,13 @@ When that check itself throws (its worktree doesn't resolve as a worktree at all
 story parks under that name rather than `audit`'s, since the audit dispatch this check
 gates never ran. Read it as "stuck before the audit gate could even start," not as a
 fourth thing to re-run by hand. It can also read `invocations`: the one cheap dispatch
-every judge round opens with, which runs gauntlet's `dispatch.py` (located through the
-`gauntlet:where` skill, exactly as `commands/review.md`'s "Locate gauntlet" step does)
-and hands the driver the round's invocations verbatim. A judge's input is its
-invocation, so nothing degrades when none came back — the story parks with the
-builder's own line: the `/plugin update gauntlet@jacquardlabs-marketplace` line when
-the installed gauntlet predates the skill, else `dispatch.py`'s stderr. The remedy is
-that line, not a worktree recreate.
+every judge round opens with, which runs gauntlet's `dispatch.py` (located by loading
+one gauntlet command — `gauntlet:where`, else `gauntlet:review --help` — exactly as
+`commands/review.md`'s "Locate gauntlet" step does) and hands the driver the round's
+invocations verbatim. A judge's input is its invocation, so nothing degrades when none
+came back — the story parks with the builder's own line: the `/plugin install
+gauntlet@jacquardlabs-marketplace` line when gauntlet is not installed, else
+`dispatch.py`'s stderr. The remedy is that line, not a worktree recreate.
 
 A story parked at plan time as `story-supervised` is the one entry with no gate and no
 verdict at all — its recorded reason starts `story-supervised:`, and it takes the

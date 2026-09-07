@@ -37,7 +37,10 @@ def test_skill_tool_is_allowed_for_the_gauntlet_where_lookup() -> None:
     assert "Skill" in tools.split(", ")
     locate = _section(text, "## Locate gauntlet", "## Resolve the artifact")
     assert "`gauntlet:where`" in locate and "GAUNTLET_ROOT" in locate
-    assert "/plugin update gauntlet@jacquardlabs-marketplace" in locate, "no stop line for a gauntlet that predates the skill"
+    assert locate.index("`gauntlet:where`") < locate.index("`gauntlet:review` with `--help`"), "where first, review --help as the released fallback"
+    assert "If neither is in the listing" in locate
+    assert "/plugin install gauntlet@jacquardlabs-marketplace" in locate, "no stop line for a gauntlet that is not installed"
+    assert "predates" not in locate and "/plugin update" not in locate, "the remedy names an install, not an update no release satisfies"
     assert "Never Glob the plugin cache" in locate
 
 
