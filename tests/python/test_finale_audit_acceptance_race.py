@@ -481,3 +481,55 @@ def test_carry_forward_after_raced_acceptances_own_fix_cycle_redispatches_premor
     )
     assert result["finale"]["acceptanceCarriedForwardSha"] == "delta1"
     assert result["finale"]["ready"] is False
+
+
+def test_unresolvable_anchor_delta_concern_falls_back_to_full_acceptance_redo() -> None:
+    """Fix cycle round 1, blocking finding 2 — proof of the fixed behavior at
+    the wiring level. `finaleAcceptanceDeltaPrompt` now instructs the delta
+    agent to report a concern (never SHIP) when the anchor sha doesn't
+    resolve as an ancestor of HEAD or the diff read itself errors. This
+    fixture mocks a compliant agent making exactly that report — the
+    `finale:acceptance-delta` mock below returns a non-SHIP verdict naming an
+    anchor-resolution failure — and proves the driver correctly falls back to
+    case 3 (a full, fresh `acceptanceRunOnce` redo), never a carry-forward.
+    Before this fix, `resolveAcceptanceCarryForward`'s own guard on `anchorSha`
+    was pure truthiness with no resolution check, and the prompt gave the
+    delta agent no instruction to distrust an unresolvable anchor or an
+    errored diff — so nothing stopped a non-compliant agent from reading that
+    silently as clean and reporting SHIP anyway; this fixture proves the
+    driver-side fallback wiring is sound once the agent is compliant, which is
+    the fix's own design (the resolution check itself is delegated to the
+    delta agent's dispatched turn, not resolveAcceptanceCarryForward)."""
+    epic = _epic_with_premortem()
+    rules = [
+        *LAND_STORY_A_RULES,
+        *FINALE_AUDITORS_PASS,
+        {"match": r"^finale:attestations$", "result": {"findings": '{"attestations": []}'}},
+        {"match": r"^finale:findings-closure$", "result": {"findings": "every recorded finding reached a resolved sha"}},
+        {"match": r"^finale:seams$", "result": {"findings": "no cross-story seam findings"}},
+        {"match": r"^finale:start-sha$", "result": {"verdict": "OK", "sha": "abc123", "summary": "pre-race anchor"}},
+        {"match": r"^finale:audit-compile$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "f1", "summary": "still broken"}},
+        {"match": r"^finale:fix:audit$", "result": {"status": "done", "sha": "f2", "summary": "attempted a fix", "evidence": "ran tests"}},
+        {"match": r"^finale:acceptance$", "results": [
+            {"verdict": "SHIP", "sha": "raced1", "summary": "ok"},
+            {"verdict": "SHIP", "sha": "redo1", "summary": "fresh redo, clean"},
+        ]},
+        {"match": r"^finale:acceptance-delta$", "result": {
+            "verdict": "ANCHOR-UNRESOLVED", "sha": "delta1",
+            "summary": "abc123 does not resolve as an ancestor of HEAD — cannot confirm the diff",
+        }},
+        {"match": r"^finale:premortem$", "result": {"findings": "register verified clean"}},
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed end-to-end: {out.get('error')}"
+    result = out["result"]
+    labels = [c["label"] for c in out["calls"]]
+    assert labels.count("finale:acceptance") == 2, (
+        f"expected the raced round plus exactly one full fresh redo, not a "
+        f"carry-forward, when the delta pass reports an unresolvable anchor: {labels}"
+    )
+    assert result["acceptanceRedoFallbacks"] == 1
+    assert result["finale"]["acceptanceCarriedForwardSha"] is None, (
+        "an unresolvable-anchor concern must never carry forward as a false-clean SHIP"
+    )
+    assert result["finale"]["acceptance"] == {"verdict": "SHIP", "summary": "fresh redo, clean"}
