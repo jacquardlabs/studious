@@ -3536,8 +3536,9 @@ let finale = null
 // Set only when resolveAcceptanceCarryForward's carry-forward branch actually fires
 // this run — names the finale:acceptance-delta pass's own sha, never the raced
 // round's, and never a placeholder. Read by the fixed report shape
-// (reference/epic-orchestration.md) to render the "Acceptance: carried forward,
-// confirmed clean at `<sha>`" line, omitted whenever this stays null.
+// (reference/epic-orchestration.md) to render the "Acceptance: carried forward from
+// the pre-audit-fix round, confirmed clean by a delta-scoped re-check at `<sha>` —
+// not a fresh full acceptance re-read" line, omitted whenever this stays null.
 let acceptanceCarriedForwardSha = null
 
 // #144/#268: the finale is the single largest fan-out in a run — ~13 dispatches, plus up

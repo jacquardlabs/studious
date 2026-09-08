@@ -824,3 +824,44 @@ def test_premortem_redispatch_blocks_are_byte_identical_to_their_pre_task_form()
         "      premortem = await premortemDispatch()\n"
         "    }\n"
     ) in source
+
+
+# ---------- report-shape prose (delivery-review round 2 finding 2) ----------
+#
+# The design doc promised "a new test covers both, including the zero-omission
+# case, since none exists today asserting that block's shape" — unmet until now.
+# The actual rendering is prose in reference/epic-orchestration.md's fixed
+# "End with exactly this shape" block, copied verbatim by whoever compiles the
+# closing report — not JS code — so the test locks the prose itself, the same
+# "trust the shape, not a paraphrase" precedent test_scope_delta_measurement.py
+# already established for that same block's other renderings.
+
+WORK_THROUGH = REPO_ROOT / "reference" / "epic-orchestration.md"
+
+
+def _closing_shape_section() -> str:
+    text = WORK_THROUGH.read_text()
+    start = text.index("End with exactly this shape and nothing after it:")
+    end = text.index("\n## ", start)
+    return text[start:end]
+
+
+def test_closing_shape_documents_the_acceptance_redo_fallback_line() -> None:
+    """The fallback counter's line, and its zero-omission rule, both appear in
+    the literal shape block's surrounding prose — not just described in this
+    story's own design doc, which dies at closeout."""
+    section = _closing_shape_section()
+    assert "Acceptance redo fallbacks: <acceptanceRedoFallbacks>" in section
+    assert "Omit" in section and "`Acceptance redo fallbacks:`" in section
+
+
+def test_closing_shape_documents_the_acceptance_carried_forward_line() -> None:
+    """The carried-forward disclosure line — round 2's corrected wording naming
+    the delta-scoped check explicitly, not a fresh full acceptance re-read —
+    appears verbatim, plus its own omission rule."""
+    section = _closing_shape_section()
+    assert (
+        "Acceptance: carried forward from the pre-audit-fix round, confirmed clean "
+        "by a delta-scoped re-check at `<sha>` — not a fresh full acceptance re-read"
+    ) in section
+    assert "Omit the `Acceptance: carried forward" in section
