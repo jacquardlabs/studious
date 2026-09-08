@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run --no-project --with pytest pytest
 """Regression tests for racing finale acceptance against audit's fix-cycle loop
 (issue #157, story `overlap-acceptance-audit` of epic `finale-gate-overlap`).
 Design doc: `docs/superpowers/specs/2026-07-22-overlap-acceptance-audit-design.md`.
