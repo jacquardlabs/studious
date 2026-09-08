@@ -356,3 +356,128 @@ def test_premortem_redispatches_a_third_time_when_the_audit_triggered_redo_itsel
     assert "finale:acceptance-delta" not in labels
     assert result["acceptanceRedoFallbacks"] == 1
     assert not result["finale"].get("acceptanceCarriedForwardSha")
+
+
+# ---------- Task 3: fixture-level scheduler proof ----------
+#
+# The two fixtures below close the gap the six tests above leave: neither
+# `test_carry_forward_success_reports_the_carried_forward_sha_and_no_fallback`
+# (the clean-carry-forward fixture) nor any other existing fixture asserts on
+# `finale:premortem`'s own dispatch count when a carry-forward succeeds. (a)
+# proves the untouched `auditFixCycles > 0` discard-and-redo branch still
+# fires premortem twice even while acceptance itself drops to one dispatch.
+# (b) proves the actual round-9 regression this story's design was revised to
+# avoid: a raced acceptance round that needed its own internal fix cycle
+# before a clean carry-forward must not leave a stale, unreset
+# `acceptanceFixCycles` behind to trigger a redundant third premortem
+# dispatch — verified RED by deleting the `acceptanceFixCycles =
+# carry.acceptanceFixCycles` reset (`workflows/epic-driver.js:3732`) and
+# re-running fixture (b), which flips its premortem-count assertion from 2 to 3.
+
+
+def test_carry_forward_success_still_discards_and_redoes_premortem_exactly_twice() -> None:
+    """Task 3, fixture (a): same audit-stalls-and-carries-forward shape as
+    `test_carry_forward_success_reports_the_carried_forward_sha_and_no_fallback`
+    above, but that test only asserts on `finale:acceptance` and the reported
+    sha/fallback count — it never checks `finale:premortem`. This fixture closes
+    that gap: `auditFixCycles > 0` must still discard the raced premortem read
+    and redispatch it fresh (the untouched discard-and-redo branch, unrelated to
+    whether acceptance itself later carries forward or falls back), so
+    `finale:premortem` dispatches exactly twice even though `finale:acceptance`
+    drops to exactly one dispatch — the redundant-third-dispatch regression this
+    story exists to avoid is proven separately below, on a raced round that
+    itself needed a fix cycle before that clean carry-forward."""
+    epic = _epic_with_premortem()
+    rules = [
+        *LAND_STORY_A_RULES,
+        *FINALE_AUDITORS_PASS,
+        {"match": r"^finale:attestations$", "result": {"findings": '{"attestations": []}'}},
+        {"match": r"^finale:findings-closure$", "result": {"findings": "every recorded finding reached a resolved sha"}},
+        {"match": r"^finale:seams$", "result": {"findings": "no cross-story seam findings"}},
+        {"match": r"^finale:start-sha$", "result": {"verdict": "OK", "sha": "anchor1", "summary": "pre-race anchor"}},
+        {"match": r"^finale:audit-compile$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "f1", "summary": "still broken"}},
+        {"match": r"^finale:fix:audit$", "result": {"status": "done", "sha": "f2", "summary": "attempted a fix", "evidence": "ran tests"}},
+        {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "raced1", "summary": "ok"}},
+        {"match": r"^finale:acceptance-delta$", "result": {"verdict": "SHIP", "sha": "delta1", "summary": "delta clean"}},
+        {"match": r"^finale:premortem$", "result": {"findings": "register verified clean"}},
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed end-to-end: {out.get('error')}"
+    result = out["result"]
+    labels = [c["label"] for c in out["calls"]]
+    assert labels.count("finale:acceptance") == 1, (
+        f"a clean carry-forward must skip the full acceptance redo entirely: {labels}"
+    )
+    assert labels.count("finale:premortem") == 2, (
+        f"the audit-triggered discard-and-redo must still fire for premortem even "
+        f"though acceptance itself carried forward cleanly: {labels}"
+    )
+    assert result["acceptanceRedoFallbacks"] == 0
+    assert result["finale"]["acceptanceCarriedForwardSha"] == "delta1"
+
+
+def test_carry_forward_after_raced_acceptances_own_fix_cycle_redispatches_premortem_exactly_twice() -> None:
+    """Task 3, fixture (b) — the exact round-9 regression this design was
+    revised to avoid. The RACED `finale:acceptance` round (before audit's own
+    discard-and-redo ever enters the picture) needed one internal fix cycle of
+    its own (`finale:fix:acceptance` fires once) before settling on a clean
+    SHIP — so `acceptanceFixCycles` reads nonzero the instant `await
+    acceptancePromise` resolves. Audit then stalls (`auditFixCycles > 0`),
+    triggering the discard-and-redo branch, and the pre-race anchor +
+    `finale:acceptance-delta` both resolve clean, so
+    `resolveAcceptanceCarryForward` succeeds and resets `acceptanceFixCycles`
+    to `carry.acceptanceFixCycles` (0) per `workflows/epic-driver.js:3732`. The
+    redundant third dispatch this guards against: if that reset were dropped,
+    `acceptanceFixCycles` would still carry the raced round's own nonzero fix-
+    cycle count into the `premortemPromise && acceptanceFixCycles > 0` re-check
+    below it, firing a superfluous third `finale:premortem` dispatch — a
+    verified RED: deleting the `workflows/epic-driver.js:3732` reset line and
+    re-running this exact fixture flips this assertion from 2 to 3.
+
+    The single `finale:acceptance` mock rule here uses the harness's
+    `"results"` list form (added for this fixture, `_run_driver`'s docstring
+    above) rather than `"result"`: a fixed-per-label mock can't otherwise
+    express "this round's own retry-then-proceed loop," since every call to
+    the same label would return the identical value.
+    """
+    epic = _epic_with_premortem()
+    rules = [
+        *LAND_STORY_A_RULES,
+        *FINALE_AUDITORS_PASS,
+        {"match": r"^finale:attestations$", "result": {"findings": '{"attestations": []}'}},
+        {"match": r"^finale:findings-closure$", "result": {"findings": "every recorded finding reached a resolved sha"}},
+        {"match": r"^finale:seams$", "result": {"findings": "no cross-story seam findings"}},
+        {"match": r"^finale:start-sha$", "result": {"verdict": "OK", "sha": "anchor1", "summary": "pre-race anchor"}},
+        {"match": r"^finale:audit-compile$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "f1", "summary": "still broken"}},
+        {"match": r"^finale:fix:audit$", "result": {"status": "done", "sha": "f2", "summary": "attempted a fix", "evidence": "ran tests"}},
+        {"match": r"^finale:acceptance$", "results": [
+            {"verdict": "FIX AND RE-REVIEW", "sha": "r1", "summary": "not shippable yet"},
+            {"verdict": "SHIP", "sha": "raced1", "summary": "ok now"},
+        ]},
+        {"match": r"^finale:fix:acceptance$", "result": {"status": "done", "sha": "af1", "summary": "attempted a fix", "evidence": "ran tests"}},
+        {"match": r"^finale:acceptance-delta$", "result": {"verdict": "SHIP", "sha": "delta1", "summary": "delta clean"}},
+        {"match": r"^finale:premortem$", "result": {"findings": "register verified clean"}},
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed end-to-end: {out.get('error')}"
+    result = out["result"]
+    labels = [c["label"] for c in out["calls"]]
+    assert labels.count("finale:fix:acceptance") == 1, (
+        f"expected the raced round's own single internal fix cycle: {labels}"
+    )
+    assert labels.count("finale:acceptance") == 2, (
+        f"the raced round's own 2-call fix cycle (FIX then SHIP) — no separate "
+        f"full redo, since carry-forward succeeds: {labels}"
+    )
+    assert labels.count("finale:premortem") == 2, (
+        f"expected exactly two finale:premortem dispatches — the raced-and-"
+        f"discarded read and the audit-triggered redo — never a stale, unreset "
+        f"acceptanceFixCycles from the raced round's own fix cycle firing a "
+        f"redundant third: {labels}"
+    )
+    assert result["acceptanceRedoFallbacks"] == 0, (
+        f"the raced round's own internal fix cycle is not a carry-forward "
+        f"fallback — carry-forward succeeded via the delta pass: {result}"
+    )
+    assert result["finale"]["acceptanceCarriedForwardSha"] == "delta1"
+    assert result["finale"]["ready"] is False

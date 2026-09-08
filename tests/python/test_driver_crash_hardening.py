@@ -310,11 +310,20 @@ def _run_driver(
     function body supplied with args/agent/parallel/log/phase.
 
     `agent_rules` is an ordered list of ``{"match": <regex on the dispatch
-    label>, "throw": <str>}`` or ``{"match": ..., "result": <json-able>}``;
-    first match wins. An unmatched label rejects loudly in the mock, so a
-    test can't silently pass by leaving a dispatch unmocked. The one default,
-    `DEFAULT_INVOCATIONS_RULE`, is appended last: every judge round opens with
-    a builder dispatch, and a test that isn't about it need not mock it.
+    label>, "throw": <str>}``, ``{"match": ..., "result": <json-able>}``, or
+    ``{"match": ..., "results": [<json-able>, ...]}``; the first matching
+    rule wins, mirroring `label:`-based dispatch. A label matching no rule
+    rejects loudly inside the mock — a silently-accepted unmocked dispatch
+    would mean the test isn't exercising what it claims to. ``results`` is
+    for a label dispatched more than once whose own successive calls must
+    differ (e.g. a finale gate's internal fix-cycle loop resolving to its
+    retry token on an early call and its proceed token on a later one,
+    something a single ``result`` cannot express since the mock is
+    otherwise a pure function of the label): consumed in call order via
+    ``shift()``, the last entry sticking once the list is down to one.
+    The one default, `DEFAULT_INVOCATIONS_RULE`, is appended last: every
+    judge round opens with a builder dispatch, and a test that isn't about
+    it need not mock it.
 
     The returned dict also carries ``calls``: every ``{label, prompt}`` the
     mock `agent()` was invoked with, in order. `test_delta_scoped_reaudit.py`
@@ -359,6 +368,7 @@ function agent(prompt, opts) {{
   for (const r of RULES) {{
     if (new RegExp(r.match).test(label)) {{
       if ('throw' in r) return Promise.reject(new Error(r.throw))
+      if ('results' in r) return Promise.resolve(r.results.length > 1 ? r.results.shift() : r.results[0])
       return Promise.resolve(r.result)
     }}
   }}
