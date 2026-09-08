@@ -73,7 +73,7 @@ Done means:
 
 Evidence: A report-rendering test's output showing the fallback line present at nonzero, absent at zero, and the carried-forward line's sha matching the recorded ledger sha.
 
-### Task 3 — Fixture-level scheduler proof
+### Task 3 — Fixture-level scheduler proof [PASS]
 
 Why now:    Proves the mechanism and its report end-to-end, including the exact round-9
             regression (a redundant third premortem dispatch) this design was revised to
