@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v4.1.2 (2026-09-08)
+
+### Bug Fixes
+
+- Only Criticals block in every episode; telemetry hook matches Agent; supervised /next runs to
+  decisions ([#398](https://github.com/jacquardlabs/studious/pull/398),
+  [`e0f5064`](https://github.com/jacquardlabs/studious/commit/e0f5064f81122541c1794c4cb40ba1947baa643e))
+
+
 ## v4.1.1 (2026-09-07)
 
 ### Bug Fixes
