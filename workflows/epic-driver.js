@@ -852,9 +852,12 @@ async function acceptanceRound(story, note, nextPhase, attempts, hasAuditGate) {
       ? Promise.resolve(null)
       : agent(acceptanceProductReviewPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: dir, files, designDoc, invocation: productInvocation }),
           { agentType: 'gauntlet:product-reviewer', label: `acceptance:product-review:${story}`, phase: `story:${story}`, schema: FINDINGS_DOCUMENT }),
-    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#136): this dispatch self-performs the product lane's acceptance checks as a walkthrough rather than routing through a registered agentType, so there is no agentType carrying a pin, and no tier has yet been chosen for this judgment call — record the gap rather than default it.
+    // Pinned `opus` (#136): this dispatch self-performs the product lane's acceptance
+    // checks as a walkthrough rather than routing through a registered agentType, so no
+    // agent file carries its pin — it is the same merge-blocking product judgment the
+    // agentType branch above routes to gauntlet's `opus`-pinned product-reviewer.
     () => agent(acceptanceWalkthroughPrompt({ ctxBlock: ctx(story), note, storyWorktreePath: dir, base }),
-        { label: `acceptance:walkthrough:${story}`, phase: `story:${story}`, schema: REPORT }),
+        { label: `acceptance:walkthrough:${story}`, phase: `story:${story}`, schema: REPORT, model: 'opus' }),
   ]
   // Pushed into the SAME thunks array `parallel()` fans out below — never a
   // serial dispatch added after that round resolves, which would reintroduce
@@ -2517,9 +2520,11 @@ async function runGate(story, gate, nextPhase) {
     }
     attempts++
     log(`${story}: ${gate} → ${result.verdict}; fix cycle ${attempts}/${MAX_FIX_CYCLES}`)
-    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#136): this one dispatch writes the actual fix code for whichever gate (design-review/audit/acceptance) retried, across every story's own tech stack — its right tier is a cost/quality tradeoff nobody has A/B'd yet (see #136's "don't drop a merge-blocking agent's tier without an A/B"), not a decision to make silently here.
+    // Pinned `opus` (#136): this one dispatch writes the actual fix code for whichever
+    // gate (design-review/audit/acceptance) retried, across every story's own tech stack.
+    // A first pin, not a tier drop — dropping it later is what needs the A/B.
     const fix = await agent(fixerPrompt(story, gate, result.summary, scopeDeltaPhase(gate, attempts)),
-      { label: `fix:${gate}:${story}`, phase: `story:${story}`, schema: WORKER_RESULT })
+      { label: `fix:${gate}:${story}`, phase: `story:${story}`, schema: WORKER_RESULT, model: 'opus' })
     if (!fix || fix.status === 'blocked') {
       return { verdict: 'NEEDS DISCUSSION', summary: (fix && fix.summary) || 'fixer blocked', sha: (fix && fix.sha) || '' }
     }
@@ -2922,11 +2927,13 @@ async function runStory(story) {
         // reason below is strictly more specific and wins from the first nudge on.
         const resumedFromRecord = priorAssignmentPhase(story) === phaseName
         for (;;) {
-          // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#136): this dispatch does the actual design/build work for whatever the story's tech stack requires — the same unmeasured cost/quality tradeoff as the fixer above (#136), not a default to make silently at this call site.
+          // Pinned `opus` (#136): this dispatch does the actual design/build work for
+          // whatever the story's tech stack requires — the same first pin as the fixer
+          // above, on the same reasoning.
           w = await agent(workerPrompt(story, phaseName, nextPhase, nudges
             ? `a prior dispatch of this phase returned without the artifacts it was contracted to produce (${done && done.reason})`
             : (resumedFromRecord ? 'an earlier /next invocation dispatched this phase and its assignment is on the record — this run is resuming it, not starting it' : '')),
-            { label: nudges ? `${phaseName}:nudge${nudges}:${story}` : `${phaseName}:${story}`, phase: `story:${story}`, schema: WORKER_RESULT })
+            { label: nudges ? `${phaseName}:nudge${nudges}:${story}` : `${phaseName}:${story}`, phase: `story:${story}`, schema: WORKER_RESULT, model: 'opus' })
           if (!w || w.status === 'blocked') break
           done = await verifyWorkerPhase(story, phaseName)
           if (done.status !== 'missing' || nudges >= MAX_COMPLETION_NUDGES) break
@@ -2957,8 +2964,9 @@ async function runStory(story) {
           } else {
             let x = null
             try {
-              // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#136): this dispatch edits the story's own code across whatever tech stack it has — the same unmeasured cost/quality tradeoff as the build worker above, not a default to make silently at this call site.
-              x = await agent(exorcisePrompt(story), { label: `exorcise:${story}`, phase: `story:${story}`, schema: WORKER_RESULT })
+              // Pinned `opus` (#136): this dispatch edits the story's own code across
+              // whatever tech stack it has — the same first pin as the build worker above.
+              x = await agent(exorcisePrompt(story), { label: `exorcise:${story}`, phase: `story:${story}`, schema: WORKER_RESULT, model: 'opus' })
             } catch (err) {
               log(`${story}: exorcise dispatch threw (${(err && err.message) || err}) — proceeding; the next gate reads the branch as the worker left it`)
             }
@@ -3389,9 +3397,10 @@ async function finaleGate(gate, runOnce) {
   while (result && result.verdict === GATES[gate].retry && cycles < MAX_FIX_CYCLES) {
     cycles++
     log(`finale: ${gate} → ${result.verdict}; fix cycle ${cycles}/${MAX_FIX_CYCLES}`)
-    // eslint-disable-next-line local/no-unpinned-agent-dispatch -- deliberately unpinned (#136): the finale-level fixer, same unmeasured cost/quality tradeoff as the story-level fixerPrompt dispatch above (#136), now at the cross-story integration scope — not a decision to make silently here either.
+    // Pinned `opus` (#136): the finale-level fixer, the same first pin as the story-level
+    // fixerPrompt dispatch above, now at the cross-story integration scope.
     const fix = await agent(finaleFixerPrompt(gate, result.summary),
-      { label: `finale:fix:${gate}`, phase: 'Finale', schema: WORKER_RESULT })
+      { label: `finale:fix:${gate}`, phase: 'Finale', schema: WORKER_RESULT, model: 'opus' })
     if (!fix || fix.status === 'blocked') break
     result = await runOnce('Re-run with fresh eyes — a fix landed since the last check.', result)
   }

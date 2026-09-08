@@ -144,10 +144,14 @@ one-paragraph equivalent for the prose lanes it dispatches itself.
 
 ## Model assignments
 
-Pin by stakes, not by habit. An agent's `model` is `opus` when its core job is high-stakes
-reasoning or human judgment — where a weaker model ships worse decisions — and `inherit`
-(the session model) for mechanical, rule-based, or inventory work. Don't pin to a bare tier
-like `sonnet` — use `inherit` so the agent tracks the user's session model. Full policy and
+Pin by stakes, not by habit — and pin *something*. An agent's `model` is `opus` when its
+core job is high-stakes reasoning or human judgment, where a weaker model ships worse
+decisions; `sonnet` or `haiku` for recommend-only synthesis and inventory work with no merge
+gate behind it. Never `inherit`: it resolves to whatever model the human's session happens
+to be running, so the same branch is judged by two different models on two different days
+and billed at two different rates (#136). The `agent()` dispatches inside
+`workflows/epic-driver.js` are the same rule at a second surface — each names a `model` in
+its call options, or routes through an `agentType` whose own file names one. Full policy and
 the current per-agent assignments live in `CONTRIBUTING.md` §Model assignments; this section
 documents the policy for the interface surface, it does not restate the per-agent list.
 

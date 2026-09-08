@@ -2,7 +2,7 @@
 name: frontend-reviewer
 description: Reviews a frontend changeset for component architecture, state management, performance, bundle size, and frontend-specific patterns. Diff-scoped and gate-invoked (/review) — not a periodic frontend review.
 tools: Read, Glob, Grep, Bash
-model: inherit
+model: claude-opus-5
 effort: medium
 ---
 
