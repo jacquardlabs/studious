@@ -46,7 +46,7 @@ Done means:
 
 Evidence: the new pure-function test file's own run output showing all four cases (clean/non-SHIP/null-anchor/died-pass) exercised; `node --check workflows/epic-driver.js` and `npx -y eslint@10.6.0 --report-unused-disable-directives workflows/` clean (enforced by this worktree's own baseline command, not a separate Done-means item).
 
-### Task 2 — Report disclosure
+### Task 2 — Report disclosure [PASS]
 
 Why now:    The mechanism's only user-visible surface — without it a carried-forward
             verdict is invisible to the human reading the finale report.
