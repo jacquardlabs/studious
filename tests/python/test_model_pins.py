@@ -37,7 +37,9 @@ def test_the_four_formerly_inherit_agents_carry_an_explicit_model() -> None:
         text = (AGENTS_DIR / f"{name}.md").read_text(encoding="utf-8")
         models = MODEL_LINE.findall(text)
         assert models, f"{name}.md carries no `model:` frontmatter key"
-        assert models[0] != "inherit", f"{name}.md is still `inherit`"
+        assert models[0] == "claude-opus-5", (
+            f"{name}.md is pinned to `{models[0]}`, not `claude-opus-5` (#136)"
+        )
 
 
 def test_the_driver_keeps_no_unpinned_dispatch_suppressions() -> None:
@@ -63,7 +65,9 @@ def test_every_non_judge_driver_dispatch_names_a_model() -> None:
         ]
         assert sites, f"no dispatch found carrying label `{label}` — did it get renamed?"
         for line in sites:
-            assert "model:" in line, f"dispatch is unpinned (#136): {line.strip()}"
+            assert "model: 'opus'" in line, (
+                f"dispatch is not pinned to opus (#136): {line.strip()}"
+            )
 
 
 def test_the_build_worker_dispatch_names_a_model() -> None:
@@ -77,7 +81,9 @@ def test_the_build_worker_dispatch_names_a_model() -> None:
     ]
     assert sites, "no worker/exorcise dispatch options object found — did it get reshaped?"
     for line in sites:
-        assert "model:" in line, f"dispatch is unpinned (#136): {line.strip()}"
+        assert "model: 'opus'" in line, (
+            f"dispatch is not pinned to opus (#136): {line.strip()}"
+        )
 
 
 def test_the_prose_no_longer_instructs_inherit() -> None:

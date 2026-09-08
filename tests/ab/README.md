@@ -155,8 +155,8 @@ check computed but never enforced) that §4's wording suppressed before.
 
 ### `arms/model-drop-136.json`
 
-Baseline against all four `inherit` agents pinned down a tier, for
-[#136](https://github.com/jacquardlabs/studious/issues/136).
+Baseline is the four agents at their shipped pin, `claude-opus-5`; the arms drop all
+four down a tier, for [#136](https://github.com/jacquardlabs/studious/issues/136).
 
 Dropping four agents in one arm does not confound the read, because each fixture's
 planted defect belongs to a single lane: `stale-api-docs` scores `doc-auditor`,
