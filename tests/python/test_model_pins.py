@@ -15,23 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENTS_DIR = REPO_ROOT / "agents"
 DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 
-FORMERLY_INHERIT = ("code-auditor", "doc-auditor", "test-auditor", "frontend-reviewer")
-
-# The five non-judge dispatches, keyed by a fragment of the `label:` each one carries.
-# Judge dispatches (schema FINDINGS_DOCUMENT) are pinned in the judge's own agent file
-# and route by `agentType`, so they are deliberately not listed here.
-NON_JUDGE_DISPATCH_LABELS = (
-    "acceptance:walkthrough:",
-    "fix:${gate}:",
-    "exorcise:",
-    "finale:fix:",
-)
-
 MODEL_LINE = re.compile(r"^model:[ \t]*(\S+)[ \t]*$", re.MULTILINE)
-
-
-def _agent_files() -> list[Path]:
-    return sorted(AGENTS_DIR.glob("*.md"))
 
 
 def test_the_driver_lint_rule_that_guards_dispatch_pins_exists() -> None:
@@ -42,14 +26,14 @@ def test_the_driver_lint_rule_that_guards_dispatch_pins_exists() -> None:
 def test_no_agent_carries_model_inherit() -> None:
     offenders = [
         path.name
-        for path in _agent_files()
+        for path in sorted(AGENTS_DIR.glob("*.md"))
         if "inherit" in MODEL_LINE.findall(path.read_text(encoding="utf-8"))
     ]
     assert offenders == [], f"agents still pinned to `inherit` (#136): {offenders}"
 
 
 def test_the_four_formerly_inherit_agents_carry_an_explicit_model() -> None:
-    for name in FORMERLY_INHERIT:
+    for name in ("code-auditor", "doc-auditor", "test-auditor", "frontend-reviewer"):
         text = (AGENTS_DIR / f"{name}.md").read_text(encoding="utf-8")
         models = MODEL_LINE.findall(text)
         assert models, f"{name}.md carries no `model:` frontmatter key"
@@ -70,7 +54,10 @@ def test_the_driver_keeps_no_unpinned_dispatch_suppressions() -> None:
 
 def test_every_non_judge_driver_dispatch_names_a_model() -> None:
     source = DRIVER.read_text(encoding="utf-8")
-    for label in NON_JUDGE_DISPATCH_LABELS:
+    # Keyed by a fragment of the `label:` each non-judge dispatch carries. Judge
+    # dispatches (schema FINDINGS_DOCUMENT) are pinned in the judge's own agent file
+    # and route by `agentType`, so they are deliberately not listed here.
+    for label in ("acceptance:walkthrough:", "fix:${gate}:", "exorcise:", "finale:fix:"):
         sites = [
             line for line in source.splitlines() if f"label: `{label}" in line
         ]
