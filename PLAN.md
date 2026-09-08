@@ -61,7 +61,9 @@ Do:         Add a new counter (name it distinctly from `degradedNarrowings`) tha
             driver the same way `degradedNarrowings` is. Add its report line
             ("Acceptance redo fallbacks: <n>") to `reference/epic-orchestration.md`'s
             report shape, omitted at zero, next to `Degraded narrowings:`. Add the
-            "Acceptance: carried forward, confirmed clean at `<sha>`" verbatim line,
+            "Acceptance: carried forward from the pre-audit-fix round, confirmed clean by
+            a delta-scoped re-check at `<sha>` — not a fresh full acceptance re-read"
+            verbatim line,
             rendered only when Task 1's carry-forward path actually fired this run.
 Not here:   No ledger schema change (the disclosure lives in the report only, per the
             design's own Out of scope ruling). No change to `degradedNarrowings` itself.
