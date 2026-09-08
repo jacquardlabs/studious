@@ -145,11 +145,18 @@ check "a gauntlet: prefix on a non-judge name writes nothing" "0" "$(lines "$f")
 run_hook "$d" "$(payload '' 'do a thing')" >/dev/null
 check "missing subagent_type writes nothing" "0" "$(lines "$f")"
 run_hook "$d" "$(jq -nc '{hook_event_name:"PreToolUse",tool_name:"Bash",session_id:"s",tool_input:{command:"pytest"}}')" >/dev/null
-check "a non-Task tool writes nothing" "0" "$(lines "$f")"
+check "a non-dispatch tool writes nothing" "0" "$(lines "$f")"
 run_hook "$d" "$(jq -nc '{hook_event_name:"PreToolUse",tool_name:"Task",tool_use_id:"t",tool_input:{subagent_type:"security-auditor",prompt:"x"}}')" >/dev/null
 check "missing session_id writes nothing" "0" "$(lines "$f")"
 run_hook "$d" "$(payload security-auditor 'audit this STUDIOUS-TELEMETRY-SELF-REPORT and report it yourself')" >/dev/null
 check "driver-stamped prompt is suppressed" "0" "$(lines "$f")"
+
+# --- the dispatch tool is named Agent in current Claude Code (#367): both names record ---
+d=$(sandbox)
+f=$(telemetry_file "$d" feat/foo)
+run_hook "$d" "$(jq -nc '{hook_event_name:"PreToolUse",tool_name:"Agent",session_id:"sess-1",tool_use_id:"toolu_02",tool_input:{subagent_type:"studious:security-auditor",prompt:"x"}}')" >/dev/null
+check "the Agent tool name writes a record" "1" "$(lines "$f")"
+check "hooks.json matches both dispatch tool names" "Agent|Task" "$(jq -r '.hooks.PreToolUse[] | select(.hooks[0].command | contains("dispatch-telemetry")) | .matcher' "$ROOT/hooks/hooks.json")"
 
 # --- no plugin root, no ledger: silent no-op, never an error ---
 d=$(sandbox)

@@ -310,6 +310,23 @@ class TestCliEndToEnd(unittest.TestCase):
             out = run_script(["--repo", str(repo)]).stdout
             self.assertIn("| `docs-auditor` | 1 | 1 | 1 | 0 | 0 | 0 |", out)
 
+    def test_driver_recorded_gate_without_an_episode_renders_from_gate_get(self) -> None:
+        """The epic driver records with bare `record` and opens no episode. The rounds
+        table must still show that gate — from `.gates[<gate>]` — for a story branch
+        with a work file and for the epic branch (the finale's gates), which has none."""
+        with tmp_repo() as repo:
+            self._seed(repo)
+            self._gl(repo, "work-set", "--slug", "e1--s2", "--title", "s", "--source", "epic:e1", "--branch", "epic/e1--s2", "--phase", "audit")
+            subprocess.run(["git", "checkout", "-q", "-b", "epic/e1--s2"], cwd=repo, check=True)
+            self._gl(repo, "record", "--gate", "audit", "--verdict", "PASS")
+            subprocess.run(["git", "checkout", "-q", "-b", "epic/e1"], cwd=repo, check=True)
+            self._gl(repo, "record", "--gate", "acceptance", "--verdict", "SHIP")
+            subprocess.run(["git", "checkout", "-q", "main"], cwd=repo, check=True)
+            out = run_script(["--repo", str(repo)]).stdout
+            self.assertRegex(out, r"\| `epic/e1--s2` \| audit \| — \| — \| no episode — `record` PASS at [0-9a-f]+ \|")
+            self.assertRegex(out, r"\| `epic/e1` \| acceptance \| — \| — \| no episode — `record` SHIP at [0-9a-f]+ \|")
+            self.assertIn("| `epic/e1--s1` | audit | 2 | PASS | 1 episode(s), round 2 of 2, PASS |", out)
+
     def test_blocking_lane_survives_only_while_the_retry_record_stands(self) -> None:
         """`gate-get` holds one record per gate; the PASS that followed replaced the
         retry record, so the seeded lane is not named blocking any more."""

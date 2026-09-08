@@ -283,10 +283,13 @@ them:
 
 **On `PROCEED TO PLAN`:** stop and report. Session verdict `DESIGNED` (first pass) or
 `REVISED` (this session already redrafted once, below) plus the episode's own
-`PROCEED TO PLAN`, in the same message. Name `/build` as the next door -- `/shape` doesn't
-run it.
+`PROCEED TO PLAN`, in the same message. List any `important` findings the episode
+recorded -- they ride out this verdict as `/build`'s plan inputs, never as a reason to
+redraft (`reference/gate-vocabulary.md`: only a Critical blocks). Name `/build` as the
+next door -- `/shape` doesn't run it.
 
-**On `REVISE`:** redraft the doc in place, addressing the findings in priority order, in
+**On `REVISE`** (a Critical on a fixable dimension -- never an Important alone):
+redraft the doc in place, addressing the findings in priority order, in
 the sections they name. Then re-run Step 5 (`design-lint`, fixed to clean) and Step 6 --
 which resolves to case 3, the resume path, since the doc already carries a
 `## Revision History` heading from the sign-off round Step 6 just finished -- until every

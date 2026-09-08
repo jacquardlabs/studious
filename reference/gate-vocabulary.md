@@ -39,14 +39,19 @@ The terms the episode rows above are written against, one line each (#289):
   at the cap, `episode-verdict` accepts a terminal verdict over it instead (re-entry is
   spent), and set-aside dispositions of already-recorded findings land while it rides.
   The design-review and decide doors adopt the episode verbs in a later landing; the
-  epic driver's own retry cap is a separate constant until #274 collapses the two
-  implementations — this bound governs the episode verbs only, not those loops.
+  epic driver records with bare `record` and bounds its own fix loop with a separate
+  constant (`MAX_FIX_CYCLES`) — this bound governs the episode verbs only, not those
+  loops. `scripts/retro-stats` reads a driver-recorded gate from `.gates[<gate>]` when
+  no episode exists.
 - **lane profile** — the set of specialist review lanes (auditors/reviewers) a round
   dispatches for this changeset: the always-on lanes plus the conditionally-routed
   ones, per `commands/review.md`'s routing rules.
 - **open** — a finding's status while it awaits its answer. An Important may ride out
-  a terminal `PASS` still `open`: the readout's "N open" beside a pass names unfinished
-  should-fix work, never a blocked verdict — only a Critical blocks.
+  a terminal `PASS`, `PROCEED TO PLAN`, or `SHIP` still `open`: the readout's "N open"
+  beside a pass names unfinished should-fix work, never a blocked verdict — **only a
+  Critical blocks, in every episode** (design, work, delivery). An Important never opens
+  a fix-and-re-review round on its own; it rides to `/build`'s plan inputs or `/ship`'s
+  follow-ups.
 - **carried** — a finding's status when it rides through the verdict recorded but
   unfixed, rather than blocking; a Critical reaches `carried` only with a recorded
   waiver (`bin/gate-ledger episode-finding`, per its convergence rules).

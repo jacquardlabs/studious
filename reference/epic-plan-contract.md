@@ -73,6 +73,10 @@ the plan must state at approval:
 - The supervised story has no branch and no worktree yet. Taking it over means running
   `/next` against it from the user's own checkout, on the branch the driver would
   have used.
+- **Supervised means present, not consent-per-piece.** The human's presence is what
+  makes the prompt-prose class safe; it is not a license for `/next` to ask before each
+  piece. A supervised story runs every piece to the next real decision — the stops
+  `commands/next.md` names — and reports; it never asks "run the next piece?" (#371).
 
 ## Gate profile — computed from the plan's own data, decided by the user
 

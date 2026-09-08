@@ -310,21 +310,31 @@ def stories_section(data: dict[str, Any]) -> list[str]:
 
 def rounds_section(data: dict[str, Any]) -> list[str]:
     rows = []
-    for work in data["works"]:
-        branch = branch_of(work)
-        history = [h for h in work.get("history", []) if isinstance(h, dict)]
+    # Story branches carry a work file; an epic branch (the finale's gates) carries
+    # none, so it contributes an empty history and renders only from the ledger.
+    sources: list[tuple[str, list[dict[str, Any]]]] = [
+        (branch_of(w), [h for h in w.get("history", []) if isinstance(h, dict)]) for w in data["works"]
+    ]
+    work_branches = {b for b, _ in sources}
+    sources += [(str(e["branch"]), []) for e in data["epics"] if e.get("branch") and e["branch"] not in work_branches]
+    for branch, history in sources:
         for gate in GATES:
             entries = [h for h in history if h.get("step") == gate]
             episodes = [EPISODE_LINE.match(line) for line in data["episodes"].get((branch, gate), [])]
             matched = [m for m in episodes if m]
             escalated = any(line.startswith("escalated\t") for line in data["episodes"].get((branch, gate), []))
-            if not entries and not matched:
+            # A driver-run gate records with bare `record` and opens no episode: the
+            # verdict lives in `gate-get`'s `.gates[<gate>]` only.
+            record = ((data["gates"].get(branch) or {}).get("gates") or {}).get(gate) or {}
+            if not entries and not matched and not record:
                 continue
             ledger_cell = "unmeasured" if data["episodes_failed"] else "—"
             if matched:
                 last = matched[-1]
                 ledger_cell = f"{len(matched)} episode(s), round {last.group('round')} of {last.group('cap')}, {last.group('verdict') or 'no verdict yet'}"
                 ledger_cell += ", escalated" if escalated else ""
+            elif record:
+                ledger_cell = f"no episode — `record` {record.get('verdict', '?')} at {record.get('sha', '?')}"
             rows.append(
                 [
                     f"`{branch}`",

@@ -420,10 +420,13 @@ recommendation. The findings arrive tiered — `critical` / `important` / `track
 `report.py`'s anchor-or-demote — and which verdict a `critical` earns is read from its
 `dimension`, the judge's own name for the check that produced it:
 
-- **PROCEED TO PLAN** — design is sound; only `track` findings.
-- **REVISE** — one or more `important` findings, or a `critical` on `journeys`,
-  `simplicity`, `mental-model`, or `success-signal` — a fixable design flaw (missing state,
-  confusing step). List the specific changes needed in priority order.
+- **PROCEED TO PLAN** — no `critical`. `important` findings ride out this verdict as
+  recorded should-fix work: list them in the verdict as inputs for whatever plans the
+  build — `reference/gate-vocabulary.md`'s rule, "only a Critical blocks", holds here
+  exactly as it does for the work episode. An Important never re-opens a design round.
+- **REVISE** — a `critical` on `journeys`, `simplicity`, `mental-model`, or
+  `success-signal` — a fixable design flaw (missing state, confusing step). List the
+  specific changes needed in priority order.
 - **RETHINK** — a `critical` whose `dimension` is `problem`, `principles`, or `scope`:
   problem validity, principle conflict, or "what we're NOT building". Go back to brainstorm
   and explain why.
@@ -750,13 +753,15 @@ product-reviewer's findings — and the premortem-auditor's REALIZED findings, w
 the same three tiers — decide this episode's verdict; a `critical`'s route is read from the
 product lane's `dimension` at `acceptance`:
 
-- **SHIP** — implementation delivers the intended experience; only `track` findings.
-  Closes the episode.
-- **FIX AND RE-REVIEW** — one or more `important` findings, or a `critical` fixable with
-  targeted work: on `error-states`, `journeys`, `language`, `missing`, or `spec-fidelity`,
-  or any premortem REALIZED `critical`. List them with severity, each specific enough to
-  go directly into the engineering chain as a fix task; when the fixes land, this episode
-  re-enters for its one
+- **SHIP** — implementation delivers the intended experience; no `critical`. `important`
+  findings ride out a SHIP as recorded should-fix work (`episode-finding`, status `open`),
+  carried to the PR's follow-ups at closeout — `reference/gate-vocabulary.md`'s
+  rule, "only a Critical blocks", the same rule the work episode already follows. An
+  Important never triggers a re-review round. Closes the episode.
+- **FIX AND RE-REVIEW** — a `critical` fixable with targeted work: on `error-states`,
+  `journeys`, `language`, `missing`, or `spec-fidelity`, or any premortem REALIZED
+  `critical`. List them with severity, each specific enough to go directly into the
+  engineering chain as a fix task; when the fixes land, this episode re-enters for its one
   re-review round. **Route by scale:** a fix at story scale — a missing capability, real
   implementation work rather than a targeted correction — routes into the work episode: it
   lands as implementation work, and — the closed work episode having no round left to

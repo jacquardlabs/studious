@@ -116,7 +116,8 @@ branch — the honest limit of what a `PreToolUse` hook can know.
 **The interactive commands emit nothing themselves.** `/review`, `/review --delivery`,
 and `/health` are prose read by a human-invoked session; a per-lane ledger call in their
 fan-out would spend 11–13 extra Bash round-trips per round recording what the hook
-already sees for free. `hooks/dispatch-telemetry.sh` fires on the `Task` tool and writes
+already sees for free. `hooks/dispatch-telemetry.sh` fires on the subagent-dispatch tool
+(`Agent` in current Claude Code, `Task` in older builds; `hooks.json` matches both) and writes
 one dispatch line per lane; the commands carry a pointer to this file, nothing else.
 
 **The driver emits explicitly**, because it is code and knows things no hook can
@@ -136,7 +137,9 @@ Verified against code.claude.com/docs/en/hooks (Common input fields, PreToolUse)
 assumed: every hook receives `session_id`, `transcript_path`, `cwd`, `permission_mode`,
 and `hook_event_name`; `PreToolUse` adds `tool_name`, `tool_input`, and `tool_use_id`;
 `agent_id` and `agent_type` are present only when the hook fires inside a subagent call;
-and `PreToolUse` matchers match the tool name, so `"Task"` is a valid matcher.
+and `PreToolUse` matchers match the tool name as a regex, so `"Agent|Task"` is a valid
+matcher. The dispatch tool was renamed `Task` → `Agent`; a `"Task"`-only matcher recorded
+zero hook lines across every run before 2026-09-08 (#367).
 
 **Assumed, not verified:** the documentation does not enumerate the `Task` tool's own
 `tool_input` fields. The hook reads `subagent_type` and `prompt` from it and exits
