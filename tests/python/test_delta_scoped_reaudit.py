@@ -574,3 +574,172 @@ def test_ledger_scope_check_death_fails_closed_to_a_full_round_not_a_crash() -> 
     assert out["ok"], f"a died ledger-scope-check crashed the story instead of failing closed: {out.get('error')}"
     assert out["result"]["landed"] == 1
     assert out["result"]["needsYou"] == []
+
+
+# ---------- resolveAcceptanceCarryForward (pre-race anchor + carry-forward) ----------
+#
+# Before this task, a finale's audit fix cycle(s) always discarded the raced
+# `finale:acceptance` result outright and paid for a full fresh `acceptanceRunOnce`,
+# even when the fixer's own commits never touched anything acceptance cares about.
+# `resolveAcceptanceCarryForward` decides whether a cheap `finale:acceptance-delta`
+# re-check (scoped to the diff since a pre-race anchor sha, `finale:start-sha`) may
+# stand in for that full redo. Pure and explicitly parameterized (anchorSha,
+# racedAcceptance, deltaResult) — no closures over module state — extracted verbatim
+# and executed standalone, the same technique this file already uses for
+# `resolveReauditScope` above and `stalledFinaleEntry`/`crashParkArgs` in
+# `test_driver_crash_hardening.py`.
+
+
+def _resolve_carry_forward(anchor_sha_js: str, raced_acceptance_js: str, delta_result_js: str) -> dict:
+    source = DRIVER.read_text()
+    fn = _extract_function(source, "resolveAcceptanceCarryForward")
+    script = f"""
+{fn}
+const anchorSha = {anchor_sha_js}
+const racedAcceptance = {raced_acceptance_js}
+const deltaResult = {delta_result_js}
+console.log(JSON.stringify(resolveAcceptanceCarryForward(anchorSha, racedAcceptance, deltaResult)))
+"""
+    return _run_node(script)
+
+
+def test_carry_forward_clean_case_replaces_acceptance_and_resets_cycles() -> None:
+    """A clean `finale:acceptance-delta` SHIP, over a resolved anchor, with a raced
+    acceptance result that was already SHIP: carries the delta pass's own result
+    forward as the new `acceptance` — never leaving the raced run's stale cycle
+    count in place (Done means #3)."""
+    result = _resolve_carry_forward(
+        '"abc123"',
+        '{ verdict: "SHIP", sha: "def456", summary: "ship it" }',
+        '{ verdict: "SHIP", sha: "ghi789", summary: "diff is clean, recorded" }',
+    )
+    assert result["carryForward"] is True
+    assert result["acceptance"] == {"verdict": "SHIP", "sha": "ghi789", "summary": "diff is clean, recorded"}
+    assert result["acceptanceFixCycles"] == 0
+
+
+def test_carry_forward_non_ship_raced_token_falls_back() -> None:
+    """A raced acceptance result that was never a clean SHIP in the first place
+    must fall back to the full, unmodified `acceptanceRunOnce` path unconditionally
+    — there is nothing to carry forward (Done means #4)."""
+    result = _resolve_carry_forward(
+        '"abc123"',
+        '{ verdict: "FIX AND RE-REVIEW", sha: "def456", summary: "not shippable" }',
+        '{ verdict: "SHIP", sha: "ghi789", summary: "diff is clean" }',
+    )
+    assert result["carryForward"] is False
+    assert "sha" not in result and "acceptance" not in result
+
+
+def test_carry_forward_null_anchor_falls_back() -> None:
+    """No anchor sha resolved (the `finale:start-sha` dispatch died or was never
+    mocked) must fall back unconditionally, even with an otherwise-clean raced
+    SHIP and a clean delta result (Done means #4)."""
+    result = _resolve_carry_forward(
+        "null",
+        '{ verdict: "SHIP", sha: "def456", summary: "ship it" }',
+        '{ verdict: "SHIP", sha: "ghi789", summary: "diff is clean" }',
+    )
+    assert result["carryForward"] is False
+    assert "anchor" in result["reason"].lower()
+
+
+def test_carry_forward_died_delta_pass_falls_back() -> None:
+    """A died/thrown `finale:acceptance-delta` dispatch (no result at all, or a
+    result missing its required `sha`) must fall back unconditionally, never
+    trusting a partial or absent result as confirmation (Done means #4)."""
+    died = _resolve_carry_forward(
+        '"abc123"',
+        '{ verdict: "SHIP", sha: "def456", summary: "ship it" }',
+        "null",
+    )
+    assert died["carryForward"] is False
+    assert "died" in died["reason"].lower() or "no sha" in died["reason"].lower()
+
+    no_sha = _resolve_carry_forward(
+        '"abc123"',
+        '{ verdict: "SHIP", sha: "def456", summary: "ship it" }',
+        '{ verdict: "SHIP", summary: "no sha field" }',
+    )
+    assert no_sha["carryForward"] is False
+
+
+def test_carry_forward_delta_reports_a_concern_falls_back() -> None:
+    """A `finale:acceptance-delta` dispatch that resolved (has a sha) but did not
+    confirm a clean SHIP — it reported a concern instead — must fall back, never
+    be treated as confirmation (Done means #4)."""
+    result = _resolve_carry_forward(
+        '"abc123"',
+        '{ verdict: "SHIP", sha: "def456", summary: "ship it" }',
+        '{ verdict: "CONCERN", sha: "ghi789", summary: "the fix dropped a required acceptance criterion" }',
+    )
+    assert result["carryForward"] is False
+    assert "concern" in result["reason"].lower() or "did not confirm" in result["reason"].lower()
+
+
+# ---------- structural: finale:start-sha and finale:acceptance-delta are wired in ----------
+
+
+def test_start_sha_dispatched_once_before_the_finale_race_and_fails_closed_to_null() -> None:
+    source = DRIVER.read_text()
+    assert source.count("label: 'finale:start-sha'") == 1
+    start_sha_idx = source.index("label: 'finale:start-sha'")
+    audit_promise_idx = source.index("const auditPromise = finaleGate('audit'")
+    assert start_sha_idx < audit_promise_idx, (
+        "finale:start-sha must be dispatched before auditPromise/acceptanceRunOnce "
+        "are created, or it would race a fixer's own commits instead of anchoring "
+        "before them"
+    )
+    # haiku-tier, GATE_RESULT-shaped, and guarded to null on a died/thrown dispatch —
+    # never allowed to crash the finale (mirrors finale:ready's own bare-sha shape).
+    start_sha_call = source[source.rindex("try {", 0, start_sha_idx): source.index("anchorSha = null", start_sha_idx) + len("anchorSha = null")]
+    assert "model: 'haiku'" in start_sha_call
+    assert "schema: GATE_RESULT" in start_sha_call
+    assert "catch {" in start_sha_call
+    assert "anchorSha = null" in start_sha_call
+
+
+def test_acceptance_delta_pinned_sonnet_and_only_dispatched_inside_the_audit_fix_cycles_branch() -> None:
+    source = DRIVER.read_text()
+    assert source.count("label: 'finale:acceptance-delta'") == 1
+    delta_idx = source.index("label: 'finale:acceptance-delta'")
+    audit_fix_cycles_idx = source.index("if (auditFixCycles > 0) {")
+    fresh_premortem_idx = source.index("freshPremortemPromise = premortemDispatch()", audit_fix_cycles_idx)
+    assert audit_fix_cycles_idx < fresh_premortem_idx < delta_idx, (
+        "finale:acceptance-delta must be dispatched inside the existing "
+        "`auditFixCycles > 0` block, after (not instead of) the untouched "
+        "premortem-redispatch setup"
+    )
+    assert "model: 'sonnet'" in source[delta_idx : delta_idx + 200]
+    assert "schema: GATE_RESULT" in source[delta_idx : delta_idx + 200]
+    assert "#279" in source[delta_idx - 1500 : delta_idx]
+
+
+def test_carry_forward_result_is_actually_wired_to_replace_acceptance_and_reset_cycles() -> None:
+    source = DRIVER.read_text()
+    assert "const carry = resolveAcceptanceCarryForward(anchorSha, acceptance, deltaResult)" in source
+    assert "acceptance = carry.acceptance" in source
+    assert "acceptanceFixCycles = carry.acceptanceFixCycles" in source
+
+
+def test_premortem_redispatch_blocks_are_byte_identical_to_their_pre_task_form() -> None:
+    """Done means #5: the audit-triggered and acceptance-triggered premortem
+    redispatches are untouched by this task — asserted as exact substrings, the
+    same "trust the shape, not a paraphrase" style `test_driver_crash_hardening.py`
+    already uses for `stalledFinaleEntry`'s call sites."""
+    source = DRIVER.read_text()
+    assert (
+        "      log('finale: audit fix cycle(s) mutated the epic branch — discarding the raced acceptance result and re-running acceptance fresh')\n"
+        "      let freshPremortemPromise = null\n"
+        "      if (premortemPromise) {\n"
+        "        log('finale: audit fix cycle(s) mutated the epic branch — discarding the raced premortem read and re-running it fresh')\n"
+        "        freshPremortemPromise = premortemDispatch()\n"
+        "      }\n"
+    ) in source
+    assert (
+        "    let premortem = premortemPromise ? await premortemPromise : null\n"
+        "    if (premortemPromise && acceptanceFixCycles > 0) {\n"
+        "      log('finale: acceptance fix cycle(s) mutated the epic branch — re-running premortem verification fresh')\n"
+        "      premortem = await premortemDispatch()\n"
+        "    }\n"
+    ) in source
