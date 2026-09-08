@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run --no-project --with pytest pytest
 """Regression tests for delta-scoped re-audit, mechanism 1 (issue #130).
 
 A FIX AND RE-AUDIT retry now narrows dispatch to the previously-blocking lane(s)
