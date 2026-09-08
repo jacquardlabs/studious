@@ -36,6 +36,15 @@ rejected at intake — never approved by default, never inferred.
 stop with the closing block below, even when the result is a clean pass and the next step is
 obvious. The user advances the flow; you never do.
 
+**A piece runs to its next real decision without asking (#371).** Inside a piece — and
+inside a `story-supervised` story under an epic — never pause to ask "run it now?", "pick
+up the next task?", or "ready when you are". `story-supervised` means the human is
+*present* for the class of work (`reference/epic-plan-contract.md`), not that each step
+needs a fresh go. The stops are the decisions this door already names — a stop/rethink
+token, a Critical waiver, a round cap, a fork, a sign-off, the ship verdict, appetite — plus
+`PAUSED`/park with a named cause. Everything else is a report line, not a question. Measure:
+human turns per supervised story ≤ decisions made (`scripts/retro-stats` counts both).
+
 **One deliberate exception, inside a piece rather than between pieces.** Pieces 2 (design)
 and 3 (build) each used to be two pieces — a handoff, then a separate `/review` this door
 ran once the handoff's output existed — and each pair required its own confirmation to

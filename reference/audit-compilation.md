@@ -12,7 +12,7 @@ Every auditor lane lands in exactly one of four states before compiling. Classif
 
 ### Carried forward
 
-When this round was narrowed, every narrowing-tracked lane **not** in `.gates.audit.blockingLanes` was not re-dispatched — it is **carried forward**, not unaudited: the prior round's compiled verdict already proved it contributed no Confirmed Critical, which is what made narrowing possible. Carry it forward as one PASS-status Summary line — "`<lane>`: carried forward, no Confirmed Critical as of `<sha>`" — and nothing else. Do not reproduce, paraphrase, or re-derive any Important/Track findings that lane raised previously; if they still apply, resurfacing them is the job of the episode findings ledger's carried records (gate-command rounds only — the epic driver has no episode ledger and relies on its own cross-lane spot-check pass until #274 collapses the two implementations) or a future full audit, not this carry-forward.
+When this round was narrowed, every narrowing-tracked lane **not** in `.gates.audit.blockingLanes` was not re-dispatched — it is **carried forward**, not unaudited: the prior round's compiled verdict already proved it contributed no Confirmed Critical, which is what made narrowing possible. Carry it forward as one PASS-status Summary line — "`<lane>`: carried forward, no Confirmed Critical as of `<sha>`" — and nothing else. Do not reproduce, paraphrase, or re-derive any Important/Track findings that lane raised previously; if they still apply, resurfacing them is the job of the episode findings ledger's carried records (gate-command rounds; the epic driver records with bare `record` and relies on its own cross-lane spot-check pass instead) or a future full audit, not this carry-forward.
 
 ### AGENT DIED
 

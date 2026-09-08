@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# PreToolUse hook on `Task` (wired in hooks.json): appends one `dispatch`
+# PreToolUse hook on the subagent-dispatch tool — named `Agent` in current
+# Claude Code, `Task` in older builds; hooks.json matches both — appends one `dispatch`
 # record per review agent sent out — studious's or gauntlet's — to
 # .studious/telemetry/<branch-slug>.jsonl via gate-ledger. Contract:
 # reference/telemetry-format.md; this script only calls `telemetry-dispatch`.
@@ -43,7 +44,7 @@ fields=$(printf '%s' "$input" | jq -r '
 ' 2>/dev/null) || exit 0
 IFS=$'\037' read -r tool subagent run_id step_id parent_step_id prompt_bytes self_report <<<"$fields"
 
-[ "${tool:-}" = "Task" ] || exit 0
+case "${tool:-}" in Agent|Task) ;; *) exit 0 ;; esac
 [ -n "${subagent:-}" ] || exit 0
 
 # --- self-report suppression: epic-driver.js stamps the ledger call into its
