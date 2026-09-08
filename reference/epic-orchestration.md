@@ -1040,6 +1040,8 @@ Epic: <slug> — <landed>/<total> landed, <parked> parked, <held> held, <blocked
 Budget: <no runtime ceiling — the approved appetite was not enforced this run | enforced, <remaining> tokens left of <approvedTokens> | enforced, <remaining> tokens left — this epic has no recorded appetite to compare it against>
 Canary: <story> — <landed | parked>; <released the rest | the rest stayed held>
 Degraded narrowings: <degradedNarrowings> — this many ledger-scope-check rounds this run couldn't be trusted (a resolved-branch mismatch, an unconfirmed narrowing, a narrowable verdict whose epic-findings read could not say which lanes carry a recorded Critical, or the check itself unavailable) and paid a full unnarrowed round instead. Which story and which of the four, story by story, is in the run's log lines, not this count.
+Acceptance redo fallbacks: <acceptanceRedoFallbacks> — this many times this run the finale's acceptance carry-forward check (a cheap delta-scoped re-check after an audit fix cycle mutated the epic branch) couldn't confirm the raced acceptance verdict still held, and paid a full acceptance redo instead — a non-SHIP raced verdict, a null/unresolved anchor sha, a died/thrown delta-check dispatch, or the delta check itself reporting a concern. Which of the four, this run, is in the run's log lines, not this count.
+Acceptance: carried forward, confirmed clean at `<sha>`
 Anomalies (facts, not verdicts — nothing here is waiting on a decision, but read it):
   - <kind> at <where>: <the driver's own detail, verbatim>
 Held (nothing to decide — a ceiling stopped dispatch, not a verdict):
@@ -1115,8 +1117,15 @@ a phase resumed across a run boundary (above) renders the
 `(resumed — no same-run duration; worth a gate-ledger work-get check)` tag in that same
 position instead, never omitted, never a bare `(resumed)` alone, and never a
 manufactured number. Omit `Degraded narrowings:` when the driver's returned
-`degradedNarrowings` is 0 — a zero carries no signal worth a line. Omit `Needs you:`
-when nothing is parked.
+`degradedNarrowings` is 0 — a zero carries no signal worth a line. Omit
+`Acceptance redo fallbacks:` when the driver's returned `acceptanceRedoFallbacks`
+is 0, the same rule for the same reason. Omit the `Acceptance: carried forward…`
+line whenever the driver's returned `finale.acceptanceCarriedForwardSha` is
+null — that field is set only on the run where the carry-forward mechanism
+(`resolveAcceptanceCarryForward`) actually fired,
+and `<sha>` there is that field's own value verbatim, never a placeholder and
+never the raced acceptance round's own sha. Omit `Needs you:` when nothing is
+parked.
 
 **`Anomalies:` is never folded into `Needs you:` either, and never omitted when
 non-empty.** The driver's `anomalies` array carries crash-class facts a run must not

@@ -1949,6 +1949,17 @@ function noteGithubCounts(where, counts) {
 // mismatch-only guard it replaced — a future reader with real data should
 // decide, not this comment.
 let degradedNarrowings = 0
+
+// Report disclosure for the pre-race anchor / acceptance carry-forward mechanism
+// (resolveAcceptanceCarryForward above `finaleGate`): incremented once per finale,
+// every time that function fails closed and the driver pays for a full acceptance
+// redo instead of carrying the raced verdict forward — a non-SHIP raced result, a
+// null/unresolved anchor sha, a died/thrown finale:acceptance-delta pass, or that
+// pass itself reporting a concern. Never incremented at finale:start-sha's own
+// unconditional capture time — only at the point resolveAcceptanceCarryForward's
+// verdict is actually read. Named distinctly from degradedNarrowings: a different
+// mechanism, a different report line.
+let acceptanceRedoFallbacks = 0
 const doneResolvers = {}
 const donePromises = {}
 for (const s of Object.keys(stories)) donePromises[s] = new Promise(r => (doneResolvers[s] = r))
@@ -3520,6 +3531,12 @@ const allSettled = Object.values(outcome)
 const landedCount = allSettled.filter(o => o === 'landed').length
 const droppedCount = allSettled.filter(o => o === 'dropped').length
 let finale = null
+// Set only when resolveAcceptanceCarryForward's carry-forward branch actually fires
+// this run — names the finale:acceptance-delta pass's own sha, never the raced
+// round's, and never a placeholder. Read by the fixed report shape
+// (reference/epic-orchestration.md) to render the "Acceptance: carried forward,
+// confirmed clean at `<sha>`" line, omitted whenever this stays null.
+let acceptanceCarriedForwardSha = null
 
 // #144/#268: the finale is the single largest fan-out in a run — ~13 dispatches, plus up
 // to MAX_FIX_CYCLES unpinned fixer rounds per gate — and before this it started
@@ -3671,7 +3688,15 @@ if (finaleReached && finaleBudget === null) {
       if (carry.carryForward) {
         acceptance = carry.acceptance
         acceptanceFixCycles = carry.acceptanceFixCycles
+        acceptanceCarriedForwardSha = carry.acceptance.sha
       } else {
+        // Every fail-closed reason resolveAcceptanceCarryForward can name — non-SHIP raced
+        // result, null/unresolved anchor, died/thrown delta pass, or the delta pass itself
+        // reporting a concern — lands here, uniformly. `carry.reason` is not re-parsed; the
+        // per-story log line above already names the specific case, and this count is
+        // deliberately reason-agnostic (mirrors degradedNarrowings' own "which of the three
+        // is in the log lines, not this count" convention).
+        acceptanceRedoFallbacks++
         // Same shape as today's premortem/acceptance race, entered from the other side:
         // acceptance and premortem both redispatch fresh, concurrently with each other,
         // now that audit is done mutating.
@@ -3747,6 +3772,7 @@ if (finaleReached && finaleBudget === null) {
           : prFailed
             ? 'ready recorded but the PR-opening agent died or refused — run `gh pr create` by hand from the epic branch'
             : '',
+      acceptanceCarriedForwardSha,
     }
   } catch (err) {
     // The finale used to run this body bare, but that predates the
@@ -3762,7 +3788,12 @@ if (finaleReached && finaleBudget === null) {
     const reason = `finale crashed (${(err && err.message) || err}) — every story outcome above is real and already settled, but the cross-story finale did not finish, so this epic is not marked ready. Re-run /next to re-run the finale.`
     log(`finale: held — ${reason}`)
     heldThisRun.push({ story: `${slug}--finale`, reason })
-    finale = { audit: null, acceptance: null, premortem: null, ready: false, notes: reason }
+    // acceptanceCarriedForwardSha is threaded through as-is, not reset to null: if
+    // the carry-forward mechanism already fired earlier in this same try block and
+    // the finale crashed afterward (e.g. the ready-recorder dispatch throwing), that
+    // fact is real and already true — resetting it here would silently drop the one
+    // disclosure this mechanism exists to surface.
+    finale = { audit: null, acceptance: null, premortem: null, ready: false, notes: reason, acceptanceCarriedForwardSha }
   }
 }
 
@@ -3794,6 +3825,7 @@ return {
   openEpisodeCap,
   total: allSettled.length,
   degradedNarrowings,
+  acceptanceRedoFallbacks,
   // Crash-class facts, never verdicts (#276, #278) — see the anomalies comment above.
   // Reported separately from needsYou for the same reason held is: nothing here is a
   // story waiting on a judgment call, and folding it into the queue would turn "check

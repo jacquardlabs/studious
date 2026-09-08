@@ -97,11 +97,19 @@ def test_common_case_clean_audit_dispatches_acceptance_and_premortem_exactly_onc
 
 
 def test_audit_fix_cycles_discard_and_redo_both_acceptance_and_premortem() -> None:
-    """Stall fixture (`finale:audit-compile` always FIX AND RE-REVIEW,
-    `finale:fix:audit` always succeeds) drives `auditFixCycles` to
-    MAX_FIX_CYCLES. Both raced reads must be discarded and redispatched
-    fresh — exactly two of each — proving discard-and-redo fires and the
-    redo's own clean verdict triggers no third premortem dispatch."""
+    """Reuses the existing stall-fixture shape (`finale:audit-compile` always
+    FIX AND RE-REVIEW, `finale:fix:audit` always succeeds — MAX_FIX_CYCLES fixer
+    dispatches, `auditFixCycles` ends at 2 regardless of the terminal verdict).
+    Both the raced `finale:acceptance` and the raced `finale:premortem` reads
+    must be discarded and redispatched fresh — exactly two of each, one
+    raced-and-discarded pair and one fresh redo pair — proving the
+    discard-and-redo path actually fires rather than silently keeping the stale
+    raced result, and that the redo's own clean verdict (`acceptanceFixCycles ==
+    0`) triggers no third, superfluous premortem dispatch. `finale:start-sha` is
+    deliberately left unmocked here too, so this also exercises
+    resolveAcceptanceCarryForward's "null/unresolved anchor" fallback reason —
+    distinct from `test_carry_forward_fallback_...`'s died-delta-pass reason
+    below — and must count identically toward `acceptanceRedoFallbacks`."""
     epic = _epic_with_premortem()
     rules = [
         *LAND_STORY_A_RULES,
@@ -131,6 +139,11 @@ def test_audit_fix_cycles_discard_and_redo_both_acceptance_and_premortem() -> No
     # over a stalled audit — audit never proceeds past its own cap.
     assert result["finale"]["ready"] is False
     assert result["finale"]["acceptance"]["verdict"] == "SHIP"
+    assert result["acceptanceRedoFallbacks"] == 1, (
+        f"a null/unresolved anchor sha (finale:start-sha unmocked) must count as "
+        f"one acceptance redo fallback: {result}"
+    )
+    assert not result["finale"].get("acceptanceCarriedForwardSha")
 
 
 def test_premortem_redo_still_fires_on_acceptances_own_fix_cycles_when_audit_is_clean() -> None:
@@ -166,6 +179,130 @@ def test_premortem_redo_still_fires_on_acceptances_own_fix_cycles_when_audit_is_
     result = out["result"]
     assert result["finale"]["acceptance"]["verdict"] == "FIX AND RE-REVIEW"
     assert result["finale"]["ready"] is False
+
+
+
+# ---------- report disclosure: acceptanceRedoFallbacks + acceptanceCarriedForwardSha ----------
+#
+# The pre-race anchor and carry-forward mechanism (`resolveAcceptanceCarryForward`,
+# above `finaleGate` in workflows/epic-driver.js) is otherwise invisible to the human
+# reading the finale report — these prove the report-facing counter and sha actually
+# reflect what the mechanism decided, via the same full-driver harness the rest of
+# this file uses (not a call into the pure function directly, which
+# `test_delta_scoped_reaudit.py` already covers).
+
+
+def test_carry_forward_fallback_increments_acceptance_redo_fallbacks_and_reports_no_carried_forward_sha() -> None:
+    """Same fixture as `test_audit_fix_cycles_discard_and_redo_both_acceptance_and_premortem`
+    above (audit stalls at MAX_FIX_CYCLES, raced acceptance is a clean SHIP) but
+    `finale:acceptance-delta` is left unmocked, so the carry-forward check dies —
+    one of the four fail-closed reasons `resolveAcceptanceCarryForward` names. The
+    driver must still fall back to a full acceptance redo (already proven above),
+    AND now must report that fallback: `acceptanceRedoFallbacks == 1`, and
+    `finale.acceptanceCarriedForwardSha` stays falsy since carry-forward never
+    fired this run."""
+    epic = _epic_with_premortem()
+    rules = [
+        *LAND_STORY_A_RULES,
+        *FINALE_AUDITORS_PASS,
+        {"match": r"^finale:attestations$", "result": {"findings": '{"attestations": []}'}},
+        {"match": r"^finale:findings-closure$", "result": {"findings": "every recorded finding reached a resolved sha"}},
+        {"match": r"^finale:seams$", "result": {"findings": "no cross-story seam findings"}},
+        {"match": r"^finale:start-sha$", "result": {"verdict": "OK", "sha": "anchor1", "summary": "pre-race anchor"}},
+        {"match": r"^finale:audit-compile$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "f1", "summary": "still broken"}},
+        {"match": r"^finale:fix:audit$", "result": {"status": "done", "sha": "f2", "summary": "attempted a fix", "evidence": "ran tests"}},
+        {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "f3", "summary": "ok"}},
+        {"match": r"^finale:premortem$", "result": {"findings": "register verified clean"}},
+        # finale:acceptance-delta deliberately unmocked — dies, one of the four
+        # fail-closed reasons resolveAcceptanceCarryForward names.
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed end-to-end: {out.get('error')}"
+    result = out["result"]
+    labels = [c["label"] for c in out["calls"]]
+    assert labels.count("finale:acceptance") == 2, (
+        f"the died carry-forward check must still fall back to a full redo: {labels}"
+    )
+    assert result["acceptanceRedoFallbacks"] == 1, (
+        f"a died finale:acceptance-delta dispatch must count as one acceptance redo "
+        f"fallback: {result}"
+    )
+    assert not result["finale"].get("acceptanceCarriedForwardSha"), (
+        f"carry-forward never fired this run — no sha should be reported: {result['finale']}"
+    )
+
+
+def test_carry_forward_success_reports_the_carried_forward_sha_and_no_fallback() -> None:
+    """Same audit-stalls-and-mutates fixture, but `finale:acceptance-delta` now
+    confirms a clean SHIP over the anchor'd diff — the carry-forward path fires:
+    `finale:acceptance` must dispatch only once (the raced round; no second, full
+    redo), `acceptanceRedoFallbacks` stays 0, and `finale.acceptanceCarriedForwardSha`
+    must name the delta pass's OWN sha (`delta1`), not the raced round's sha
+    (`raced1`) — proving the report reflects `resolveAcceptanceCarryForward`'s own
+    `{ acceptance: deltaResult }` substitution, not a copy of the pre-existing raced
+    result."""
+    epic = _epic_with_premortem()
+    rules = [
+        *LAND_STORY_A_RULES,
+        *FINALE_AUDITORS_PASS,
+        {"match": r"^finale:attestations$", "result": {"findings": '{"attestations": []}'}},
+        {"match": r"^finale:findings-closure$", "result": {"findings": "every recorded finding reached a resolved sha"}},
+        {"match": r"^finale:seams$", "result": {"findings": "no cross-story seam findings"}},
+        {"match": r"^finale:start-sha$", "result": {"verdict": "OK", "sha": "anchor1", "summary": "pre-race anchor"}},
+        {"match": r"^finale:audit-compile$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "f1", "summary": "still broken"}},
+        {"match": r"^finale:fix:audit$", "result": {"status": "done", "sha": "f2", "summary": "attempted a fix", "evidence": "ran tests"}},
+        {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "raced1", "summary": "ok"}},
+        {"match": r"^finale:acceptance-delta$", "result": {"verdict": "SHIP", "sha": "delta1", "summary": "delta clean"}},
+        {"match": r"^finale:premortem$", "result": {"findings": "register verified clean"}},
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed end-to-end: {out.get('error')}"
+    result = out["result"]
+    labels = [c["label"] for c in out["calls"]]
+    assert labels.count("finale:acceptance") == 1, (
+        f"a clean carry-forward must skip the full acceptance redo entirely: {labels}"
+    )
+    assert labels.count("finale:acceptance-delta") == 1
+    assert result["acceptanceRedoFallbacks"] == 0, (
+        f"carry-forward succeeded — no fallback should be counted: {result}"
+    )
+    assert result["finale"]["acceptanceCarriedForwardSha"] == "delta1", (
+        f"expected the delta pass's own sha, not the raced round's: {result['finale']}"
+    )
+    assert result["finale"]["acceptance"]["verdict"] == "SHIP"
+
+
+def test_carry_forward_delta_reports_a_concern_falls_back_and_counts() -> None:
+    """The fourth fail-closed reason resolveAcceptanceCarryForward names: a
+    `finale:acceptance-delta` dispatch that resolved (has a sha) but reported a
+    concern instead of a clean SHIP — the diff since the anchor plausibly changes
+    the raced acceptance verdict. Distinct from the died-dispatch case above:
+    this delta pass returned cleanly, it just didn't confirm. Must still fall
+    back to a full acceptance redo and count toward `acceptanceRedoFallbacks`."""
+    epic = _epic_with_premortem()
+    rules = [
+        *LAND_STORY_A_RULES,
+        *FINALE_AUDITORS_PASS,
+        {"match": r"^finale:attestations$", "result": {"findings": '{"attestations": []}'}},
+        {"match": r"^finale:findings-closure$", "result": {"findings": "every recorded finding reached a resolved sha"}},
+        {"match": r"^finale:seams$", "result": {"findings": "no cross-story seam findings"}},
+        {"match": r"^finale:start-sha$", "result": {"verdict": "OK", "sha": "anchor1", "summary": "pre-race anchor"}},
+        {"match": r"^finale:audit-compile$", "result": {"verdict": "FIX AND RE-REVIEW", "sha": "f1", "summary": "still broken"}},
+        {"match": r"^finale:fix:audit$", "result": {"status": "done", "sha": "f2", "summary": "attempted a fix", "evidence": "ran tests"}},
+        {"match": r"^finale:acceptance$", "result": {"verdict": "SHIP", "sha": "raced1", "summary": "ok"}},
+        {"match": r"^finale:acceptance-delta$", "result": {"verdict": "CONCERN", "sha": "d1", "summary": "fix dropped a required acceptance criterion"}},
+        {"match": r"^finale:premortem$", "result": {"findings": "register verified clean"}},
+    ]
+    out = _run_driver(epic, rules)
+    assert out["ok"], f"driver crashed end-to-end: {out.get('error')}"
+    result = out["result"]
+    labels = [c["label"] for c in out["calls"]]
+    assert labels.count("finale:acceptance-delta") == 1
+    assert labels.count("finale:acceptance") == 2, (
+        f"a reported concern must still fall back to a full acceptance redo: {labels}"
+    )
+    assert result["acceptanceRedoFallbacks"] == 1
+    assert not result["finale"].get("acceptanceCarriedForwardSha")
 
 
 def test_premortem_redispatches_a_third_time_when_the_audit_triggered_redo_itself_needs_a_fix_cycle() -> None:
@@ -211,3 +348,10 @@ def test_premortem_redispatches_a_third_time_when_the_audit_triggered_redo_itsel
     result = out["result"]
     assert result["finale"]["acceptance"]["verdict"] == "FIX AND RE-REVIEW"
     assert result["finale"]["ready"] is False
+    # The raced round's own terminal verdict is FIX AND RE-REVIEW, not a clean
+    # SHIP — resolveAcceptanceCarryForward's "raced acceptance result was not a
+    # clean SHIP" fallback reason, short-circuiting before finale:acceptance-delta
+    # is ever dispatched (not mocked here, and correctly never called).
+    assert "finale:acceptance-delta" not in labels
+    assert result["acceptanceRedoFallbacks"] == 1
+    assert not result["finale"].get("acceptanceCarriedForwardSha")
