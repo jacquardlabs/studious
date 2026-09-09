@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v6.9.0 (2026-09-09)
+
+### Bug Fixes
+
+- A fast-forwarded landed branch and a freshly cut one share a tip — the branch's reflog tells them
+  apart ([#436](https://github.com/jacquardlabs/studious/pull/436),
+  [`c8137bd`](https://github.com/jacquardlabs/studious/commit/c8137bd7b3f51cd10881f563633aa1864214ab55))
+
+### Features
+
+- Gc resolves a merged-but-present branch's work file to done (#346's last half)
+  ([#436](https://github.com/jacquardlabs/studious/pull/436),
+  [`c8137bd`](https://github.com/jacquardlabs/studious/commit/c8137bd7b3f51cd10881f563633aa1864214ab55))
+
+
 ## v6.8.1 (2026-09-09)
 
 ### Bug Fixes
