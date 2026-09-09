@@ -492,7 +492,7 @@ cmd_episode_round() {
     '.episodes[$g].round = (.episodes[$g].round + 1)
      | .episodes[$g].roundSha = $s
      | .episodes[$g].blockingByRound = ((.episodes[$g].blockingByRound // {}) + {($r): ($b | tonumber)})
-     | .episodes[$g] |= del(.verdict, .verdictAt)' \
+     | .episodes[$g] |= del(.verdict, .verdictAt, .reviewedSha)' \
     --arg g "$gate" --arg r "$round" --arg b "$blocking" --arg s "$(head_sha)"
 }
 
@@ -625,9 +625,14 @@ cmd_episode_verdict() {
   # refreshed to HEAD so it matches the sha the dual-write below stamps, and
   # `reviewedSha` keeps the sha the round's judges actually read.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  # A retry outcome certifies nothing, so it carries no reviewedSha; the
+  # terminal verdict freezes the sha its round's judges read.
+  local reviewed=""
+  if [ "$verdict" != "$EPISODE_RETRY_VERDICT" ]; then reviewed="${round_sha:-$head_now}"; fi
   json_update "$file" \
-    '.episodes[$g] = (.episodes[$g] + {verdict: $v, sha: $s, reviewedSha: ($rs // $s), verdictAt: $t})' \
-    --arg g "$gate" --arg v "$verdict" --arg s "$head_now" --arg rs "$round_sha" --arg t "$(now_iso)"
+    '.episodes[$g] = (.episodes[$g] + {verdict: $v, sha: $s, verdictAt: $t}
+                      + (if $rs != "" then {reviewedSha: $rs} else {} end))' \
+    --arg g "$gate" --arg v "$verdict" --arg s "$head_now" --arg rs "$reviewed" --arg t "$(now_iso)"
   rc=$?
   [ "$rc" -eq 0 ] || return "$rc"
   # Dual-write the legacy per-gate record through cmd_record itself, not a
