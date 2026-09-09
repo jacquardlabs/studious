@@ -2,6 +2,21 @@
 
 <!-- version list -->
 
+## v6.1.0 (2026-09-09)
+
+### Bug Fixes
+
+- Pass the gitignored register to lane 13 by absolute path, checked in the working tree
+  ([#423](https://github.com/jacquardlabs/studious/pull/423),
+  [`aa40a0f`](https://github.com/jacquardlabs/studious/commit/aa40a0ff94389ce5578498dbc0bf543d7058c1c0))
+
+### Features
+
+- Pre-mortem register is disposable beside its design doc; delete the 56 committed registers
+  ([#423](https://github.com/jacquardlabs/studious/pull/423),
+  [`aa40a0f`](https://github.com/jacquardlabs/studious/commit/aa40a0ff94389ce5578498dbc0bf543d7058c1c0))
+
+
 ## v6.0.0 (2026-09-09)
 
 ### Features
