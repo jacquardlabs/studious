@@ -1546,5 +1546,63 @@ contains "episode-get --branch --findings reads the named branch's digest" $'dig
 contains "episode-get --branch (summary) reads the named branch" "round 1 of" \
   "$(cd "$deb" && "$LEDGER" episode-get --gate audit --branch feat/foo)"
 
+# --- #368: a Critical found and closed in the same round cannot close the episode ---
+d368=$(sandbox)
+f368="$d368/.studious/gates/feat-foo.json"
+( cd "$d368" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$d368" && "$LEDGER" episode-finding --gate audit --lane product-reviewer \
+    --severity Critical --fingerprint product-reviewer/spec --status open ) >/dev/null
+( cd "$d368" && "$LEDGER" episode-finding --gate audit --fingerprint product-reviewer/spec --status closed ) >/dev/null
+check "closing a finding stamps the round it closed in" "1" "$(jq -r '.episodes.audit.findings["product-reviewer/spec"].closedRound' "$f368")"
+err=$(cd "$d368" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" 2>&1 1>/dev/null; echo "rc=$?")
+contains "a PASS over a same-round-closed Critical is refused" "found AND closed in round 1" "$err"
+contains "the refusal names the fingerprint" "product-reviewer/spec" "$err"
+contains "the refusal names the path: retry, re-enter, close there" "run episode-round to" "$err"
+contains "the same-round refusal exits 1" "rc=1" "$err"
+check "no verdict lands" "null" "$(jq -r '.episodes.audit.verdict // "null"' "$f368")"
+( cd "$d368" && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" ); rc=$?
+check "the retry token still records over it" "0" "$rc"
+( cd "$d368" && "$LEDGER" episode-round --gate audit ) >/dev/null
+( cd "$d368" && "$LEDGER" episode-finding --gate audit --fingerprint product-reviewer/spec --status closed ) >/dev/null
+check "re-closing in round 2 restamps closedRound" "2" "$(jq -r '.episodes.audit.findings["product-reviewer/spec"].closedRound' "$f368")"
+( cd "$d368" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" ); rc=$?
+check "a Critical found in round 1 and closed in round 2 lets round 2 close the episode" "0" "$rc"
+
+# --- #368/#361: a terminal verdict certifies the sha the round's judges read ---
+d361=$(sandbox)
+f361="$d361/.studious/gates/feat-foo.json"
+( cd "$d361" && "$LEDGER" episode-open --gate audit ) >/dev/null
+opened=$(jq -r '.episodes.audit.roundSha' "$f361")
+check "episode-open stamps the sha round 1 judges" "$(git -C "$d361" rev-parse --short HEAD)" "$opened"
+( cd "$d361" && git commit -q --allow-empty -m "a fix nobody reviewed" )
+err=$(cd "$d361" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" 2>&1 1>/dev/null; echo "rc=$?")
+contains "a PASS at a HEAD the round never judged is refused below the cap" "no judge has reviewed HEAD" "$err"
+contains "the sha refusal names both shas" "$opened" "$err"
+contains "the sha refusal exits 1" "rc=1" "$err"
+( cd "$d361" && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" ); rc=$?
+check "the retry token records at the moved HEAD" "0" "$rc"
+( cd "$d361" && "$LEDGER" episode-round --gate audit ) >/dev/null
+check "episode-round restamps the sha round 2 judges" "$(git -C "$d361" rev-parse --short HEAD)" "$(jq -r '.episodes.audit.roundSha' "$f361")"
+( cd "$d361" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" ); rc=$?
+check "a PASS at the re-entered round's sha lands" "0" "$rc"
+check "the verdict records the sha the judges read" "$(jq -r '.episodes.audit.sha' "$f361")" "$(jq -r '.episodes.audit.reviewedSha' "$f361")"
+
+# at the cap the terminal verdict is the operator's explicit choice: it lands, both shas recorded, gap said aloud
+dcap=$(sandbox)
+fcap="$dcap/.studious/gates/feat-foo.json"
+( cd "$dcap" && "$LEDGER" episode-open --gate audit ) >/dev/null
+( cd "$dcap" && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" ) >/dev/null
+( cd "$dcap" && "$LEDGER" episode-round --gate audit ) >/dev/null
+judged=$(jq -r '.episodes.audit.roundSha' "$fcap")
+( cd "$dcap" && "$LEDGER" episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" ) >/dev/null
+( cd "$dcap" && git commit -q --allow-empty -m "fix after round 2" )
+err=$(cd "$dcap" && "$LEDGER" episode-verdict --gate audit --verdict "PASS" 2>&1 1>/dev/null; echo "rc=$?")
+contains "at the cap the terminal verdict lands over a moved HEAD" "rc=0" "$err"
+contains "and says the gap aloud" "the cap is the operator's explicit choice" "$err"
+check "the verdict sha is HEAD" "$(git -C "$dcap" rev-parse --short HEAD)" "$(jq -r '.episodes.audit.sha' "$fcap")"
+check "the reviewed sha is what round 2 judged" "$judged" "$(jq -r '.episodes.audit.reviewedSha' "$fcap")"
+contains "episode-get --history names the judged sha when it differs" "(judged $judged)" \
+  "$(cd "$dcap" && "$LEDGER" episode-get --gate audit --history)"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi
