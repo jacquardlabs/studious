@@ -25,7 +25,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 CONTRACT = REPO_ROOT / "reference" / "worker-contract.md"
 LEDGER = REPO_ROOT / "bin" / "gate-ledger"
-DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 BUILD_SKILL = REPO_ROOT / "skills" / "build" / "SKILL.md"
 WORK_ON = REPO_ROOT / "commands" / "next.md"
 DESIGN_MD = REPO_ROOT / "DESIGN.md"
@@ -68,28 +67,6 @@ def test_ledger_validates_exactly_the_contract_vocabulary() -> None:
 
     accepted = case.group(1).split("|")
     assert accepted == executor_statuses() + list(FLOW_MARKERS)
-
-
-def test_the_driver_reports_a_contract_status_not_its_own_dialect() -> None:
-    """#213's actual defect: the epic path's build worker wrote `DONE`."""
-    text = DRIVER.read_text(encoding="utf-8")
-    match = re.search(r"--step build --outcome (\S+)", text)
-    assert match, "epic-driver.js no longer writes a build outcome"
-    assert match.group(1) in executor_statuses()
-    assert "--outcome DONE" not in text
-
-
-def test_the_driver_names_the_in_box_route_first() -> None:
-    """#212: the epic path named Superpowers as the only executor while `/next`
-    named `/build` freely; the one that ships in the box shouldn't be left out."""
-    text = DRIVER.read_text(encoding="utf-8")
-    build_prompt = re.search(r"const build = `(.*?)`\n", text, re.DOTALL)
-    assert build_prompt, "epic-driver.js has no build worker prompt"
-
-    prompt = build_prompt.group(1)
-    assert "/build" in prompt and "plans and then builds" in prompt
-    assert prompt.index("/build") < prompt.index("Superpowers")
-    assert "worker contract is normative" in prompt
 
 
 def test_build_skill_reports_the_same_three_statuses() -> None:

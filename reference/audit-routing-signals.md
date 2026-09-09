@@ -1,15 +1,8 @@
 # Audit routing signals — canonical file-pattern lists
 
 Canonical source for the deterministic file-pattern routing rules `commands/review.md`
-(auditor 9, auditor 11, auditor 12, auditors 6–8's per-changeset clause) and
-`workflows/epic-driver.js`'s mechanical routing dispatch both apply — neither restates
-these lists inline. `reference/epic-orchestration.md`'s plan piece reads the same lists
-against a story's *stated* file surface, for `reference/epic-plan-contract.md`'s two
-reads: which lanes a proposed gate profile is priced for ("Gate profile", display-only,
-never recorded — the driver still derives the actual routing decision from the real
-changeset), and whether a story's surface is majority prompt-prose and therefore
-`story-supervised` rather than unattended ("Story class", recorded at plan approval; cites
-the Prompt signal section below).
+(auditor 9, auditor 11, auditor 12, auditors 6–8's per-changeset clause) applies — it does
+not restate these lists inline.
 
 Auditor 10 (operability) is deliberately not covered here: its skip condition is
 content-judged ("Judge from the diff's content… not file paths alone" — the "Auditor 10
@@ -17,8 +10,6 @@ content-judged ("Judge from the diff's content… not file paths alone" — the 
 auditors in parallel" heading is the canonical statement), since there is no reliable
 file-name proxy for "does this code serve requests, consume queues, or perform network
 I/O" the way there is for IaC, frontend, dependency, or prompt file types.
-`workflows/epic-driver.js` mirrors it as an inline content judgment
-(`routingScopeCheckPrompt`'s `operabilityMatch`, issue #271), not a pattern list here.
 
 **When ambiguous, apply the pattern anyway — default to running the lane, not skipping it.**
 A file that loosely or partially matches a pattern below counts as a match.
@@ -46,18 +37,15 @@ A changeset matches this signal if any changed file is:
 
 No match on any of these → no frontend signal.
 
-Deliberately excludes bare `.js`/`.ts` files — the same extension backend services, CLI
-tools, and this repo's own `workflows/*.js` scripts use. `/review`'s agent-executed check
-(auditors 6–8) can still use judgment when it reads a `.js`/`.ts` file's content;
-`workflows/epic-driver.js`'s mechanical dispatch has no such judgment and applies this
-list literally, so a bare `.js`/`.ts` change is not a frontend signal by itself.
+Deliberately excludes bare `.js`/`.ts` files — the same extension backend services and
+CLI tools use. `/review`'s agent-executed check (auditors 6–8) can still use judgment when
+it reads a `.js`/`.ts` file's content; a bare `.js`/`.ts` change is not a frontend signal
+by itself.
 
 This is the *per-changeset* half of `commands/review.md`'s auditors 6–8 rule only. The
 *project-level* half ("DESIGN.md has no `## Surfaces` web entry, and the repo confirms
 it") is a separate check owned directly by `commands/review.md`'s own prose (see `/setup`
-Step 1's canonical web-signal list) — not part of this file, and not applied by
-`workflows/epic-driver.js`'s routing dispatch (see the design doc for issue #138, Out of
-scope).
+Step 1's canonical web-signal list) — not part of this file.
 
 ## Dependency signal (auditor 11 / `dependency-auditor`)
 
@@ -80,9 +68,8 @@ No match on any of these → no dependency signal.
 
 A file-level match deliberately over-fires: a `pyproject.toml` edited only in `[tool.*]`
 tables, or a `package.json` edited only in `scripts`, still routes the lane in — the
-agent's own content-level self-skip (`agents/dependency-auditor.md`) is the second layer,
-the same way a CI-config-comment-only edit still dispatches `infra-auditor`. Routing stays
-deterministic so the mechanical dispatch can apply it without judgment.
+judge's own content-level self-skip (`gauntlet:dependency-auditor`) is the second layer,
+the same way a CI-config-comment-only edit still dispatches `infra-auditor`.
 
 ## Prompt signal (auditor 12 / `prompt-auditor`)
 
@@ -105,11 +92,10 @@ Deliberately excludes bare source files, mirroring the Frontend signal's bare-`.
 precedent: a plain `.py`/`.ts`/`.go` file is not a reliable prompt signal even when it
 embeds an LLM call — same extension every non-LLM module uses. `/review`'s agent-executed
 check may still route the lane in on judgment when the diff's content shows prompt strings
-at an SDK call site; `workflows/epic-driver.js`'s mechanical dispatch has no such judgment
-and does not. The `*prompt*`-name pattern keeps the embedded-prompt convention
+at an SDK call site. The `*prompt*`-name pattern keeps the embedded-prompt convention
 deterministic without that judgment.
 
 A file-level match deliberately over-fires: a CLAUDE.md hunk that only fixes a typo'd
-command example still routes the lane in — the agent's own content-level self-skip
-(`agents/prompt-auditor.md`) is the second layer, the same two-layer shape the Dependency
+command example still routes the lane in — the judge's own content-level self-skip
+(`gauntlet:prompt-auditor`) is the second layer, the same two-layer shape the Dependency
 signal uses.

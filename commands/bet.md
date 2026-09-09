@@ -7,8 +7,8 @@ allowed-tools: Read, Glob, Grep, Bash, Task
 # The betting table
 
 Where work is chosen and priced. Every flow enters here, at any scale — a bet's scope may
-be one story, a list of stories, or a whole milestone. Scope changes story count and how much
-runs dispatched vs. supervised; it never changes where the flow enters.
+be one story, a list of stories, or a whole milestone. Scope changes story count; it never
+changes where the flow enters.
 
 This door records verdicts. It judges the work and never who produced it: it names no
 producer door and reads no producer's private artifact.
@@ -86,13 +86,10 @@ Write concisely: 1–2 sentences per numbered criterion, no preamble before the 
 ## Set the appetite
 
 A bet carries a budget, not an estimate: **how much is this worth spending**, decided here
-because here is where the work is chosen. The mechanics — how a token budget is sized from
-measured per-story distributions, and how a concurrent-episode cap is derived — are pinned in
-`reference/epic-pricing.md`; consult it, don't restate it. Two rules this door owns:
+because here is where the work is chosen. Two rules this door owns:
 
-- **The appetite is the user's number, never this session's estimate.** Propose one from the
-  measured distribution, say what it's derived from, and stop for their word before recording
-  it. A model-estimated budget is the thing the pricing reference exists to replace.
+- **The appetite is the user's number, never this session's estimate.** Ask for it, and
+  record it with the verdict as they gave it — never propose one.
 - **A bet with no appetite is still a valid bet.** It runs unpriced — nothing refuses to
   proceed. Say so plainly rather than blocking on a number the user doesn't want to set.
 

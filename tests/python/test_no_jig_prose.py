@@ -57,7 +57,7 @@ def test_no_shipped_prompt_names_jig() -> None:
 
 def test_the_surface_is_not_empty() -> None:
     """A glob typo would make the check vacuously true."""
-    assert len(shipped_files()) > 40
+    assert len(shipped_files()) > 30
 
 
 def test_the_evidence_paths_are_still_allowed() -> None:

@@ -207,15 +207,10 @@ def _run_git(repo: Path, *args: str) -> str:
     return _gitutil_run(["git", *args], cwd=repo, check=True).stdout.strip()
 
 
-def setup_fixture_repo(
-    fixture_dir: Path, workdir: Path, source_root: Path = REPO_ROOT
-) -> Path:
+def setup_fixture_repo(fixture_dir: Path, workdir: Path) -> Path:
     """Build an ephemeral git repo: base/ as the fake origin/main, changeset/ overlaid as HEAD.
 
-    ``source_root`` is the plugin root whose commands/agents/skills get wired
-    in; ``run_ab_eval`` passes a shadow root so an arm can vary a prompt or
-    model pin without mutating checked-in files. Returns the repo path (==
-    workdir).
+    Returns the repo path (== workdir).
     """
     workdir.mkdir(parents=True, exist_ok=True)
     _copy_tree_overlay(fixture_dir / "base", workdir)
@@ -236,11 +231,11 @@ def setup_fixture_repo(
     _run_git(workdir, "add", "-A")
     _run_git(workdir, "commit", "-q", "-m", "changeset under review")
 
-    _wire_plugin_config(workdir, source_root)
+    _wire_plugin_config(workdir)
     return workdir
 
 
-def _wire_plugin_config(workdir: Path, source_root: Path = REPO_ROOT) -> None:
+def _wire_plugin_config(workdir: Path) -> None:
     """Expose this repo's commands/agents/skills as project-level Claude Code config.
 
     Deliberately does NOT symlink reference/: the fan-out command reads the
@@ -251,7 +246,7 @@ def _wire_plugin_config(workdir: Path, source_root: Path = REPO_ROOT) -> None:
     """
     claude_dir = workdir / ".claude"
     for name in ("commands", "agents", "skills"):
-        src = source_root / name
+        src = REPO_ROOT / name
         if src.is_dir():
             (claude_dir).mkdir(parents=True, exist_ok=True)
             os.symlink(src, claude_dir / name)

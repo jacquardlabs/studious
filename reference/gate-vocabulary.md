@@ -38,11 +38,9 @@ The terms the episode rows above are written against, one line each (#289):
   cap, `episode-round` re-enters past it, clearing the outcome and keeping the findings;
   at the cap, `episode-verdict` accepts a terminal verdict over it instead (re-entry is
   spent), and set-aside dispositions of already-recorded findings land while it rides.
-  The design-review and decide doors adopt the episode verbs in a later landing; the
-  epic driver records with bare `record` and bounds its own fix loop with a separate
-  constant (`MAX_FIX_CYCLES`) — this bound governs the episode verbs only, not those
-  loops. `scripts/retro-stats` reads a driver-recorded gate from `.gates[<gate>]` when
-  no episode exists.
+  The design-review and decide doors adopt the episode verbs in a later landing.
+  `scripts/retro-stats` reads a gate recorded with bare `record` from `.gates[<gate>]`
+  when no episode exists.
 - **lane profile** — the set of specialist review lanes (auditors/reviewers) a round
   dispatches for this changeset: the always-on lanes plus the conditionally-routed
   ones, per `commands/review.md`'s routing rules.
@@ -63,25 +61,6 @@ task-status `[PASS]` is a `PLAN.md` heading suffix written by `scripts/status-fl
 belongs to `DESIGN.md`'s build-execution vocabulary table, never this one. Name which
 one you mean whenever both could be read.
 
-## Advisory verdicts (not phase-gating)
-
-Not every verdict `bin/gate-ledger` recognizes is a phase gate. `pre-mortem` is an
-advisory-only signal `cmd_status`/`record` track alongside the four gates above; it has
-no "fix and retry" or "stop/rethink" token, no phase transition in `commands/next.md`, and
-no skill shim — it exists so `hooks/gate-reminder.sh`'s PR-time reminder can name a
-materialized cross-story risk.
-
-| Verdict source | Roll-up tokens | Recorded on | Absence |
-|-----------------|-----------------|-------------|---------|
-| `pre-mortem` (epic finale, read by `cmd_status`) | `CLEAR` (proceed, silent) · `REALIZED` (flagged) | an epic's integration branch only | silent — most branches never have one |
-
-This roll-up is deliberately coarser than `agents/premortem-auditor.md`'s per-item
-verdict (`REALIZED` / `NOT REALIZED` / `CAN'T VERIFY`, one per register line): `CLEAR`
-means "no item in the register realized," chosen to avoid colliding with an individual
-item's `NOT REALIZED` in conversation about the same register. Update this section, not
-the per-gate table above, if the roll-up vocabulary or scope changes. Rationale:
-`docs/studious/premortems/2026-07-09-premortem-hook-awareness-design.md`.
-
 ## Consumers that must stay in sync
 
 Update this table first when a gate's tokens change, then update these consumers:
@@ -89,8 +68,6 @@ Update this table first when a gate's tokens change, then update these consumers
 - `commands/next.md` — mentions each episode's tokens in one line.
 - `commands/next.md`'s per-piece phase-transition mapping (`## Run exactly one piece`) —
   reacts to every token to decide the next phase.
-- `reference/epic-orchestration.md`'s driver — advances on proceed tokens, bounds retries on
-  fix-and-retry tokens, and parks the story on stop/rethink tokens.
 - `skills/shape/SKILL.md`'s Step 7 — convenes the design episode itself and reports its
   own verdict alongside the design gate's three tokens verbatim.
 - `skills/build/SKILL.md`'s Step 4 — convenes the work episode itself and reports its own

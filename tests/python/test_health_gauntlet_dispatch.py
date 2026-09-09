@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 
 from run_gate_audit_fixtures import REPO_ROOT
-from test_driver_gauntlet_dispatch import GAUNTLET_MISSING_LINE
+GAUNTLET_MISSING_LINE = "gauntlet is not installed — /plugin install gauntlet@jacquardlabs-marketplace, then re-run"
 
 DOOR = REPO_ROOT / "commands" / "health.md"
 REVIEW = REPO_ROOT / "commands" / "review.md"

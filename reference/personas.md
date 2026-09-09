@@ -75,10 +75,8 @@ tool is worse than a longer one (the same finding #257 hit with the old bare `/d
   names producers as ordinary product advice.
 - **infra** — rare one-off entrypoints the human types themselves. Off the guarded surface.
 
-`workflows/epic-driver.js`, `hooks/*.sh`, `bin/gate-ledger`, and every file in `agents/`
-are guarded regardless of door, because they carry judgment machinery no door owns
-outright. `epic-driver.js` holds both roles at once and marks its dispatch half with the
-worker-dispatch sentinels the check already understands.
+`hooks/*.sh`, `bin/gate-ledger`, and every file in `agents/` are guarded regardless of
+door, because they carry judgment machinery no door owns outright.
 
 ## Episodes
 
@@ -95,33 +93,15 @@ episode to the door that convenes it, and nothing else.
 
 ## Specialists
 
-These are the agents shipping today, each keeping the lane and rubric it owns now, though
-the table names the local file, not what actually runs it. One specialist serves both
-cadences: a diff-scoped lane inside a `/review` episode, and a whole-project duty under
-`/health`. `/review` dispatches `gauntlet:<judge>` for every Episode lane column entry
-(`commands/review.md`), and `/health` dispatches gauntlet's posture judges for the
-Periodic duty column too (#334 S3) — except Outcome Analyst's `review-outcomes`, which
-`/retro outcomes` still dispatches locally, having no posture-judge twin. The other local
-files named in both columns stay until #334 S4 retires them. The title is keyed to the
-agent filename here so a title/agent pair cannot drift.
+Every judge lane is a `gauntlet:<judge>` dispatch — gauntlet's charter names the judges
+and their standards; this file does not mirror it. Three agents stay local because gauntlet
+ruled them out of its fleet (#334): recommend-only readers of the tracker and the ledger.
 
-| Specialist | Episode lane (diff-scoped) | Periodic duty |
+| Specialist | Agent | Dispatched by |
 |---|---|---|
-| Security Engineer | `security-auditor` | `review-security-health` |
-| Architect | `architecture-auditor` | `review-architecture` |
-| Ops Engineer | `operability-auditor`, `infra-auditor` | — |
-| QA Engineer | `test-auditor` | — |
-| Code Reviewer | `code-auditor` | `review-codebase-health` |
-| Tech Writer | `doc-auditor` | `review-readme` |
-| Frontend Engineer | `frontend-reviewer`, `ux-reviewer`, `accessibility-auditor` | `review-interface-health` |
-| Dependency Steward | `dependency-auditor` | — |
-| Prompt Engineer | `prompt-auditor` | `review-prompt-health` |
-| Product Analyst | `product-reviewer` | `review-product-health` |
-| Pre-mortem Verifier | `premortem-auditor` | — |
-| Outcome Analyst | — | `review-outcomes` |
-
-A `—` in the periodic column means no whole-project twin exists yet (see the hiring
-ruling below).
+| Backlog Ranker | `backlog-priorities` | `/bet` |
+| Backlog Hygienist | `backlog-hygiene` | `/health backlog` |
+| Outcome Analyst | `review-outcomes` | `/retro outcomes` |
 
 ## Rulings this charter carries
 
@@ -130,18 +110,18 @@ The design doc these tables came from was branch-local and disposable, per CLAUD
 plus the failure modes in `docs/studious/premortems/persona-restructure.md`. What it
 ratified, in one line each:
 
-- **The flow is scale-invariant.** A bet's scope may be one story, a list of stories, or a
-  whole milestone. The entry (`/bet`, where scope, stories, and appetite are approved), the
-  exit (`/ship`), and every door between are the same at every scale. Scope changes how
-  many stories a bet contains and how much runs dispatched versus supervised — never which
-  doors exist.
+- **The flow is the story flow at every scale.** A bet's scope may be one story, a list of
+  stories, or a whole milestone; a list is its stories run one at a time, supervised, in
+  one session (amended 2026-09-09: the unattended epic path was retired after three epics
+  in which it never landed twice — the doors are the same at every scale, and nothing runs
+  dispatched).
 - **A persona is a charter plus durable records, never a resident agent.** See the tripwire
   paragraph at the top of this file.
 - **The doors are named for stages, not mechanisms** — the vocabulary kanban, Scrum, XP, and
   Shape Up already teach. Borrowing the names adopts no ceremony; PRODUCT.md's "no sprint
   ceremony" tripwire stands.
 - **Appetite is the Product Owner's, set at `/bet`.** A budget, not an estimate, and the
-  user's number rather than a model's. Mechanics live in `reference/epic-pricing.md`.
+  user's number rather than a model's.
 - **Growing the team means hiring a specialist** — a lane plus its periodic twin, behind
   demonstrated need, the way the Ops Engineer entered (infra first, then operability).
 

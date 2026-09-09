@@ -21,7 +21,6 @@ INVARIANT_PHRASE = "never to self-check prose"
 #: #188`, so a substring match would let either row satisfy the other.
 DISPOSITIONS = {
     "reference/audit-compilation.md": "KEEP",
-    "reference/prompt-contract.md": "MOOT",
     "skills/task-execution-discipline/SKILL.md": "KEEP PENDING #188",
 }
 

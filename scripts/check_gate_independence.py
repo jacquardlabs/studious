@@ -23,12 +23,6 @@ invocations. (Before the persona restructure this file hardcoded a `commands/gat
 glob and a build-skill tuple, so a renamed judge door could fall off the surface
 silently.)
 
-`workflows/epic-driver.js` holds two roles: dispatch (must route to `/build` like
-`commands/next.md` does) and verdict-compiling (`auditFanIn`, `acceptanceFanIn`, which
-must stay producer-agnostic). Rather than exempt the whole file, a *region* can be
-marked worker-dispatch — exempt from rule 1 only, and never containing verdict-compile
-machinery (#212).
-
 Standard library only, to match the repo's other CI helpers.
 """
 from __future__ import annotations
@@ -50,7 +44,6 @@ DOOR_ROW = re.compile(
 #: Guarded regardless of door: judgment machinery no single door owns outright.
 STRUCTURAL_SURFACE = (
     "agents/*.md",
-    "workflows/*.js",
     "hooks/*.sh",
     "bin/gate-ledger",
 )
@@ -71,30 +64,6 @@ BUILD_EXECUTABLES = (
 #: the door. `docs/jig/evidence` is the retired committed location — still banned, so
 #: prose reintroducing it fails the same way live paths do.
 ARTIFACTS = re.compile(r"(?<![\w/-])(PLAN\.md|docs/jig/evidence|\.studious/build-evidence)")
-
-#: Sentinel comments bounding a worker-dispatch region. Exempt from INVOCATION only.
-REGION_OPEN = "gate-independence: begin worker-dispatch"
-REGION_CLOSE = "gate-independence: end worker-dispatch"
-
-#: Prompt builders that compile or scope a verdict — must never sit inside a
-#: worker-dispatch region, which would move the exemption onto the machinery it exists
-#: to cover. Listed explicitly rather than inferred from brace matching.
-GATE_COMPILERS = (
-    "auditFanIn",
-    "acceptanceFanIn",
-    "premortemDispatchPrompt",
-    "acceptancePremortemDispatchPrompt",
-    "acceptancePremortemFallbackPrompt",
-    "ledgerScopeCheckPrompt",
-    "routingScopeCheckPrompt",
-    "acceptanceScopeCheckPrompt",
-    "criteriaConformancePrompt",
-    "epicLedgerInstruction",
-    "finaleClosurePrompt",
-    "finaleSeamPrompt",
-    "gatePrompt",
-)
-COMPILER_DEF = re.compile(r"\b(?:function\s+)?({})\s*\(".format("|".join(GATE_COMPILERS)))
 
 
 def doors() -> list[dict]:
@@ -141,9 +110,8 @@ def surface_paths() -> list[Path]:
     return [p for p in paths if p.is_file()]
 
 
-def scan(rel: str, text: str, invocation: re.Pattern | None = None) -> tuple[list[str], int]:
-    """Check one guarded file. Returns its problems and how many invocations the
-    worker-dispatch exemption absorbed.
+def scan(rel: str, text: str, invocation: re.Pattern | None = None) -> list[str]:
+    """Check one guarded file and return its problems.
 
     `invocation` is a parameter so `main()` builds it once per run, not once per file,
     and a test can drive the scanner with a pattern of its own.
@@ -151,35 +119,10 @@ def scan(rel: str, text: str, invocation: re.Pattern | None = None) -> tuple[lis
     if invocation is None:
         invocation = invocation_re()
     problems: list[str] = []
-    open_at = 0  # line number of the unclosed region marker, 0 when outside one
-    exempted = 0
 
     for n, line in enumerate(text.splitlines(), 1):
-        if REGION_OPEN in line:
-            if open_at:
-                problems.append(
-                    f"{rel}:{n}: worker-dispatch region opened while one is already open "
-                    f"(line {open_at}) — regions never nest"
-                )
-            open_at = n
-            continue
-        if REGION_CLOSE in line:
-            if not open_at:
-                problems.append(f"{rel}:{n}: worker-dispatch region closed but never opened")
-            open_at = 0
-            continue
-
-        if open_at and (match := COMPILER_DEF.search(line)):
-            problems.append(
-                f"{rel}:{n}: {match.group(1)} compiles a verdict and must stay covered "
-                f"— it may not sit inside the worker-dispatch region opened at line "
-                f"{open_at}\n    {line.strip()}"
-            )
-
         if match := invocation.search(line):
-            if open_at:
-                exempted += 1
-            elif door := match.group("door"):
+            if door := match.group("door"):
                 problems.append(
                     f"{rel}:{n}: a judge door must not invoke /{door} — it judges "
                     f"the work, never who produced it\n    {line.strip()}"
@@ -190,8 +133,6 @@ def scan(rel: str, text: str, invocation: re.Pattern | None = None) -> tuple[lis
                     f"scripts/{match.group('executable')} — it judges the work, never "
                     f"who produced it\n    {line.strip()}"
                 )
-        # Never exempt: a judge must not *require* a producer artifact anywhere, and a
-        # dispatcher has no reason to name one.
         if match := ARTIFACTS.search(line):
             problems.append(
                 f"{rel}:{n}: a judge door must not require {match.group(1)}, which only a "
@@ -199,12 +140,7 @@ def scan(rel: str, text: str, invocation: re.Pattern | None = None) -> tuple[lis
                 f"is reference/evidence-format.md\n    {line.strip()}"
             )
 
-    if open_at:
-        problems.append(
-            f"{rel}:{open_at}: worker-dispatch region opened and never closed — an "
-            f"unterminated region would exempt the rest of the file"
-        )
-    return problems, exempted
+    return problems
 
 
 def violations(
@@ -217,29 +153,8 @@ def violations(
     problems: list[str] = []
     for path in paths:
         rel = path.relative_to(REPO).as_posix()
-        file_problems, _ = scan(rel, path.read_text(encoding="utf-8"), invocation)
-        problems.extend(file_problems)
+        problems.extend(scan(rel, path.read_text(encoding="utf-8"), invocation))
     return problems
-
-
-def dead_regions(
-    paths: list[Path] | None = None, invocation: re.Pattern | None = None
-) -> list[str]:
-    """A region that exempts nothing is scaffolding for a mistake — delete it rather
-    than leave an unused hole in the surface."""
-    if paths is None:
-        paths = surface_paths()
-    if invocation is None:
-        invocation = invocation_re()
-    dead: list[str] = []
-    for path in paths:
-        text = path.read_text(encoding="utf-8")
-        if REGION_OPEN not in text:
-            continue
-        _, exempted = scan(path.relative_to(REPO).as_posix(), text, invocation)
-        if not exempted:
-            dead.append(path.relative_to(REPO).as_posix())
-    return dead
 
 
 def main() -> int:
@@ -254,15 +169,7 @@ def main() -> int:
         return 1
 
     paths = surface_paths()
-    invocation = invocation_re()
-
-    if dead := dead_regions(paths, invocation):
-        print("Gate independence check FAILED:")
-        for path in dead:
-            print(f"  - {path}: declares a worker-dispatch region that exempts nothing — remove it")
-        return 1
-
-    problems = violations(paths, invocation)
+    problems = violations(paths, invocation_re())
     if problems:
         print("Gate independence check FAILED:")
         for p in problems:

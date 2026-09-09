@@ -81,13 +81,11 @@ operator does not know about reads as a clean one.
 
 ## Single-area run (argument given)
 
-Dispatch the one matching judge (the `$keep` list is that one name). When it returns, compile (below) and write the compiled report to the table's report path, then surface it. Skip Phase 2 — there's nothing to cross-reference in a single review. The idiom-rubric proposal that used to follow the codebase lane is `/retro`'s (section 4) — it reads the reports this door writes.
+Dispatch the one matching judge (the `$keep` list is that one name). When it returns, compile (below) and write the compiled report to the table's report path, then surface it. Skip Phase 2 — there's nothing to cross-reference in a single review.
 
 ## Full sweep (no argument)
 
 Before Phase 1, run one Glob/Grep pass against the prompt-surface signature table in `reference/prompt-checklist.md` (Claude Code plugin and `.claude/` layouts, assistant instruction files, prompt-template directories, LLM SDK call sites). If the repo has no prompt surface, note "No prompt surface detected — prompts review skipped." and dispatch six judges below, not seven — the same way the audit gate skips its web lanes at project level. The judge's own self-skip is the backstop for a single-area `/health prompts` run on a promptless repo.
-
-Dispatch telemetry for every judge you spawn — run, step, role, and skill — is appended by `hooks/dispatch-telemetry.sh` on the `Task` tool, with no step for you to run and nothing to pass. Schema: `reference/telemetry-format.md`. Nothing here reads it.
 
 ### Phase 1 — Dispatch all seven lanes in parallel
 

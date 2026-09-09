@@ -112,17 +112,6 @@ Consequences of the split, both load-bearing:
 subagent call" — a Claude Code Task-tool-dispatched subagent within one session.
 Confirmed from the docs.
 
-**Not confirmed:** whether `/next`'s primary dispatch path populates these the
-same way. `workflows/epic-driver.js` dispatches workers through the Workflow tool
-substrate's `agent(...)` global (`reference/epic-orchestration.md`, "Run the driver
-script (primary mode)") — a less-documented mechanism than the in-session Task tool the
-fallback driver uses (`reference/epic-orchestration.md`'s "Fallback driver" section).
-Whether `agent()` is a Task-tool subagent call under the hood (`agent_id` populated,
-`origin` resolves to `"subagent"`) or a separate process/session (`agent_id` never
-present, `origin` reads `"interactive"`) is unverified: this worker has no Task tool to
-dispatch a real nested subagent and observe the hook input, and hot-reloading a live
-session's own hook config to self-test was judged too invasive mid-task.
-
 This is dogfood item zero's real remaining surface — the mechanism-level question
 (whether `PostToolUse`/`PostToolUseFailure` fire for Bash calls inside a subagent) is
 already resolved above. `tests/test_evidence_capture.sh` verifies everything
@@ -167,9 +156,9 @@ gate is allowed to conclude. **Requires `jq`** (unlike the plain, dependency-fre
 and **fails closed**: no `jq`, or a malformed line, means no stdout and a non-zero
 exit — never a plausible-looking partial result. Every `evidence-list` caller already
 treats an error identically to empty output, so a `--dedupe` failure needs no new
-caller-side handling. `commands/review.md`'s test-auditor/premortem-auditor and
-premortem dispatches use `--dedupe`; `reference/handback-contract.md` keeps reading the
-raw (non-deduped) form, since its manifest's job is a complete history, not
+caller-side handling. `commands/review.md` reads the `--dedupe` form once before
+dispatching any judge; `reference/handback-contract.md` keeps reading the raw
+(non-deduped) form, since its manifest's job is a complete history, not
 current-state-only.
 
 ## Consumers that must stay in sync
@@ -190,8 +179,8 @@ current-state-only.
   only — never any other field).
 - `gate-ledger evidence-list` is a plain passthrough of this shape, one line per
   record (or, with `--dedupe`, one line per distinct `command`) — neither mode
-  reshapes a record, only which ones are selected. `commands/review.md` and
-  `commands/review.md` stamp its `--dedupe` output into `@agent-test-auditor`'s
-  and `@agent-premortem-auditor`'s dispatch prompts; both agents read `command`,
-  `predicate.result`, and `capturedAt` directly off records in this shape when
-  citing an entry.
+  reshapes a record, only which ones are selected. `commands/review.md` passes its
+  `--dedupe` output to every judge invocation as `receipts_path`; a judge such as
+  `gauntlet:test-auditor` or `gauntlet:premortem-auditor` reads `command`,
+  `predicate.result`, `capturedAt`, and `outputDigest` directly off records in this
+  shape when citing an entry.

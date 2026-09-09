@@ -202,15 +202,6 @@ If `gate-ledger` is not found at all, tell the user the episode could not be ope
 the full, unnarrowed round anyway and report, but say up front that neither findings nor
 verdict will be recorded; do not skip silently.
 
-Dispatch telemetry is recorded for you — do nothing about it here.
-`hooks/dispatch-telemetry.sh` fires on the `Task` tool and appends one routing record per
-lane you spawn (run, step, role, the model and effort that lane's agent file pins, and the
-prompt size), and the verdict you record appends the matching outcome label. Both land in
-the local, gitignored `.studious/telemetry/` store; `reference/telemetry-format.md` is the
-schema. Nothing here reads that store and no verdict depends on it. Do not add ledger calls
-to the dispatches to "help" — a duplicate record is worse than none, and the per-lane cost
-is the reason this is a hook and not an instruction.
-
 ## Read the findings ledger on re-entry (work episode, round 2 only)
 
 On a fresh round 1 this step does nothing. On re-entry, run `gate-ledger episode-get --gate audit --findings` once. Its first line — "round R of C — N open, M carried" — goes verbatim
@@ -636,8 +627,7 @@ pre-mortem register on this branch — pre-mortem verification skipped." and mov
     this story's own stated acceptance criteria, not the whole product experience (the full
     product-acceptance walkthrough belongs to the delivery episode). Beside the invocation,
     name the criteria source — the
-    epic ledger's story record (`gate-ledger epic-get`) when an epic drives this branch; else
-    the design doc recorded for this branch's work file (`gate-ledger work-list` to find the
+    design doc recorded for this branch's work file (`gate-ledger work-list` to find the
     slug whose `branch` matches, then `gate-ledger work-get --slug <slug>` for its
     `designDoc`), by its working-tree path, since a branch-local doc is gitignored and absent
     from the judged worktree; else the branch's own added or changed design/spec doc; else
@@ -684,8 +674,7 @@ every Part judges the same diff against the same criteria:
   `git diff --name-only <merge-base>...HEAD` as the named file list under review. This is
   the changeset for the whole episode — Parts 2 and 3 reuse it rather than recomputing, so
   "this branch" means the same diff everywhere.
-- **Criteria** — the bet's own goal and acceptance criteria when a bet exists for this
-  branch (`gate-ledger epic-get`), else the work file's recorded `designDoc`:
+- **Criteria** — the work file's recorded `designDoc`:
   `gate-ledger work-list` to find the file whose `branch` matches the current branch, then
   `gate-ledger work-get --slug <slug>` to read its `designDoc`. If none is recorded, discover a candidate the way
   the design episode does — the branch's added/changed design or spec Markdown, else the
@@ -853,9 +842,8 @@ Before running `gate-ledger episode-verdict` — or, in the design episode, the 
 in its own section above — commit every file this run wrote or modified — the pre-mortem register the design episode just wrote, or anything
 else the review produced. The ledger stamps the
 verdict's sha from HEAD at the moment it runs; a file committed afterward leaves the ledger
-pointing at a commit that doesn't yet contain what this run produced, so the PR-time hook and
-`/next`'s epic finale would flag this verdict as stale over a commit that changed nothing
-substantive. The recorded sha must be the same commit a later reader lands on at HEAD.
+pointing at a commit that doesn't yet contain what this run produced, so the PR-time hook
+would flag this verdict as stale over a commit that changed nothing substantive. The recorded sha must be the same commit a later reader lands on at HEAD.
 
 After stating the verdict, close the round by recording it — never bare `record --gate <gate>`:
 `episode-verdict` dual-writes the legacy record itself, so the PR-time reminder and the next

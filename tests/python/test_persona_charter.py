@@ -98,7 +98,7 @@ def test_every_specialist_agent_exists() -> None:
     filenames resolve."""
     section = specialist_section()
     names = {n for row in SPECIALIST_ROW.finditer(section) for n in AGENT_NAME.findall(row.group(0))}
-    assert len(names) >= 15, f"the Specialists table parsed to only {len(names)} agents"
+    assert len(names) == 3, f"the Specialists table parsed to {len(names)} agents, not the three locals"
     for name in sorted(names):
         assert (REPO_ROOT / "agents" / f"{name}.md").is_file(), (
             f"agents/{name}.md is named in the Specialists table but does not exist"
@@ -110,11 +110,7 @@ def test_every_shipped_reviewer_agent_has_a_charter_row() -> None:
     accountable for its rubric."""
     section = specialist_section()
     charted = {n for row in SPECIALIST_ROW.finditer(section) for n in AGENT_NAME.findall(row.group(0))}
-    shipped = {
-        p.stem
-        for p in (REPO_ROOT / "agents").glob("*.md")
-        if p.stem.endswith(("-auditor", "-reviewer")) or p.stem.startswith("review-")
-    }
+    shipped = {p.stem for p in (REPO_ROOT / "agents").glob("*.md")}
     missing = sorted(shipped - charted)
     assert missing == [], f"agents with no charter row: {missing}"
 

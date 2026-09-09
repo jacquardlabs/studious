@@ -10,62 +10,27 @@
 #     rides along inertly. A gate's entry optionally carries `blockingLanes`
 #     (delta-scoped re-audit, #130), set via `record --blocking-lanes` or
 #     `episode-verdict`'s passthrough, when the verdict is the retry token —
-#     read by commands/review.md and epic-driver.js to narrow the next round's
-#     dispatch. Absent on every other verdict and on pre-#130 records —
-#     indistinguishable from malformed, which both readers fail closed on (full audit).
+#     read by commands/review.md to narrow the next round's dispatch. Absent on
+#     every other verdict and on pre-#130 records — indistinguishable from
+#     malformed, which the reader fails closed on (full audit).
 #   .studious/work/<feature-slug>.json  — per-feature flow position for /next
 #     (`work-set`/`work-log` write, `work-get`/`work-list` read). Scope-delta
-#     fields (#244), epic-driven path only: `declaredFiles` — the design worker's
-#     forecast of exact files the story touches (`work-set --declared-files`);
-#     absent means never declared (measured as `unmeasured`, never zero).
-#     `scopeDelta` — append-only, one entry per measured moment
-#     (`{phase, unmeasured, outsideFiles, sha, at}`, plus `reason` — fix-and-retry
-#     finding 3, #244 — on an unmeasured entry only), written via `work-log
+#     fields (#244): `declaredFiles` — the forecast of exact files the story
+#     touches (`work-set --declared-files`); absent means never declared
+#     (measured as `unmeasured`, never zero). `scopeDelta` — append-only, one
+#     entry per measured moment (`{phase, unmeasured, outsideFiles, sha, at}`,
+#     plus `reason` on an unmeasured entry only), written via `work-log
 #     --scope-delta-phase P (--scope-delta-files F1,F2 | --scope-delta-unmeasured
 #     [--scope-delta-reason R])`. `amendments` — separate append-only array
 #     (`{file, phase, reason, at}`) justifying a file some `scopeDelta` entry
 #     already counted outside the declaration; never edits that entry or its
-#     count (full mechanism: the design doc this story's SHA cites).
-#     Assignment fields (#295), via `work-assign`: `assignment` — the current
-#     dispatch's phase, brief, contracted artifacts, branch, worktree, recorded
-#     before work starts so a successor to a crashed/stalled/parked worker
-#     rehydrates from data instead of a fresh briefing. Carries no file set of
-#     its own — `declaredFiles` owns that fact, and `work-get` returns both.
-#     `assignments` — append-only history of every assignment, for auditing
-#     what a worker was told.
-#   .studious/epics/<epic-slug>.json  — per-epic plan and story DAG for /next
-#     (epic-set/-story-set/-run-log write; epic-get/-reconcile/-list read).
-#     Carries approved appetite (`appetite.tokens`, `appetite.openEpisodes`),
-#     canary flag, and `runs` — one record per driver invocation with stories
-#     landed, which arms the zero-landed stop-loss (#268, #144, #297).
-#   .studious/epics/<epic-slug>.events.jsonl — append-only status-transition and
-#     verdict trail for an epic's stories (one JSON object per line, appended by
-#     `append_event()` from `record`, `epic-set`, `epic-story-set`, `work-set`,
-#     `work-log` — reference/events-format.md). Epic/story attribution derives
-#     from the branch name or epic-qualified `--slug`, never a new flag.
-#     Best-effort: an append failure signals on stderr but never fails the
-#     calling verb. Also carries the per-epic findings ledger (#281): `finding`
-#     and `attestation` lines from `epic-finding`/`epic-attest`, read by
-#     `epic-findings`. Those two are primary writes and fail loudly
-#     (append_epic_record), unlike the best-effort transition kinds above.
+#     count.
 #   .studious/evidence/<branch-slug>.jsonl — append-only, harness-captured
 #     verification commands run while a story is armed (`evidence-append` by
 #     hooks/evidence-capture.sh writes; `evidence-list` reads —
 #     reference/evidence-format.md).
-#   .studious/telemetry/<branch-slug>.jsonl — append-only routing telemetry: one
-#     `dispatch` line per review agent sent (`telemetry-dispatch`, by
-#     hooks/dispatch-telemetry.sh and epic-driver.js's fan-out) and one
-#     `outcome` line per gate verdict (`record`, as a side effect). Joined, they
-#     tie a dispatch-time model choice to its verdict — reference/telemetry-format.md
-#     is the contract. Sidecar `.studious/telemetry/<branch-slug>.run` holds the
-#     last run id seen on that branch, so `record` attributes a verdict without
-#     any prompt carrying the id. No reader in this plugin yet.
 # All stores are anchored to the MAIN working tree (see repo_root), so agents in
-# linked worktrees (e.g. /next story worktrees) share one .studious/ store.
-#
-# .studious/worktrees/<epic-slug>/ holds /next's checkouts — `__epic` for the
-# integration worktree, one directory per in-flight story. worktree_path owns
-# this layout; everyone else asks via the `worktree-path` verb.
+# linked worktrees share one .studious/ store.
 # Degrades silently when git or jq is unavailable.
 set -uo pipefail
 
@@ -102,7 +67,7 @@ ledger_dir() {
 store_dir() { # name -> .studious/<name>, root-anchored like ledger_dir
   # Same root-anchoring as ledger_dir, one function for every store instead of
   # a copy per name. A worker in a linked worktree still lands records in the
-  # MAIN tree's .studious/<name>/ — e.g. evidence and telemetry share a file
+  # MAIN tree's .studious/<name>/ — e.g. evidence shares a file
   # joinable without a cross-worktree read.
   local name="$1"
   local root
@@ -113,56 +78,10 @@ store_dir() { # name -> .studious/<name>, root-anchored like ledger_dir
   fi
 }
 
-worktree_path() { # <repo-root> <epic-slug> [<story-slug>] -> that worktree's absolute path
-  # Sole owner of /next's worktree layout (#166): `.studious/worktrees/<epic>/`
-  # holds one checkout per in-flight story plus `__epic`, the integration
-  # checkout stories merge into. cmd_epic_reconcile, the `worktree-path` verb,
-  # and (via that verb) epic-driver.js and reference/epic-orchestration.md all
-  # go through here rather than re-deriving the layout.
-  #
-  # Pure string composition: no git, no epic file, no filesystem check — a
-  # worktree may not exist yet (`git worktree add` in
-  # reference/epic-orchestration.md's step 5 runs after this resolves the path).
-  #
-  # `__epic` cannot collide with a story: slugify()'s `tr -cs 'a-z0-9' '-'`
-  # rewrites every non-alphanumeric character, so no story key can contain an
-  # underscore — `__epic` itself would slugify to `epic`.
-  #
-  # Neither slug is normalized here; slugify happens at the verb boundary
-  # (cmd_worktree_path). The two in-process callers pass keys already slugified
-  # by epic-set/epic-story-set on the way into the stored epic file.
-  local root="$1" epic_slug="$2" story="${3:-__epic}"
-  printf '%s/.studious/worktrees/%s/%s' "$root" "$epic_slug" "$story"
-}
-
 slugify() {
   # Feature title/slug → filesystem- and JSON-safe key: lowercase, runs of
   # anything outside [a-z0-9] collapse to '-', edges trimmed.
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-*//; s/-*$//'
-}
-
-epic_context_from_branch() { # branch name -> prints "epicSlug<TAB>storySlug", nothing if not epic-shaped
-  # epic-driver.js's storyBranch() convention: epic/<slug>--<story> for a story
-  # branch, epic/<slug> for the epic's own integration branch. Both halves are
-  # already slugified, so splitting on the first "--" is unambiguous (reference/events-format.md).
-  local b="$1" rest
-  case "$b" in
-    epic/*) rest="${b#epic/}" ;;
-    *) return 0 ;;  # no epic/ prefix at all: not an epic-dispatched branch, silent no-op
-  esac
-  case "$rest" in
-    *--*) printf '%s\t%s' "${rest%%--*}" "${rest#*--}" ;;
-    *)    printf '%s\t' "$rest" ;;  # the epic's own integration branch: epic-level event
-  esac
-}
-
-epic_context_from_slug() { # raw (pre-slugify) --slug value -> prints "epicSlug<TAB>storySlug", nothing if not epic-qualified
-  # Must run on the RAW argument, before the caller's slugify: slugify() collapses
-  # "--" to "-", which would silently make this split a permanent no-op run after (reference/events-format.md).
-  case "$1" in
-    *--*) printf '%s\t%s' "${1%%--*}" "${1#*--}" ;;
-    *)    return 0 ;;  # never-epic-qualified /next feature slug: silent no-op
-  esac
 }
 
 ensure_gitignore() {
@@ -202,58 +121,6 @@ json_update() { # file, jq filter, then any --arg name value ... pairs for jq
   return "$rc"
 }
 
-_epic_events_append() { # epic, story, kind, jq-object filter for the kind's own fields, then --arg/--argjson pairs for it -> jq's own exit status
-  # Shared write body for append_event() and append_epic_record() — dir/file/jq
-  # template only, no failure policy; each caller owns what a write failure means to it.
-  local epic="$1" story="$2" kind="$3" fields="$4"
-  shift 4
-  local dir; dir=$(store_dir epics)
-  mkdir -p "$dir" 2>/dev/null
-  local file="$dir/$epic.events.jsonl"
-  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  jq -nc "$@" \
-      --arg at "$(now_iso)" --arg epic "$epic" --arg story "$story" --arg kind "$kind" \
-      '{at: $at, epic: $epic, story: $story, kind: $kind} + ('"$fields"')' >> "$file" 2>/dev/null
-}
-
-append_event() { # epic, story, kind, jq-object filter for the kind's own fields, then --arg/--argjson pairs for it
-  # Append-only counterpart to json_update(): one jq -nc object per call, >>
-  # the epic's shared .events.jsonl, no read-modify-write. Best-effort: called
-  # only after the caller's primary write already succeeded, and a failure
-  # here signals on stderr but always returns 0 — never a precondition for the
-  # write it follows (reference/events-format.md).
-  local epic="$1" story="$2" kind="$3"
-  if ! have jq || ! have git; then return 0; fi
-  if ! _epic_events_append "$@"; then
-    echo "gate-ledger: events-append failed for epic '$epic' (kind $kind) — primary write unaffected" >&2
-  fi
-  return 0
-}
-
-append_telemetry() { # capturer, kind, jq-object filter for the kind's own fields, then --arg/--argjson pairs for it
-  # Routing store's writer, modelled on append_event(). `capturer` is the
-  # caller's CLAIM, not a proven fact: cmd_record hardcodes "ledger", while
-  # cmd_telemetry_dispatch forwards its own --capturer after validating it
-  # against the closed hook|driver set (contrast cmd_evidence_append, which
-  # hardcodes it with no flag). See reference/telemetry-format.md.
-  local capturer="$1" kind="$2" fields="$3"
-  shift 3
-  if ! have jq || ! have git; then return 0; fi
-  local dir; dir=$(store_dir telemetry)
-  mkdir -p "$dir" 2>/dev/null
-  local file; file="$dir/$(branch_slug).jsonl"
-  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  if ! jq -nc "$@" \
-      --arg at "$(now_iso)" --arg kind "$kind" --arg capturer "$capturer" \
-      '{at: $at, kind: $kind, capturer: $capturer} + ('"$fields"')' >> "$file" 2>/dev/null
-  then
-    echo "gate-ledger: telemetry-append failed (kind $kind) — primary write unaffected" >&2
-  fi
-  return 0
-}
-
-telemetry_run_file() { printf '%s/%s.run' "$(store_dir telemetry)" "$(branch_slug)"; }
-
 gates_file_init() { # ensures the current branch's gates file exists, echoes its path
   local dir; dir=$(ledger_dir)
   mkdir -p "$dir"
@@ -292,7 +159,7 @@ cmd_record() {
   # `record` call fully replaces the gate's entry, so a verdict recorded
   # without the flag correctly leaves the field absent rather than carrying a
   # stale list forward — absence is the malformed/unavailable signal
-  # review.md's and epic-driver.js's re-audit-scope readers fail closed on.
+  # review.md's re-audit-scope reader fails closed on.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
@@ -304,30 +171,6 @@ cmd_record() {
     --arg s "$sha" --arg t "$(now_iso)" --arg bl "$blocking_lanes"
   rc=$?
 
-  if [ "$rc" -eq 0 ]; then
-    local ctx epicSlug storySlug
-    ctx=$(epic_context_from_branch "$branch")
-    if [ -n "$ctx" ]; then
-      IFS=$'\t' read -r epicSlug storySlug <<< "$ctx"
-      # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-      append_event "$epicSlug" "$storySlug" "gate-verdict" '{gate: $gate, verdict: $verdict, sha: $sha}' \
-        --arg gate "$gate" --arg verdict "$verdict" --arg sha "$sha"
-    fi
-    # Outcome label (#133): the gate-time side of the routing join, written here
-    # — the one site every verdict passes through — rather than by four dispatch
-    # prompts. Unconditional: a verdict from a run with no dispatch telemetry
-    # still gets a label with an empty run_id, nothing to join to. run_id comes
-    # from the branch's run file; step_id defaults to the gate step every
-    # dispatch line's parent_step_id points at. See reference/telemetry-format.md.
-    local run_id="" run_file
-    run_file=$(telemetry_run_file)
-    [ -f "$run_file" ] && run_id=$(head -n 1 "$run_file" 2>/dev/null)
-    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-    append_telemetry "ledger" "outcome" \
-      '{run_id: $run_id, step_id: $step_id, task_id: $task_id, gate: $gate, verdict: $verdict, sha: $sha}' \
-      --arg run_id "$run_id" --arg step_id "$(branch_slug):$gate" --arg task_id "$branch" \
-      --arg gate "$gate" --arg verdict "$verdict" --arg sha "$sha"
-  fi
   return "$rc"
 }
 
@@ -348,20 +191,10 @@ cmd_status() {
   # verdicts, report as if nothing was ever recorded for this branch.
   [ "$stored_branch" = "$cur_branch" ] || branch_mismatch=1
 
-  # Gate→pass-token→mode table: "gate:PASS_TOKEN:MODE", audit-then-acceptance-
-  # then-pre-mortem order preserved.
-  #   required — near-universal; absence flags ("never ran"), clean verdict at
-  #     HEAD joins the "proceed" summary.
-  #   advisory — most branches never record one. The epic finale is the only
-  #     intended writer of `pre-mortem`, but its write side isn't yet wired into
-  #     epic-driver.js, so this read side is dormant until a follow-up adds it
-  #     (docs/studious/premortems/2026-07-09-premortem-hook-awareness-design.md).
-  #     CLEAR/REALIZED vocabulary lives in reference/gate-vocabulary.md, distinct
-  #     from agents/premortem-auditor.md's per-item REALIZED/NOT REALIZED/CAN'T
-  #     VERIFY. Absence means not-applicable, not should-have-run — an advisory
-  #     gate stays silent both absent and clean, speaking up only when stale or
-  #     non-passing.
-  local gates=("audit:PASS:required" "acceptance:SHIP:required" "pre-mortem:CLEAR:advisory")
+  # Gate→pass-token→mode table: "gate:PASS_TOKEN:MODE". Both gates are
+  # required: absence flags ("never ran"), a clean verdict at HEAD joins the
+  # "proceed" summary.
+  local gates=("audit:PASS:required" "acceptance:SHIP:required")
   local msgs=()
   local pass_parts=()
   local gate pass mode v s entry rest
@@ -542,7 +375,7 @@ cmd_episode_open() {
   # `episode_round_get`, whose `2>/dev/null` turns a parse failure into "no
   # open episode" (exit 2), which commands/review.md routes straight to
   # episode-open as if the ledger predated episodes. Exit 1 is the same
-  # state-refusal code `epic-reconcile` uses for a corrupted file; nothing is
+  # state-refusal code for a corrupted file; nothing is
   # repaired here since only a human can say what the file should hold.
   if [ -f "$file" ] && ! jq empty "$file" 2>/dev/null; then
     echo "gate-ledger: episode-open: the gates file at $file is not valid JSON —" \
@@ -818,7 +651,7 @@ finding_status_is_set_aside() { # status → true when it rides through the verd
 }
 
 # Both findings verbs render fields into line- and tab-structured reads
-# (`episode-get --findings/--history`, `epic-findings`), which `/review`
+# (`episode-get --findings/--history`), which `/review`
 # injects verbatim into the next round's lane dispatch prompts. A value
 # carrying a newline or tab could forge an extra line, so identity fields are
 # guarded at the boundary, same as `--fingerprint`.
@@ -1160,7 +993,6 @@ cmd_work_set() {
     return 0
   fi
 
-  local raw_slug="$slug"
   slug=$(slugify "$slug")
   if [ -z "$slug" ]; then
     echo "gate-ledger: --slug reduced to nothing after slugify" >&2
@@ -1179,8 +1011,8 @@ cmd_work_set() {
   # to [] — so unlike every other optional field here, it's written whenever
   # the flag is present at all (`declared_given`), not only when non-empty,
   # letting a reader tell "declared nothing" from "never declared." `| unique`
-  # matches the report side's treatment of `outsideFiles`
-  # (reference/epic-orchestration.md) — a repeated path must not inflate `declared \(N)`.
+  # matches the report side's treatment of `outsideFiles` — a repeated path
+  # must not inflate `declared \(N)`.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
@@ -1198,15 +1030,6 @@ cmd_work_set() {
     --arg phase "$phase" --arg t "$(now_iso)"
   rc=$?
 
-  if [ "$rc" -eq 0 ] && [ -n "$phase" ]; then
-    local ctx epicSlug storySlug
-    ctx=$(epic_context_from_slug "$raw_slug")
-    if [ -n "$ctx" ]; then
-      IFS=$'\t' read -r epicSlug storySlug <<< "$ctx"
-      # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-      append_event "$epicSlug" "$storySlug" "phase" '{phase: $phase}' --arg phase "$phase"
-    fi
-  fi
   return "$rc"
 }
 
@@ -1316,7 +1139,6 @@ cmd_work_log() {
     return 0
   fi
 
-  local raw_slug="$slug"
   slug=$(slugify "$slug")
   if [ -z "$slug" ]; then
     echo "gate-ledger: --slug reduced to nothing after slugify" >&2
@@ -1328,8 +1150,8 @@ cmd_work_log() {
   local sha rc
   sha="$(head_sha)"
   # Scope-delta measurement (#244): `.scopeDelta` is an append-only log of
-  # per-moment measurements — never rewritten, never summed here (the reader,
-  # reference/epic-orchestration.md, does that from the entries). `.amendments`
+  # per-moment measurements — never rewritten, never summed here (readers do
+  # that from the entries). `.amendments`
   # is a separate append-only list keyed by file, justifying a file some moment
   # already counted outside the declaration. Neither ever edits a prior entry
   # in either array, or touches `.history`/`$outcome`. `unmeasured: true`
@@ -1365,93 +1187,7 @@ cmd_work_log() {
     --arg s "$sha" --arg t "$(now_iso)"
   rc=$?
 
-  # Only a call that logged a step writes a "step" event — a scope-delta-only
-  # or amendment-only call has nothing to log here, per the one-event-per-step
-  # contract (reference/events-format.md).
-  if [ "$rc" -eq 0 ] && [ -n "$step" ]; then
-    local ctx epicSlug storySlug
-    ctx=$(epic_context_from_slug "$raw_slug")
-    if [ -n "$ctx" ]; then
-      IFS=$'\t' read -r epicSlug storySlug <<< "$ctx"
-      # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-      append_event "$epicSlug" "$storySlug" "step" \
-        '{step: $step, outcome: $outcome} + (if $phase != "" then {phase: $phase} else {} end) + {sha: $sha}' \
-        --arg step "$step" --arg outcome "$outcome" --arg phase "$phase" --arg sha "$sha"
-    fi
-  fi
   return "$rc"
-}
-
-# Assignment-in-ledger (#295): a dispatch is a ledger write. `.assignment` is
-# the CURRENT assignment — what the phase now in flight was told — so a
-# successor to a crashed/stalled/parked worker rehydrates from data instead of
-# a fresh, possibly-drifted briefing. `.assignments` is the append-only history
-# of every assignment written for this feature.
-#
-# The payload is the DISPATCHER's, never the worker's: every value is computed
-# by the caller before dispatch and typed verbatim, same posture as the
-# driver's pre-computed `--scope-delta-*` flags. This verb records four
-# strings and two lists exactly as handed over — no interpretation.
-cmd_work_assign() {
-  local slug="" phase="" brief="" artifacts="" artifacts_given=0 branch="" worktree=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --slug)           slug="$2"; shift 2 ;;
-      --phase)          phase="$2"; shift 2 ;;
-      --brief)          brief="$2"; shift 2 ;;
-      --artifacts)      artifacts="$2"; artifacts_given=1; shift 2 ;;
-      --branch)         branch="$2"; shift 2 ;;
-      --worktree)       worktree="$2"; shift 2 ;;
-      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
-    esac
-  done
-  if [ -z "$slug" ]; then
-    echo "gate-ledger: --slug required" >&2
-    return 2
-  fi
-  # --phase and --brief are both required, unlike work-set's optional fields:
-  # an unphased assignment can't be matched to its dispatch, and one with no
-  # brief records nothing. A half-written assignment is worse than none — a
-  # successor would rehydrate with less than the first worker had.
-  if [ -z "$phase" ] || [ -z "$brief" ]; then
-    echo "gate-ledger: --phase and --brief are both required" >&2
-    return 2
-  fi
-  if ! have jq || ! have git; then
-    echo "gate-ledger: work-assign skipped (jq and git required)" >&2
-    return 0
-  fi
-
-  slug=$(slugify "$slug")
-  if [ -z "$slug" ]; then
-    echo "gate-ledger: --slug reduced to nothing after slugify" >&2
-    return 2
-  fi
-
-  ensure_gitignore
-  local file; file=$(work_file_init "$slug")
-  local sha; sha="$(head_sha)"
-  # The declared file set is deliberately not a field here — `.declaredFiles`
-  # already owns that fact, and `work-get` returns both, so copying it in would
-  # create a drift surface. `artifacts` follows `--declared-files`'s
-  # present-vs-absent rule: an explicitly empty flag records an empty list, an
-  # omitted flag leaves the key off entirely.
-  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  json_update "$file" \
-    'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
-     ({phase: $phase, brief: $brief, sha: $s, at: $t}
-      + (if $artGiven  == "1" then {artifacts: ($art | csv_trim)} else {} end)
-      + (if $branch   != "" then {branch: $branch}   else {} end)
-      + (if $worktree != "" then {worktree: $worktree} else {} end)) as $a
-     | .schemaVersion = (.schemaVersion // 1)
-     | .createdAt = (.createdAt // $t)
-     | .updatedAt = $t
-     | .assignment = $a
-     | .assignments = ((.assignments // []) + [$a])' \
-    --arg phase "$phase" --arg brief "$brief" \
-    --arg art "$artifacts" --arg artGiven "$artifacts_given" \
-    --arg branch "$branch" --arg worktree "$worktree" \
-    --arg s "$sha" --arg t "$(now_iso)"
 }
 
 cmd_work_get() {
@@ -1472,808 +1208,6 @@ cmd_work_get() {
   cat "$file"
 }
 
-epic_file_init() { # slug → ensures the epic file exists, echoes its path
-  local slug="$1"
-  local dir; dir=$(store_dir epics)
-  mkdir -p "$dir"
-  local file; file="$dir/$slug.json"
-  [ -f "$file" ] || printf '{"schemaVersion":1,"slug":"%s","status":"planning","stories":{}}' "$slug" > "$file"
-  printf '%s' "$file"
-}
-
-# Zero-landed stop-loss (#268). Two consecutive invocations that landed
-# nothing arm the refusal; the third dispatch is refused. The threshold lives
-# here, not in reference/epic-orchestration.md — a prompt comparing a counter
-# to a literal is the retry-counting-in-prose defect CLAUDE.md names.
-# epic-reconcile computes the boolean; the prose reads it.
-EPIC_ZERO_LANDED_LIMIT=2
-# How many run records an epic file keeps. The stop-loss only reads the tail.
-EPIC_RUN_HISTORY_CAP=20
-
-cmd_epic_set() {
-  local slug="" title="" src="" goal="" branch="" premortem="" concurrency="" status=""
-  local appetite_tokens="" appetite_episodes="" canary="" acceptance_altitude="" approval=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --slug)        slug="$2"; shift 2 ;;
-      --acceptance-altitude) acceptance_altitude="$2"; shift 2 ;;
-      --title)       title="$2"; shift 2 ;;
-      --source)      src="$2"; shift 2 ;;
-      --goal)        goal="$2"; shift 2 ;;
-      --branch)      branch="$2"; shift 2 ;;
-      --premortem)   premortem="$2"; shift 2 ;;
-      --appetite-tokens)   appetite_tokens="$2"; shift 2 ;;
-      --appetite-episodes) appetite_episodes="$2"; shift 2 ;;
-      --canary)      canary="$2"; shift 2 ;;
-      --concurrency) concurrency="$2"; shift 2 ;;
-      --status)      status="$2"; shift 2 ;;
-      --approval)    approval="$2"; shift 2 ;;
-      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
-    esac
-  done
-  # #311 — how the plan was approved: "interactive" or a recorded viva sign-off
-  # ("viva:<round-ref>") on a brief satisfying reference/epic-plan-contract.md.
-  # A typo would silently read as "never approved" to every epic-reconcile
-  # caller, so this fails closed rather than accepting free text.
-  case "$approval" in
-    ''|interactive|viva:*) ;;
-    *) echo "gate-ledger: --approval must be 'interactive' or 'viva:<round-ref>'" >&2; return 2 ;;
-  esac
-  if [ -z "$slug" ]; then
-    echo "gate-ledger: --slug required" >&2
-    return 2
-  fi
-  case "$concurrency" in
-    '') ;; # not provided: fine, left unset in the jq update
-    *[!0-9]*|0) echo "gate-ledger: --concurrency must be a positive integer" >&2; return 2 ;;
-  esac
-  case "$appetite_tokens" in
-    '') ;;
-    *[!0-9]*|0) echo "gate-ledger: --appetite-tokens must be a positive integer (tokens, not dollars)" >&2; return 2 ;;
-  esac
-  case "$appetite_episodes" in
-    '') ;;
-    *[!0-9]*|0) echo "gate-ledger: --appetite-episodes must be a positive integer" >&2; return 2 ;;
-  esac
-  case "$canary" in
-    ''|on|off) ;;
-    *) echo "gate-ledger: --canary must be 'on' or 'off'" >&2; return 2 ;;
-  esac
-  # #269, DEFAULT OFF AND NOT YET SAFE TO ENABLE. `delivery-boundary` moves
-  # product judgment to the epic finale, reducing per-story acceptance to
-  # criteria conformance — gated on counter-evidence (#281's findings ledger,
-  # #133's outcome labels) that doesn't exist yet, since both were built in
-  # the same change as this flag. Validated here so a typo can't be mistaken
-  # for an opt-in; absence means `per-story`, unchanged.
-  case "$acceptance_altitude" in
-    ''|per-story|delivery-boundary) ;;
-    *) echo "gate-ledger: --acceptance-altitude must be 'per-story' or 'delivery-boundary'" >&2; return 2 ;;
-  esac
-  if ! have jq || ! have git; then
-    echo "gate-ledger: epic-set skipped (jq and git required)" >&2
-    return 0
-  fi
-
-  slug=$(slugify "$slug")
-  if [ -z "$slug" ]; then
-    echo "gate-ledger: --slug reduced to nothing after slugify" >&2
-    return 2
-  fi
-
-  ensure_gitignore
-  local file; file=$(epic_file_init "$slug")
-  local rc
-  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  json_update "$file" \
-    '.schemaVersion = (.schemaVersion // 1)
-     | .createdAt = (.createdAt // $t)
-     | .updatedAt = $t
-     | (if $title  != "" then .title       = $title  else . end)
-     | (if $src    != "" then .source      = $src    else . end)
-     | (if $goal   != "" then .goal        = $goal   else . end)
-     | (if $branch != "" then .branch      = $branch else . end)
-     | (if $pm     != "" then .premortem   = $pm     else . end)
-     | (if $conc   != "" then .concurrency = ($conc | tonumber) else . end)
-     | (if $status != "" then .status      = $status else . end)
-     | (if $apTok  != "" then .appetite = ((.appetite // {}) | .tokens = ($apTok | tonumber)) else . end)
-     | (if $apEp   != "" then .appetite = ((.appetite // {}) | .openEpisodes = ($apEp | tonumber)) else . end)
-     | (if $canary != "" then .canary = ($canary == "on") else . end)
-     | (if $accAlt != "" then .acceptanceAltitude = $accAlt else . end)
-     | (if $approval != "" then (.approval = $approval | .approvedAt = $t) else . end)' \
-    --arg title "$title" --arg src "$src" --arg goal "$goal" --arg branch "$branch" \
-    --arg pm "$premortem" --arg conc "$concurrency" --arg status "$status" \
-    --arg apTok "$appetite_tokens" --arg apEp "$appetite_episodes" --arg canary "$canary" \
-    --arg accAlt "$acceptance_altitude" --arg approval "$approval" --arg t "$(now_iso)"
-  rc=$?
-
-  if [ "$rc" -eq 0 ] && [ -n "$status" ]; then
-    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-    append_event "$slug" "" "epic-status" '{status: $status}' --arg status "$status"
-  fi
-  return "$rc"
-}
-
-cmd_epic_run_log() { # --slug E --landed N [--tokens-spent N] -> appends one per-invocation record
-  # Write half of the zero-landed stop-loss (#268). Separate verb, not an
-  # epic-set flag, same reason work-log is separate from work-set: it appends
-  # an event, not a field. reference/epic-orchestration.md calls it once at
-  # the close of every driver invocation — the count is the only thing a run
-  # report can get wrong without the stop-loss ever arming, so
-  # tests/test_gate_ledger.sh pins it.
-  #
-  # `--tokens-spent` (#316) is optional: nothing in `workflows/epic-driver.js`
-  # returns a per-run spent figure today (only `budget.remaining()`, used
-  # internally). Recorded when given, summed by `scripts/epic-supervisor`
-  # (#316) against `.appetite.tokens` — absent runs contribute 0.
-  local slug="" landed="" tokens_spent=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --slug)         slug="$2"; shift 2 ;;
-      --landed)       landed="$2"; shift 2 ;;
-      --tokens-spent) tokens_spent="$2"; shift 2 ;;
-      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
-    esac
-  done
-  if [ -z "$slug" ] || [ -z "$landed" ]; then
-    echo "gate-ledger: --slug and --landed required" >&2
-    return 2
-  fi
-  case "$landed" in
-    *[!0-9]*) echo "gate-ledger: --landed must be a non-negative integer" >&2; return 2 ;;
-  esac
-  case "$tokens_spent" in
-    '') ;;
-    *[!0-9]*) echo "gate-ledger: --tokens-spent must be a non-negative integer" >&2; return 2 ;;
-  esac
-  if ! have jq || ! have git; then
-    echo "gate-ledger: epic-run-log skipped (jq and git required)" >&2
-    return 0
-  fi
-  slug=$(slugify "$slug")
-  if [ -z "$slug" ]; then
-    echo "gate-ledger: --slug reduced to nothing after slugify" >&2
-    return 2
-  fi
-  local file; file="$(store_dir epics)/$slug.json"
-  if [ ! -f "$file" ]; then
-    echo "gate-ledger: no epic file for '$slug' (run epic-set first)" >&2
-    return 2
-  fi
-  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  json_update "$file" \
-    '.updatedAt = $t
-     | .runs = (((.runs // []) + [{at: $t, landed: ($n | tonumber)}
-         + (if $ts != "" then {tokensSpent: ($ts | tonumber)} else {} end)])
-       | .[-($cap | tonumber):])' \
-    --arg n "$landed" --arg ts "$tokens_spent" --arg cap "$EPIC_RUN_HISTORY_CAP" --arg t "$(now_iso)"
-  local rc=$?
-  if [ "$rc" -eq 0 ]; then
-    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-    append_event "$slug" "" "epic-run" \
-      '{landed: ($n | tonumber)} + (if $ts != "" then {tokensSpent: ($ts | tonumber)} else {} end)' \
-      --arg n "$landed" --arg ts "$tokens_spent"
-  fi
-  return "$rc"
-}
-
-cmd_epic_get() {
-  local slug=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --slug) slug="$2"; shift 2 ;;
-      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
-    esac
-  done
-  if [ -z "$slug" ]; then
-    echo "gate-ledger: --slug required" >&2
-    return 2
-  fi
-  slug=$(slugify "$slug")
-  local file; file="$(store_dir epics)/$slug.json"
-  [ -f "$file" ] || return 0
-  cat "$file"
-}
-
-cmd_epic_story_set() {
-  local epic="" slug="" title="" src="" criteria="" decisions="" carried="" deps="" gates_csv="" status="" reason="" worktree="" bump="" reset="" merge_class=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --epic)        epic="$2"; shift 2 ;;
-      --slug)        slug="$2"; shift 2 ;;
-      --title)       title="$2"; shift 2 ;;
-      --source)      src="$2"; shift 2 ;;
-      --criteria)    criteria="$2"; shift 2 ;;
-      --decisions)   decisions="$2"; shift 2 ;;
-      --carried-findings) carried="$2"; shift 2 ;;
-      --deps)        deps="$2"; shift 2 ;;
-      --gates)       gates_csv="$2"; shift 2 ;;
-      --status)      status="$2"; shift 2 ;;
-      --reason)      reason="$2"; shift 2 ;;
-      --worktree)    worktree="$2"; shift 2 ;;
-      --bump-retry)  bump="$2"; shift 2 ;;
-      --reset-retry) reset="$2"; shift 2 ;;
-      --merge-class) merge_class="$2"; shift 2 ;;
-      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
-    esac
-  done
-  if [ -z "$epic" ] || [ -z "$slug" ]; then
-    echo "gate-ledger: --epic and --slug required" >&2
-    return 2
-  fi
-  # PRODUCT.md's "Merge authority" (#312): decided at plan approval, never
-  # inferred at merge time; validated the same way --acceptance-altitude is above.
-  case "$merge_class" in
-    ''|auto-merge|human-approve|never-unattended) ;;
-    *) echo "gate-ledger: --merge-class must be 'auto-merge', 'human-approve', or 'never-unattended'" >&2; return 2 ;;
-  esac
-  if ! have jq || ! have git; then
-    echo "gate-ledger: epic-story-set skipped (jq and git required)" >&2
-    return 0
-  fi
-
-  epic=$(slugify "$epic")
-  slug=$(slugify "$slug")
-  if [ -z "$epic" ] || [ -z "$slug" ]; then
-    echo "gate-ledger: --epic or --slug reduced to nothing after slugify" >&2
-    return 2
-  fi
-
-  local file; file="$(store_dir epics)/$epic.json"
-  if [ ! -f "$file" ]; then
-    echo "gate-ledger: no epic file for '$epic' (run epic-set first)" >&2
-    return 2
-  fi
-
-  local rc
-  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  json_update "$file" \
-    'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
-     .updatedAt = $t
-     | .stories[$s] = ((.stories[$s] // {status: "pending", deps: [], retries: {}})
-       | (if $title    != "" then .title    = $title    else . end)
-       | (if $src      != "" then .source   = $src      else . end)
-       | (if $criteria != "" then .criteria = $criteria else . end)
-       | (if $decisions != "" then .decisions = $decisions else . end)
-       | (if $carried  != "" then .carriedFindings = $carried else . end)
-       | (if $deps     != "" then .deps     = ($deps  | csv_trim) else . end)
-       | (if $gates    != "" then .gates    = ($gates | csv_trim) else . end)
-       | (if $status   != "" then .status   = $status   else . end)
-       | (if $reason   != "" then .reason   = $reason   else . end)
-       | (if $wt       != "" then .worktree = $wt       else . end)
-       | (if $bump     != "" then .retries[$bump]  = ((.retries[$bump]  // 0) + 1) else . end)
-       | (if $reset    != "" then .retries[$reset] = 0 else . end)
-       | (if $mergeClass != "" then .mergeClass = $mergeClass else . end))' \
-    --arg s "$slug" --arg title "$title" --arg src "$src" --arg criteria "$criteria" \
-    --arg decisions "$decisions" --arg carried "$carried" \
-    --arg deps "$deps" --arg gates "$gates_csv" --arg status "$status" --arg reason "$reason" \
-    --arg wt "$worktree" --arg bump "$bump" --arg reset "$reset" --arg mergeClass "$merge_class" --arg t "$(now_iso)"
-  rc=$?
-
-  if [ "$rc" -eq 0 ] && { [ -n "$status" ] || [ -n "$reason" ] || [ -n "$bump" ] || [ -n "$reset" ]; }; then
-    # Both retry counters are read back post-write (the events line always
-    # reflects the file's new state, not a value computed independently of it).
-    local bump_retries="0" reset_retries="0"
-    [ -n "$bump" ]  && bump_retries=$(jq -r --arg s "$slug" --arg g "$bump" '.stories[$s].retries[$g] // 0' "$file")
-    [ -n "$reset" ] && reset_retries=$(jq -r --arg s "$slug" --arg g "$reset" '.stories[$s].retries[$g] // 0' "$file")
-    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-    append_event "$epic" "$slug" "story" \
-      '(if $status != "" then {status: $status} else {} end)
-       + (if $reason != "" then {reason: $reason} else {} end)
-       + (if $bump   != "" then {bumpRetryGate: $bump, retries: ($bumpRetries | tonumber)} else {} end)
-       + (if $reset  != "" then {resetRetryGate: $reset, retries: ($resetRetries | tonumber)} else {} end)' \
-      --arg status "$status" --arg reason "$reason" --arg bump "$bump" --arg reset "$reset" \
-      --arg bumpRetries "$bump_retries" --arg resetRetries "$reset_retries"
-  fi
-  return "$rc"
-}
-
-# ---------------------------------------------------------------------------
-# Per-epic findings ledger (#281) — record a finding once, verify closure later
-# ---------------------------------------------------------------------------
-#
-# The branch-scoped episode ledger above answers "is this gate's loop
-# converging?" for one branch. This answers what the epic finale used to
-# re-derive from scratch by re-fanning every auditor across the whole
-# integration diff: what did this epic find, and did it close?
-#
-# Three verbs, all keyed by `--epic` (same flag epic-story-set uses):
-#
-#   epic-finding   one finding's identity + current state, at a sha
-#   epic-attest    one lane's clean read of one story, at a sha (#130's
-#                  carry-forward attestation: zero findings at sha X)
-#   epic-findings  the READER — folds the append-only trail into current state
-#
-# **Where it lives.** `.studious/epics/<slug>.events.jsonl`, not
-# `<slug>.json` — a concurrency requirement: `<slug>.json` writes go through
-# `json_update()` (read-modify-write), and findings are recorded by story
-# agents running concurrently under one epic. An `O_APPEND` line never
-# interleaves; a read-modify-write of a shared snapshot silently loses one of
-# two concurrent findings.
-#
-# **These two kinds are PRIMARY writes**, unlike every other line in that
-# file. `append_event()` is best-effort by contract because a lost transition
-# line never changes a verdict; a lost *finding* line does — the finale's
-# closure check would report clean with nothing to verify, violating #130's
-# rigor property. So these two write through `append_epic_record()`, which
-# fails loudly, and refuse to no-op when jq/git are missing.
-#
-# **Identity is the fingerprint, epic-wide**, chosen by the caller and never
-# normalized — same contract as `episode-finding`. The fold below takes
-# identity fields from the FIRST recorded line and state from the LAST, so a
-# later line can't launder a Critical down by restating it.
-append_epic_record() { # epic, story, kind, jq-object filter for the kind's own fields, then --arg/--argjson pairs
-  local epic="$1" story="$2" kind="$3"
-  if ! _epic_events_append "$@"; then
-    echo "gate-ledger: $kind append failed for epic '$epic' — NOTHING was recorded;" \
-         "re-run this call before treating the finding as on the record" >&2
-    return 1
-  fi
-  return 0
-}
-
-cmd_epic_finding() {
-  local epic="" story="" lane="" severity="" fingerprint="" status="" waiver="" sha=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --epic)        epic="$2"; shift 2 ;;
-      --story)       story="$2"; shift 2 ;;
-      --lane)        lane="$2"; shift 2 ;;
-      --severity)    severity="$2"; shift 2 ;;
-      --fingerprint) fingerprint="$2"; shift 2 ;;
-      --status)      status="$2"; shift 2 ;;
-      --waiver)      waiver="$2"; shift 2 ;;
-      --sha)         sha="$2"; shift 2 ;;
-      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
-    esac
-  done
-  if [ -z "$epic" ] || [ -z "$story" ] || [ -z "$lane" ] || [ -z "$severity" ] \
-     || [ -z "$fingerprint" ] || [ -z "$status" ]; then
-    echo "gate-ledger: --epic, --story, --lane, --severity, --fingerprint, and --status required" >&2
-    return 2
-  fi
-  case "$fingerprint" in
-    *[[:space:][:cntrl:]]*)
-      echo "gate-ledger: --fingerprint must be a single token with no whitespace or" \
-           "control characters — it is the finding's identity across the whole epic" >&2
-      return 2
-      ;;
-  esac
-  if ! finding_field_is_token "$lane"; then
-    echo "gate-ledger: --lane must be a single token with no whitespace or control" \
-         "characters — it is a field of one epic-findings line" >&2
-    return 2
-  fi
-  if ! finding_reason_is_single_line "$waiver"; then
-    echo "gate-ledger: --waiver must not contain control characters — it is the last field" \
-         "of one epic-findings line, and a newline or tab in it forges another" >&2
-    return 2
-  fi
-  case "$severity" in
-    Critical|Important|Track) ;;
-    *)
-      echo "gate-ledger: --severity '$severity' is not a recognized tier;" \
-           "use Critical, Important, or Track (reference/severity-rubric.md)" >&2
-      return 2
-      ;;
-  esac
-  # Same status vocabulary as `episode-finding`, deliberately: one findings
-  # vocabulary in this tool. `closed` is resolved — its line also carries the resolved sha.
-  case "$status" in
-    open|closed|carried|waived|rejected-as-noise) ;;
-    *)
-      echo "gate-ledger: --status '$status' is not a recognized finding status;" \
-           "use open, closed, carried, waived, or rejected-as-noise" >&2
-      return 2
-      ;;
-  esac
-  if [ -n "$waiver" ] && ! finding_status_is_set_aside "$status"; then
-    echo "gate-ledger: --waiver requires --status carried, waived, or rejected-as-noise" >&2
-    return 2
-  fi
-  # Episode ledger's rule 2, at epic scope: setting an unfixed Critical aside
-  # is accountable, never silent. This line-local check is only half the
-  # guard — alone it's dodged by restating the fingerprint at a lower tier (the
-  # fold takes status from the LAST line) — so the severity-restatement
-  # refusal below, which reads the trail, is what actually pins the tier.
-  if [ "$severity" = "Critical" ] && finding_status_is_set_aside "$status" && [ -z "$waiver" ]; then
-    echo "gate-ledger: epic-finding refused — a Critical reaches '$status' only with" \
-         "--waiver <reason>; fix it, or record why it is being set aside" >&2
-    return 1
-  fi
-  if ! have jq || ! have git; then
-    echo "gate-ledger: epic-finding requires jq and git — a findings write is a primary write," \
-         "so it fails rather than degrading to a silent no-op" >&2
-    return 1
-  fi
-
-  epic=$(slugify "$epic")
-  story=$(slugify "$story")
-  if [ -z "$epic" ] || [ -z "$story" ]; then
-    echo "gate-ledger: --epic or --story reduced to nothing after slugify" >&2
-    return 2
-  fi
-  [ -n "$sha" ] || sha=$(head_sha)
-
-  # Severity is fixed by the fingerprint's FIRST recorded line, epic-wide —
-  # same "no laundering" rule episode-finding enforces. Folding alone let a
-  # restated line dodge rule 2: `--severity Critical --status waived` without
-  # --waiver is refused per-line, but the same fingerprint restated
-  # `--severity Important --status waived` was accepted, and the fold then
-  # reported a waived Critical with no waiver on record. So the trail is
-  # consulted here before the append, skipping malformed lines like the fold does.
-  local trail stored_severity
-  trail="$(store_dir epics)/$epic.events.jsonl"
-  stored_severity=""
-  if [ -f "$trail" ]; then
-    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-    stored_severity=$(jq -Rrn --arg fp "$fingerprint" \
-      '[inputs | fromjson? // empty | select(.kind == "finding" and .finding == $fp)]
-       | first | .severity // empty' "$trail" 2>/dev/null)
-  fi
-  if [ -n "$stored_severity" ] && [ "$severity" != "$stored_severity" ]; then
-    echo "gate-ledger: epic-finding: severity is fixed at first record ('$stored_severity' for" \
-         "'$fingerprint') — a reclassification is a new finding, and a Critical can never be" \
-         "laundered down to dodge the waiver rule" >&2
-    return 2
-  fi
-
-  ensure_gitignore
-  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  append_epic_record "$epic" "$story" "finding" \
-    '{finding: $fp, lane: $lane, severity: $sev, status: $st, sha: $sha}
-     + (if $waiver != "" then {waiver: $waiver} else {} end)' \
-    --arg fp "$fingerprint" --arg lane "$lane" --arg sev "$severity" \
-    --arg st "$status" --arg sha "$sha" --arg waiver "$waiver"
-}
-
-cmd_epic_attest() {
-  # #130 mechanism 2's write half: one line per (lane, story) clean read — this
-  # lane ran against this story's changeset at this sha and found nothing.
-  # epic-driver.js's finale carries a lane forward only when every landed
-  # story attested it; this verb only records the fact.
-  local epic="" story="" lane="" sha=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --epic)  epic="$2"; shift 2 ;;
-      --story) story="$2"; shift 2 ;;
-      --lane)  lane="$2"; shift 2 ;;
-      --sha)   sha="$2"; shift 2 ;;
-      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
-    esac
-  done
-  if [ -z "$epic" ] || [ -z "$story" ] || [ -z "$lane" ]; then
-    echo "gate-ledger: --epic, --story, and --lane required" >&2
-    return 2
-  fi
-  if ! have jq || ! have git; then
-    echo "gate-ledger: epic-attest requires jq and git — an attestation is a primary write," \
-         "so it fails rather than degrading to a silent no-op" >&2
-    return 1
-  fi
-
-  epic=$(slugify "$epic")
-  story=$(slugify "$story")
-  if [ -z "$epic" ] || [ -z "$story" ]; then
-    echo "gate-ledger: --epic or --story reduced to nothing after slugify" >&2
-    return 2
-  fi
-  [ -n "$sha" ] || sha=$(head_sha)
-
-  ensure_gitignore
-  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  append_epic_record "$epic" "$story" "attestation" \
-    '{lane: $lane, sha: $sha}' --arg lane "$lane" --arg sha "$sha"
-}
-
-cmd_epic_findings() { # --epic E [--unresolved | --attestations] -> one summary line, then one line per record
-  # Folds the append-only trail into current state, same quotable, tab-
-  # separated style as `episode-get`:
-  #
-  #   epic <slug> — N finding(s), U unresolved, A attestation(s)
-  #   <status>\t<severity>\t<story>\t<lane>\t<fingerprint>\t<raisedSha>\t<resolvedSha>
-  #
-  # SYNC NOTE: `scripts/retro-stats` (`lanes_section`, `collect`'s findings fold)
-  # unpacks this row by position and filters on `len(row) == 7`. Change the
-  # column count or order here and update that unpacking too.
-  #
-  # `--unresolved` keeps only `open`/`carried`, same states `episode-get`
-  # counts. `--attestations` prints the clean-lane trail instead:
-  #
-  #   attestation\t<lane>\t<story>\t<sha>
-  #
-  # A malformed line is skipped (`fromjson? // empty`) so one corrupt append
-  # doesn't blind the finale to every other finding. Ordering within a
-  # fingerprint is by `at` (one-second resolution); same-second lines keep write order.
-  local epic="" unresolved=0 attestations=0
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --epic)         epic="$2"; shift 2 ;;
-      --unresolved)   unresolved=1; shift ;;
-      --attestations) attestations=1; shift ;;
-      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
-    esac
-  done
-  if [ -z "$epic" ]; then
-    echo "gate-ledger: --epic required" >&2
-    return 2
-  fi
-  if [ "$unresolved" -eq 1 ] && [ "$attestations" -eq 1 ]; then
-    echo "gate-ledger: --unresolved and --attestations are separate reads; pass one" >&2
-    return 2
-  fi
-  if ! have jq; then return 0; fi
-  epic=$(slugify "$epic")
-  local file; file="$(store_dir epics)/$epic.events.jsonl"
-  [ -f "$file" ] || return 0
-  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  jq -Rrn --arg epic "$epic" --arg unresolved "$unresolved" --arg attestations "$attestations" '
-    [inputs | fromjson? // empty] as $all
-    | ($all | map(select(.kind == "attestation"))) as $att
-    | ($all | map(select(.kind == "finding")) | group_by(.finding) | map(sort_by(.at))
-       | map(. as $es
-             | ($es | last) as $l
-             | {finding: $es[0].finding, lane: $es[0].lane, story: $es[0].story,
-                severity: $es[0].severity, raisedSha: ($es[0].sha // "-"),
-                status: $l.status, waiver: ($l.waiver // ""),
-                resolvedSha: (([$es[] | select(.status == "closed") | .sha] | last) // "-")})
-       | sort_by(.finding)) as $f
-    | ($f | map(select(.status == "open" or .status == "carried"))) as $open
-    | "epic \($epic) — \($f | length) finding(s), \($open | length) unresolved, \($att | length) attestation(s)",
-      (if $attestations == "1" then
-         ($att | sort_by(.lane, .story, .at)[] | "attestation\t\(.lane)\t\(.story)\t\(.sha // "-")")
-       else
-         ((if $unresolved == "1" then $open else $f end)[]
-          | "\(.status)\t\(.severity)\t\(.story)\t\(.lane)\t\(.finding)\t\(.raisedSha)\t\(.resolvedSha)")
-       end)' "$file" 2>/dev/null
-}
-
-cmd_worktree_path() { # --slug E [--story S | --json] -> one path, or the epic's whole layout as JSON
-  # Read side of worktree_path() above.
-  #
-  #   --slug E             the epic's `__epic` integration checkout
-  #   --slug E --story S   story S's checkout
-  #   --slug E --json      {"epic": "…", "stories": {"<story>": "…", …}} over
-  #                        every story recorded in the epic file
-  #
-  # --json has one caller: epic-driver.js runs on the Workflow substrate with
-  # no filesystem/exec access, so it can't invoke this verb itself.
-  # reference/epic-orchestration.md calls it once and hands the result to the
-  # driver as args.worktrees, letting the driver reference the layout as data
-  # instead of re-deriving it (#166).
-  #
-  # The two plain forms compose a path without consulting the epic file, so
-  # they answer for a worktree that doesn't exist yet —
-  # reference/epic-orchestration.md's step 5 runs `git worktree add` at a path
-  # this verb resolves first.
-  local slug="" story="" as_json=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --slug)  slug="$2"; shift 2 ;;
-      --story) story="$2"; shift 2 ;;
-      --json)  as_json=1; shift ;;
-      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
-    esac
-  done
-  if [ -z "$slug" ]; then
-    echo "gate-ledger: --slug required" >&2
-    return 2
-  fi
-  if [ -n "$as_json" ] && [ -n "$story" ]; then
-    echo "gate-ledger: worktree-path: --story and --json are mutually exclusive" >&2
-    return 2
-  fi
-
-  slug=$(slugify "$slug")
-  if [ -z "$slug" ]; then
-    echo "gate-ledger: --slug reduced to nothing after slugify" >&2
-    return 2
-  fi
-
-  # Same root-anchoring every other store uses: a story worker running in a
-  # linked worktree still resolves paths against the MAIN working tree, so it
-  # names its siblings' checkouts the way the driver does.
-  local root; root=$(repo_root) || root="$PWD"
-
-  if [ -z "$as_json" ]; then
-    if [ -n "$story" ]; then
-      story=$(slugify "$story")
-      if [ -z "$story" ]; then
-        echo "gate-ledger: --story reduced to nothing after slugify" >&2
-        return 2
-      fi
-      worktree_path "$root" "$slug" "$story"
-    else
-      worktree_path "$root" "$slug"
-    fi
-    printf '\n'
-    return 0
-  fi
-
-  if ! have jq; then return 0; fi
-  local epic_json; epic_json=$(cmd_epic_get --slug "$slug")
-  [ -n "$epic_json" ] || return 0  # no epic recorded — mirror epic-get's own "nothing" behavior
-  if ! printf '%s' "$epic_json" | jq empty 2>/dev/null; then
-    echo "gate-ledger: worktree-path: corrupted epic file for '$slug'" >&2
-    return 1
-  fi
-
-  local stories_json="{}" s
-  while IFS= read -r s; do
-    [ -n "$s" ] || continue
-    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-    stories_json=$(jq -n --argjson stories "$stories_json" --arg s "$s" \
-      --arg path "$(worktree_path "$root" "$slug" "$s")" '$stories + {($s): $path}')
-  done <<< "$(printf '%s' "$epic_json" | jq -r '.stories | keys[]')"
-
-  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  jq -n --arg epic "$(worktree_path "$root" "$slug")" --argjson stories "$stories_json" \
-    '{epic: $epic, stories: $stories}'
-}
-
-reconcile_story() { # <epic-slug> <story-slug> <epic-json> <repo-root> -> that story's object for .stories[<story>]
-  # One story's reconciled record: work file, gate verdicts at the story
-  # branch's HEAD, and two mechanical checks (designDocExists,
-  # landedButUnmerged). Extracted from cmd_epic_reconcile's loop (#165) so the
-  # per-story shape has one place to grow a field.
-  #
-  # Every input arrives as an argument, nothing read from caller scope.
-  #
-  # Returns 1, diagnostic to stderr, nothing to stdout, when a stored file this
-  # story depends on is corrupted — the caller MUST propagate that; swallowing
-  # it emits a partial payload under a zero exit code.
-  local slug="$1" s="$2" epic_json="$3" root="$4"
-  local work_json gate_json story_status design_doc story_sha wt_base design_exists landed_unmerged
-
-  work_json=$(cmd_work_get --slug "$slug--$s")
-  if [ -n "$work_json" ] && ! printf '%s' "$work_json" | jq empty 2>/dev/null; then
-    echo "gate-ledger: epic-reconcile: corrupted work file for story '$s' (epic '$slug')" >&2
-    return 1
-  fi
-
-  gate_json=$(cmd_gate_get --branch "epic/$slug--$s")
-  if [ -n "$gate_json" ] && ! printf '%s' "$gate_json" | jq empty 2>/dev/null; then
-    echo "gate-ledger: epic-reconcile: corrupted gate ledger for story '$s' (epic '$slug')" >&2
-    return 1
-  fi
-
-  story_status=$(printf '%s' "$epic_json" | jq -r --arg s "$s" '.stories[$s].status // ""')
-  story_sha=$(git rev-parse --short "refs/heads/epic/$slug--$s" 2>/dev/null || echo "")
-
-  # designDocExists: null when no designDoc is recorded, or its worktree is
-  # already gone (degrade, don't crash or false-flag).
-  design_doc=""
-  [ -n "$work_json" ] && design_doc=$(printf '%s' "$work_json" | jq -r '.designDoc // ""')
-  if [ -z "$design_doc" ]; then
-    design_exists="null"
-  else
-    # A landed story's worktree is removed at merge, so its doc is looked up
-    # in the integration worktree instead.
-    if [ "$story_status" = "landed" ]; then
-      wt_base=$(worktree_path "$root" "$slug")
-    else
-      wt_base=$(worktree_path "$root" "$slug" "$s")
-    fi
-    if [ ! -d "$wt_base" ]; then
-      design_exists="null"
-    elif [ -f "$wt_base/$design_doc" ]; then
-      design_exists="true"
-    else
-      design_exists="false"
-    fi
-  fi
-
-  # landedButUnmerged: only meaningful for a story recorded `landed`.
-  # merge-base --is-ancestor collapses "never merged", "branch doesn't exist",
-  # and "not an ancestor yet" to the same non-zero exit — the fail-closed
-  # answer this wants.
-  landed_unmerged="false"
-  if [ "$story_status" = "landed" ] && ! git merge-base --is-ancestor \
-      "refs/heads/epic/$slug--$s" "refs/heads/epic/$slug" 2>/dev/null; then
-    landed_unmerged="true"
-  fi
-
-  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  jq -n \
-    --argjson work "${work_json:-null}" --argjson gate "${gate_json:-null}" \
-    --arg sha "$story_sha" --argjson designExists "$design_exists" --argjson landedUnmerged "$landed_unmerged" \
-    '{work: $work, gate: $gate, storyBranchHeadSha: $sha,
-      designDocExists: $designExists, landedButUnmerged: $landedUnmerged}'
-}
-
-cmd_epic_reconcile() { # --slug E -> one JSON payload replacing work-through's ~15-20 sequential reads
-  # Composes cmd_epic_get/cmd_work_get/cmd_gate_get as in-process bash calls,
-  # then adds two mechanical checks per story: whether its recorded designDoc
-  # exists on disk, and whether a `landed` story is actually an ancestor of the
-  # epic branch. This verb only aggregates and computes; deciding a story's
-  # next phase stays in reference/epic-orchestration.md's prose.
-  local slug="" override="false"
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --slug) slug="$2"; shift 2 ;;
-      # Operator's explicit consent to dispatch past the zero-landed stop-loss,
-      # for this one invocation (#268) — belongs here because `.stopLoss.refuse`
-      # is computed here; reference/epic-orchestration.md passes the same flag
-      # through. Suppresses the refusal for this read only: no state is written,
-      # the streak keeps counting, the next invocation without the flag refuses again.
-      --override-stop-loss) override="true"; shift ;;
-      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
-    esac
-  done
-  if [ -z "$slug" ]; then
-    echo "gate-ledger: --slug required" >&2
-    return 2
-  fi
-  if ! have jq || ! have git; then
-    echo "gate-ledger: epic-reconcile skipped (jq and git required)" >&2
-    return 0
-  fi
-
-  slug=$(slugify "$slug")
-  if [ -z "$slug" ]; then
-    echo "gate-ledger: --slug reduced to nothing after slugify" >&2
-    return 2
-  fi
-
-  local epic_json; epic_json=$(cmd_epic_get --slug "$slug")
-  [ -n "$epic_json" ] || return 0  # no epic recorded — mirror epic-get's own "nothing" behavior
-  if ! printf '%s' "$epic_json" | jq empty 2>/dev/null; then
-    echo "gate-ledger: epic-reconcile: corrupted epic file for '$slug'" >&2
-    return 1
-  fi
-
-  local root; root=$(repo_root) || root="$PWD"
-  local story_slugs; story_slugs=$(printf '%s' "$epic_json" | jq -r '.stories | keys[]')
-
-  local stories_json="{}"
-  local s story_obj
-  while IFS= read -r s; do
-    [ -n "$s" ] || continue
-    # Assignment first, status test second: `local x=$(…)` would mask the
-    # helper's exit code, turning a corrupted file into a silent partial payload.
-    story_obj=$(reconcile_story "$slug" "$s" "$epic_json" "$root") || return 1
-    # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-    stories_json=$(jq -n \
-      --argjson stories "$stories_json" --arg s "$s" --argjson story "$story_obj" \
-      '$stories + {($s): $story}')
-  done <<< "$story_slugs"
-
-  # Zero-landed stop-loss (#268), computed here rather than compared in prose.
-  # `consecutiveZeroLanded` counts the trailing run of invocations that landed
-  # nothing; `refuse` is true once that run reaches the limit. An epic with no
-  # `runs` yet reads 0/false — absence isn't evidence of a stalled epic.
-  #
-  # `--override-stop-loss` suppresses `refuse` and sets `overridden` instead,
-  # so a reader can tell "never refused" from "refused, operator consented."
-  # `overridden` is true only when the flag was passed AND the streak had
-  # actually hit the limit — a flag at a healthy epic must not read as a
-  # suppressed refusal. `consecutiveZeroLanded` is reported unchanged either
-  # way: the override is consent to dispatch, never a reset.
-  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  jq -n --argjson epic "$epic_json" --argjson stories "$stories_json" \
-    --arg limit "$EPIC_ZERO_LANDED_LIMIT" --argjson override "$override" \
-    '($limit | tonumber) as $lim
-     | (reduce (($epic.runs // []) | reverse | .[]) as $r
-         ({streak: 0, done: false};
-          if .done then . elif ($r.landed // 0) == 0 then .streak += 1 else .done = true end)
-        | .streak) as $zeros
-     | ($zeros >= $lim) as $hit
-     | {epic: $epic, stories: $stories,
-        stopLoss: {consecutiveZeroLanded: $zeros, limit: $lim,
-                   refuse: ($hit and ($override | not)),
-                   overridden: ($hit and $override)}}'
-}
-
-cmd_epic_list() {
-  if ! have jq; then return 0; fi
-  local dir; dir=$(store_dir epics)
-  local f
-  for f in "$dir"/*.json; do
-    [ -e "$f" ] || continue
-    jq -r '[(.slug // "?"), (.status // "?"),
-            (([.stories[] | select(.status == "landed")] | length | tostring) + "/" + (.stories | length | tostring)),
-            (.branch // "-"), (.title // "-")] | @tsv' "$f" 2>/dev/null
-  done
-}
 
 cmd_work_list() {
   if ! have jq; then return 0; fi
@@ -2290,13 +1224,11 @@ cmd_work_list() {
 # regardless. Bounded, not permanent — the guard's first cut (`kept ... unless
 # --force`) had no terminating condition, silently re-disabling #237's fix on
 # the exact files it was written for. Read-marking was rejected: `work-get` is
-# called constantly by the driver's in-flow fact-checks (epic-driver.js), so
-# marking "read" there would defeat the guard before a human ever saw the
-# cohort. A per-slug opt-out was rejected as `--force` at file granularity —
+# called constantly by in-flow fact-checks, so marking "read" there would
+# defeat the guard before a human ever saw the cohort. A per-slug opt-out was rejected as `--force` at file granularity —
 # still a manual action per file. Bounded retention needs neither: plain `gc`
 # collects on its own once the window lapses. Not a flag — a configurable
-# threshold is the "no threshold" surface epic-planning decisions ruled out;
-# this constant is the whole knob.
+# threshold is a second knob nobody asked for; this constant is the whole knob.
 SCOPE_DELTA_RETENTION_DAYS=14
 
 scope_delta_retention_lapsed() { # file -> true (exit 0) once its last write is older than the keep window; false (exit 1) otherwise, and fail toward keeping (false) on any read failure or missing timestamp
@@ -2347,8 +1279,8 @@ cmd_gc() {
   #      position left to track; the durable record is commit history, the PR,
   #      and the pre-mortem register.
   #
-  # Rule 2 exists because rule 1 alone couldn't fire on the epic path (#237): a
-  # landed story's branch is deliberately kept, so its work file stayed pinned
+  # Rule 2 exists because rule 1 alone couldn't fire when a landed story's
+  # branch is deliberately kept (#237): so its work file stayed pinned
   # at phase `merge` and `/next` counted it active. A work file with no branch
   # yet (decide/design) is kept unless its phase is terminal.
   #
@@ -2403,48 +1335,6 @@ cmd_gc() {
     fi
   done
 
-  # Epic state: collect an epic the driver finished (`epic-set --status ready`)
-  # once its integration branch is gone — what merging the epic PR and
-  # deleting the branch leaves behind. `ready` alone isn't enough: it means
-  # "ready for you to open the PR", branch still live. Both together mean shipped.
-  #
-  # An epic still `running`, or one whose branch survives — including one
-  # parked on a story — is left alone; a user needs to still see that state.
-  local edir; edir=$(store_dir epics)
-  local status eslug
-  for f in "$edir"/*.json; do
-    [ -e "$f" ] || continue
-    status=$(jq -r '.status // empty' "$f" 2>/dev/null)
-    branch=$(jq -r '.branch // empty' "$f" 2>/dev/null)
-    eslug=$(jq -r '.slug // empty' "$f" 2>/dev/null)
-    [ "$status" = "ready" ] || continue
-    [ -n "$branch" ] || branch="epic/$eslug"
-    if ! git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1; then
-      rm -f "$f" "${f%.json}.events.jsonl"
-      printf 'removed shipped epic: %s (status ready, branch %s no longer exists)\n' "$(basename "$f")" "$branch"
-    fi
-  done
-
-  # Telemetry: keyed by branch SLUG, not name — branch_slug() collapses '/' to
-  # '-' and neither file carries a `.branch` field. So "branch gone" is tested
-  # against the slugs of branches that still exist: a file matching no live
-  # slug belongs to a deleted branch. A slug shared by a live branch (feat/foo
-  # vs feat-foo) keeps the file — same collision posture as the gates ledger's
-  # branch-mismatch read. Unconditional: `--force` doesn't affect this (only
-  # the scope-delta keep above), and the current branch's files survive by
-  # being a live branch's, not a special case.
-  local tdir; tdir=$(store_dir telemetry)
-  local live_slugs tslug
-  live_slugs=$(git for-each-ref refs/heads --format='%(refname:short)' 2>/dev/null | tr '/' '-')
-  for f in "$tdir"/*.jsonl "$tdir"/*.run; do
-    [ -e "$f" ] || continue
-    tslug=$(basename "$f")
-    tslug="${tslug%.jsonl}"; tslug="${tslug%.run}"
-    if ! printf '%s\n' "$live_slugs" | grep -qxF "$tslug"; then
-      rm -f "$f"
-      printf 'removed stale telemetry: %s (no live branch matches slug %s)\n' "$(basename "$f")" "$tslug"
-    fi
-  done
 }
 
 cmd_evidence_append() { # append-only: one jq -nc object per call, >> the branch's .jsonl
@@ -2493,129 +1383,6 @@ cmd_evidence_append() { # append-only: one jq -nc object per call, >> the branch
         predicateType: "https://in-toto.io/attestation/test-result/v0.1",
         predicate: {result: (if $exitCode == 0 then "PASSED" else "FAILED" end),
                     configuration: [{name: $command}]}}' >> "$file"
-}
-
-cmd_telemetry_dispatch() { # append-only: one `dispatch` line per review agent sent out
-  local run_id="" step_id="" parent_step_id="" task_id="" skill="" role=""
-  local model="" effort="" routing_reason="" capturer="driver" fleet=""
-  local features=()
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --run-id)         run_id="$2"; shift 2 ;;
-      --step-id)        step_id="$2"; shift 2 ;;
-      --parent-step-id) parent_step_id="$2"; shift 2 ;;
-      --task-id)        task_id="$2"; shift 2 ;;
-      --skill)          skill="$2"; shift 2 ;;
-      --role)           role="$2"; shift 2 ;;
-      --model)          model="$2"; shift 2 ;;
-      --effort)         effort="$2"; shift 2 ;;
-      --routing-reason) routing_reason="$2"; shift 2 ;;
-      --capturer)       capturer="$2"; shift 2 ;;
-      --fleet)          fleet="$2"; shift 2 ;;
-      --feature)        features+=("$2"); shift 2 ;;
-      *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
-    esac
-  done
-  if [ -z "$run_id" ] || [ -z "$step_id" ] || [ -z "$role" ] || [ -z "$routing_reason" ]; then
-    echo "gate-ledger: --run-id, --step-id, --role, and --routing-reason required" >&2
-    return 2
-  fi
-  case "$capturer" in
-    hook|driver) ;;
-    *) echo "gate-ledger: --capturer must be 'hook' or 'driver'" >&2; return 2 ;;
-  esac
-  # Which plugin's agent `role` names. Optional and caller-claimed like
-  # --capturer: the hook always says, the driver says nothing until #334 S2.
-  case "$fleet" in
-    ""|studious|gauntlet) ;;
-    *) echo "gate-ledger: --fleet must be 'studious' or 'gauntlet'" >&2; return 2 ;;
-  esac
-  # routing_reason is a closed prefix set, validated here: free text would make
-  # the column unqueryable, the one thing this record exists for. `override`
-  # covers anything that displaced the static roster (a narrowed re-audit round
-  # today). The two prefixed forms carry a real remainder check: `classifier:v`
-  # takes digits only after the v, and an `ab:` arm is a single token under the
-  # same guard the finding identity fields use — reference/telemetry-format.md pins this grammar.
-  case "$routing_reason" in
-    static|override) ;;
-    classifier:v*)
-      case "${routing_reason#classifier:v}" in
-        ''|*[!0-9]*)
-          echo "gate-ledger: --routing-reason classifier:v<N> takes digits only after the v" \
-               "(e.g. classifier:v3)" >&2
-          return 2 ;;
-      esac ;;
-    ab:?*)
-      if ! finding_field_is_token "${routing_reason#ab:}"; then
-        echo "gate-ledger: --routing-reason ab:<arm> must name a single token with no" \
-             "whitespace or control characters" >&2
-        return 2
-      fi ;;
-    *) echo "gate-ledger: --routing-reason must be static, override, classifier:v<N>, or ab:<arm>" >&2; return 2 ;;
-  esac
-  # --role becomes a filesystem path below
-  # ("$CLAUDE_PLUGIN_ROOT/agents/<role>.md"), so it's validated at the
-  # boundary: a role is an agent's `name`, never a path — `--role ../CLAUDE`
-  # would otherwise read a file outside agents/. Nor a qualified dispatch
-  # string: the fleet prefix belongs in --fleet, and every caller strips it
-  # (the hook and the driver both), so a colon is a caller bug, not a fleet.
-  # hooks/dispatch-telemetry.sh's roster check happens to exclude these
-  # today, but this verb accepts a role from any caller.
-  case "$role" in
-    */*|*..*|-*|*:*)
-      echo "gate-ledger: --role must be an agent name, not a path or a qualified dispatch string" \
-           "(no '/', no '..', no ':', no leading '-')" >&2
-      return 2 ;;
-  esac
-  if ! have jq || ! have git; then
-    echo "gate-ledger: telemetry-dispatch skipped (jq and git required)" >&2
-    return 0
-  fi
-
-  # model/effort resolve from the agent's own frontmatter when the caller
-  # didn't state them, so both write paths get the pin from ONE place. `inherit`
-  # is recorded verbatim — it's the live signal for #136, not normalized away.
-  # Empty is the normal case, not an exception: every gauntlet role (its pins
-  # live in gauntlet's own agent files, which this plugin never reads — a
-  # same-named local agent is not consulted, since its pin is not the one that
-  # ran), and a local role with no agent file (the driver's fix-delta pass).
-  local agent_file="${CLAUDE_PLUGIN_ROOT:-}/agents/${role}.md"
-  if [ "$fleet" != gauntlet ] && [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "$agent_file" ]; then
-    [ -n "$model" ]  || model=$(sed -n 's/^model:[[:space:]]*//p' "$agent_file" | head -n 1)
-    [ -n "$effort" ] || effort=$(sed -n 's/^effort:[[:space:]]*//p' "$agent_file" | head -n 1)
-  fi
-  [ -n "$task_id" ] || task_id=$(branch_name)
-
-  # --feature k=v pairs into one object, values coerced to number/boolean when
-  # they parse as one so a downstream comparison doesn't have to cast strings.
-  local feature_json="{}" pair key val
-  if [ ${#features[@]} -gt 0 ]; then
-    for pair in "${features[@]}"; do
-      key="${pair%%=*}"; val="${pair#*=}"
-      [ -n "$key" ] && [ "$key" != "$pair" ] || continue
-      feature_json=$(printf '%s' "$feature_json" | jq -c --arg k "$key" --arg v "$val" \
-        '.[$k] = (if ($v | test("^-?[0-9]+(\\.[0-9]+)?$")) then ($v | tonumber)
-                  elif $v == "true" then true elif $v == "false" then false
-                  else $v end)') || feature_json="{}"
-    done
-  fi
-
-  ensure_gitignore
-  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
-  append_telemetry "$capturer" "dispatch" \
-    '{run_id: $run_id, step_id: $step_id, parent_step_id: $parent_step_id, task_id: $task_id,
-      skill: $skill, role: $role, fleet: $fleet, model: $model, effort: $effort,
-      routing_reason: $routing_reason, features: $features}' \
-    --arg run_id "$run_id" --arg step_id "$step_id" --arg parent_step_id "$parent_step_id" \
-    --arg task_id "$task_id" --arg skill "$skill" --arg role "$role" --arg fleet "$fleet" \
-    --arg model "$model" --arg effort "$effort" --arg routing_reason "$routing_reason" \
-    --argjson features "$feature_json"
-
-  # Remember this run for the branch, so cmd_record's outcome line can join to
-  # it without any prompt carrying a run id (reference/telemetry-format.md).
-  # Best-effort like every write in this verb.
-  printf '%s\n' "$run_id" > "$(telemetry_run_file)" 2>/dev/null || true
-  return 0
 }
 
 cmd_evidence_list() { # optional --branch B: print that branch's evidence .jsonl verbatim; optional --dedupe: collapse to one record per distinct command (most recent wins), nothing if absent
@@ -2670,22 +1437,10 @@ case "${1:-}" in
   episode-get)     shift; cmd_episode_get "$@" ;;
   work-set)        shift; cmd_work_set "$@" ;;
   work-log)        shift; cmd_work_log "$@" ;;
-  work-assign)     shift; cmd_work_assign "$@" ;;
   work-get)        shift; cmd_work_get "$@" ;;
   work-list)       shift; cmd_work_list "$@" ;;
-  epic-set)        shift; cmd_epic_set "$@" ;;
-  epic-get)        shift; cmd_epic_get "$@" ;;
-  epic-story-set)  shift; cmd_epic_story_set "$@" ;;
-  epic-run-log)    shift; cmd_epic_run_log "$@" ;;
-  epic-finding)    shift; cmd_epic_finding "$@" ;;
-  epic-attest)     shift; cmd_epic_attest "$@" ;;
-  epic-findings)   shift; cmd_epic_findings "$@" ;;
-  epic-reconcile)  shift; cmd_epic_reconcile "$@" ;;
-  epic-list)       shift; cmd_epic_list "$@" ;;
-  worktree-path)   shift; cmd_worktree_path "$@" ;;
   evidence-append) shift; cmd_evidence_append "$@" ;;
   evidence-list)   shift; cmd_evidence_list "$@" ;;
-  telemetry-dispatch) shift; cmd_telemetry_dispatch "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-assign --slug S --phase PH --brief B [--artifacts A1,A2] [--branch BR] [--worktree W] | work-get --slug S | work-list | epic-set --slug S [--title T] [--source SRC] [--goal G] [--branch B] [--premortem P] [--concurrency N] [--status ST] [--appetite-tokens N] [--appetite-episodes N] [--canary on|off] [--acceptance-altitude per-story|delivery-boundary] [--approval interactive|viva:REF] | epic-run-log --slug E --landed N [--tokens-spent N] | epic-finding --epic E --story S --lane L --severity Critical|Important|Track --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--waiver R] [--sha X] | epic-attest --epic E --story S --lane L [--sha X] | epic-findings --epic E [--unresolved | --attestations] | epic-story-set --epic E --slug S [--title T] [--source SRC] [--criteria C] [--decisions D] [--carried-findings F] [--deps D] [--gates G] [--status ST] [--reason R] [--worktree P] [--bump-retry GATE] [--reset-retry GATE] [--merge-class auto-merge|human-approve|never-unattended] | epic-get --slug S | epic-reconcile --slug S [--override-stop-loss] | epic-list | worktree-path --slug S [--story ST | --json] | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | telemetry-dispatch --run-id R --step-id S --role RL --routing-reason static|override|classifier:vN|ab:ARM [--parent-step-id P] [--task-id T] [--skill K] [--fleet studious|gauntlet] [--model M] [--effort E] [--capturer hook|driver] [--feature k=v ...] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
 esac

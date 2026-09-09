@@ -16,7 +16,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GATE_DESIGN_REVIEW = REPO_ROOT / "commands" / "review.md"
 GATE_ACCEPTANCE = REPO_ROOT / "commands" / "review.md"
-DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 
 
 def _record_section(text: str) -> str:
@@ -86,34 +85,3 @@ def test_verdict_vocab_unchanged() -> None:
         assert token in acceptance_text, f"gate-acceptance lost verdict token {token!r}"
 
 
-def test_driver_finale_acceptance_states_commit_before_record() -> None:
-    """The finale acceptance dispatch carries its own literal commit-before-record instruction, since it's the last text the dispatched agent reads before acting."""
-    source = DRIVER.read_text()
-
-    anchor = "Run Studious's acceptance gate against the WHOLE epic"
-    start = source.index(anchor)
-    end = source.index("{ label: 'finale:acceptance'", start)
-    prompt = source[start:end]
-
-    assert "commit it before recording" in prompt, (
-        "finale acceptance dispatch has no explicit commit-before-record instruction"
-    )
-
-    commit_pos = prompt.index("commit it before recording")
-    record_pos = prompt.index("gate-ledger record --gate acceptance")
-    assert commit_pos < record_pos, (
-        "commit-before-record instruction must precede the literal record command"
-    )
-
-    assert "HEAD" in prompt, "dispatch does not explain the sha-vs-HEAD mechanism"
-
-
-def test_driver_out_of_scope_dispatches_untouched() -> None:
-    """Locks that the audit-compile and premortem-verification dispatches (no Write-capable agents, out of scope) weren't touched."""
-    source = DRIVER.read_text()
-    assert "Audit the FULL epic diff per your role." in source, (
-        "finale audit dispatch prompt changed unexpectedly"
-    )
-    assert "Verify the epic pre-mortem register" in source, (
-        "finale premortem dispatch prompt changed unexpectedly"
-    )

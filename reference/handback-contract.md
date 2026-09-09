@@ -58,9 +58,9 @@ into one message:
   a story to attach records to, so nothing was captured regardless of what ran. Report:
 
   > No work file is armed for `<branch>` — evidence capture was never on for this branch,
-  > so nothing was captured regardless of what ran. Register the branch first (`/next`,
-  > `/next`'s driver, or `gate-ledger work-set --slug <slug> --branch <branch>`) if
-  > you expected a log here.
+  > so nothing was captured regardless of what ran. Register the branch first (`/next`
+  > or `gate-ledger work-set --slug <slug> --branch <branch>`) if you expected a log
+  > here.
 
 - **Armed, but the log is missing or empty** — a work file does claim this branch, but no
   verification commands were captured. Report exactly:

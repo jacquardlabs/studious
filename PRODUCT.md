@@ -8,16 +8,21 @@ product-judgment workflow for Claude Code. Its thesis, stated directly in the RE
 > "Claude Code made building cheap. That moved the bottleneck. The hard part is no
 > longer *can we build it*. It's *should we build it, and did we build it right*."
 
-Studious adds that judgment back as a **scale-invariant delivery discipline**: seven
-doors named for the stages devs already know, entered through one navigator (`/next`)
-that answers "what's next" at story, list, and milestone scale alike. Scope changes how
-many stories a bet contains and how much runs dispatched versus supervised; it never
-changes which doors exist. Judgment remains the spine — no *judgment* is auto-approved
-(see "Merge authority" below for the one place a *merge* runs unattended, and only on a
-class a human pre-approved) — but the *how* is no longer deferred to a companion
-product: it enters through `reference/worker-contract.md` (story brief in;
+Studious adds that judgment back as a delivery discipline: doors named for the stages
+devs already know, entered through one navigator (`/next`) that answers "what's next" at
+story, list, and milestone scale alike. A list or a milestone is its stories, run one at a
+time through the same flow with a human present; nothing runs unattended. Judgment remains
+the spine — no judgment is auto-approved — but the *how* is no longer deferred to a
+companion product: it enters through `reference/worker-contract.md` (story brief in;
 implementation + evidence out), which any executor can satisfy — a dispatched agent,
 a human, or Superpowers where installed.
+
+Retired 2026-09-09: the unattended epic path (the driver, its plan contract, appetite
+enforcement, and the factory intake/exit scripts). Three epics after the 2026-08-28
+"kernel" ruling it had never landed twice; the supervised story loop landed 4/5, 2/3, and
+2/2 at $3–7 a story. This overturns that ruling, the charter's scale-invariance ruling, and
+the X-tier "one durable point" below — which stays parked until a reader for its data
+exists.
 
 Topology decision (2026-07-07, extended 2026-07-24): the delivery stack deliberately
 lives in this one repo, entered at different scopes, rather than as separate layered
@@ -91,14 +96,12 @@ this section is your voice, not the extractor's.
   change this: `reference/worker-contract.md` stays normative, `/build` is one
   implementation of it, and a human or Superpowers satisfies the same contract. Gate
   agents never build, worker agents never gate, and they never share context.
-- **One repo, one entrypoint, bets per scope** — a bet's scope may be a story, a list,
-  an epic, or someday an initiative (`docs/initiative-altitude.md`); all of them enter
-  at `/bet` and are navigated by `/next`. Scope is a property of the bet, never a
-  separate door. Co-evolving contracts must live in one diff domain, where the review
+- **One repo, one entrypoint, bets per scope** — a bet's scope may be a story or a list;
+  both enter at `/bet` and are navigated by `/next`. Scope is a property of the bet, never
+  a separate door. Co-evolving contracts must live in one diff domain, where the review
   episodes can audit whole changes.
-- **Code owns bookkeeping; prompts own judgment** — schedulers, DAG order, retry
-  caps, and ledgers are code (`bin/gate-ledger`, `workflows/epic-driver.js`);
-  decomposition, verdicts, and briefs are dispatched prompts. The build side states
+- **Code owns bookkeeping; prompts own judgment** — retry caps and ledgers are code
+  (`bin/gate-ledger`); decomposition, verdicts, and briefs are dispatched prompts. The build side states
   the sharp version: anything decidable without judgment — status flips, verification
   runs, lints, evidence capture — is a script, and **the model never self-reports what
   a script can check**.
@@ -127,9 +130,7 @@ this section is your voice, not the extractor's.
 - **Stay in your lane** — auditors are single-purpose and report rather than fix; each
   "stays in its lane." Composition over monolithic review.
 - **Blocking is a tier, not a default** — how much the workflow blocks vs. only reminds
-  is answered per change class, not per gate's mood. See "Merge authority" below: the
-  human approves the class once, at plan approval; the tier then decides, mechanically,
-  whether a merge waits on a person or on a check.
+  is answered per change class, not per gate's mood. See "Merge authority" below.
 
 ## Feature tracker
 
@@ -183,22 +184,18 @@ Ratified 2026-09-05 (#312), answering the stance the "Product principles" FILL I
 pointed at: how much the workflow should ever block vs. only remind, stated as a matrix
 rather than left to whichever gate happens to notice.
 
-Every story and epic carries one of three classes, **decided at plan approval and
-recorded in the epic plan — never inferred at merge time** (the required-elements table
-in `reference/epic-plan-contract.md` is where it's recorded, next to story class):
+Every story carries one of three classes, **decided when its plan is approved — never
+inferred at merge time**. With the epic path retired (2026-09-09) nothing records the
+class: no ledger field, no PLAN.md field, no lint asks for it. The matrix is convention
+until a plan artifact carries it again:
 
 - **auto-merge** — dependency bumps, docs, lint, test-only changes. Requires green CI
   **and** a gauntlet run at 0 critical findings. Nothing in this repo exercises this
   tier yet (M0's S1 gate is "driven to green," not merged); it is declared here so the
   class exists to assign, before anything needs it.
-- **human-approve** — features. The epic finale opens the PR (#253); Claude Code
-  auto-fix drives it to green; a code owner merges.
-- **never-unattended** — security, infrastructure, prompt-prose. Always classed
-  `story-supervised` in the epic plan. This third tier mostly restates a rule that
-  already exists: `reference/epic-plan-contract.md`'s prompt-prose trigger
-  (`reference/audit-routing-signals.md`'s Prompt signal list) already forces
-  `story-supervised` for that surface — this tier adds security and infrastructure
-  to the same never-unattended treatment, under the same mechanism.
+- **human-approve** — features. `/ship` opens the PR; a code owner merges.
+- **never-unattended** — security, infrastructure, prompt-prose. A human is present for
+  the whole story.
 
 **Auto-merge is not auto-approval.** The human approved the *class* at plan approval,
 before any code existed to judge; what runs unattended afterward is mechanical
@@ -228,7 +225,7 @@ itself" violation this document states below.
   Studious now ships a methodology; the *gates* still don't have one. The line is no
   longer "this product contains no executor" but "no gate requires one," and it is a
   CI check rather than a stated intention: `scripts/check_gate_independence.py` fails
-  the build if any gate command, agent, driver, hook, or the ledger invokes a build
+  the build if any gate command, agent, hook, or the ledger invokes a build
   skill or requires a build artifact. Superpowers, a human, or any other executor
   satisfies the same contract.
 - **Shipping our own judge fleet** — the judge lanes `/review` and `/health` fan out to

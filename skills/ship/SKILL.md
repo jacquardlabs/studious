@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Closes out a BUILT branch — an assembled PR evidence table (Done-means item -> verification method -> evidence link -> pass), a cctx session-cost footer with a preview-only harvest offer, per-item-confirmed follow-up filing, proposed (never auto-applied) PRODUCT.md/DESIGN.md/CLAUDE.md decision patches, a dated build report, and MERGE | PR | KEEP | DISCARD verdict + cleanup. Use when the user says /ship, or a /build session has already reported BUILT (with /review and /review --delivery already passed) and the branch is ready to close out. `/ship --handback` is the PR-less variant a dispatched worker uses to return its branch — manifest and summary only, no episode, no PR. `/ship --epic <slug>` is the human-invoked epic-scale closeout run after the finale's PR is open — proposed decision patches and per-item-confirmed follow-up filing from the epic's own recorded decisions and findings, no evidence table and no verdict. Never invents evidence, never files an issue or applies a harvest without explicit per-item confirmation in the same turn, and never writes a decision patch to a context doc itself.
+description: Closes out a BUILT branch — an assembled PR evidence table (Done-means item -> verification method -> evidence link -> pass), a cctx session-cost footer with a preview-only harvest offer, per-item-confirmed follow-up filing, proposed (never auto-applied) PRODUCT.md/DESIGN.md/CLAUDE.md decision patches, a dated build report, and MERGE | PR | KEEP | DISCARD verdict + cleanup. Use when the user says /ship, or a /build session has already reported BUILT (with /review and /review --delivery already passed) and the branch is ready to close out. `/ship --handback` is the PR-less variant a dispatched worker uses to return its branch — manifest and summary only, no episode, no PR. Never invents evidence, never files an issue or applies a harvest without explicit per-item confirmation in the same turn, and never writes a decision patch to a context doc itself.
 ---
 
 # /ship
@@ -18,7 +18,7 @@ legitimately have bypassed. It trusts the human invoked it because the
 branch is ready, same as `/build`'s own `BUILT` → "run `/review` next"
 hand-off.
 
-## Three modes
+## Two modes
 
 - **`/ship`** — the full closeout below: evidence table, cost footer, follow-ups,
   decision patches, dated report, and one of `MERGE` / `PR` / `KEEP` / `DISCARD`.
@@ -27,65 +27,9 @@ hand-off.
   episode is convened, no PR is opened, no verdict is recorded. Follow
   `reference/handback-contract.md`, which carries that procedure in full; consult it,
   don't restate it here, and don't run any of the six steps below on this path.
-- **`/ship --epic <slug>`** — epic-scale closeout (#247), human-invoked after the epic
-  finale reaches `ready` and its PR is open. See "Epic scope" below; it runs neither
-  Steps 1–6 nor `--handback`'s procedure.
 
 Convening is not judging: `/ship` may convene the delivery episode as a convenience, but
 the verdict is always `/review`'s. This door never writes one.
-
-## Epic scope
-
-**`/ship --epic <slug>`** never runs Steps 1–6 below — those are story-scale, and an
-epic's worktree is already gone by the time this runs (`reference/epic-orchestration.md`'s
-finale removes it once `ready` is recorded). It is additive follow-up work on an
-already-open PR, human-invoked only — `workflows/epic-driver.js` never runs this itself
-(CLAUDE.md's bookkeeping-boundary bullet: never a producer, never dispatched on the
-human's behalf).
-
-**Read the ledger fresh, not anything embedded earlier** — everything below is durable
-and queryable at any time:
-
-- `gate-ledger epic-get --slug <slug>` — the epic goal, and every story's recorded
-  `decisions` (the settled forks from the plan piece's one interview, #311) and
-  `mergeClass` (#312).
-- `gate-ledger epic-findings --epic <slug>` — every finding this epic recorded; filter
-  to `Track` severity (`BLOCKER`/`SHOULD FIX` findings already gated the finale — don't
-  re-litigate them here).
-- The `story-supervised` parks recorded in the same `epic-get` output — each carries its
-  own `story-supervised: <reason>` prefix (`reference/epic-orchestration.md`'s "Close
-  every invocation the same way").
-- The epic pre-mortem register at `docs/studious/premortems/<slug>-epic.md` — read for
-  context on what the epic was watching for. Its per-item REALIZED/NOT REALIZED verdicts
-  from the finale's audit round aren't persisted separately; read the register's own text
-  only, don't try to resurrect them.
-
-**Propose decision patches — Step 4's exact posture, epic-scoped inputs.** Design
-decisions that outlive the feature (a settled fork with lasting consequences, a
-Track-tier finding that reads as a convention gap rather than a one-off nit) become
-proposed diffs against `PRODUCT.md` / `DESIGN.md` / `CLAUDE.md`. Print the diff blocks.
-Never call `Edit`, `Write`, `git apply`, or any other patch mechanism against those three
-files in this step, under any branch of this flow, even after an explicit "yes" — the
-same absolute rule Step 4 states for the story path.
-
-**File follow-ups — Step 3's mechanism, verbatim, epic-scoped sources.** One draft per
-parked story (title + body citing the epic and the story's own park reason) and one per
-Track-tier finding (title + body citing the epic, the story, the lane, and the
-fingerprint). Draft the full batch first — imperative title under 70 characters, a body
-of at most 5 lines — and present it to the human before filing anything.
-**Confirmation is per-item, not all-or-nothing**, exactly as Step 3 requires: the human
-accepts, edits, or skips each draft individually, and only confirmed drafts reach `gh
-issue create`. A `gh issue create` failure (auth, rate limit) surfaces by name, per item.
-
-**Evidence needs no separate assembly here.** Each landed story's own `/ship` run already
-built its evidence table into that story's PR before merging into the epic branch; the
-epic PR body (the finale's dispatch, #253) already cites
-`gate-ledger evidence-list --branch "epic/<slug>" --dedupe`. Point at those — don't
-re-run Step 1 at epic scale.
-
-**No Step 6 here.** The epic's worktree is already released and its branch already has an
-open PR — there is no verdict to report and no cleanup left to perform. `/ship --epic`
-is purely additive: it proposes patches and files confirmed follow-ups, and stops.
 
 Six steps, in order. Steps 1 and 5 are mechanical (scripts decide); Steps
 2–4 always end on an explicit human decision in the same turn; Step 6

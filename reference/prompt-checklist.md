@@ -1,10 +1,9 @@
 # Prompt checklist — lookup data
 
-Not `reference/prompt-contract.md` — that near-namesake is the fleet's own injected
-posture (the five blocks every Studious auditor runs under). This file is the **lookup
-data** for reviewing *other people's* prompts: consulted by both `prompt-auditor`
-(diff-scoped, at the gate) and `review-prompt-health` (whole-repo, periodic), so the
-depth of the seven dimensions lives in exactly one place. Not a detection crutch — a
+This file is the **lookup data** for reviewing *other people's* prompts: `/health`
+reads its prompt-surface signature table to decide whether a repo has a prompt surface
+at all, and the depth of the seven dimensions lives in exactly one place. Not a
+detection crutch — a
 capable model already knows these defect classes; this is the specifics it won't recall
 verbatim: per-dimension probe lists, the prompt-surface signature table per ecosystem,
 and token-economy heuristics. CLAUDE.md's documented prompt conventions override
@@ -99,8 +98,7 @@ How to recognize that a repo has a prompt surface, and which files are in it:
 | Prompt-template conventions | name contains `prompt` | `prompts/`, `prompt_templates/`, `system_prompt.*`, `*.prompt`, `*.prompt.md` |
 | LLM SDK call sites | imports of an LLM client (`anthropic`, `openai`, `google.generativeai`, `langchain`, …) | the instruction strings handed to `messages`/`system`/template params — the string content, not the code around it |
 
-A repo matching no row has no prompt surface: `prompt-auditor` skips at the gate and
-`review-prompt-health` self-skips its periodic pass.
+A repo matching no row has no prompt surface: `/health` skips its prompts lane.
 
 ## Token-economy heuristics
 

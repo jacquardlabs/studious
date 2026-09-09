@@ -15,7 +15,6 @@ from run_gate_audit_fixtures import REPO_ROOT
 DOOR = REPO_ROOT / "commands" / "review.md"
 DOCTOR = REPO_ROOT / "commands" / "doctor.md"
 COMPILATION = REPO_ROOT / "reference" / "audit-compilation.md"
-CONTRACT = REPO_ROOT / "reference" / "prompt-contract.md"
 
 # The 14 judge names the episodes dispatch (lane 8's Task path included).
 JUDGES = (
@@ -130,6 +129,3 @@ def test_compilation_rules_take_tiers_as_emitted_and_treat_empty_findings_as_cle
     assert "shape of its `locus`" in text, "the code/non-code claim split no longer derives from locus shape"
 
 
-def test_prompt_contract_says_review_stopped_stamping_it() -> None:
-    head = CONTRACT.read_text(encoding="utf-8").splitlines()[:4]
-    assert any("`/review` no longer stamps this file" in line for line in head)
