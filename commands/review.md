@@ -729,12 +729,13 @@ Before running `gate-ledger episode-verdict` — or, in the design episode, the 
 in its own section above — commit every file this run wrote or modified — the pre-mortem register the design episode just wrote, or anything
 else the review produced. The ledger stamps the
 verdict's sha from HEAD at the moment it runs; a file committed afterward leaves the ledger
-pointing at a commit that doesn't yet contain what this run produced, so the PR-time hook
-would flag this verdict as stale over a commit that changed nothing substantive. The recorded sha must be the same commit a later reader lands on at HEAD.
+pointing at a commit that doesn't yet contain what this run produced, so `gate-ledger
+status` would flag this verdict as stale over a commit that changed nothing substantive.
+The recorded sha must be the same commit a later reader lands on at HEAD.
 
 After stating the verdict, close the round by recording it — never bare `record --gate <gate>`:
-`episode-verdict` dual-writes the legacy record itself, so the PR-time reminder and the next
-run's re-entry check read exactly what they always have.
+`episode-verdict` dual-writes the legacy record itself, so `status` and the next run's
+re-entry check read exactly what they always have.
 
 ```bash
 gate-ledger episode-verdict --gate audit --verdict "PASS"

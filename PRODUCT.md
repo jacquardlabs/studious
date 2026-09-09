@@ -61,8 +61,8 @@ product judgment and quality gates woven into the build, without heavy process.*
 
 Evidence:
 - The feature flow assumes feature-branch development with PRs: gates run "before and
-  after you build it"; periodic reviews "run against main, not feature branches"; a
-  `PreToolUse` hook fires on `gh pr create` (`hooks/gate-reminder.sh`).
+  after you build it"; periodic reviews "run against main, not feature branches";
+  `/ship` ends in a PR verdict.
 - The backlog commands operate on GitHub Issues via the `gh` CLI
   (`/bet`, `/health backlog`), so the user works in a GitHub repo.
 - The whole system reads three context docs (PRODUCT.md, DESIGN.md, CLAUDE.md) the
@@ -267,7 +267,7 @@ lanes still skip cleanly on non-web projects, by design.
 The GitHub tracker is the authoritative source. Ordered here by likely user impact.
 Refreshed 2026-07-25 (#147) — the previous list named four problems that had all
 shipped: the self-verification harness (#24, CI now runs seven jobs), stateless gates
-(#27, the `.studious/` ledger and PR-time hook), metrics persistence (#28), and the
+(#27, the `.studious/` ledger), metrics persistence (#28), and the
 undefined design-doc contract (#29). Every gate and review reads this file, so a stale
 entry here is not a documentation nit — it is the discipline running on bad fuel.
 

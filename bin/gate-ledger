@@ -3,7 +3,7 @@
 #
 # Stores in the consuming project:
 #   .studious/gates/<branch-slug>.json  — per-branch gate verdicts. Written via
-#     `record`; read via `status` (PR-time hook) and `gate-get` (/next's evidence
+#     `record`; read via `status` (on demand) and `gate-get` (/next's evidence
 #     check), never as a raw file. Also carries `episodes` (#289): one bounded
 #     gate episode per gate, written via `episode-open`/`-round`/`-verdict` (schema
 #     at those verbs); legacy readers branch only on `.branch`/`.gates`, so it

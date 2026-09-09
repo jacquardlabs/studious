@@ -215,9 +215,6 @@ pre-mortem register, a dedicated auditor checks each predicted failure mode agai
 shipped — REALIZED / NOT REALIZED / CAN'T VERIFY, evidence attached. Up to 13 lanes, each
 staying in its own.
 
-When you run `gh pr create`, a PR-time hook reads the recorded verdicts and names any that
-never ran, ran on an older commit, or didn't pass. It's a reminder, not a block.
-
 A SessionStart hook runs the other direction: on a fresh session or a resumed one (never on
 `/clear`, `/compact`, or a fork — those aren't "arriving new to this project"), it checks the
 gate ledger and, if a feature is in flight, surfaces a one-to-three-line heads-up —

@@ -17,13 +17,13 @@ GOOD = {
 
 GOOD_HOOKS = {
     "hooks": {
-        "PreToolUse": [
+        "PostToolUse": [
             {
                 "matcher": "Bash",
                 "hooks": [
                     {
                         "type": "command",
-                        "command": 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/gate-reminder.sh"',
+                        "command": 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/evidence-capture.sh"',
                     }
                 ],
             }
@@ -34,7 +34,7 @@ GOOD_HOOKS = {
 
 def hooks_repo(tmp_path: Path) -> Path:
     (tmp_path / "hooks").mkdir()
-    (tmp_path / "hooks" / "gate-reminder.sh").write_text("#!/usr/bin/env bash\n")
+    (tmp_path / "hooks" / "evidence-capture.sh").write_text("#!/usr/bin/env bash\n")
     return tmp_path
 
 

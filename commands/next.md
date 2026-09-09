@@ -69,7 +69,7 @@ workflow, or hand-implemented code reaches the same work episode; no episode car
 route produced the branch.
 
 After piece 3 the flow is `done`. Never open the PR yourself: the PR is the user's
-(`gh pr create` — the PR-time hook reads the same ledger).
+(`gh pr create`; the closing block carries the verdict trail they open it on).
 
 No door is mandatory, only default. Skipping `/bet` means no appetite and no decision record
 exist — position still derives from repo evidence, and every later door runs regardless.
@@ -118,9 +118,7 @@ anything, and correct the file when they disagree — evidence wins:
   verdict belongs to the episode that recorded it, and `/review` decides from its own episode
   record whether the next run re-enters that episode or opens a fresh one — don't re-derive
   that here from sha drift. Verdicts route the flow forward only; a closed episode's `PASS`
-  stands, and the only backward route is the user explicitly asking for one. (The PR-time
-  reminder still compares recorded shas to HEAD and may nag after post-verdict commits; it is
-  non-blocking by design.)
+  stands, and the only backward route is the user explicitly asking for one.
 - **Design doc** — the `designDoc` path in the work file, else discover a candidate the way
   `/review`'s design episode does. When found, record it: `work-set --design-doc "<path>"`.
 - **Pre-mortem register** — `docs/studious/premortems/<doc-slug>.md`, where `<doc-slug>` is

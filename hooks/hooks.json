@@ -1,5 +1,5 @@
 {
-  "description": "Studious PR-time gate reminder (non-blocking 'ask' before `gh pr create`), story-scoped evidence capture (silent, no-op unless the branch is armed), and a session-start flow-position heads-up (silent, no-op unless something is active in the gate ledger)",
+  "description": "Studious story-scoped evidence capture (silent, no-op unless the branch is armed) and a session-start flow-position heads-up (silent, no-op unless something is active in the gate ledger)",
   "hooks": {
     "SessionStart": [
       {
@@ -8,17 +8,6 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\""
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/gate-reminder.sh\""
           }
         ]
       }

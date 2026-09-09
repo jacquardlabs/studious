@@ -101,34 +101,10 @@ d4=$(sandbox)
 out=$(cd "$d4" && "$LEDGER" status)
 contains "status flags stale gate" "re-run" "$out"
 
-# --- status: no ledger -> empty (hook uses default) ---
+# --- status: no ledger -> empty ---
 d5=$(sandbox)
 out=$(cd "$d5" && "$LEDGER" status)
 check "status empty when no ledger" "" "$out"
-
-# --- hook surfaces the ledger reason and always asks ---
-HOOK="$ROOT/hooks/gate-reminder.sh"
-d6=$(sandbox)
-( cd "$d6" && "$LEDGER" record --gate decide --verdict BUILD )
-hook_out=$(cd "$d6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
-  bash "$HOOK" <<<'{"tool_input":{"command":"gh pr create"}}')
-contains "hook decision is ask" '"permissionDecision": "ask"' "$hook_out"
-contains "hook reason names missing audit" "audit never ran" "$hook_out"
-
-# --- hook stays silent for non-PR commands ---
-hook_noop=$(cd "$d6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
-  bash "$HOOK" <<<'{"tool_input":{"command":"ls -la"}}')
-check "hook ignores non-PR commands" "" "$hook_noop"
-
-# --- hook matches spacing variants that would evade a literal-string grep ---
-hook_spacing=$(cd "$d6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
-  bash "$HOOK" <<<'{"tool_input":{"command":"gh  pr   create"}}')
-contains "hook matches gh pr create with irregular spacing" '"permissionDecision": "ask"' "$hook_spacing"
-
-# --- hook still matches when the phrase is embedded in a longer command ---
-hook_embedded=$(cd "$d6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
-  bash "$HOOK" <<<'{"tool_input":{"command":"git log --grep=\"gh pr create\""}}')
-contains "hook matches gh pr create embedded in a longer command" '"permissionDecision": "ask"' "$hook_embedded"
 
 # --- command prompts invoke the ledger by its bare name, not via ${CLAUDE_PLUGIN_ROOT} ---
 # ${CLAUDE_PLUGIN_ROOT} only expands in JSON-config-driven processes, not in commands/*.md
@@ -866,7 +842,7 @@ check "reopening drops the prior episode's verdict (fresh episode)" "null" "$(jq
 check "reopening leaves the prior dual-written legacy record in place" "PASS" "$(jq -r '.gates.audit.verdict' "$fep1")"
 
 # --- status for an episode-written branch matches the per-gate shape the
-# PR-time hook parses today — the dual-write keeps legacy readers untouched ---
+# `status` parses today — the dual-write keeps legacy readers untouched ---
 dep4=$(sandbox)
 ( cd "$dep4" && "$LEDGER" episode-open --gate audit )
 ( cd "$dep4" && "$LEDGER" episode-verdict --gate audit --verdict PASS )

@@ -156,7 +156,7 @@ out9=$(cd "$d9" && PATH="$fakebin" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$HOOK" \
 check "jq unavailable: hook exits 0 with no output" "rc=0" "$out9"
 check "jq unavailable: no evidence dir created" "no" "$([ -d "$d9/.studious/evidence" ] && echo yes || echo no)"
 
-# --- CLAUDE_PLUGIN_ROOT missing/unresolved: silent no-op (mirrors gate-reminder.sh) ---
+# --- CLAUDE_PLUGIN_ROOT missing/unresolved: silent no-op ---
 d10=$(sandbox feat/foo); arm "$d10" feat/foo
 out10=$(cd "$d10" && bash "$HOOK" <<<"$(posttooluse "pytest tests/")" 2>&1; echo "rc=$?")
 check "no CLAUDE_PLUGIN_ROOT: hook exits 0 with no output" "rc=0" "$out10"
