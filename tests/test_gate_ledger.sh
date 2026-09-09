@@ -1621,5 +1621,22 @@ mkdir "$f399.lock"; touch -t 202001010000 "$f399.lock"
 check "a stale lock (crashed writer) is reclaimed" "0" "$rc"
 check "the write behind the reclaimed lock landed" "OK" "$(jq -r '.gates.stale.verdict' "$f399")"
 
+# --- #346 rule 3: a merged-but-present branch's work file resolves to done ---
+d346=$(sandbox)
+def346=$(git -C "$d346" branch --list main master | tr -d ' *' | head -1)
+( cd "$d346" && git commit -q --allow-empty -m "story work" )
+( cd "$d346" && "$LEDGER" work-set --slug landed --title "landed" --branch feat/foo --phase build ) >/dev/null
+( cd "$d346" && "$LEDGER" work-set --slug kept --title "kept" --branch feat/foo --phase build --declared-files a.py ) >/dev/null
+( cd "$d346" && "$LEDGER" work-log --slug kept --scope-delta-phase build --scope-delta-files b.py ) >/dev/null
+( cd "$d346" && "$LEDGER" work-set --slug unmerged --title "unmerged" --branch feat/bar --phase build ) >/dev/null
+( cd "$d346" && git checkout -q -b feat/bar && git commit -q --allow-empty -m "other" && git checkout -q feat/foo )
+( cd "$d346" && git checkout -q "$def346" && git merge -q --ff-only feat/foo && git checkout -q feat/foo )
+out346=$(cd "$d346" && "$LEDGER" gc 2>&1)
+contains "gc names the merged-but-present branch it resolved" "resolved to done: landed (branch feat/foo is merged into $def346 and still present)" "$out346"
+check "the resolved work file is collected on the same run" "no" "$([ -f "$d346/.studious/work/landed.json" ] && echo yes || echo no)"
+check "a merged file under the scope-delta guard is kept, reading done" "done" "$(jq -r '.phase' "$d346/.studious/work/kept.json")"
+check "the resolution leaves a merge/MERGED history entry naming the default branch" "$def346" "$(jq -r '.history[-1] | select(.step == "merge" and .outcome == "MERGED") | .into' "$d346/.studious/work/kept.json")"
+check "an unmerged branch's work file stays active" "build" "$(jq -r '.phase' "$d346/.studious/work/unmerged.json")"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi
