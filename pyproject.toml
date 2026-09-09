@@ -26,3 +26,10 @@ target-version = "py311"
 # .github/workflows/ci.yml pins the version for exactly that reason; bump the pin
 # deliberately and fix what the new defaults surface, rather than floating.
 extend-select = ["B", "C4", "PERF", "PIE", "RUF", "SIM"]
+
+[tool.pyright]
+# #184: the shipped scripts are the typed surface. Extensionless executables are
+# not discovered by `include`, so CI passes them by name (see ci.yml).
+pythonVersion = "3.9"
+typeCheckingMode = "standard"
+extraPaths = ["scripts"]

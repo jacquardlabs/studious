@@ -100,7 +100,10 @@ def _executor_checkpoint_fields(design_md: str) -> list[str]:
     """
     tokens = _backtick_tokens(_checkpoint_block_bullet(design_md))
     if "Do" not in tokens:
-        return []
+        raise ValueError(
+            "DESIGN.md's Formatting checkpoint-block bullet no longer parses: expected a "
+            f"backticked `Do` field among {tokens!r} (#176 — fail loud, never a silently narrower vocabulary)"
+        )
     return tokens[tokens.index("Do") + 1 :]
 
 

@@ -43,6 +43,9 @@ uv run --no-project python3 -m unittest discover -s tests/jig -v
 
 # Runtime version floor for the shipped scripts (vermin pinned; scripts/ only)
 uv run --no-project --with vermin==1.8.0 vermin --no-tips -t=3.9- scripts/ bin/studious
+
+# Type check the shipped scripts (pyright pinned; scripts/ and bin/studious at the 3.9 floor)
+find scripts -maxdepth 1 -type f -perm -u+x ! -name '*.py' ! -name '*.sh' | sort | xargs uv run --no-project --with pyright==1.1.413 pyright scripts/*.py bin/studious
 ```
 
 Releases are automated via semantic-release (`pyproject.toml`); the version lives in `.claude-plugin/plugin.json` and is bumped by CI on merge to `main` — never edit it by hand.
@@ -52,13 +55,13 @@ Releases are automated via semantic-release (`pyproject.toml`); the version live
 The directory layout encodes a role split (full version in `CONTRIBUTING.md`):
 
 - `agents/` — subagents that **do the work**. Each has `name`, `description`, `tools`, `model` frontmatter.
-- `commands/` — seven of the ten doors (`bet`, `review`, `next`, `health`, `retro`, `setup`, `doctor`). `description`, `allowed-tools` frontmatter.
+- `commands/` — the command-backed doors (`bet`, `review`, `next`, `health`, `retro`, `setup`, `doctor`). `description`, `allowed-tools` frontmatter.
 - `skills/<name>/SKILL.md` — two kinds, deliberately. Three are **doors** (`shape`, `build`, `ship`) — a skill and a command are both invokable slash commands, and which one backs a door is an implementation detail, not a class distinction. `reference/personas.md`'s `Backed by` column says which. The fourth, `task-execution-discipline`, is model-invoked but not a door. There is no separate natural-language shim layer: a door's own `description` frontmatter is what lets it fire from plain language.
 - `reference/` — the rubrics the doors read at judgment time (`severity-rubric.md`, `audit-compilation.md`), the contracts a door follows (`planning-contract.md`, `worker-contract.md`, `handback-contract.md`, the two extractions), and the charter itself (`personas.md`). Doors and agents consult these instead of restating them inline — keep depth in `reference/`, keep the door pointing at it. **A file here carries no command frontmatter**: frontmatter is what makes something invokable, and a contract that grows one is a tenth door nobody declared.
 - `hooks/` — shipped hook scripts + `hooks.json`. Two live hooks: a silent PostToolUse/PostToolUseFailure evidence-capture hook on `Bash` that appends verification-command records while a story is armed (`evidence-capture.sh`; format pinned in `reference/evidence-format.md`); and a silent SessionStart hook on `startup`/`resume` that surfaces a counts-only flow-position heads-up when a work file is active (`session-start.sh`).
 - `bin/studious` — the one entrypoint every door invokes (`studious <verb>`, #346). A verb naming a `scripts/` executable execs it; every other verb execs `bin/gate-ledger`, which reads/writes the per-branch gate ledger, its episodes, the per-feature `/next` work files, and the evidence log. **A rule that leaves prose lands here as a verb**; the prose then names `studious <verb>` and nothing else. Prompts keep judgment (FIX vs RESAMPLE, REPLAN vs ESCALATE, verdict compilation, the interview) and the human stops.
 - `templates/` — PRODUCT.md / DESIGN.md scaffolds created by `/setup` in the consuming project.
-- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence) and the door-run executables (`plan-lint`, `plan-drift`, `plan-amend`, `design-lint`, `verify`, `status-flip`, `build-report`, `ship-body`, `cctx-footer`, `evidence-capture`, `evidence-freshness`, `worktree-setup`, `retro-stats`), reached as `studious <name>`. Those executables are run by `/build`, `/shape`, `/ship`, and `/retro`, not by CI.
+- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence) and the door-run executables (`plan-lint`, `plan-drift`, `plan-amend`, `design-lint`, `verify`, `status-flip`, `build-report`, `ship-body`, `cctx-footer`, `evidence-capture`, `evidence-freshness`, `worktree-setup`, `retro-stats`), reached as `studious <name>`. Those executables are run by `/build`, `/shape`, `/ship`, and `/retro`, not by CI. The placement rule: an entrypoint goes in `bin/`; a verb a door runs is an extensionless executable in `scripts/`; a CI helper is a `*.py` there and is never dispatched (CONTRIBUTING.md, "Where the next executable goes").
 
 Key invariants when adding or changing prompts:
 
@@ -70,6 +73,23 @@ Key invariants when adding or changing prompts:
 - **Reviews write to the consuming project, not here.** Review reports land in the user's `docs/studious/` subdirectories. This plugin repo never accumulates them.
 - **Every agent/command reads PRODUCT.md, DESIGN.md, or CLAUDE.md** for project context. The judge lanes are gauntlet's; the three local agents each state their own posture (untrusted input, read-only) inline — keep that when adding one.
 - **Code owns bookkeeping; prompts own judgment.** Retry caps and ledgers live in code (`bin/gate-ledger`); prompts carry decomposition, verdicts, and briefs. Retry counting or cap math inside a command prompt is a defect. Verification is bookkeeping too: it belongs to scripts and fresh-context inspectors, never to self-check prose in a prompt — CONTRIBUTING.md's "Verification belongs to scripts and inspectors" states the invariant and dispositions the three sites #302 named.
+
+## Doc edits that are code changes
+
+Two accepted tradeoffs carry the drift guard (#225); an editor who does not know them
+breaks a test with a prose change and reads the failure as noise.
+
+- **Triple encoding.** A rule can live three times — the `SKILL.md` prose (runtime
+  authority), the script that applies it, and a test reference implementation — bound by
+  a regex over the prose: the load-bearing derivation (`scripts/plan-lint`,
+  `tests/jig/_load_bearing.py`, `skills/build/SKILL.md`), the task-split boundary
+  (`scripts/_planparse.py`, `tests/jig/_task_split_boundary.py`), the vocabulary
+  (`tests/jig/_vocabulary.py`, `DESIGN.md`'s tables, each `SKILL.md`). Each
+  `tests/jig/_*.py` docstring says which. Watch item: every new derivation helper grows
+  this surface linearly — prefer moving the rule into the script (the #346 ruling).
+- **Context docs are parsed as data.** `DESIGN.md`'s Vocabulary table and Formatting
+  checkpoint bullet are runtime inputs to `tests/jig/_vocabulary.py`; the HTML comments
+  above them say so in the file. A cell rename or a field reorder there is a code change.
 
 ## Repo boundaries
 
@@ -179,7 +199,7 @@ rubric for this repo.
 
 These are enforced by convention, not tooling — follow the existing shape (details in `CONTRIBUTING.md`):
 
-- **Doors are declared in `reference/personas.md`**, which is charter *data*: nine rows, each with a class (`judge` / `producer` / `navigator` / `periodic` / `infra`) that `scripts/check_gate_independence.py` reads to derive its guarded surface. Add the row before you add the door; never hardcode a door name in a check again (that is exactly what let a rename fall off the guarded surface silently).
+- **Doors are declared in `reference/personas.md`**, which is charter *data*: one row per door, each with a class (`judge` / `producer` / `navigator` / `periodic` / `infra`) that `scripts/check_gate_independence.py` reads to derive its guarded surface. Add the row before you add the door; never hardcode a door name in a check again (that is exactly what let a rename fall off the guarded surface silently).
 - **Agents are a 1:1 reviewer or a role:** periodic project-scoped reviewers share their command's `review-*` name; changeset specialists are `<domain>-auditor` (rule/technical checks) or `<domain>-reviewer` (human-judgment checks).
 - **Skills are named for the intent they detect**, not the command they call. Keep `description` triggers conservative — list what they should NOT match so a gate never fires unwanted.
 - **Pin `model` and `effort` by stakes**, per the split in `CONTRIBUTING.md` — `model` moves the per-token rate, `effort` moves the turn count, and they are set independently. `opus` for high-stakes reasoning and human judgment; `sonnet`/`haiku` for recommend-only work with no merge gate behind it. **`inherit` is a known defect, not a cheap tier** ([#136](https://github.com/jacquardlabs/studious/issues/136)): it resolves to the session model, so the same branch can be judged by two different models on two different days. Don't add new `inherit` agents, and a merge-blocking judge's tier is gauntlet's to move, with an A/B in that repo.

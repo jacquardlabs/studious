@@ -31,13 +31,20 @@ Open an issue for bugs, unclear documentation, or suggestions. Include:
 agents/       — Agent definitions (name, description, tools, model in frontmatter)
 bin/          — `studious`, the one entrypoint (dispatches to gate-ledger and scripts/), and gate-ledger itself
 commands/     — Slash commands (description, allowed-tools in frontmatter)
-scripts/      — Door-run executables (reached as `studious <name>`) and CI helpers (link checking, manifest validation)
+scripts/      — Verbs (extensionless executables, reached as `studious <name>`) and CI helpers (`*.py`, run by ci.yml only)
 skills/       — Producer doors and model-invoked skills (skills/<name>/SKILL.md)
 hooks/        — Shipped hook scripts + hooks.json (evidence capture, session-start heads-up)
 reference/    — Contracts and rubrics the doors read (e.g. reference/severity-rubric.md)
 templates/    — Scaffold files created by /setup
 tests/        — Python and shell tests for commands and CI scripts
 ```
+
+**Where the next executable goes (#221).** `bin/` holds entrypoints only — `studious`, and
+`gate-ledger` behind it. A door runs it → an extensionless executable in `scripts/`, which
+`bin/studious` dispatches by name with no registration. CI runs it → a `*.py` in `scripts/`,
+never dispatched (`bin/studious` ignores the extension'd files). Nothing else earns a
+directory; `scripts/check_gate_independence.py` guards `bin/*` whole, and a new producer
+verb is added to its `BUILD_EXECUTABLES` in the same commit.
 
 - Agents do the work. Commands orchestrate agents or provide standalone workflows.
 - The natural-language shim layer is gone: commands and skills both carry a `description` field that makes them model-invocable by default, so a door's own `description` frontmatter carries its trigger phrasing and "Do NOT use for" exclusions directly — no separate `skills/<name>/` shim needed to fire it from plain language.

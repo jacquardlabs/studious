@@ -1,5 +1,5 @@
 ---
-description: Judge the work — the one review door. Picks its episode from repo state: a design doc with no built diff opens the design episode; a built diff opens the work episode (security, code, docs, architecture, tests, and product acceptance always; UX, frontend, accessibility, infrastructure, operability, dependency, prompt, and pre-mortem lanes join in when the changeset warrants). The work episode is also the delivery check: its product lane judges whether the branch delivers what the story promised. Use for "review this design", "is this design sound", "audit this branch", "review this branch", "check this before I merge", "did we ship the right thing", "does this actually deliver", "acceptance check". Do NOT use for deciding whether to build at all (that's /bet), for periodic whole-project health sweeps (that's /health), or for install diagnostics (that's /doctor).
+description: Judge the work — the one review door. Picks its episode from repo state — a design doc with no built diff opens the design episode; a built diff opens the work episode (security, code, docs, architecture, tests, and product acceptance always; UX, frontend, accessibility, infrastructure, operability, dependency, prompt, and pre-mortem lanes join in when the changeset warrants). The work episode is also the delivery check — its product lane judges whether the branch delivers what the story promised. Use for "review this design", "is this design sound", "audit this branch", "review this branch", "check this before I merge", "did we ship the right thing", "does this actually deliver", "acceptance check". Do NOT use for deciding whether to build at all (that's /bet), for periodic whole-project health sweeps (that's /health), or for install diagnostics (that's /doctor).
 allowed-tools: Read, Glob, Grep, Bash, Task, Write, Skill
 ---
 
@@ -50,21 +50,8 @@ judges carry their own posture (injection defense, read-only inspection, calibra
 nothing is stamped into a dispatch prompt from `reference/` any more.
 
 **Gauntlet's root.** `${CLAUDE_PLUGIN_ROOT}` resolves to this plugin's root, never
-gauntlet's. The root is learned by loading one gauntlet command: its `${CLAUDE_PLUGIN_ROOT}`
-lines arrive already substituted with an absolute `…/gauntlet/<version>/` path — the same
-substitution every plugin command gets on load, and the documented affordance gauntlet#80
-states beside the payload contract ("Consumer transport for a co-installed plugin", which
-names both routes below). Once per session, in this order: invoke the `gauntlet:where`
-skill if it is in this session's skill listing — its first line is the root; else invoke
-`gauntlet:review` with `--help` as its argument — gauntlet's door reads a non-numeric
-argument as a document path, finds no such file, and stops before any dispatch, and the
-loaded text carries the root in its `python3 "…/scripts/dispatch.py"` lines (gauntlet
-0.15.0, the released fleet, ships no `where`; this is the route that works today). Record
-it as `GAUNTLET_ROOT` for the rest of the session. If neither is in the listing, gauntlet is
-not installed: stop with one line — "gauntlet is not installed —
-`/plugin install gauntlet@jacquardlabs-marketplace`, then re-run" — never a guess.
-**Never Glob the plugin cache** for it — a path guessed from a cache layout is the
-convention-boundary failure that #150 recorded.
+gauntlet's. Learn gauntlet's once per session per `reference/locate-gauntlet.md` and record
+it as `GAUNTLET_ROOT`; a gauntlet that is not installed stops there, with that file's one line.
 
 ## Establish the changeset (work episode)
 
@@ -479,13 +466,23 @@ word. The profile is the `$keep` list of the filter step above; each entry below
 concern and skip rule, not a prompt — the judge's rubric is its own, and the invocation is
 what it receives.
 
-Auditor 9 (infrastructure) is changeset-routed: skip it when the changeset touches no infrastructure files, per the Infrastructure signal list in `reference/audit-routing-signals.md` — consult it, don't restate it. Note "No infrastructure changes detected — infrastructure audit skipped." When ambiguous, run — default to running, not skipping. The agent itself self-skips if dispatched against a changeset matching none of that list.
+Lanes 9, 11, and 12 (infrastructure, dependency, prompt) are changeset-routed by
+`dispatch.py`'s own path-signal table — gauntlet's `PATH_SIGNALS`, keyed by judge name — and
+this door keeps no second copy of those patterns (#411). A judge absent from
+`invocations.json` is routed out with the note "No infrastructure / dependency-manifest /
+prompt-file changes detected — <lane> audit skipped"; a judge present is dispatched. A
+file-level match deliberately over-fires (a `pyproject.toml` edited only in `[tool.*]`, a
+CLAUDE.md typo fix): the judge's own content-level self-skip is the second layer, so an
+over-fire costs one call, never a wrong verdict.
 
-Auditor 10 (operability) is changeset-routed: skip it when the changeset touches no runtime surface — code that serves requests, consumes queues or streams, runs as a daemon or scheduled job, or performs network I/O. Judge from the diff's content (framework imports, handler/route/consumer definitions, long-running entrypoints, outbound calls), not file paths alone. Note "No runtime surface in this changeset — operability audit skipped." When ambiguous, run — default to running, not skipping. The agent itself self-skips if dispatched against a changeset with no runtime surface.
-
-Auditor 11 (dependency) is changeset-routed: skip it when the changeset touches no dependency manifest or lockfile, per the Dependency signal list in `reference/audit-routing-signals.md` — consult it, don't restate it. Note "No dependency manifest or lockfile changes detected — dependency audit skipped." When ambiguous, run — default to running, not skipping. The agent itself self-skips if dispatched against a changeset matching none of that list.
-
-Auditor 12 (prompt) is changeset-routed: skip it when the changeset touches no prompt files, per the Prompt signal list in `reference/audit-routing-signals.md` — consult it, don't restate it. Note "No prompt-file changes detected — prompt audit skipped." When ambiguous, run — default to running, not skipping. The agent itself self-skips if dispatched against a changeset matching none of that list.
+Auditor 10 (operability) is changeset-routed by content, not path — no file name is a
+reliable proxy for a runtime surface, so `dispatch.py` carries no rule for it and always
+emits it. Skip it when the changeset touches no runtime surface — code that serves requests,
+consumes queues or streams, runs as a daemon or scheduled job, or performs network I/O.
+Judge from the diff's content (framework imports, handler/route/consumer definitions,
+long-running entrypoints, outbound calls). Note "No runtime surface in this changeset —
+operability audit skipped." When ambiguous, run — default to running, not skipping. The
+agent itself self-skips if dispatched against a changeset with no runtime surface.
 
 Lanes 6–8 (ux, frontend, accessibility) are web-specific. Skip them when either condition
 holds:
@@ -500,9 +497,9 @@ holds:
   run the lanes and flag the doc for re-extraction. If DESIGN.md has no `## Surfaces` table
   at all (a doc predating this format), assume a web surface may exist and fall through to
   the per-changeset check. Default to running, not skipping.
-- **Per-changeset:** the changeset has no frontend changes, per the Frontend signal list in
-  `reference/audit-routing-signals.md` — consult it, don't restate it. Note "No frontend
-  changes detected — frontend lanes skipped."
+- **Per-changeset:** `dispatch.py` emitted none of `ux-reviewer`, `frontend-reviewer`, or
+  `accessibility-auditor` — its frontend path signals matched nothing in the changeset.
+  Note "No frontend changes detected — frontend lanes skipped."
 
 ### Backend lanes
 

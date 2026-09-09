@@ -4,10 +4,9 @@
 Independently re-runs a task's Done-means items — one PASS/FAIL per item,
 never a single suite-level boolean — instead of trusting the executor's
 claim that they're satisfied (PRODUCT.md's "Nothing signs off on itself").
-Item list comes from exactly one of two sources:
+The item list is derived from the plan and nothing else (#329 retired the
+hand-transcribed `--items` document; no producer ever wrote one):
 
-- `--items <json>`: an already-extracted item list (`ITEMS_SCHEMA` below),
-  hand-transcribed by the orchestrating model from a `PLAN.md` task block.
 - `--plan <path> --task <label>`: derives items mechanically from the
   named task's checkpoint block — the grammar `scripts/plan-lint` validates
   and `skills/build/SKILL.md` documents, parsed via shared `scripts/_planparse.py`
@@ -62,7 +61,7 @@ default stays sequential. `probe` items are cheap stat/regex checks and
 stay in-line either way. Results print in item order regardless of
 completion order; per-item timeout semantics unchanged.
 
-ITEMS_SCHEMA (JSON):
+The derived item document (internal; `--out` writes the results, not this):
     {
       "task": "task-1",
       "items": [
@@ -81,8 +80,8 @@ error, not a check to silently drop.
     }
 
 Exit codes: 0 every item PASS. 1 at least one item FAIL. 2 usage error
-(malformed/empty items, missing --since for a probe item, an unparseable
-plan task or missing probe supplement in --plan mode).
+(an unparseable plan task, an empty one, a missing probe supplement, or a
+missing --since for a probe item).
 """
 from __future__ import annotations
 
@@ -111,8 +110,6 @@ from _planparse import (  # noqa: E402
     split_tasks,
 )
 
-VALID_KINDS = frozenset({"cap", "hold"})
-
 # Ceiling on a probe artifact read before its `pattern` is matched (#223).
 # The pattern is caller-supplied and `re` has no match timeout, so an
 # unbounded read hands a catastrophic-backtracking pattern unbounded input;
@@ -131,54 +128,11 @@ TASK_LABEL_RE = re.compile(r"(?:task\s+)?(\d+)", re.IGNORECASE)
 
 @dataclass
 class ItemResult:
-    id: object
+    id: int | str
     kind: str
     tier: str
     status: str  # PASS | FAIL
     detail: str
-
-
-def load_items(path: Path) -> dict:
-    """Load and validate the items document; raises ValueError on any problem."""
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except OSError as exc:
-        raise ValueError(f"could not read items file '{path}': {exc}") from exc
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"items file '{path}' is not valid JSON: {exc}") from exc
-
-    if not isinstance(data, dict) or "items" not in data:
-        raise ValueError(f"items file '{path}' must be a JSON object with an 'items' list")
-
-    items = data["items"]
-    if not isinstance(items, list) or not items:
-        raise ValueError("no items to verify: 'items' must be a non-empty list")
-
-    for i, item in enumerate(items):
-        label = f"item #{i}"
-        if not isinstance(item, dict):
-            raise ValueError(f"{label} is not a JSON object")
-        if "id" not in item:
-            raise ValueError(f"{label} is missing required field 'id'")
-        label = f"item {item['id']!r}"
-
-        kind = item.get("kind")
-        if kind not in VALID_KINDS:
-            raise ValueError(f"{label}: 'kind' must be one of {sorted(VALID_KINDS)}, got {kind!r}")
-
-        tier = item.get("tier")
-        if tier not in VALID_TIERS:
-            raise ValueError(
-                f"{label}: 'tier' must be one of {sorted(VALID_TIERS)}, got {tier!r} "
-                "(no 'judgment' tier permitted)"
-            )
-
-        if tier in COMMAND_TIERS and not item.get("command"):
-            raise ValueError(f"{label}: tier '{tier}' requires a non-empty 'command'")
-        if tier == "probe" and not item.get("artifact"):
-            raise ValueError(f"{label}: tier 'probe' requires a non-empty 'artifact' path")
-
-    return data
 
 
 def load_probe_spec(path: Path) -> dict[str, dict]:
@@ -284,7 +238,7 @@ def resolve_command_for_method(method_path: str, repo_root: Path, python: str = 
         try:
             parts = full.resolve().relative_to(repo_root.resolve()).parts
         except ValueError:
-            parts = ()
+            return method_path  # outside the repo: no test tree can own it
         if parts[:2] == ("tests", "python"):
             return f"{shlex.quote(python)} -m pytest {shlex.quote(method_path)} -q"
         if parts[:2] == ("tests", "jig"):
@@ -354,6 +308,7 @@ def derive_items_from_plan(
 
     def derive(item: Item, tier: str, method_path: str | None) -> dict:
         if tier in COMMAND_TIERS:
+            assert method_path is not None  # refused above: a command tier names its path
             command = resolve_command_for_method(method_path, repo_root, python)
             derived = {"id": int(item.num), "kind": item.kind, "tier": tier, "command": command}
             if command.startswith(shlex.quote(python) + " -m "):
@@ -443,17 +398,19 @@ def run_items(
     item's own position keeps the output order deterministic regardless of
     completion order.
     """
+    def probe(item: dict) -> ItemResult:
+        if since_ts is None:  # main() refuses a probe item without --since before calling
+            raise ValueError("a probe item needs --since")
+        return check_probe_item(item, since_ts)
+
     if not parallel:
-        return [
-            check_probe_item(item, since_ts) if item["tier"] == "probe" else check_command_item(item, repo, timeout)
-            for item in items
-        ]
+        return [probe(item) if item["tier"] == "probe" else check_command_item(item, repo, timeout) for item in items]
 
     command_indexes = [i for i, item in enumerate(items) if item["tier"] in COMMAND_TIERS]
     with ThreadPoolExecutor(max_workers=max(1, len(command_indexes))) as pool:
         futures = {i: pool.submit(check_command_item, items[i], repo, timeout) for i in command_indexes}
         return [
-            futures[i].result() if i in futures else check_probe_item(item, since_ts)
+            futures[i].result() if i in futures else probe(item)
             for i, item in enumerate(items)
         ]
 
@@ -463,15 +420,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         prog="verify",
         description="Independently re-run a task's Done-means items, one PASS/FAIL per item.",
     )
-    source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--items", help="path to the task's items JSON document")
-    source.add_argument(
+    parser.add_argument(
         "--plan",
-        help="path to a PLAN.md-shaped file to derive the items from mechanically (requires --task)",
+        required=True,
+        help="path to a PLAN.md-shaped file to derive the items from mechanically",
     )
     parser.add_argument(
         "--task",
-        default=None,
+        required=True,
         help="which of --plan's tasks to derive: its heading number, e.g. '3' or 'Task 3'",
     )
     parser.add_argument(
@@ -480,8 +436,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help=(
             "path to a JSON object mapping a probe-tier item id to its "
             '{"artifact": ..., "pattern": ...} — the one hand-authored supplement '
-            "--plan mode can need, since the plan grammar carries no artifact/pattern "
-            "for a probe item (only with --plan)"
+            "verify can need, since the plan grammar carries no artifact/pattern "
+            "for a probe item"
         ),
     )
     parser.add_argument(
@@ -514,25 +470,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--python",
         default=sys.executable,
         help=(
-            "interpreter a derived test-backed item runs under (only with --plan; default: the one "
+            "interpreter a derived test-backed item runs under (default: the one "
             "running verify). Pass the project's own -- the one its baseline command uses -- so a "
             "below-floor ambient python3 cannot fail a real item with an ImportError (#248)"
         ),
     )
     parser.add_argument("--out", default=None, help="path to write a JSON results document")
-    args = parser.parse_args(argv)
-
-    # argparse's own mutual-exclusion check covers --items vs --plan; these
-    # cross-flag rules ride the same usage-error convention (exit 2).
-    if args.plan and not args.task:
-        parser.error("--plan requires --task (which task block to derive items from)")
-    if args.task and not args.plan:
-        parser.error("--task only makes sense with --plan")
-    if args.probe_spec and not args.plan:
-        parser.error("--probe-spec only makes sense with --plan")
-    if args.python != sys.executable and not args.plan:
-        parser.error("--python only makes sense with --plan")
-    return args
+    return parser.parse_args(argv)
 
 
 def main(argv: list[str]) -> int:
@@ -540,12 +484,8 @@ def main(argv: list[str]) -> int:
     repo = Path(args.repo).resolve()
 
     try:
-        data = (
-            derive_items_from_plan(
-                Path(args.plan), args.task, Path(args.probe_spec) if args.probe_spec else None, repo, args.python
-            )
-            if args.plan
-            else load_items(Path(args.items))
+        data = derive_items_from_plan(
+            Path(args.plan), args.task, Path(args.probe_spec) if args.probe_spec else None, repo, args.python
         )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)

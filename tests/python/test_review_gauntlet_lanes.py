@@ -29,21 +29,15 @@ def _door() -> str:
     return DOOR.read_text(encoding="utf-8")
 
 
-def test_locate_step_falls_back_to_gauntlet_review_when_where_is_not_shipped() -> None:
-    """gauntlet 0.15.0 — the released fleet — ships no `where`; the root is learned by
-    loading any gauntlet command, so the door tries `gauntlet:where` first and falls back
-    to `gauntlet:review --help`. It stops only when neither is listed (gauntlet is not
-    installed), and never with an update line no release could satisfy."""
+def test_locate_step_cites_the_one_protocol_file() -> None:
+    """The root-discovery protocol lives in `reference/locate-gauntlet.md` (#410); the door
+    cites it and records `GAUNTLET_ROOT`, restating nothing."""
     text = _door()
     tools = re.search(r"^allowed-tools: (.*)$", text, re.MULTILINE).group(1)
     assert "Skill" in tools.split(", ")
     locate = text[text.index("## Locate gauntlet"):text.index("## Establish the changeset")]
-    assert "`gauntlet:where`" in locate and "GAUNTLET_ROOT" in locate
-    assert locate.index("`gauntlet:where`") < locate.index("`gauntlet:review` with `--help`"), "where is tried first"
-    assert "If neither is in the listing" in locate
-    assert "/plugin install gauntlet@jacquardlabs-marketplace" in locate
-    assert "predates" not in locate and "/plugin update" not in locate, "the remedy names an install, not an update no release satisfies"
-    assert "Never Glob the plugin cache" in locate
+    assert "`reference/locate-gauntlet.md`" in locate and "GAUNTLET_ROOT" in locate
+    assert "`gauntlet:where`" not in locate and "--help" not in locate, "the protocol is restated instead of cited"
 
 
 def test_doctor_checks_the_root_lookup_command_beside_the_agents() -> None:
@@ -52,6 +46,34 @@ def test_doctor_checks_the_root_lookup_command_beside_the_agents() -> None:
     assert "`gauntlet:where` or `gauntlet:review`" in row, "the root lookup is the second thing a dispatch needs"
     assert "If either is absent: **Critical**" in row
     assert "not the `gauntlet:review` skill" not in row
+
+
+def test_lane_eight_not_installed_path_is_a_task_in_the_same_batch_and_installed_path_stays_inline() -> None:
+    """#164 item 1: the accessibility lane's two paths are wired differently, and the wording
+    is what a reader follows. Not installed → `gauntlet:accessibility-auditor` as a Task in
+    the same simultaneous batch as lanes 6, 7, and 9–12. Installed → the skill runs inline,
+    no Task, and the judge is dropped from `$keep` so `report.py` expects no document."""
+    text = _door()
+    lane = text[text.index("8. **Web Interface Guidelines"):text.index("### Routed lanes")]
+    not_installed = lane[lane.index("**Not installed (the common case):**"):lane.index("**Installed:**")]
+    assert "dispatch **gauntlet:accessibility-auditor** as a" in not_installed
+    assert "same simultaneous batch as lanes 6, 7, and 9–12" in " ".join(not_installed.split())
+    installed = lane[lane.index("**Installed:**"):]
+    assert "inline" in installed and "drop `accessibility-auditor` from" in " ".join(installed.split())
+    assert "stays inline rather than dispatching as a Task" in " ".join(installed.split())
+
+
+def test_evidence_log_is_deduped_once_before_dispatch_and_passed_as_receipts_path() -> None:
+    """#164 item 3: the door runs `studious evidence-list --dedupe` once, before any lane,
+    and the file reaches `dispatch.py` as `--receipts-path` — the wiring, not the primitive."""
+    text = _door()
+    evidence = text[text.index("## Resolve the branch's evidence log"):text.index("## Open or re-enter")]
+    assert "Run `studious evidence-list --dedupe` once, before dispatching anyone" in evidence
+    assert 'studious evidence-list --dedupe > "$evidence_file"' in evidence
+    assert "`--receipts-path`" in evidence
+    build = text[text.index("## Build the invocations"):text.index("**Filter to the round's lane profile.**")]
+    assert '${evidence_file:+--receipts-path "$evidence_file"}' in build, "the dedupe file is not what dispatch.py receives"
+    assert text.count("evidence-list --dedupe") <= 3, "the dedupe call is restated beyond its step"
 
 
 def test_no_local_agent_token_remains() -> None:
@@ -69,7 +91,6 @@ def test_invocations_come_from_dispatch_py_and_are_handed_over_verbatim() -> Non
     assert "scripts/dispatch.py" in text
     assert "--receipts-path" in text, "the evidence log no longer reaches the judges as receipts_path"
     assert "verbatim" in text[text.index("**Dispatch.**"):text.index("## Design episode")]
-    assert "Never\nGlob the plugin cache" in text or "Never Glob the plugin cache" in text
 
 
 def test_compile_cites_report_py_and_the_compilation_rules() -> None:
@@ -78,6 +99,18 @@ def test_compile_cites_report_py_and_the_compilation_rules() -> None:
     assert "scripts/report.py" in compile_section
     assert "--expect" in compile_section
     assert "reference/audit-compilation.md" in compile_section
+
+
+def test_changeset_routing_defers_to_dispatch_py_and_restates_no_path_patterns() -> None:
+    """#411: gauntlet's `PATH_SIGNALS` is the one routing table. The door names it and
+    carries no file-pattern list of its own — `reference/audit-routing-signals.md` was
+    that second copy, and it is gone."""
+    text = _door()
+    assert "`PATH_SIGNALS`" in text
+    assert "audit-routing-signals" not in text
+    for pattern in ("`*.tf`", "`Dockerfile", "`package.json`", "`*.tsx`"):
+        assert pattern not in text, f"a path pattern is restated in the door: {pattern}"
+    assert "Auditor 10 (operability) is changeset-routed by content" in text
 
 
 def test_round_two_narrowing_still_filters_the_roster() -> None:

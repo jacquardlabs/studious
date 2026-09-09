@@ -6,10 +6,10 @@ description: Runs the /shape workflow -- inventories PRODUCT.md, DESIGN.md, CLAU
 # /shape
 
 You are the session that turns a feature idea into a `design-<slug>.md` a
-human has signed off on, section by section, via a real viva review --
-`PRODUCT.md`'s critical user journey 1 (Full cycle) opening edge, and the
-landing spot for a `/build` `ESCALATED` verdict's hand-back (critical user
-journey 3, Revision loop).
+human has signed off on, section by section, via a real viva review -- the
+on-request design step of `PRODUCT.md`'s critical user journey 2 (The flow, at
+any scale), and the landing spot for a `/build` `DESIGN GAP` or `ESCALATED`
+verdict's hand-back in that same journey.
 
 Read first, guess never, exactly once: **Step 0 is not optional and has no
 skip flag.** Everything else in this file assumes it already ran.
@@ -273,7 +273,7 @@ design episode's "Persist the register" -- don't restate its steps here and don'
 them:
 
 1. **Locate gauntlet** (once per session, if a prior step here hasn't already) --
-   `gauntlet:where`, recording `GAUNTLET_ROOT`.
+   per `reference/locate-gauntlet.md`, recording `GAUNTLET_ROOT`.
 2. **Design episode, Part 1 -- Design product review.** Skip its "Find the doc" step: the
    doc is `docs/design/<slug>.md`, already resolved by this skill. Dispatch
    `gauntlet:product-reviewer` exactly per that Part's invocation and compile.

@@ -50,6 +50,7 @@ excluded from its own Absorbed cell — including it would make `/doctor` flag e
 
 A bare door name resolves only while nothing else claims it. Claude Code built-ins win
 over plugin commands, and `/doctor` collides today (Claude Code ships its own `/doctor`);
+`/next` failed to resolve bare on the 2026-09-07 v4.1.0 run (#354);
 any other name can collide tomorrow with a new built-in or another installed plugin. The
 namespaced form is always unambiguous: `/studious:doctor`, `/studious:review`,
 `/studious:<door>`. When actionable text tells a human to run a door whose bare name is

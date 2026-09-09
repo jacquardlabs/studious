@@ -6,17 +6,15 @@ description: Closes out a BUILT branch — an assembled PR evidence table (Done-
 # /ship
 
 You are the session that closes out a `BUILT` branch. `/build` produces the
-branch; studious's `/review` (if installed) judges
-it; `/ship` turns a judged-ready branch into an evidence-backed PR (or a
-merge, a kept branch, or a discard) with nothing left to hand-assemble.
+branch and convenes `/review`'s work episode on it itself; `/ship` turns a
+judged-ready branch into an evidence-backed PR (or a merge, a kept branch, or
+a discard) with nothing left to hand-assemble.
 
 **Precondition.** `/ship` runs after a `/build` session reports `BUILT` and
-after `/review` has passed on this branch. `/ship`
-never checks for a recorded gate verdict itself — gates are skippable by
-design, and the gate ledger is per-branch flow state a human can
-legitimately have bypassed. It trusts the human invoked it because the
-branch is ready, same as `/build`'s own `BUILT` → "run `/review` next"
-hand-off.
+its convened work episode has passed. `/ship` never checks for a recorded
+gate verdict itself — gates are skippable by design, and the gate ledger is
+per-branch flow state a human can legitimately have bypassed. It trusts the
+human invoked it because the branch is ready.
 
 ## Two modes
 
@@ -66,7 +64,7 @@ It resolves `--task exorcise` the same way — `/build` Step 3 captures the exor
 report under that id (`exorcist:report`, pinned in `reference/evidence-format.md`); no
 folder means no pass landed, so no row, no remark. Then it runs the **freshness hold**
 (`evidence-freshness`) over every folder it found, against each folder's own
-`manifest.json` — never against the branch's current `HEAD` (issue #44's shape one
+`manifest.json` — never against the branch's current `HEAD` (issue jacquardlabs/jig#44's shape one
 layer up) — and only then renders:
 
 - one row per `Done means` item: item text → tier → evidence → the item's own `status`
@@ -124,7 +122,7 @@ until now:
 
 - **Not-here follow-ups** — `PLAN.md`'s own `## Not-here follow-ups` section
   (bulleted, one line each). Read it directly. The `##` level is confirmed
-  safe against the actually-installed viva (story `plan-skill`, issue #23),
+  safe against the actually-installed viva (story `plan-skill`, issue jacquardlabs/jig#23),
   including the `Revision History`-collision case a bare heading-level read
   would miss — `/build`'s own viva invocation passes an explicit `--split-on`
   rather than relying on auto-detect alone.
@@ -177,12 +175,14 @@ durable record. Assemble what Steps 1–4 produced — `ship-body`'s output, the
 cctx footer (or its "not installed" note), which follow-ups were filed (with
 issue numbers) and which were skipped, and the proposed decision patches
 verbatim — into a single markdown file, then call
-`studious build-report --repo <worktree> --slug <story-slug> --content
-<path>` (optionally `--date`; defaults to today, UTC). This writes
-`docs/studious/build-reports/YYYY-MM-DD-<story-slug>-build-report.md` — same
-class and naming as studious's own dated review reports. `build-report` only
-performs the mechanical write; the assembly is this step's job, not the
-script's.
+`studious build-report --repo <worktree> --content <path>` (optionally
+`--date`; defaults to today, UTC). The script names the report after the
+story's work file — the `studious work-list` row whose branch is this one —
+so a reader matches `docs/studious/build-reports/YYYY-MM-DD-<slug>-build-report.md`
+back to its story by that one rule (#284); pass `--slug` only for a branch
+with no work file. Same class and naming as studious's own dated review
+reports. `build-report` only performs the mechanical write; the assembly is
+this step's job, not the script's.
 
 `build-report` does not commit its own write. Commit the new report file
 yourself, as its own commit, distinct from Step 6's cleanup commit below.

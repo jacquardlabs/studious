@@ -150,13 +150,13 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertPhraseIn("Commit your change yourself as your last act, and end your final message with the commit SHA you just created")
 
     def test_executor_return_contract_does_not_claim_a_fenced_json_block(self) -> None:
-        # The executor's context (task block + boundary line) never
-        # mentions verify's ITEMS_SCHEMA, so step 2.4 must not claim the
-        # executor emits that JSON -- the Foreman transcribes it instead
-        # (step 2.5), matching the demonstrated behavior in this story's
-        # evidence folder.
+        # The executor's context (task block + boundary line) never mentions
+        # an item list, so step 2.4 must not claim the executor emits one --
+        # `studious verify` derives it from the plan in step 2.5 (#329 retired
+        # the hand-transcribed document altogether).
         self.assertNotIn("fenced JSON block", self.body)
-        self.assertPhraseIn("The executor never emits `studious verify`'s `ITEMS_SCHEMA` JSON itself")
+        self.assertNotIn("ITEMS_SCHEMA", self.body)
+        self.assertPhraseIn("The executor never transcribes an item list for `studious verify`")
 
     def test_foreman_derives_items_via_verify_plan_mode(self) -> None:
         # `studious verify --plan --task` derives script/test-backed items
@@ -280,7 +280,7 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
             "   results.json` to a scratch path outside the worktree"
         )
         self.assertPhraseIn("never a path under `<worktree>` itself")
-        self.assertPhraseIn("issue #45")
+        self.assertPhraseIn("issue jacquardlabs/jig#45")
 
     def test_step_7_evidence_capture_points_at_the_scratch_path_results(self) -> None:
         # Step 7 must reuse step 5's scratch-path results.json directly, never a copy
@@ -381,11 +381,11 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         # this is a regression guard against ever reintroducing it.
         self.assertNotIn("Do not call it, simulate it", self.body)
         self.assertNotIn("named, deliberate pass-through straight from step 5 to step 7", self.body)
-        self.assertIn("issue #15", self.body)
+        self.assertIn("issue jacquardlabs/jig#15", self.body)
 
     def test_load_bearing_set_is_computed_once_after_the_task_split(self) -> None:
         # Pre-mortem risk #3: fixed one-time computation, not a per-task guess.
-        self.assertPhraseIn("Compute the load-bearing set, once (issue #15)")
+        self.assertPhraseIn("Compute the load-bearing set, once (issue jacquardlabs/jig#15)")
         self.assertPhraseIn("Using the same task blocks step 1.4 just read into memory")
         self.assertPhraseIn(
             "once, for the whole run, before task 1 is ever dispatched"
@@ -477,7 +477,7 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         for lens in ("test self-dealing", "contract match", "technicality gaming"):
             with self.subTest(lens=lens):
                 self.assertIn(lens, self.flat_body)
-        self.assertPhraseIn("exactly three lenses, named in issue #15, and nothing wider")
+        self.assertPhraseIn("exactly three lenses, named in issue jacquardlabs/jig#15, and nothing wider")
         self.assertPhraseIn(
             "No security review, no style review, no performance review, no "
             "re-litigating `verify`'s own PASS/FAIL"
@@ -550,13 +550,13 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
             "Commands in a plan are executed verbatim via the shell; only "
             "run `/build` on plans you would run by hand"
         )
-        self.assertIn("issue #48", self.body)
+        self.assertIn("issue jacquardlabs/jig#48", self.body)
 
     def test_timeout_mechanism_is_named(self) -> None:
         # Issue #49: SKILL.md must name that hung commands are killed under
         # a timeout and reported distinctly, not silently hang the session.
         self.assertPhraseIn("generous `--timeout`")
-        self.assertIn("issue #49", self.body)
+        self.assertIn("issue jacquardlabs/jig#49", self.body)
 
     def test_body_names_all_checkpoint_block_fields(self) -> None:
         for field in ("Why now", "Read first", "Rests on", "Do", "Not here", "Done means", "Evidence"):

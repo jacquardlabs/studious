@@ -20,6 +20,7 @@ from pathlib import Path
 
 from _vocabulary import (
     _derive_vocabulary,
+    _executor_checkpoint_fields,
     derive_build_vocabulary,
     derive_design_vocabulary,
     derive_finish_vocabulary,
@@ -350,6 +351,46 @@ class TestDeriveVocabularySharedPath(unittest.TestCase):
         self.assertEqual(
             _derive_vocabulary(self.DESIGN, frozenset({"alpha"}), ("mid", "tail")),
             ("zeta", "mid", "tail"),
+        )
+
+
+# A Formatting section whose checkpoint-block bullet has lost its `Do` field --
+# the shape a DESIGN.md rename or a reflow would leave behind.
+_DO_LESS_FORMATTING = """## Formatting
+
+- **The checkpoint block** carries `Why now`, `Read first`, `Not here`,
+  `Done means`, and `Evidence`.
+- **Something else** entirely.
+"""
+
+
+class TestExecutorCheckpointFieldsFailsLoud(unittest.TestCase):
+    """#176: an unparseable checkpoint bullet raises rather than returning `[]`.
+
+    Returning an empty list would hand every caller a silently narrower
+    vocabulary, and the drift checks above would pass on it -- exactly the
+    failure the derivation exists to catch.
+    """
+
+    def test_a_bullet_without_a_backticked_do_field_raises(self) -> None:
+        with self.assertRaises(ValueError) as caught:
+            _executor_checkpoint_fields(_DO_LESS_FORMATTING)
+        self.assertIn("Do", str(caught.exception))
+
+    def test_a_missing_formatting_section_raises_too(self) -> None:
+        with self.assertRaises(ValueError):
+            _executor_checkpoint_fields("## Vocabulary\n\nnothing here.\n")
+
+    def test_the_raise_propagates_through_the_public_derivation(self) -> None:
+        """`derive_jig_vocabulary` must not swallow it into an empty `extra`."""
+        with self.assertRaises(ValueError):
+            derive_jig_vocabulary(_DO_LESS_FORMATTING)
+
+    def test_a_well_formed_bullet_still_returns_the_fields_after_do(self) -> None:
+        well_formed = _DO_LESS_FORMATTING.replace("`Why now`", "`Why now`, `Do`", 1)
+        self.assertEqual(
+            _executor_checkpoint_fields(well_formed),
+            ["Read first", "Not here", "Done means", "Evidence"],
         )
 
 

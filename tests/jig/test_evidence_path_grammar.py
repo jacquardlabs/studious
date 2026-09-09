@@ -34,14 +34,19 @@ Standard library only. Run with:
 """
 from __future__ import annotations
 
+import sys
 import unittest
 from pathlib import Path
 
 from _evidence_grammar import derive_folder_grammar
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "scripts"))
+from _gitutil import build_evidence_root, main_checkout_root
 
-EVIDENCE_ROOT = ".studious/build-evidence/"
+# Derived from `scripts/_gitutil.build_evidence_root`, never transcribed (#287): the
+# store's tail below the main checkout, as a posix string with a trailing slash.
+EVIDENCE_ROOT = str(build_evidence_root(REPO_ROOT).relative_to(main_checkout_root(REPO_ROOT)).as_posix()) + "/"
 
 # `<` marks a placeholder shape, not a literal directory or glob.
 PLACEHOLDER_PREFIX = EVIDENCE_ROOT + "<"

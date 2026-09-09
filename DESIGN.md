@@ -25,6 +25,9 @@ State is conveyed through **verdict tokens** and **severity tiers** (below), and
 through bold. The single styling convention: verdict tokens and tier names render **bold**
 (`**BUILD**`, `**Critical**`).
 
+<!-- Parsed by tests/jig/_vocabulary.py: the table under "Gate verdict vocabularies" and
+     "Build-execution vocabularies" (Concept column, backticked tokens, `\|` escapes a pipe
+     inside a cell). A cell rename is a code change (#176). -->
 ## Vocabulary
 
 The plugin's most important interface contract. Each gate command emits a fixed set of
@@ -67,6 +70,12 @@ resolved.** A `/build` task status `PASS` is a `PLAN.md` heading suffix written 
 `scripts/status-flip`; a work-episode `PASS` is a gate verdict in the ledger. Name which
 one you mean whenever both could be read — tracked as #174.
 
+**Risk tags and severity tiers are two vocabularies, not one ladder.** The build side's
+`LOW` / `REPLAN-RISK` / `ESCALATE-RISK` grade a task before it is built; the gate side's
+`Critical` / `Important` / `Track` grade a finding after. They sit in one file
+since #150 and are deliberately not aligned — a `REPLAN-RISK` task can pass with no
+findings, and a `LOW` one can produce a Critical.
+
 ### Severity tiers
 
 Findings across audits and reviews sort into three tiers, named consistently everywhere:
@@ -87,6 +96,8 @@ schema, and the calibrate-don't-suppress closer — is inlined by each gauntlet 
   verdict tokens. Used by the work episode (`commands/review.md`) and the review agents.
 - **Summary line** — "one line per auditor/review: name, findings by severity, pass/fail."
 - **Report file paths** — periodic reviews write to `docs/studious/<area>-reviews/YYYY-MM-DD-<area>-review.md`.
+<!-- Parsed by tests/jig/_vocabulary.py: the backticked fields after `Do` in this bullet are
+  the executor's vocabulary (#176). -->
 - **The checkpoint block** is the build side's closest analog to a type scale — a fixed
   template every task in `PLAN.md` follows: `Why now` / `Read first` / `Rests on` / `Do` /
   `Not here` / `Done means` (numbered cap/hold items with a verification tier) /
@@ -117,6 +128,13 @@ schema, and the calibrate-don't-suppress closer — is inlined by each gauntlet 
   is fragmenting or the feature itself is `TOO BIG`.
 - **PR evidence table**: `/ship` promotes each task's Done-means into the PR body as
   item → verification method → evidence link → pass.
+- **Script exit ladder and message prefix** (every `scripts/` verb and `bin/studious`,
+  #222): exit `0` did the work; `1` a refusal the caller acts on (a failed item, a stale
+  folder, a red baseline); `2` a usage error (bad flags, a malformed input, a missing
+  file — nothing ran). A refusal or usage error prints one line to stderr starting
+  lowercase `error:`, or argparse's own `usage:`; headline blocks (`BASELINE FAILURE`,
+  `BASELINE KNOWN-RED`) may follow the line, never replace it.
+  `tests/jig/test_cli_conventions.py` runs every verb against the ladder.
 
 ## Per-surface conventions
 

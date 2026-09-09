@@ -217,12 +217,16 @@ pre-mortem register, a dedicated auditor checks each predicted failure mode agai
 shipped — REALIZED / NOT REALIZED / CAN'T VERIFY, evidence attached. Up to 13 lanes, each
 staying in its own.
 
-A SessionStart hook runs the other direction: on a fresh session or a resumed one (never on
-`/clear`, `/compact`, or a fork — those aren't "arriving new to this project"), it checks the
-gate ledger and, if a feature is in flight, surfaces a one-to-three-line heads-up —
-counts and the most-recently-updated item, never the full list — so the session opens already
-knowing what `/next` would resume. Silent otherwise, same degrade-quietly posture as every
-other hook here.
+## Hooks
+
+Two, both silent unless they have something to say, both declared in `hooks/hooks.json`:
+
+| Hook | Event | What it does |
+|---|---|---|
+| `hooks/evidence-capture.sh` | `PostToolUse` and `PostToolUseFailure` on `Bash` | While a story is armed, appends each verification command's record to the branch's evidence log (`reference/evidence-format.md`). No-op when nothing is armed. |
+| `hooks/session-start.sh` | `SessionStart` on `startup` and `resume` (never `/clear`, `/compact`, or a fork) | If a feature is in flight, prints a one-to-three-line heads-up — counts and the most-recently-updated item, never the full list — so the session opens knowing what `/next` would resume. |
+
+Neither blocks a tool call, asks a question, or writes outside `.studious/`.
 
 ## Where your state lives
 

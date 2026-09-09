@@ -45,7 +45,7 @@ DOOR_ROW = re.compile(
 STRUCTURAL_SURFACE = (
     "agents/*.md",
     "hooks/*.sh",
-    "bin/gate-ledger",
+    "bin/*",
 )
 
 #: The producer doors' own executables (`scripts/<name>`, or `studious <name>` through

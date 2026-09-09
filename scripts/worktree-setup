@@ -136,6 +136,12 @@ def main(argv: list[str]) -> int:
         )
         return 1
 
+    return report_baseline(args, worktree_path, branch)
+
+
+def report_baseline(args: argparse.Namespace, worktree_path: Path, branch: str) -> int:
+    """Run the baseline in the fresh worktree and report one of four outcomes:
+    green (0), known-red accepted as input (0), timeout (1), or failure (1)."""
     try:
         baseline_result = run_shell_with_timeout(args.baseline, worktree_path, args.timeout)
     except subprocess.TimeoutExpired as exc:

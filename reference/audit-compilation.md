@@ -64,5 +64,5 @@ Everything else. Don't expand on these — just list them.
 ### Verdict
 Based on the findings, recommend one of:
 - **PASS** — No critical findings. The branch is judged delivered; `/ship` is next.
-- **FIX AND RE-REVIEW** — Critical findings listed. Fix these, then re-run `/review`.
+- **FIX AND RE-REVIEW** — Critical findings listed. Fix these, then re-run `/studious:review`.
 - **NEEDS DISCUSSION** — Architectural or product-level concerns that aren't simple fixes, including a product-lane Critical on `delivers` (the built thing does not deliver what it was for).

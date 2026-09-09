@@ -250,7 +250,7 @@ class TestPlanSkillBody(PhraseInBodyMixin, unittest.TestCase):
         # Resolves issue #23: the level stays ## -- --split-on is the fix,
         # not a heading-level change.
         self.assertPhraseIn("Heading level stays `##` for `Not-here follow-ups` -- unchanged")
-        self.assertPhraseIn("The `--split-on` pattern above, not a heading-level change, is what actually fixes issue #23")
+        self.assertPhraseIn("The `--split-on` pattern above, not a heading-level change, is what actually fixes issue jacquardlabs/jig#23")
 
     def test_no_second_headed_section_in_plan_md_output(self) -> None:
         self.assertPhraseIn("no `## Inventory`, no `## Dependency")
@@ -283,13 +283,13 @@ class TestStaleReferencesUpdated(unittest.TestCase):
     def test_build_skill_cites_the_verified_round_trip(self) -> None:
         body = BUILD_SKILL_MD.read_text(encoding="utf-8")
         self.assertIn("## Not-here follow-ups", body)
-        self.assertIn("issue #23", body)
+        self.assertIn("issue jacquardlabs/jig#23", body)
         self.assertNotIn("#### Not-here follow-ups", body)
 
     def test_finish_skill_cites_the_verified_round_trip(self) -> None:
         body = FINISH_SKILL_MD.read_text(encoding="utf-8")
         self.assertIn("## Not-here follow-ups", body)
-        self.assertIn("issue #23", body)
+        self.assertIn("issue jacquardlabs/jig#23", body)
         self.assertNotIn("#### Not-here follow-ups", body)
 
 

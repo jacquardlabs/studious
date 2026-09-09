@@ -26,7 +26,7 @@ Four roles, never blurred:
   *load-bearing* task only (step 2.6), after that task's own `verify` PASS.
   Unlike you, the Inspector **does** see a diff — it runs `git diff`/`git
   show` itself, scoped to exactly this task's own commit(s), and judges it
-  against exactly three lenses named in issue #15 (test self-dealing,
+  against exactly three lenses named in issue jacquardlabs/jig#15 (test self-dealing,
   contract match, technicality gaming), nothing wider. Never sees a leaf
   task, the full `PLAN.md`, another task's history, or this session's own
   conversation.
@@ -65,14 +65,14 @@ own hand-written `PLAN.md`), but becomes local code execution the moment a
 task block is seeded from untrusted provenance — an external issue/PR
 body, or a `PLAN.md` carrying prompt-injection that steers the Foreman's
 own transcription — so treat such a plan the same way, not as data
-`/build` can safely sandbox for you (issue #48).
+`/build` can safely sandbox for you (issue jacquardlabs/jig#48).
 
 Each such command also runs under a generous `--timeout`
 (`worktree-setup`'s baseline, `verify`'s per-item commands) so a hung
 command — waiting on stdin, deadlocked, a network-bound test with no
 timeout of its own — is killed and reported as a distinct timeout message,
 never silently hanging the session or reading as an ordinary command
-failure (issue #49).
+failure (issue jacquardlabs/jig#49).
 
 ## Step 0 — Plan, if there isn't one
 
@@ -191,13 +191,13 @@ may appear anywhere in the block. No `Risk:` line means `LOW` — see Cadence.
    that trailing section into the preceding task card (a real bug the
    project's own M0 dogfood surfaced); read for meaning and don't reproduce
    it. The `##` level itself is not the bug and stays as-is (story
-   `plan-skill`, issue #23): that story verified,
+   `plan-skill`, issue jacquardlabs/jig#23): that story verified,
    against the actually-installed viva, that a `####` level would be
    *coarser* than this rule's own level 1–3 boundary and nest inside the
    preceding task instead — this parsing rule, and `studious plan-lint`'s
    matching one, are the two frozen consumers `/build` targets, not the bug
    `/build` fixes.
-5. **Compute the load-bearing set, once (issue #15).** Using the same task
+5. **Compute the load-bearing set, once (issue jacquardlabs/jig#15).** Using the same task
    blocks step 1.4 just read into memory: for every task N, task N is
    **load-bearing** iff *any other* task block's own `Rests on:` line names
    task N (its heading number, e.g. "Task 2", or an unambiguous title match
@@ -285,10 +285,10 @@ For each task block, in order:
 4. **Read the executor's return.** Its final message must contain: the
    commit SHA it just created, plus its narrative summary and `Evidence`
    prose citing the fresh run behind each numbered `Done means` item. The
-   executor never emits `studious verify`'s `ITEMS_SCHEMA` JSON itself —
-   its only context is the task block and the boundary line above, neither
-   of which mentions that schema. Transcribing it is the Foreman's own
-   next step (2.5), not something asked of a fresh executor.
+   executor never transcribes an item list for `studious verify` — its only
+   context is the task block and the boundary line above. `verify` derives the
+   items from the plan itself in the Foreman's own next step (2.5); nothing is
+   asked of a fresh executor beyond its return.
 5. **Verify, independently.** `studious verify` derives the items list
    itself, straight from *this task's own checkpoint block* in `<plan
    path>` — `--plan <plan path> --task <this task's heading number, e.g.
@@ -316,7 +316,7 @@ For each task block, in order:
    run against a dirty tree: the moment either file lands inside the
    worktree it shows up as untracked in `git status --porcelain`, and the
    very next call in this same task — not just a later one — refuses
-   (issue #45). Then call
+   (issue jacquardlabs/jig#45). Then call
    `studious verify --plan <plan path> --task <this task's heading number> [--probe-spec <scratch-path>/probe-spec.json] --since <this attempt's dispatch timestamp from step 2.2> --repo <worktree> --python <interpreter> --out <scratch-path>/results.json`.
    `--python` is the interpreter the project's own baseline command runs under
    when `CLAUDE.md`'s convention names one (a `uv run` / venv python), else
@@ -330,7 +330,7 @@ For each task block, in order:
    `probe` artifact is written to disk *before* it is committed, so its
    mtime is always at or before that very commit's own timestamp; using the
    commit as the floor makes every `probe` item structurally unpassable
-   (issue #44). The dispatch timestamp, captured before the executor ever
+   (issue jacquardlabs/jig#44). The dispatch timestamp, captured before the executor ever
    started, predates anything it writes while still catching an artifact
    staled forward from an earlier attempt at this same task. This call
    always happens *after* the executor's own commit, never before —
@@ -380,7 +380,7 @@ For each task block, in order:
    `plan-drift` and part of the intent Step 3 hands exorcise (#366). An
    authorized addition nobody recorded looks exactly like an unrequested one
    and is reverted with it.
-6. **Inspect — conditional on load-bearing status (issue #15).** Consult
+6. **Inspect — conditional on load-bearing status (issue jacquardlabs/jig#15).** Consult
    the fixed load-bearing set step 1.5 already computed.
 
    **Leaf task (not in the load-bearing set): no dispatch.** State, in
@@ -408,7 +408,7 @@ For each task block, in order:
      `Do`/`Done means` prose — the contract of record when no design doc
      exists, not a fabricated requirement for one;
    - one boundary line: *"Judge this task's own change against exactly
-     three lenses, named in issue #15, and nothing wider — (1) test
+     three lenses, named in issue jacquardlabs/jig#15, and nothing wider — (1) test
      self-dealing: do the new tests assert the promised capability, or
      something adjacent/vacuous? (2) contract match: does the shipped
      contract match its cited design section (or, absent one, this block's
@@ -430,7 +430,7 @@ For each task block, in order:
    as an uninspected task would. Capture the Inspector's own report (its
    reasoning against each of the three lenses, cited against the diff),
    written to the same scratch path `verify`'s `results.json` already uses
-   (never inside the worktree first — issue #45's clean-tree rule applies
+   (never inside the worktree first — issue jacquardlabs/jig#45's clean-tree rule applies
    identically here), as one more `evidence-capture` artifact alongside the
    existing `verify:results=...` call in step 2.7:
    `--artifact inspector:report=<scratch-path>/inspector-report.md`. No new
@@ -470,7 +470,7 @@ For each task block, in order:
      `probe` item names is a different case: it's a file the executor
      wrote *and committed* inside `<worktree>` as part of its own commit,
      so its mtime is always at or before that commit's own timestamp — the
-     same structural fact issue #44 diagnosed for `verify`'s `--since`
+     same structural fact issue jacquardlabs/jig#44 diagnosed for `verify`'s `--since`
      floor, this time tripping `evidence-capture`'s own stale-artifact
      check (it refuses anything whose mtime predates the last commit).
      Before calling `evidence-capture`, **copy each such artifact into the
@@ -494,7 +494,7 @@ For each task block, in order:
      `unavailable`, never a reason for this call to refuse the whole
      `evidence-capture` capture — a documented failure path, not a
      judgment call made here. The replay
-     harness itself (issue #41) and issue #33's richer identity fields
+     harness itself (issue #188) and issue #186's richer identity fields
      (`run_id`/`step_id`/`parent_step_id`/`skill`/`role`/`routing_reason`)
      stay out of scope here — none of those exist in this session model
      today — and only the final attempt this hook point ever sees is
@@ -514,7 +514,7 @@ For each task block, in order:
      and any probe-artifact copies kept outside `<worktree>` throughout, the only
      thing present in the worktree at this point is the executor's own
      committed change, so `evidence-capture`'s clean-tree check has a real,
-     clean tree to check (issue #45) instead of refusing before task 1 ever
+     clean tree to check (issue jacquardlabs/jig#45) instead of refusing before task 1 ever
      completes.
 
      **Exit code 2, "evidence directory already exists": not a task FAIL,
@@ -823,7 +823,7 @@ add anything to a dispatch prompt beyond what those steps already gather. Lane 1
 episode reads only what `reference/evidence-format.md` and its own resolution rules give
 it, the same as it would for any other executor:
 
-1. **Locate gauntlet** — `gauntlet:where`, recording `GAUNTLET_ROOT`.
+1. **Locate gauntlet** — per `reference/locate-gauntlet.md`, recording `GAUNTLET_ROOT`.
 2. **Establish the changeset** — merge-base to `HEAD` in this worktree.
 3. **Precompute the changeset diff** — small-changeset scratch file, per that step's
    400-line threshold.
