@@ -90,6 +90,9 @@ for these entries:
 # Studious local state — gate ledger, work files, build evidence (never committed)
 .studious/
 
+# viva session state — /build's plan interview and review rounds (never committed)
+.viva/
+
 # Disposable build scaffolding — design doc, its pre-mortem register, the plan.
 # Lives on the branch, dies at closeout; the durable record is the PR body.
 /PLAN.md
@@ -107,6 +110,19 @@ other two.)
 A project that deliberately tracks its design docs or `PLAN.md` can decline those lines —
 `/ship`'s closeout handles the tracked case with a `git rm` commit instead. Note the
 choice; don't relitigate it.
+
+## Step 5c — Install the plan type
+
+`/build` stamps its plan through viva with a repo-local type, `.viva-types/plan.json`
+(viva resolves a repo's `.viva-types/<name>.json` over its shipped bundle of the same
+name, wholesale). Copy the one that ships with the plugin:
+
+```bash
+mkdir -p .viva-types && cp "${CLAUDE_PLUGIN_ROOT}/templates/viva-types/plan.json" .viva-types/plan.json
+```
+
+If `.viva-types/plan.json` already exists, leave it and say so — a project that tuned
+its type keeps it. `.viva-types/` is committed, shared configuration, never gitignored.
 
 ## Step 6 — Update CLAUDE.md
 

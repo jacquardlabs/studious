@@ -95,6 +95,23 @@ class TestPlanLintCommittedFixtures(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("0 violations", result.stdout)
 
+    def test_clean_fixture_with_viva_sign_off_ledger_still_exits_zero(self) -> None:
+        """`loop.py finish` appends `## Revision History` with a `### Decisions`
+        block, and `status-flip` carries that file on the branch; the post-stamp
+        lint the planning contract requires must still pass."""
+        tail = (
+            "\n## Revision History\n\n"
+            "| Round | Section | Verdict | Note |\n|---|---|---|---|\n"
+            "| 1 | Task 1 | approved | |\n| 1 | Task 2 | approved | |\n\n"
+            "### Decisions\n\n- Task 1: keep `double` in `_gitutil.py` — chosen: yes\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            staged = self.stage(tmp, "clean-plan.md")
+            staged.write_text(staged.read_text(encoding="utf-8") + tail, encoding="utf-8")
+            result = run_script([str(staged)])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("0 violations", result.stdout)
+
     def test_broken_fixture_exits_one_with_all_eight_categories_distinct(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             result = run_script([str(self.stage(tmp, "broken-plan.md"))])

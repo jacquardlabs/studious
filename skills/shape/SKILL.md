@@ -1,6 +1,6 @@
 ---
 name: shape
-description: Runs the /shape workflow -- inventories PRODUCT.md, DESIGN.md, CLAUDE.md, and the touched code, a batch interview (viva-qa) of 5-9 tagged questions with forks presented as 2-3 options carrying one recommended_choice, a drafted design-<slug>.md (Problem & persona through Open questions, each section carrying a named consumer), a design-lint pass fixed before viva ever starts, and a viva sign-off loop that distinguishes a fresh round from a REVISED resume via --prior-input/--prior-verdicts. Once every section is signed off, convenes /review's design episode itself (product-reviewer, persona walkthrough, pre-mortem, verdict) rather than handing off to a separate /review invocation; a REVISE redrafts and re-convenes once more in the same session before an unresolved REVISE goes back to the human. Use when the user says /shape, hands over a feature idea to turn into a design doc, or a /build ESCALATED verdict routes back here for revision. Emits exactly one verdict -- DESIGNED, NEEDS RESEARCH, or REVISED -- plus the convened episode's own PROCEED TO PLAN, REVISE, or RETHINK.
+description: Runs the /shape workflow -- inventories PRODUCT.md, DESIGN.md, CLAUDE.md, and the touched code, a batch viva interview of 5-9 tagged questions with forks presented as 2-3 options carrying one recommended_choice, a drafted design-<slug>.md (Problem & persona through Open questions, each section carrying a named consumer), a design-lint pass fixed before viva ever starts, and a viva sign-off loop that distinguishes a fresh round from a REVISED resume via --prior-input/--prior-verdicts. Once every section is signed off, convenes /review's design episode itself (product-reviewer, persona walkthrough, pre-mortem, verdict) rather than handing off to a separate /review invocation; a REVISE redrafts and re-convenes once more in the same session before an unresolved REVISE goes back to the human. Use when the user says /shape, hands over a feature idea to turn into a design doc, or a /build ESCALATED verdict routes back here for revision. Emits exactly one verdict -- DESIGNED, NEEDS RESEARCH, or REVISED -- plus the convened episode's own PROCEED TO PLAN, REVISE, or RETHINK.
 ---
 
 # /shape
@@ -43,7 +43,7 @@ Take the one-line feature description from the argument, or from the
 conversation's own prior context if the human already stated it. Nothing
 else to resolve here.
 
-## Step 2 -- Batch interview (viva-qa)
+## Step 2 -- Batch interview (viva)
 
 **Skip this step when the forks arrive already answered.** A dispatched run —
 any orchestrator that settled its forks up front — passes them in its brief as
@@ -82,7 +82,18 @@ Write `.viva/qa-input.json`:
 }
 ```
 
-Then invoke `/viva-qa` and read `.viva/answers.json` once it writes.
+Then run the interview and read `.viva/answers.json` once it writes — `loop.py`
+clears stale state, launches the QA server, blocks for the submit, and prints the
+answers with a classification line (`answered` / `submitted-early`) to route on:
+
+```bash
+mkdir -p .viva
+python3 "$VIVA_DIR/scripts/loop.py" interview --input .viva/qa-input.json
+```
+
+`$VIVA_DIR` resolves the way `viva-write`'s own launch block does (highest cached
+version). viva ships no standalone QA skill; a `loop.py` that is missing is the
+not-installed case Step 6 names, reported, never a silent drop to the terminal.
 
 **5-9 questions in round 1.** Tag every question with why it's asked, using
 the four-tag taxonomy the M0 paper dogfood already validated:
@@ -119,10 +130,11 @@ A fork opened by the interview (or discovered while drafting) is presented
 with **2-3 options, tradeoffs for each, and exactly one recommendation**.
 This rides the *same* batch-interview round as ordinary questions -- fork
 presentation and ordinary questions are mechanically the same thing in
-`viva-qa`'s schema, so no second server round is needed to separate them.
+the QA schema (`references/qa.md` at the viva root), so no second server
+round is needed to separate them.
 
 **The recommendation uses `recommended_choice`, not prose convention.**
-`viva-qa`'s schema carries an optional `recommended_choice` field per
+The QA schema carries an optional `recommended_choice` field per
 question -- it must exactly match one entry in that question's own
 `choices`, renders as a "recommended" badge, and is advisory only (never
 pre-selected). Never improvise a `"(recommended)"` string into `text` or
@@ -209,9 +221,9 @@ until every section is `approved`. Nothing about that loop is reimplemented
 here -- it's read, not modified.
 
 **The QA server from Step 2 is still live.** Hand off in the same browser
-tab via `viva-qa`'s documented same-tab hand-off (`POST /next-round`
-against the still-live QA server's URL) rather than tearing it down and
-reconnecting a second time.
+tab — `loop.py start --doc <doc> --handoff`, the documented same-tab
+hand-off (`POST /next-round` against the still-live QA server's URL) —
+rather than tearing it down and reconnecting a second time.
 
 **Correctly distinguish a fresh round from a resume -- never "clear stale
 state" by rote.** Three distinct situations, matching `viva`'s own
@@ -243,7 +255,7 @@ report's finding 3 names ("I personally destroyed round-1 carry-forward
 state by following SKILL.md's own documented steps literally"). Recognize
 case 3 explicitly every time; don't let it collapse into case 1.
 
-A `viva`/`viva-qa` launch failure (the skills' own pre-existing guard --
+A viva launch failure (`loop.py`'s own pre-existing guard --
 `.viva/server.url` already present, or `server.py` missing entirely)
 surfaces verbatim, exactly as their own `SKILL.md`s already specify --
 `/shape` invents no retry logic on top of it.

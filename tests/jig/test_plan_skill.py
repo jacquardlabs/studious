@@ -128,7 +128,7 @@ class TestPlanSkillBody(PhraseInBodyMixin, unittest.TestCase):
         # constraints/assumptions section must not be silently misread.
         self.assertPhraseIn("Name what you extracted")
         self.assertPhraseIn(
-            "If the doc has no explicit constraints or assumptions section at all, "
+            "If the material has no explicit constraints or assumptions section at all, "
             "**ask the human once**"
         )
         self.assertIn("silently promoting", self.body)
