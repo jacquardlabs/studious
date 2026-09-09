@@ -62,38 +62,27 @@ class TestFinishSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertIn("evidence-freshness", self.body)
         self.assertIn("build-report", self.body)
 
-    # -- Step 1: PR evidence table / freshness hold -----------------------
+    # -- Step 1: PR evidence table (assembled by ship-body since #249/#421) ----
+
+    def test_the_table_is_assembled_by_ship_body_never_by_hand(self) -> None:
+        self.assertIn("studious ship-body --plan <worktree>/PLAN.md --repo <worktree> --branch", self.body)
+        self.assertPhraseIn("The table is assembled by a script, never by hand")
 
     def test_freshness_floor_is_the_folders_own_manifest_not_head(self) -> None:
-        # Pre-mortem risk #1 / issue #44's bug shape one layer up.
+        # Pre-mortem risk #1 / issue #44's bug shape one layer up -- the rule
+        # is evidence-freshness's; the prose names it so the reader knows why.
         self.assertPhraseIn("never against the branch's current `HEAD`")
-        self.assertPhraseIn(
-            "The floor for each folder is that folder's own `manifest.json` "
-            "— not the branch's current `HEAD`."
-        )
         self.assertIn("issue #44", self.body)
 
-    def test_freshness_hold_names_the_ancestor_and_mtime_checks(self) -> None:
-        # Pre-mortem risk #2.
-        self.assertPhraseIn("still an ancestor of the branch's current `HEAD`")
-        self.assertPhraseIn("since-rewritten or orphaned commit")
-        self.assertPhraseIn("mtime is still >= that same recorded")
-
-    def test_failed_freshness_hold_stops_the_run_named(self) -> None:
-        self.assertPhraseIn("A folder that fails either check is not promoted silently")
-        self.assertPhraseIn("Stop before assembling the PR body")
-        self.assertPhraseIn("Report the exact task and reason (stale/orphaned) by name")
-
-    def test_finish_never_backfills_missing_evidence(self) -> None:
-        self.assertPhraseIn("Do not call `evidence-capture` yourself to backfill a gap")
+    def test_stops_and_rows_are_named_and_the_run_never_backfills(self) -> None:
+        self.assertPhraseIn("is a\n**stop**: exit 1, the task and reason named on stderr, nothing written")
         self.assertPhraseIn("evidence not found for item N")
+        self.assertPhraseIn("Do not call `evidence-capture` yourself to backfill a gap")
 
     def test_two_evidence_shapes_are_named(self) -> None:
-        self.assertPhraseIn("quoted **inline**, in a collapsible `<details>` block per item")
-        # A local, gitignored store has no commit for a raw URL to anchor to; the
-        # image contract is name-the-path + human attach, never a fabricated URL.
-        self.assertPhraseIn("local store — attach to the PR if a reviewer needs it")
-        self.assertPhraseIn("never fabricate a URL")
+        self.assertPhraseIn("quoted\n  **inline**, in a collapsible `<details>` block per item")
+        self.assertPhraseIn("local store — attach to the PR if a\n  reviewer needs it")
+        self.assertPhraseIn("never fabricates a URL")
         self.assertNotIn("raw.githubusercontent.com", self.body)
 
     # -- Step 2: cctx footer ------------------------------------------------
@@ -232,11 +221,8 @@ class TestFinishResolvesTheEvidenceFolderByAsking(PhraseInBodyMixin, unittest.Te
         Without the assertion below, the line could revert to the pre-#258 shape
         with the whole suite green (#260 audit, test-auditor High).
         """
-        self.assertIn("capture writes `.studious/build-evidence/<date>-<task>-<branch-slug>/`", self.body)
-        self.assertIn("evidence-capture resolve --repo <worktree> --branch", self.body)
-        self.assertPhraseIn("never rebuild the path from its shape")
-        # The image-evidence URL is built from the folder the verb printed.
-        self.assertPhraseIn("`<the folder resolve printed>/<label>.<ext>`, that path verbatim")
+        self.assertIn("(`.studious/build-evidence/<date>-<task>-<branch-slug>/`", self.body)
+        self.assertPhraseIn("never rebuilding\nthe path from its shape")
 
     def test_the_branch_argument_names_the_command_that_produces_it(self) -> None:
         # The writer stamps the manifest with `rev-parse --abbrev-ref HEAD`
@@ -251,27 +237,5 @@ class TestFinishResolvesTheEvidenceFolderByAsking(PhraseInBodyMixin, unittest.Te
         self.assertPhraseIn("`<worktree>` wherever it appears in this skill** is the checkout the build ran in")
         self.assertIn("git rev-parse --show-toplevel", self.body)
         definition = self.flat_body.index("`<worktree>` wherever it appears in this skill")
-        first_use = self.flat_body.index("evidence-capture resolve --repo <worktree>")
+        first_use = self.flat_body.index("studious ship-body --plan <worktree>/PLAN.md")
         self.assertLess(definition, first_use, "`<worktree>` is used before it is defined")
-
-    def test_the_freshness_call_takes_the_printed_path_verbatim(self) -> None:
-        # `resolve` prints an absolute path now that the store lives outside the
-        # tracked tree, so the old "<worktree>/<folder>" join (and the asymmetry
-        # note that guarded it against the raw-URL call site) is retired — an
-        # absolute path ignores `evidence-freshness`'s cwd resolution entirely.
-        self.assertIn(
-            "studious evidence-freshness --repo <worktree> --evidence <folder>",
-            normalize_ws(self.body),
-        )
-        self.assertPhraseIn("passed **verbatim**")
-        self.assertPhraseIn("no join against `<worktree>` is needed or wanted")
-        self.assertNotIn("--evidence <worktree>/<folder>", normalize_ws(self.body))
-
-    def test_the_manifest_sentence_describes_the_folder_resolve_printed(self) -> None:
-        # Its antecedent is the exit-0 resolved folder, and it has one home.
-        contents = normalize_ws("carries a `manifest.json` (`commit_sha`, `commit_timestamp`, `branch`")
-        self.assertEqual(self.flat_body.count(contents), 1, "the manifest description has one home")
-        exit_zero_at = self.flat_body.index(normalize_ws("It prints one folder path — absolute, since the store lives outside the tracked tree — on exit 0."))
-        self.assertLess(exit_zero_at, self.flat_body.index(contents))
-
-

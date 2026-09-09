@@ -131,7 +131,7 @@ def test_ship_resolves_the_exorcise_report_so_held_findings_reach_the_pr_body() 
     hold's "each folder resolve printed above" covers it."""
     step1 = SHIP[SHIP.index("## Step 1") : SHIP.index("## Step 2")]
     resolve_at = step1.index("`--task exorcise`")
-    assert resolve_at < step1.index("**Freshness hold")
+    assert resolve_at < step1.index("**freshness hold**")
     assert "`exorcist:report`" in step1
     assert "`## Held`" in step1 and "`Concepts removed:`" in step1
     assert "no row, no remark" in step1, "an absent pass is silent, never an invented row"
