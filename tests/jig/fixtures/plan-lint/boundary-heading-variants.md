@@ -27,9 +27,10 @@ read Task 2a's line as a real dependency, and never saw Task 3 at all — so
 `3` could not be load-bearing and `1` wrongly was. Both wrong, in opposite
 directions, on one fixture.
 
-That a malformed label is silently skipped rather than reported is a
-separate question — a `plan-lint` validation gap, not a divergence — and is
-deliberately not what this fixture asserts.
+Since #267 neither CLI runs on this file: `plan-lint` and `verify --plan`
+refuse a plan carrying an out-of-grammar `### Task` heading, naming it.
+This fixture exercises the shared splitter and the load-bearing derivation
+only.
 
 ### Task 1 — Add a `quintuple` helper to `_gitutil.py`
 Why now:    the task only the out-of-grammar heading points at, so a wrong parse is visible.

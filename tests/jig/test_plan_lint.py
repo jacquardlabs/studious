@@ -112,6 +112,27 @@ class TestPlanLintCommittedFixtures(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("0 violations", result.stdout)
 
+    def test_out_of_grammar_task_heading_is_refused_by_name(self) -> None:
+        """#267: a `### Task 2a` / `### Task 3.1` card ends the previous block and
+        belongs to no task, so it would go unlinted; refuse the plan instead."""
+        with tempfile.TemporaryDirectory() as tmp:
+            staged = self.stage(tmp, "clean-plan.md")
+            text = staged.read_text(encoding="utf-8")
+            text = text.replace("### Task 2 — Call `double` from a demo script", "### Task 2a — Call `double` from a demo script")
+            text += "\n### Task 3.1 — split late\nWhy now: n/a\n"
+            staged.write_text(text, encoding="utf-8")
+            result = run_script([str(staged)])
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("### Task 2a — Call `double` from a demo script", result.stderr)
+        self.assertIn("### Task 3.1 — split late", result.stderr)
+        self.assertNotIn("violation", result.stdout, "refused before linting, never a partial lint")
+
+    def test_variants_fixture_is_refused_not_partially_linted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result = run_script([str(self.stage(tmp, "boundary-heading-variants.md"))])
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("### Task 2a", result.stderr)
+
     def test_broken_fixture_exits_one_with_all_eight_categories_distinct(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             result = run_script([str(self.stage(tmp, "broken-plan.md"))])
