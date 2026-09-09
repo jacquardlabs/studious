@@ -40,7 +40,7 @@ jobs:
         run: uv run --no-project python scripts/check_references.py
       - name: Validate plugin manifests
         run: uv run --no-project python scripts/validate_plugin.py
-      - name: Gates never require jig
+      - name: Gates never require a producer door
         run: uv run --no-project python scripts/check_gate_independence.py
       - name: Unit tests
         run: uv run --no-project --with pytest pytest tests/python -v

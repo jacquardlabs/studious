@@ -35,6 +35,19 @@ SHIPPED = (
 ALLOWED_PATH = re.compile(r"(docs|tests)/jig\b")
 ANY_JIG = re.compile(r"\bjig\b", re.IGNORECASE)
 
+# Two-repo framing (#218): prose that treats studious as a thing the build skills might
+# or might not find beside them. cctx, viva, gauntlet, and Superpowers *are* separate
+# and may be framed that way; studious is the plugin these files ship in.
+TWO_REPO_FRAMING = re.compile(
+    r"studious repo\b"
+    r"|studious being installed"
+    r"|\bif studious is installed"
+    r"|\(if installed\)"
+    r"|\bboth plugins\b"
+    r"|\bthe other plugin\b",
+    re.IGNORECASE,
+)
+
 
 def shipped_files() -> list[Path]:
     return sorted({p for pattern in SHIPPED for p in REPO.glob(pattern) if p.is_file()})
@@ -48,6 +61,32 @@ def offenders() -> list[str]:
             if ANY_JIG.search(ALLOWED_PATH.sub("", line)):
                 found.append(f"{path.relative_to(REPO)}:{n}: {line.strip()[:90]}")
     return found
+
+
+def framing_offenders() -> list[str]:
+    return [
+        f"{path.relative_to(REPO)}:{n}: {line.strip()[:90]}"
+        for path in shipped_files()
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if TWO_REPO_FRAMING.search(line)
+    ]
+
+
+def test_no_shipped_prompt_frames_studious_as_a_second_repo() -> None:
+    problems = framing_offenders()
+    assert problems == [], "shipped prompts still frame studious as separate:\n" + "\n".join(problems)
+
+
+def test_the_framing_pattern_would_be_caught() -> None:
+    for phrasing in (
+        "see `reference/worker-contract.md` in the studious repo",
+        "no dependency on studious being installed at all",
+        "If studious is installed, run /review.",
+        "studious's `/review` (if installed) judges it",
+        "both plugins ship the ledger",
+    ):
+        assert TWO_REPO_FRAMING.search(phrasing), phrasing
+    assert not TWO_REPO_FRAMING.search("cctx, a sibling plugin, is optional")
 
 
 def test_no_shipped_prompt_names_jig() -> None:
