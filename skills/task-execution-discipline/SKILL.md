@@ -122,11 +122,6 @@ Red flags that mean stop and go run something: "should work," "probably
 fine," relief that a task is finally over, wanting to move to the next
 task before this one's `Evidence` field is filled in.
 
-Deleting this pillar is gated on the golden-fixture replay harness
-([#188](https://github.com/jacquardlabs/studious/issues/188), open) — the
-decision record requires it to show a fresh executor still fills `Evidence`
-honestly without the prose.
-
 ## Why all three together
 
 TDD-per-capability produces the thing to verify; YAGNI keeps it inside the

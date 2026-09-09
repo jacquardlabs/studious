@@ -49,7 +49,7 @@ tests/        — Python and shell tests for commands and CI scripts
 
 ### Verification belongs to scripts and inspectors, never to prompt prose
 
-Verification is a mechanism, not an instruction. It belongs to **scripts** (`scripts/verify`, the CI jobs) and to **fresh-context inspectors** (the `/build` Inspector, the gauntlet judges) — never to self-check prose in a prompt. Do not write "double-check", "re-verify before responding", or "run it again to be sure" into `agents/`, `commands/`, `skills/`, or `reference/`. Gen-5 models already self-verify unprompted, so prose telling them to do it again buys nothing and bills the extra turns at output rates ([#302](https://github.com/jacquardlabs/studious/issues/302)). `tests/python/test_verification_invariant.py` guards the phrase list.
+Verification is a mechanism, not an instruction. It belongs to **scripts** (`scripts/verify`, the CI jobs) and to **fresh-context inspectors** (the `/build` Inspector, the gauntlet judges) — never to self-check prose in a prompt. Do not write "double-check", "re-verify before responding", or "run it again to be sure" into `agents/`, `commands/`, `skills/`, or `reference/`. Gen-5 models already self-verify unprompted, so prose telling them to do it again buys nothing and bills the extra turns at output rates ([#302](https://github.com/jacquardlabs/studious/issues/302)). `tests/python/test_verification_invariant.py` guards exactly that list, as case-insensitive substrings: `("double-check", "re-verify before", "run it again to be sure")` — the second is truncated so it catches "re-verify before responding" and every variant of what follows.
 
 **Carve-out:** a Critical-challenge step that checks a finding's anchor against the diff is *judgment routing* — deciding which finding gets to move a verdict — not self-verification of the model's own output. It stays.
 
@@ -57,9 +57,9 @@ The sites #302 named, and what was decided about each:
 
 | Site | Disposition | Why |
 | --- | --- | --- |
-| `reference/audit-compilation.md` — "Challenge every Critical before it can decide the verdict" | KEEP | The carve-out above. It runs on top of `report.py`'s ingest rules and routes uncertainty into filing rather than into re-reading (see `tests/ab/README.md`). |
+| `reference/audit-compilation.md` — "Challenge every Critical before it can decide the verdict" | KEEP | The carve-out above. It runs on top of gauntlet's `scripts/report.py` ingest rules and routes uncertainty into filing rather than into re-reading (see `tests/ab/README.md`). |
 | `reference/prompt-contract.md` §4 residual line | MOOT | Reporting language, not a self-check instruction. No door has stamped that file since #349, and #334 S4 deletes it. |
-| `skills/task-execution-discipline/SKILL.md` Pillar 3 (verification-before-completion) | KEEP PENDING #188 | The one real deletion candidate. The decision record gates deletion on the golden-fixture replay harness ([#188](https://github.com/jacquardlabs/studious/issues/188), open) and a regression blocks it, so the prose stays; the citation in Pillar 3 is what a future deletion has to satisfy. |
+| `skills/task-execution-discipline/SKILL.md` Pillar 3 (verification-before-completion) | KEEP PENDING #188 | The one real deletion candidate. Deletion is gated on the golden-fixture replay harness ([#188](https://github.com/jacquardlabs/studious/issues/188), open): a regression there — a fresh executor filling `Evidence` less honestly without the prose — would block it. Nothing has run yet, so the prose stays and this row, not the pillar itself, is the gate a future deletion has to satisfy. |
 
 ## Naming conventions
 
