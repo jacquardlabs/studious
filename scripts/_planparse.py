@@ -43,6 +43,9 @@ TIER_BODY_RE = re.compile(r"^([\w-]+)(?:\s+`([^`]+)`)?$")
 # that marks a token as a concrete, checkable path (plan-lint's "backtick
 # convention"). Shared by plan-lint and plan-drift so the two read one grammar.
 READ_FIRST_RE = re.compile(r"^Read first:[ \t]*(.*)$", re.MULTILINE)
+RISK_RE = re.compile(r"^Risk:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
+# The two tags skills/build/SKILL.md's Cadence honours; absence means LOW.
+VALID_RISKS = frozenset({"REPLAN-RISK", "ESCALATE-RISK"})
 RESTS_ON_RE = re.compile(r"^Rests on:[ \t]*(.*)$", re.MULTILINE)
 DO_RE = re.compile(r"^Do:[ \t]*(.*)$", re.MULTILINE)
 BACKTICK_RE = re.compile(r"`([^`]+)`")
@@ -57,6 +60,12 @@ def extract_field(block: str, pattern: re.Pattern[str]) -> str:
 
 def strip_line_locator(span: str) -> str:
     return LINE_LOCATOR_SUFFIX_RE.sub("", span)
+
+
+def task_risk(block: str) -> str | None:
+    """The block's `Risk:` value verbatim, or None when the line is absent."""
+    m = RISK_RE.search(block)
+    return m.group(1) if m else None
 
 
 def method_paths(block: str) -> list[str]:

@@ -685,3 +685,15 @@ class TestCandidatesSearch(unittest.TestCase):
         self.assertIn("**Never pick between finalists yourself**", self.section)
         self.assertIn("git branch -D` on each exact branch name this run created", self.section)
 
+
+class TestDispatchIsolationBan(unittest.TestCase):
+    """#365: every dispatch prompt /build builds names its worktree and forbids the
+    Agent tool's own worktree isolation — executor, Inspector, exorcise, and each
+    --candidates executor."""
+
+    def test_the_ban_rides_every_boundary_line(self) -> None:
+        body = SKILL_MD.read_text(encoding="utf-8")
+        needle = "never the Agent tool's own worktree isolation"
+        self.assertGreaterEqual(body.count(needle), 3, "executor, Inspector, and exorcise boundary lines")
+        self.assertIn("its ban on\nthe Agent tool's worktree isolation intact", body)
+

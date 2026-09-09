@@ -244,8 +244,9 @@ item's behavior text is a single checkable claim, not a compound sentence
 hiding two checks in one item. A block that needs scrolling to judge is a
 block hiding something -- tighten it or split the task.
 
-**Risk tagging.** An optional `Risk:` line (`REPLAN-RISK` or
-`ESCALATE-RISK`) may appear in any block; absence means `LOW`. Tag
+**Risk tagging.** An optional `Risk:` line (`REPLAN-RISK` or `ESCALATE-RISK`,
+exactly — `plan-lint`'s `invalid-risk` refuses any other value, #227) may
+appear in any block; absence means `LOW`. Tag
 `REPLAN-RISK` when a task's `Done means` rests on an assumption Step 1a
 could only partially confirm (a call site inventoried, but the design's
 *behavioral* claim about it -- not just its existence -- is inferred, not

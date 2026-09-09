@@ -20,7 +20,7 @@ LOAD-BEARING cap concreteness. Prose outside backticks is never inspected --
 guessing which prose "really" names a path is a judgment call a zero-model
 linter can't make.
 
-**Violation categories** (eight; map 1:1 to acceptance criteria, per-item
+**Violation categories** (nine; map 1:1 to acceptance criteria, per-item
 where an item is the unit, per-task otherwise):
 
 - `cap-count`    -- a task's Done means has zero `[cap]` items.
@@ -40,6 +40,9 @@ where an item is the unit, per-task otherwise):
   heading (any `#` depth -- located by text, not depth, since issue #23's
   heading-level fix is a sibling story's job) is empty or one of a short
   placeholder set (`""`, `"todo"`, `"tbd"`, `"..."`, case-insensitive).
+- `invalid-risk` -- a `Risk:` line whose value is not `REPLAN-RISK` or
+  `ESCALATE-RISK`. Absence means LOW by contract; a misspelt tag would read
+  as LOW too, silently skipping the pre-dispatch pause it asked for (#227).
 - `load-bearing-cap-vague` -- a `[cap]` item on a LOAD-BEARING task (a task
   some *other* task's `Rests on:` line names, derived mechanically, never
   declared -- the handoff's own §5.3 decision 8) has no backtick span in
@@ -102,9 +105,11 @@ from _planparse import (  # noqa: E402
     LINE_LOCATOR_SUFFIX_RE,  # noqa: F401  (re-export; the grammar lives in _planparse)
     READ_FIRST_RE,
     RESTS_ON_RE,
+    VALID_RISKS,
     extract_field,
     out_of_grammar_task_headings,
     strip_line_locator,
+    task_risk,
 )
 from _planparse import split_tasks as _split_tasks  # noqa: E402
 
@@ -249,6 +254,12 @@ def check_task(
 
     for item in items:
         violations.extend(check_item_tier(task_num, item, repo_root, earlier_do_lines))
+
+    risk = task_risk(block)
+    if risk is not None and risk not in VALID_RISKS:
+        violations.append(
+            Violation(task_num, "invalid-risk", f"Risk: '{risk}' is not one of {sorted(VALID_RISKS)} -- a tag the pause would not honour")
+        )
 
     if is_load_bearing:
         violations.extend(
