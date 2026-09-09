@@ -131,10 +131,12 @@ appetite is a number you hold yourself.
 ```
 /bet     →  scores the idea, ranks it against the backlog, sets the appetite
    ↓
-/build   →  plans from the issue (or a design doc), then builds — fresh executor per
-            task, script-verified, evidence captured — then convenes /review's work
-            episode itself: up to 13 specialist lanes, plus product acceptance: does
-            this deliver what the bet promised?
+/build   →  plans from the issue (or a design doc), stamped task by task in viva, then
+            builds — fresh executor per task, script-verified, evidence captured — then
+            convenes /review's work episode itself: up to 13 specialist lanes, plus
+            product acceptance: does this deliver what the bet promised?
+            --candidates 2|3 builds the plan in parallel, ranks mechanically, and you
+            pick between two finalists
    ↓
 /ship    →  evidence table, follow-ups, build report; the PR is yours
 

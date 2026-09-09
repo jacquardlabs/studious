@@ -652,3 +652,36 @@ if __name__ == "__main__":
     import sys
 
     sys.exit(unittest.main())
+
+
+class TestCandidatesSearch(unittest.TestCase):
+    """Move 8 (2026-09-09): `/build --candidates N` is an opt-in implementation
+    search — N independent builds of one stamped plan, a mechanical rank, the
+    work episode on at most two finalists, and the human's pick."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.body = SKILL_MD.read_text(encoding="utf-8")
+        start = cls.body.index("## Candidates — implementation search, opt-in")
+        cls.section = cls.body[start:cls.body.index("## Step 3 — Exorcise", start)]
+
+    def test_search_is_opt_in_never_default(self) -> None:
+        self.assertIn("`--candidates N` (2 or 3)", self.body)
+        self.assertIn("**Never the default**", self.section)
+
+    def test_failed_candidates_are_eliminated_not_paused(self) -> None:
+        self.assertIn("**eliminated, not paused**", self.section)
+        self.assertIn("Only when every candidate is eliminated", self.section)
+
+    def test_rank_is_mechanical_and_ordered(self) -> None:
+        order = ("**Eliminate**", "**Fewest out-of-plan files**", "**Smallest post-exorcise diff**",
+                 "**Fewest Failure-routine dispatches**", "**Tie**")
+        positions = [self.section.index(rule) for rule in order]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn("nothing\nhere reads a diff for quality", self.section)
+
+    def test_judge_at_most_two_finalists_and_the_human_picks(self) -> None:
+        self.assertIn("at most the top two ranked", self.section)
+        self.assertIn("**Never pick between finalists yourself**", self.section)
+        self.assertIn("git branch -D` on each exact branch name this run created", self.section)
+
