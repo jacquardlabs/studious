@@ -11,8 +11,9 @@ Finds a cctx launcher by trying, in order:
 3. `pipx run --spec cctx-cli cctx` -- same reason for `--spec`.
 
 Each rung is probed with `--help` under a short timeout (cctx has no `--version`); the first that
-answers runs `autopsy --latest` (unmodified, no flags of ours) and its
-output is printed as a footer section. No rung answering prints the one
+answers runs `autopsy --latest` (unmodified, no flags of ours); the footer
+is its verdict, cost, and findings, cut before the `CLAUDE.md patches` rule
+(that is `harvest`'s preview, the human's to accept in the same turn). No rung answering prints the one
 graceful line `/ship` used to write by hand, plus the install pointer, and
 exits 0 -- a missing cctx is not a failure and never a gap in the body.
 
@@ -25,6 +26,7 @@ Exit codes: 0 footer printed (cctx found or not). 2 usage error.
 from __future__ import annotations
 
 import argparse
+import re
 import shlex
 import shutil
 import subprocess
@@ -36,6 +38,7 @@ LADDER: tuple[tuple[str, list[str]], ...] = (
     ("uvx", ["uvx", "--from", "cctx-cli", "cctx"]),
     ("pipx", ["pipx", "run", "--spec", "cctx-cli", "cctx"]),
 )
+PATCHES_RULE_RE = re.compile(r"^\s*─+\s*CLAUDE\.md patches\s*─+\s*$")
 ABSENT = (
     "cctx not installed; skipping the session-cost footer and harvest offer "
     "(install: `pipx install cctx-cli`, or run it through `uvx --from cctx-cli cctx`)"
@@ -70,8 +73,20 @@ def footer(launcher: list[str] | None, repo: Path, timeout: float) -> str:
         result = subprocess.run([*launcher, "autopsy", "--latest"], cwd=repo, capture_output=True, text=True, timeout=timeout * 5, check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return f"## Session cost\n\n`{shlex.join(launcher)} autopsy --latest` did not answer ({exc.__class__.__name__}); no footer.\n"
-    body = result.stdout.strip() or result.stderr.strip() or "(cctx printed nothing)"
+    body = summary_only(result.stdout) or result.stderr.strip() or "(cctx printed nothing)"
     return f"## Session cost\n\nLauncher: `{shlex.join(launcher)}`\n\n```\n{body}\n```\n"
+
+
+def summary_only(text: str) -> str:
+    """The autopsy's verdict, cost, and findings — cut at its `CLAUDE.md patches`
+    rule. The patches are `harvest`'s preview, offered to the human by `/ship`
+    in the same turn, never pasted into a PR body."""
+    lines = []
+    for line in text.splitlines():
+        if PATCHES_RULE_RE.match(line):
+            break
+        lines.append(line.rstrip())
+    return "\n".join(lines).strip()
 
 
 def main(argv: list[str]) -> int:

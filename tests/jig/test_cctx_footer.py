@@ -45,12 +45,14 @@ class TestCctxFooter(unittest.TestCase):
     def test_cctx_on_path_runs_autopsy_latest_unmodified(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             b = Path(tmp)
-            stub(b, "cctx", 'if [ "$1" = "--help" ]; then echo 1.0; exit 0; fi; echo "args: $*"; echo "cost: 3.21 USD"\n')
+            stub(b, "cctx", 'if [ "$1" = "--help" ]; then echo 1.0; exit 0; fi; echo "args: $*"; echo "cost: 3.21 USD"; echo "────── CLAUDE.md patches ──────"; echo "+## Context hygiene"\n')
             r = run_with_path(b, ["--repo", tmp])
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("Launcher: `cctx`", r.stdout)
         self.assertIn("args: autopsy --latest", r.stdout)
         self.assertIn("cost: 3.21 USD", r.stdout)
+        self.assertNotIn("CLAUDE.md patches", r.stdout, "harvest's preview is the human's, never the footer's")
+        self.assertNotIn("+## Context hygiene", r.stdout)
 
     def test_uvx_rung_uses_from_never_bare_cctx(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
