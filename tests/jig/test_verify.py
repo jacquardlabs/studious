@@ -44,6 +44,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -567,6 +568,66 @@ class TestVerifyPlanModeDerivation(unittest.TestCase):
             self.assertIn("### Task 2a — split late", result.stderr)
             self.assertNotIn("[PASS]", result.stdout)
 
+    def test_derived_test_backed_item_records_its_interpreter(self) -> None:
+        """#248: results.json says which interpreter every test-backed item ran
+        under -- per item and at the top -- and honours --python."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            target = repo / "tests" / "python" / "test_thing.py"
+            target.parent.mkdir(parents=True)
+            target.write_text("def test_ok():\n    pass\n", encoding="utf-8")
+            plan = write_plan(
+                repo,
+                plan_task(1, items="1. [cap]  the test passes (tier: test-backed `tests/python/test_thing.py`)\n"
+                                   "2. [hold] n/a (tier: probe)\n"),
+            )
+            spec = repo / "spec.json"
+            spec.write_text(json.dumps({"2": {"artifact": "tests/python/test_thing.py"}}), encoding="utf-8")
+            out = repo / "results.json"
+            result = run_script([
+                "--plan", str(plan), "--task", "1", "--repo", str(repo), "--probe-spec", str(spec),
+                "--since", "2000-01-01T00:00:00Z", "--python", sys.executable, "--out", str(out),
+            ])
+            self.assertIn(result.returncode, (0, 1), result.stdout + result.stderr)
+            doc = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(doc["interpreter"]["path"], sys.executable)
+        self.assertRegex(doc["interpreter"]["version"], r"^\d+\.\d+$")
+        by_id = {item["id"]: item for item in doc["items"]}
+        self.assertEqual(by_id[1]["interpreter"], sys.executable)
+        self.assertNotIn("interpreter", by_id[2], "a probe item runs under no interpreter")
+
+    def test_interpreter_below_the_project_floor_is_an_environment_refusal(self) -> None:
+        """#248: never an item FAIL -- exit 2 naming the interpreter, the floor, and
+        that nothing ran."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            target = repo / "tests" / "python" / "test_thing.py"
+            target.parent.mkdir(parents=True)
+            target.write_text("def test_ok():\n    pass\n", encoding="utf-8")
+            (repo / "pyproject.toml").write_text('[project]\nrequires-python = ">=3.11"\n', encoding="utf-8")
+            fake = repo / "fakepy"
+            fake.write_text("#!/bin/sh\necho 3.8\n", encoding="utf-8")
+            fake.chmod(0o755)
+            plan = write_plan(repo, plan_task(1, items="1. [cap]  t (tier: test-backed `tests/python/test_thing.py`)\n"))
+            result = run_script(["--plan", str(plan), "--task", "1", "--repo", str(repo), "--python", str(fake)])
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertIn("environment refusal", result.stderr)
+            self.assertIn("Python 3.8", result.stderr)
+            self.assertIn("floor 3.11", result.stderr)
+            self.assertNotIn("[FAIL]", result.stdout)
+            # no floor declared: the same interpreter runs
+            (repo / "pyproject.toml").unlink()
+            ok = run_script(["--plan", str(plan), "--task", "1", "--repo", str(repo), "--python", str(fake)])
+            self.assertNotEqual(ok.returncode, 2, ok.stdout + ok.stderr)
+
+    def test_python_flag_needs_plan_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            items = write_items(repo, [{"id": 1, "kind": "cap", "tier": "script", "command": "true"}])
+            result = run_script(["--items", str(items), "--repo", str(repo), "--python", "/usr/bin/env"])
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("--python only makes sense with --plan", result.stderr)
+
     def test_failing_derived_item_exits_one_per_item_reported(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
@@ -738,7 +799,7 @@ class TestResolveCommandForMethod(unittest.TestCase):
             target.write_text("def test_ok():\n    pass\n", encoding="utf-8")
             self.assertEqual(
                 self.module.resolve_command_for_method("tests/python/test_thing.py", repo),
-                "python3 -m pytest tests/python/test_thing.py -q",
+                f"{shlex.quote(sys.executable)} -m pytest tests/python/test_thing.py -q",
             )
 
     def test_a_non_executable_py_file_under_tests_jig_maps_to_unittest_discover(self) -> None:
@@ -749,7 +810,7 @@ class TestResolveCommandForMethod(unittest.TestCase):
             target.write_text("import unittest\n", encoding="utf-8")
             self.assertEqual(
                 self.module.resolve_command_for_method("tests/jig/test_thing.py", repo),
-                "python3 -m unittest discover -s tests/jig -p test_thing.py",
+                f"{shlex.quote(sys.executable)} -m unittest discover -s tests/jig -p test_thing.py",
             )
 
     def test_a_non_executable_py_file_outside_either_test_tree_is_unchanged(self) -> None:
