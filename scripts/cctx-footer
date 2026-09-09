@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""cctx-footer -- the PR body's session-cost footer, with the launcher ladder in code (#254).
+
+    cctx-footer [--repo DIR] [--out FILE]
+
+Finds a cctx launcher by trying, in order:
+
+1. `cctx` on PATH;
+2. `uvx --from cctx-cli cctx` -- the `--from` is load-bearing: PyPI's `cctx`
+   is a typosquat of `ccxt`, and bare `uvx cctx` fetches it;
+3. `pipx run --spec cctx-cli cctx` -- same reason for `--spec`.
+
+Each rung is probed with `--version` under a short timeout; the first that
+answers runs `autopsy --latest` (unmodified, no flags of ours) and its
+output is printed as a footer section. No rung answering prints the one
+graceful line `/ship` used to write by hand, plus the install pointer, and
+exits 0 -- a missing cctx is not a failure and never a gap in the body.
+
+`harvest` is deliberately not here: it edits CLAUDE.md and needs the human's
+own confirmation, typed in the same turn. The footer names the launcher it
+found so `/ship` can offer `<launcher> harvest` in preview mode.
+
+Exit codes: 0 footer printed (cctx found or not). 2 usage error.
+"""
+from __future__ import annotations
+
+import argparse
+import shlex
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+LADDER: tuple[tuple[str, list[str]], ...] = (
+    ("cctx", ["cctx"]),
+    ("uvx", ["uvx", "--from", "cctx-cli", "cctx"]),
+    ("pipx", ["pipx", "run", "--spec", "cctx-cli", "cctx"]),
+)
+ABSENT = (
+    "cctx not installed; skipping the session-cost footer and harvest offer "
+    "(install: `pipx install cctx-cli`, or run it through `uvx --from cctx-cli cctx`)"
+)
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="cctx-footer", description="Print the PR body's cctx footer.")
+    parser.add_argument("--repo", default=".", help="directory to run cctx in (default: cwd)")
+    parser.add_argument("--out", default=None, help="also write the footer here")
+    parser.add_argument("--probe-timeout", type=float, default=60.0, help="seconds each launcher rung may take to answer --version")
+    return parser.parse_args(argv)
+
+
+def find_launcher(timeout: float) -> list[str] | None:
+    for tool, argv in LADDER:
+        if shutil.which(tool) is None:
+            continue
+        try:
+            probe = subprocess.run([*argv, "--version"], capture_output=True, text=True, timeout=timeout, check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if probe.returncode == 0:
+            return argv
+    return None
+
+
+def footer(launcher: list[str] | None, repo: Path, timeout: float) -> str:
+    if launcher is None:
+        return f"## Session cost\n\n{ABSENT}\n"
+    try:
+        result = subprocess.run([*launcher, "autopsy", "--latest"], cwd=repo, capture_output=True, text=True, timeout=timeout * 5, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return f"## Session cost\n\n`{shlex.join(launcher)} autopsy --latest` did not answer ({exc.__class__.__name__}); no footer.\n"
+    body = result.stdout.strip() or result.stderr.strip() or "(cctx printed nothing)"
+    return f"## Session cost\n\nLauncher: `{shlex.join(launcher)}`\n\n```\n{body}\n```\n"
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+    repo = Path(args.repo).resolve()
+    if not repo.is_dir():
+        print(f"error: '{repo}' is not a directory", file=sys.stderr)
+        return 2
+    text = footer(find_launcher(args.probe_timeout), repo, args.probe_timeout)
+    if args.out:
+        Path(args.out).write_text(text, encoding="utf-8")
+    sys.stdout.write(text)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

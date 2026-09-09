@@ -122,6 +122,19 @@ writes to the **shared main-tree** evidence store from a **linked worktree** cwd
 `agent_id` — issue #97's dogfood plan (studyengine #210, then #209) is the intended
 validation loop; update this section once that run produces an answer.
 
+## Two stores, deliberately (#148)
+
+Ruled 2026-09-09. Two evidence stores exist, and they stay two:
+
+| Store | Record | Writer | Reader | Why it is not the other |
+|---|---|---|---|---|
+| `.studious/evidence/<branch-slug>.jsonl` | one line per verification *command* (this file's shape) | the `evidence-capture.sh` hook, `studious evidence-append` | judges, via `receipts_path` | executor-agnostic: any way of building a branch that runs commands produces it, so a judge may rely on it without depending on who produced the branch |
+| `.studious/build-evidence/<date>-<task>-<branch-slug>/` | per-task *artifacts* plus a freshness-stamped manifest | `studious evidence-capture` from `/build` | `/ship` | a producer's private record of its own tasks; a judge that read it would depend on `/build` having been the executor, which `scripts/check_gate_independence.py` forbids |
+
+One grammar would either make judges read a producer artifact or make the hook
+write per-task folders it has no task to name. The PR body is where the second
+store's contents reach a judge: quoted into the page every reviewer reads.
+
 ## The producer-side store: `scripts/evidence-capture` artifact labels
 
 Separate from the log above. `/build` captures per-task artifacts through

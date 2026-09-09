@@ -104,7 +104,8 @@ guards from `reference/personas.md` rather than a hardcoded glob: the charter's
 `judge`-class command files, plus `agents/`, `hooks/`, and `bin/`.
 Nothing on that surface may invoke a producer door or require a producer artifact
 (`PLAN.md`, the `.studious/build-evidence/` store) — the evidence contract a judge may rely on is
-`reference/evidence-format.md`, which any executor can satisfy. Outside that surface,
+`reference/evidence-format.md`, which any executor can satisfy; its "Two stores, deliberately"
+section is the recorded rule for why the producer's store stays separate (#148). Outside that surface,
 `/next` routes to the producer doors freely; that is the product working.
 `reference/worker-contract.md` stays normative and `/build` is one implementation of it,
 which is what keeps PRODUCT.md's "the gates being a methodology" non-goal true now that a

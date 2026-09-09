@@ -56,6 +56,7 @@ BUILD_EXECUTABLES = (
     "plan-drift",
     "plan-amend",
     "ship-body",
+    "cctx-footer",
     "design-lint",
     "verify",
     "status-flip",
