@@ -1624,9 +1624,10 @@ check "the write behind the reclaimed lock landed" "OK" "$(jq -r '.gates.stale.v
 # --- #346 rule 3: a merged-but-present branch's work file resolves to done ---
 d346=$(sandbox)
 def346=$(git -C "$d346" branch --list main master | tr -d ' *' | head -1)
-( cd "$d346" && git commit -q --allow-empty -m "story work" )
 ( cd "$d346" && "$LEDGER" work-set --slug landed --title "landed" --branch feat/foo --phase build ) >/dev/null
 ( cd "$d346" && "$LEDGER" work-set --slug kept --title "kept" --branch feat/foo --phase build --declared-files a.py ) >/dev/null
+check "work-set --branch stamps the branch's tip as branchSha" "$(git -C "$d346" rev-parse feat/foo)" "$(jq -r '.branchSha' "$d346/.studious/work/landed.json")"
+( cd "$d346" && git commit -q --allow-empty -m "story work" )
 ( cd "$d346" && "$LEDGER" work-log --slug kept --scope-delta-phase build --scope-delta-files b.py ) >/dev/null
 ( cd "$d346" && "$LEDGER" work-set --slug unmerged --title "unmerged" --branch feat/bar --phase build ) >/dev/null
 ( cd "$d346" && git checkout -q -b feat/bar && git commit -q --allow-empty -m "other" && git checkout -q feat/foo )
