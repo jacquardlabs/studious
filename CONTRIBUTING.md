@@ -57,7 +57,7 @@ The sites #302 named, and what was decided about each:
 
 | Site | Disposition | Why |
 | --- | --- | --- |
-| `reference/audit-compilation.md` — "Challenge every Critical before it can decide the verdict" | KEEP | The carve-out above. It runs on top of `report.py`'s ingest rules and routes uncertainty into filing rather than into re-reading; `tests/ab/README.md` records the measurement. |
+| `reference/audit-compilation.md` — "Challenge every Critical before it can decide the verdict" | KEEP | The carve-out above. It runs on top of `report.py`'s ingest rules and routes uncertainty into filing rather than into re-reading (see `tests/ab/README.md`). |
 | `reference/prompt-contract.md` §4 residual line | MOOT | Reporting language, not a self-check instruction. No door has stamped that file since #349, and #334 S4 deletes it. |
 | `skills/task-execution-discipline/SKILL.md` Pillar 3 (verification-before-completion) | KEEP PENDING #188 | The one real deletion candidate. The decision record gates deletion on the golden-fixture replay harness ([#188](https://github.com/jacquardlabs/studious/issues/188), open) and a regression blocks it, so the prose stays; the citation in Pillar 3 is what a future deletion has to satisfy. |
 

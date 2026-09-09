@@ -122,13 +122,10 @@ Red flags that mean stop and go run something: "should work," "probably
 fine," relief that a task is finally over, wanting to move to the next
 task before this one's `Evidence` field is filled in.
 
-A note for whoever proposes deleting this pillar: verification belongs to
-scripts and fresh-context inspectors rather than to prompt prose, so this
-pillar is the standing deletion candidate — but the decision record gates
-that deletion on the golden-fixture replay harness
-([#188](https://github.com/jacquardlabs/studious/issues/188), open), which is
-what would show a fresh executor still fills `Evidence` honestly without it.
-Until that harness exists, the pillar stays.
+Deleting this pillar is gated on the golden-fixture replay harness
+([#188](https://github.com/jacquardlabs/studious/issues/188), open) — the
+decision record requires it to show a fresh executor still fills `Evidence`
+honestly without the prose.
 
 ## Why all three together
 
