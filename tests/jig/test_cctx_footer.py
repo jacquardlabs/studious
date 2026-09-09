@@ -45,12 +45,12 @@ class TestCctxFooter(unittest.TestCase):
     def test_cctx_on_path_runs_autopsy_latest_unmodified(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             b = Path(tmp)
-            stub(b, "cctx", 'if [ "$1" = "--version" ]; then echo 1.0; exit 0; fi; echo "args: $*"; echo "cost: $3.21"\n')
+            stub(b, "cctx", 'if [ "$1" = "--version" ]; then echo 1.0; exit 0; fi; echo "args: $*"; echo "cost: 3.21 USD"\n')
             r = run_with_path(b, ["--repo", tmp])
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("Launcher: `cctx`", r.stdout)
         self.assertIn("args: autopsy --latest", r.stdout)
-        self.assertIn("cost: $3.21", r.stdout)
+        self.assertIn("cost: 3.21 USD", r.stdout)
 
     def test_uvx_rung_uses_from_never_bare_cctx(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
