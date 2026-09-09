@@ -2,6 +2,29 @@
 
 <!-- version list -->
 
+## v6.5.1 (2026-09-09)
+
+### Bug Fixes
+
+- A retry outcome carries no reviewedSha; re-entry clears it
+  ([#428](https://github.com/jacquardlabs/studious/pull/428),
+  [`b896fd0`](https://github.com/jacquardlabs/studious/commit/b896fd023da5aa385623ad857115a450a9383c0b))
+
+- Gate-ledger refuses a terminal verdict over a Critical closed in the round that found it, or at a
+  HEAD no round judged ([#428](https://github.com/jacquardlabs/studious/pull/428),
+  [`b896fd0`](https://github.com/jacquardlabs/studious/commit/b896fd023da5aa385623ad857115a450a9383c0b))
+
+- Gate-ledger refuses a verdict over a self-closed Critical or an unreviewed HEAD
+  ([#428](https://github.com/jacquardlabs/studious/pull/428),
+  [`b896fd0`](https://github.com/jacquardlabs/studious/commit/b896fd023da5aa385623ad857115a450a9383c0b))
+
+### Testing
+
+- A retry outcome's episode record carries no reviewedSha
+  ([#428](https://github.com/jacquardlabs/studious/pull/428),
+  [`b896fd0`](https://github.com/jacquardlabs/studious/commit/b896fd023da5aa385623ad857115a450a9383c0b))
+
+
 ## v6.5.0 (2026-09-09)
 
 ### Features
