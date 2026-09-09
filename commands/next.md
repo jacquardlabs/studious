@@ -31,7 +31,8 @@ obvious. The user advances the flow; you never do.
 **A piece runs to its next real decision without asking (#371).** Inside a piece, never
 pause to ask "run it now?", "pick up the next task?", or "ready when you are". The stops
 are the decisions this door already names — a stop/rethink token, a Critical waiver, a
-round cap, a fork, a sign-off, the ship verdict — plus `PAUSED` with a named cause.
+round cap, a fork, a sign-off, the pick between `/build` candidates, the ship verdict —
+plus `PAUSED` with a named cause.
 Everything else is a report line, not a question. Measure: human turns per story ≤
 decisions made (`scripts/retro-stats` counts both).
 
@@ -234,7 +235,11 @@ human signs off where an episode cannot verify mechanically.
   pre-mortem register path (its items are what the work episode verifies at the end).
   With no design doc, `/build`'s planning contract attaches the issues, interviews the
   residual forks, drafts `PLAN.md`, lints it, and hands one card per task to the human in
-  viva; `PLAN READY` is the stamp the build proceeds from.
+  viva; `PLAN READY` is the stamp the build proceeds from. Offer `--candidates 2` in
+  the closing block, once, when the stamped plan carries a `Risk:` line or a
+  `### Decisions` block with more than one fork — an implementation search the human
+  opts into, never a default; its pick between finalists is one of this door's named
+  stops.
   Once a feature branch exists, record it — the gate ledger is per-branch, so later pieces
   need it: `work-set --branch "<branch>"`. `/build`
   plans, builds one task at a time, exorcises, then convenes `/review`'s work episode

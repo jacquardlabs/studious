@@ -115,7 +115,8 @@ keeps that from being a surprise.
 
 One optional argument: a path to a `PLAN.md`-shaped file, a design doc, **or** one or
 more issue references (`#N`, `owner/repo#N`, URL), defaulting to `PLAN.md` at the target
-project's repo root. The **quick path** is not a
+project's repo root. One optional flag, `--candidates N` (2 or 3), runs the stamped plan
+as an implementation search — see "Candidates" below; absent, one build, as always. The **quick path** is not a
 different input shape — it is simply a plan file containing exactly one
 `### Task` block, hand-authored in the checkpoint-block format below. One
 input contract serves both the quick path and the full cycle; don't invent
@@ -607,6 +608,62 @@ an unrelated `verify` `FAIL`, or from a later task's own first `DEFECT`.
   regardless of any pre-assigned risk tag — that pause is the routine's own
   terminal step, not optional cadence.
 
+## Candidates — implementation search, opt-in
+
+`/build --candidates N` (N = 2 or 3) builds the same stamped plan N times in parallel,
+ranks the results mechanically, and lets the human choose between at most two finalists.
+**Never the default**: run it when the human asks, or when `/next` offers it because the
+stamped plan carries a `Risk:` line or a `### Decisions` block with more than one fork.
+Candidates are independent samples of the same dispatch rules — same model per step 2.2,
+same executor prompt, same plan — so what differs is the search, not the brief. A
+per-candidate model override is not a mode this skill carries today; if the human asks
+for one, say so and run without it.
+
+**Setup (Step 1).** One `worktree-setup` per candidate, `build/<plan-slug>-<ts>-c<k>`,
+all from the same base, each with its own copy of `PLAN.md`. Steps 1.1, 1.4, and 1.5 run
+once; the load-bearing set is shared.
+
+**Per task (Step 2).** Dispatch the task's N executors in one message, one per worktree,
+then verify, inspect, capture, and flip each candidate on its own — evidence and the gate
+ledger are keyed by branch already, so nothing new is recorded. The Failure routine runs
+per candidate. A candidate whose routine resolves to `REPLAN` or `ESCALATE` is
+**eliminated, not paused**: one line naming it and its diagnosis, then the survivors
+continue. Only when every candidate is eliminated does the session report `PAUSED` or
+`ESCALATED`, with the last diagnosis. A risk-tagged pre-dispatch pause still blocks every
+candidate at once — it is the human's acknowledgment, not a candidate's failure.
+
+**Exorcise (Step 3)** runs once per survivor, in its own worktree.
+
+**Pick, mechanically, before any judge runs.** Rank the survivors by these rules in
+order, stopping at the first that separates them:
+
+1. **Eliminate** any candidate with a task not `PASS` in its verify table after
+   exorcise, or whose baseline command is not green after exorcise.
+2. **Fewest out-of-plan files** — files in `git diff --name-only <base>...HEAD` that no
+   task's `Read first:` or `Do:` line names.
+3. **Smallest post-exorcise diff** — added plus removed lines from
+   `git diff --shortstat <base>...HEAD`.
+4. **Fewest Failure-routine dispatches** (FIX plus RESAMPLE) across all tasks.
+5. **Tie** — the lower candidate number.
+
+State the table before proceeding — one row per candidate: tasks `PASS`, suite,
+out-of-plan files, diff size, retries, eliminated or rank. This is bookkeeping: nothing
+here reads a diff for quality, and no candidate is dropped on a judgment call.
+
+**Judge the finalists (Step 4).** Convene the work episode on at most the top two ranked
+survivors, each on its own branch and its own ledger, in parallel. One survivor → the
+ordinary flow from Step 4 on.
+
+**The human picks.** Report one screen per finalist — its table row, the episode's
+verdict and `round R of C — N open, M carried` line, Step 3's concepts removed, and the
+branch — and stop for the human's choice. **Never pick between finalists yourself**: the
+pick is a decision, a named stop, the judgment this search exists to leave with the
+human. The chosen branch is the build's branch (`gate-ledger work-set --branch` when a
+work file matches); once the human has chosen, remove the other candidates
+(`git worktree remove`, then `git branch -D` on each exact branch name this run created)
+and name what was removed. The session verdict then reports as an ordinary build on the
+chosen branch.
+
 ## Step 3 — Exorcise, once, after the last PASS
 
 Runs exactly once per session, only when every task in the plan has reached
@@ -783,7 +840,7 @@ still-open findings to discussion) — the human's call, not this door's.
 
 | Verdict | When |
 |---|---|
-| `BUILT` | Every task in the plan reaches `PASS`, Step 3 has run (or been skipped with its line), and Step 4 closed `PASS`/`NEEDS DISCUSSION`. Report the branch/worktree, Step 3's outcome (concepts removed, the nothing-cast-out line, the Track note, or the skip line), and Step 4's episode verdict on one line each. |
+| `BUILT` | Every task in the plan reaches `PASS`, Step 3 has run (or been skipped with its line), and Step 4 closed `PASS`/`NEEDS DISCUSSION`. Report the branch/worktree, Step 3's outcome (concepts removed, the nothing-cast-out line, the Track note, or the skip line), and Step 4's episode verdict on one line each. Under `--candidates`, the branch is the one the human chose, and the report carries the candidate table. |
 | `PAUSED` | A dirty or missing baseline stopped Setup, or a task's Failure routine resolved to `REPLAN`, or a risk-tagged task is waiting for a pre-dispatch acknowledgment, or a `verify`/`status-flip` usage error persisted after one retry, or Step 4's convened work episode hit its round cap or a convergence refusal. Resumable once the human acts. |
 | `ESCALATED` | A task's Failure routine resolved to `ESCALATE`. Terminal for this session — hand off to `/shape` in revision mode. |
 
