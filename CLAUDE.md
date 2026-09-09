@@ -43,6 +43,9 @@ uv run --no-project python3 -m unittest discover -s tests/jig -v
 
 # Runtime version floor for the shipped scripts (vermin pinned; scripts/ only)
 uv run --no-project --with vermin==1.8.0 vermin --no-tips -t=3.9- scripts/ bin/studious
+
+# Type check the shipped scripts (pyright pinned; scripts/ and bin/studious at the 3.9 floor)
+find scripts -maxdepth 1 -type f -perm -u+x ! -name '*.py' ! -name '*.sh' | sort | xargs uv run --no-project --with pyright==1.1.413 pyright scripts/*.py bin/studious
 ```
 
 Releases are automated via semantic-release (`pyproject.toml`); the version lives in `.claude-plugin/plugin.json` and is bumped by CI on merge to `main` — never edit it by hand.

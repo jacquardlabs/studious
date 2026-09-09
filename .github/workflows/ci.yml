@@ -69,6 +69,12 @@ jobs:
         run: uv run --no-project --with vermin==1.8.0 vermin --no-tips -t=3.9- scripts/ bin/studious
       - name: Unit tests
         run: uv run --no-project python3 -m unittest discover -s tests/jig
+      # #184: pyright over the shipped surface only (scripts/ and bin/studious, at the
+      # 3.9 floor). Extensionless executables are not discovered by an `include`, so
+      # they are passed by name; config is pyproject.toml's [tool.pyright]. Pinned like
+      # every other checker here.
+      - name: Type check shipped scripts
+        run: find scripts -maxdepth 1 -type f -perm -u+x ! -name '*.py' ! -name '*.sh' | sort | xargs uv run --no-project --with pyright==1.1.413 pyright scripts/*.py bin/studious
 
   ledger:
     name: gate-ledger tests
