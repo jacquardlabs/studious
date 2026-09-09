@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v6.6.0 (2026-09-09)
+
+### Features
+
+- Studious plan-amend — human-authorized work outside the plan, recorded where exorcise's intent and
+  plan-drift both read it ([#429](https://github.com/jacquardlabs/studious/pull/429),
+  [`5a471eb`](https://github.com/jacquardlabs/studious/commit/5a471ebd17191f833815bbafb22732e8e60c2420))
+
+
 ## v6.5.1 (2026-09-09)
 
 ### Bug Fixes
