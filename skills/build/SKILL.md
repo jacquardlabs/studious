@@ -821,6 +821,11 @@ the episode's `PASS`, in the same message.
 and the episode ran — plus the episode's `NEEDS DISCUSSION` and its concerns. No further
 build work follows from this door; resolving the concern is the human's call.
 
+**The convening session never closes a Critical; only a re-convened round does.** A fix this
+session lands is judged by round 2's lanes at the new HEAD — `bin/gate-ledger` refuses a
+`PASS` over a Critical found and closed in the same round, and over a HEAD the round's judges
+did not read (#368).
+
 **On `FIX AND RE-REVIEW`, this episode's first round:** read the blocking findings
 (`studious episode-get --gate audit --findings`) and apply the Failure routine's own
 FIX/RESAMPLE choice to this batch, exactly as step 1 of that routine describes, retargeted

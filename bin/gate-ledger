@@ -391,7 +391,7 @@ cmd_episode_open() {
     '.schemaVersion = (.schemaVersion // 1)
      | .branch = $b
      | (if .episodes[$g] then .episodeHistory[$g] = ((.episodeHistory[$g] // []) + [.episodes[$g]]) else . end)
-     | .episodes[$g] = {sha: $s, round: 1, openedAt: $t}' \
+     | .episodes[$g] = {sha: $s, roundSha: $s, round: 1, openedAt: $t}' \
     --arg b "$(branch_name)" --arg g "$gate" --arg s "$(head_sha)" --arg t "$(now_iso)"
 }
 
@@ -490,9 +490,10 @@ cmd_episode_round() {
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     '.episodes[$g].round = (.episodes[$g].round + 1)
+     | .episodes[$g].roundSha = $s
      | .episodes[$g].blockingByRound = ((.episodes[$g].blockingByRound // {}) + {($r): ($b | tonumber)})
      | .episodes[$g] |= del(.verdict, .verdictAt)' \
-    --arg g "$gate" --arg r "$round" --arg b "$blocking"
+    --arg g "$gate" --arg r "$round" --arg b "$blocking" --arg s "$(head_sha)"
 }
 
 cmd_episode_verdict() {
@@ -577,12 +578,56 @@ cmd_episode_verdict() {
     return 1
   fi
   local file rc; file="$(ledger_dir)/$(branch_slug).json"
+  # Rule 3 (#368): a fix is confirmed by the next round's judges, never by the
+  # round that found the defect. A Critical first recorded in this round and
+  # already `closed` in this round was closed by the session that convened
+  # the judges — nobody with fresh eyes saw the fix. The documented path is
+  # the retry token, episode-round, and a close in the re-entered round.
+  local self_closed
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  self_closed=$(jq -r --arg g "$gate" --arg r "$round" \
+    '[(.episodes[$g].findings // {}) | to_entries[]
+      | select(.value.severity == "Critical" and .value.status == "closed"
+               and ((.value.round | tostring) == $r) and ((.value.closedRound // "" | tostring) == $r))
+      | .key] | join(", ")' "$file" 2>/dev/null)
+  if [ -n "$self_closed" ] && [ "$verdict" != "$EPISODE_RETRY_VERDICT" ]; then
+    echo "gate-ledger: episode-verdict refused for gate '$gate' — Critical finding(s) $self_closed" \
+         "were found AND closed in round $round: the session that convened the judges closed them," \
+         "and no judge has reviewed the fix. Record '$EPISODE_RETRY_VERDICT', run episode-round to" \
+         "re-enter, dispatch the blocking lanes at the new HEAD, and close them in that round" >&2
+    return 1
+  fi
+  # Rule 4 (#368, #361): a terminal verdict certifies the sha the round's judges
+  # read, so HEAD must still be that sha. Below the cap a moved HEAD is refused
+  # — the retry token and episode-round re-enter at HEAD. At the cap the
+  # terminal verdict is the human's explicit choice over spent rounds, so it
+  # lands, but both shas are recorded and the gap is said aloud.
+  local round_sha head_now
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+  round_sha=$(jq -r --arg g "$gate" '.episodes[$g].roundSha // .episodes[$g].sha // empty' "$file" 2>/dev/null)
+  head_now=$(head_sha)
+  if [ -n "$round_sha" ] && [ "$head_now" != "$round_sha" ] && [ "$verdict" != "$EPISODE_RETRY_VERDICT" ]; then
+    local at_cap_sha=0
+    case "$round" in
+      *[!0-9]*) ;;
+      *) if [ "$round" -ge "$EPISODE_ROUND_CAP" ]; then at_cap_sha=1; fi ;;
+    esac
+    if [ "$at_cap_sha" -eq 0 ]; then
+      echo "gate-ledger: episode-verdict refused for gate '$gate' — round $round judged $round_sha," \
+           "but HEAD is $head_now: no judge has reviewed HEAD. Record '$EPISODE_RETRY_VERDICT' and run" \
+           "episode-round to re-enter at HEAD, or reset to $round_sha before recording" >&2
+      return 1
+    fi
+    echo "gate-ledger: episode-verdict for gate '$gate' lands at HEAD $head_now over round $round's" \
+         "reviewed sha $round_sha — the cap is the operator's explicit choice; both shas are recorded" >&2
+  fi
   # Merge, not replace: keeps round/openedAt, gains the verdict; `sha` is
-  # refreshed to HEAD so it matches the sha the dual-write below stamps.
+  # refreshed to HEAD so it matches the sha the dual-write below stamps, and
+  # `reviewedSha` keeps the sha the round's judges actually read.
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
-    '.episodes[$g] = (.episodes[$g] + {verdict: $v, sha: $s, verdictAt: $t})' \
-    --arg g "$gate" --arg v "$verdict" --arg s "$(head_sha)" --arg t "$(now_iso)"
+    '.episodes[$g] = (.episodes[$g] + {verdict: $v, sha: $s, reviewedSha: ($rs // $s), verdictAt: $t})' \
+    --arg g "$gate" --arg v "$verdict" --arg s "$head_now" --arg rs "$round_sha" --arg t "$(now_iso)"
   rc=$?
   [ "$rc" -eq 0 ] || return "$rc"
   # Dual-write the legacy per-gate record through cmd_record itself, not a
@@ -614,6 +659,9 @@ cmd_episode_verdict() {
 # identity across rounds, chosen by the caller and never normalized here:
 #
 #   {lane, severity, status, round, recordedAt, updatedAt}
+#   + {closedRound: N}      stamped when status becomes `closed` — episode-verdict
+#                           refuses a terminal verdict over a Critical found and
+#                           closed in the same round (#368)
 #   + {regressionOf: <fp>}  when first recorded on round 2 as a regression of a
 #                           round-1 finding
 #   + {waiver: <reason>}    when carried under a waiver
@@ -872,6 +920,7 @@ cmd_episode_finding() {
        ((.episodes[$g].findings[$fp]
            // {lane: $lane, severity: $sev, round: ($round | tonumber), recordedAt: $t})
         + {status: $status, updatedAt: $t}
+        + (if $status == "closed" then {closedRound: ($round | tonumber)} else {} end)
         + (if $reg != "" then {regressionOf: $reg} else {} end)
         + (if $waiver != "" then {waiver: $waiver} else {} end))' \
     --arg g "$gate" --arg fp "$fingerprint" --arg lane "$lane" --arg sev "$severity" \
@@ -933,7 +982,7 @@ cmd_episode_get() { # --gate G [--findings | --history] [--branch B] -> one line
        | to_entries[]
        | (.key + 1) as $n | .value.current as $cur | .value.e as $e
        | (($e.findings // {}) | to_entries | sort_by(.key)) as $es
-       | "episode \($n)\(if $cur then " (current)" else "" end) — opened \($e.openedAt // "?") at \($e.sha // "?"), round \($e.round) of \($cap), \(if $e.verdict then "verdict \($e.verdict)" else "no verdict yet" end) — \([$es[].value | select(.status == "open")] | length) open, \([$es[].value | select(.status == "carried")] | length) carried",
+       | "episode \($n)\(if $cur then " (current)" else "" end) — opened \($e.openedAt // "?") at \($e.sha // "?"), round \($e.round) of \($cap), \(if $e.verdict then "verdict \($e.verdict)\(if ($e.reviewedSha // $e.sha) != $e.sha then " (judged \($e.reviewedSha))" else "" end)" else "no verdict yet" end) — \([$es[].value | select(.status == "open")] | length) open, \([$es[].value | select(.status == "carried")] | length) carried",
          (if $e.escalated then "escalated\tround \($e.escalated.round)\t\($e.escalated.blocking) blocking, prior round \($e.escalated.priorBlocking)" else empty end),
          ($es[] | select(.value.waiver) | "waiver\t\(.key)\t\(.value.status)\t\(.value.waiver)")' \
       "$file" 2>/dev/null

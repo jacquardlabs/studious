@@ -33,8 +33,10 @@ VOCABULARY = REPO_ROOT / "reference" / "gate-vocabulary.md"
 
 #: The frozen key sets — exact, not subset: a new field on an episode record is
 #: a contract change and must land here in the same commit that writes it.
-OPEN_EPISODE_KEYS = {"sha", "round", "openedAt"}
-CLOSED_EPISODE_KEYS = {"sha", "round", "openedAt", "verdict", "verdictAt"}
+#: `roundSha` is the sha the current round's judges read (#368): stamped at open,
+#: restamped by episode-round; `reviewedSha` freezes it on the closing verdict.
+OPEN_EPISODE_KEYS = {"sha", "roundSha", "round", "openedAt"}
+CLOSED_EPISODE_KEYS = {"sha", "roundSha", "reviewedSha", "round", "openedAt", "verdict", "verdictAt"}
 LEGACY_GATE_KEYS = {"verdict", "sha", "ranAt"}
 
 #: An advanced episode additionally banks the blocking-finding count the round
@@ -178,12 +180,20 @@ class EpisodeContractTest(unittest.TestCase):
 
     def test_verdict_sha_is_head_at_verdict_time(self) -> None:
         """A stale open-time sha would make `status` flag a just-passed gate
-        as needing a re-run."""
+        as needing a re-run. Since #368 a terminal verdict must also land at
+        the sha the round judged: a commit after open needs the retry token
+        and a re-entered round first."""
         self.ledger("episode-open", "--gate", "audit")
         self._git("commit", "-q", "--allow-empty", "-m", "fix")
+        refused = self.ledger("episode-verdict", "--gate", "audit", "--verdict", "PASS")
+        self.assertEqual(refused.returncode, 1)
+        self.assertIn("no judge has reviewed HEAD", refused.stderr)
+        self.ledger("episode-verdict", "--gate", "audit", "--verdict", RETRY_TOKEN)
+        self.ledger("episode-round", "--gate", "audit")
         self.ledger("episode-verdict", "--gate", "audit", "--verdict", "PASS")
         data = self.gates_file()
         self.assertEqual(data["episodes"]["audit"]["sha"], self.head_sha())
+        self.assertEqual(data["episodes"]["audit"]["reviewedSha"], self.head_sha())
         self.assertEqual(data["gates"]["audit"]["sha"], self.head_sha())
 
     def test_verdict_without_open_episode_is_a_usage_error(self) -> None:
