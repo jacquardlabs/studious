@@ -55,7 +55,7 @@ is — never rebuild the path from its shape**:
 capture writes `.studious/build-evidence/<date>-<task>-<branch-slug>/`, so a path rebuilt to the pre-#258 shape `.studious/build-evidence/<date>-<task>/` matches nothing. <!-- evidence-grammar: counterexample -->
 
 ```
-scripts/evidence-capture resolve --repo <worktree> --branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" --task <task id>
+studious evidence-capture resolve --repo <worktree> --branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" --task <task id>
 ```
 
 `--branch` takes that exact command, not `git branch --show-current`: capture stamped
@@ -87,7 +87,7 @@ block ends after that `Concepts` line, and that is
 not a gap to fill — there is nothing further to quote.
 
 **Freshness hold — run this before promoting anything.** Call
-`scripts/evidence-freshness --repo <worktree> --evidence <folder>`
+`studious evidence-freshness --repo <worktree> --evidence <folder>`
 once per evidence folder involved — each `<folder>` being a path `resolve`
 printed above, passed **verbatim** (repeat `--evidence` per folder, or one
 call covering all of them). The printed path is absolute, so no join against
@@ -229,7 +229,7 @@ durable record. Assemble what Steps 1–4 produced — the evidence table, the
 cctx footer (or its "not installed" note), which follow-ups were filed (with
 issue numbers) and which were skipped, and the proposed decision patches
 verbatim — into a single markdown file, then call
-`scripts/build-report --repo <worktree> --slug <story-slug> --content
+`studious build-report --repo <worktree> --slug <story-slug> --content
 <path>` (optionally `--date`; defaults to today, UTC). This writes
 `docs/studious/build-reports/YYYY-MM-DD-<story-slug>-build-report.md` — same
 class and naming as studious's own dated review reports. `build-report` only

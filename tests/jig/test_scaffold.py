@@ -16,7 +16,7 @@ Checks the story's acceptance criteria:
    model-invoked skill dirs (currently `task-execution-discipline`, see
    test_discipline_skill.py) are also allowed; the set-equality guard below
    still fails on any unaccounted-for extra directory.
-3. `scripts/plan-lint` and `scripts/design-lint` exist and are executable.
+3. `studious plan-lint` and `studious design-lint` exist and are executable.
    Neither is the M1 stub any longer: `plan-lint` graduated to a real linter
    at M3 (issue #12, see test_plan_lint.py); `design-lint` graduated at M2
    (issue #9, see tests/test_design_lint.py) — this module only confirms its

@@ -106,14 +106,14 @@ After stating the recommendation, record it to the local gate ledger so `/next` 
 episodes can see where the bet stands. Run (substituting the verdict token you just assigned):
 
 ```bash
-gate-ledger record --gate should-we-build --verdict "BUILD"
+studious record --gate should-we-build --verdict "BUILD"
 ```
 
 `should-we-build` is the ledger's key for this episode and stays as-is: ledgers written before
 the door was renamed remain readable, and `reference/gate-vocabulary.md` maps the key to the
 episode name.
 
-The ledger is local and gitignored — it never enters the repo. If `gate-ledger` is not found
+The ledger is local and gitignored — it never enters the repo. If `studious` is not found
 (the plugin's `bin/` isn't on `PATH` in this environment), tell the user the verdict could not
 be recorded to the gate ledger — do not skip silently.
 

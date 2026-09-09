@@ -53,7 +53,7 @@ The terms the episode rows above are written against, one line each (#289):
   follow-ups.
 - **carried** — a finding's status when it rides through the verdict recorded but
   unfixed, rather than blocking; a Critical reaches `carried` only with a recorded
-  waiver (`bin/gate-ledger episode-finding`, per its convergence rules).
+  waiver (`studious episode-finding`, per its convergence rules).
 
 ### Task-status `PASS` is a different table (#174)
 

@@ -1,4 +1,4 @@
-"""Regression tests for scripts/evidence-capture (story build-scripts, issue #14).
+"""Regression tests for studious evidence-capture (story build-scripts, issue #14).
 
 Exercises the script against a throwaway git repo (`tests/_tempgit.py`),
 never the real jig repo, checking this story's acceptance criteria

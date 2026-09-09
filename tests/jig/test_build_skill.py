@@ -35,7 +35,7 @@ test_discipline_skill.py already takes for its own sibling skill):
    guard for the same failure mode test_scaffold.py guards against).
 9. The dispatch prompt's boundary line itself instructs the executor to
     commit and return the SHA, and the executor-return contract no longer
-    claims the executor emits verify's ITEMS_SCHEMA JSON -- `scripts/verify`
+    claims the executor emits verify's ITEMS_SCHEMA JSON -- `studious verify`
     derives that list itself, mechanically, from the checkpoint block via
     `--plan`/`--task` (perf item 6: mechanized transcription); the Foreman
     hand-authors only a `--probe-spec` supplement, and only when the task
@@ -156,13 +156,13 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         # (step 2.5), matching the demonstrated behavior in this story's
         # evidence folder.
         self.assertNotIn("fenced JSON block", self.body)
-        self.assertPhraseIn("The executor never emits `scripts/verify`'s `ITEMS_SCHEMA` JSON itself")
+        self.assertPhraseIn("The executor never emits `studious verify`'s `ITEMS_SCHEMA` JSON itself")
 
     def test_foreman_derives_items_via_verify_plan_mode(self) -> None:
-        # `scripts/verify --plan --task` derives script/test-backed items
+        # `studious verify --plan --task` derives script/test-backed items
         # mechanically from the checkpoint block; the Foreman only ever
         # hand-authors a --probe-spec, and only for probe-tier items.
-        self.assertPhraseIn("`scripts/verify` derives the items list")
+        self.assertPhraseIn("`studious verify` derives the items list")
         self.assertPhraseIn("--plan <plan path> --task")
         self.assertPhraseIn("if and only if")
         self.assertPhraseIn("--probe-spec")
@@ -338,7 +338,7 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
             "Assemble the replay bundle at a scratch path"
         )
         flat_evidence_call_phrase = normalize_ws(
-            "Call `scripts/evidence-capture --task <id> --repo <worktree> "
+            "Call `studious evidence-capture --task <id> --repo <worktree> "
             "--artifact verify:results=<scratch-path>/results.json"
         )
         assemble_idx = self.flat_body.index(flat_assemble_phrase)
@@ -512,7 +512,7 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         for lane in ("test-auditor", "architecture-auditor", "code-auditor"):
             with self.subTest(lane=lane):
                 self.assertIn(lane, self.body)
-        self.assertPhraseIn("No `gate-ledger` coupling")
+        self.assertPhraseIn("No\nledger coupling")
 
     def test_second_defect_recheck_is_bounded_not_open_ended(self) -> None:
         # Pre-mortem risk #4: exactly one more independent dispatch, never unbounded.
@@ -540,7 +540,7 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         # convenes the work episode itself, and that convening is unconditional
         # on the same axis #150 regressed on.
         self.assertPhraseIn("Convening itself is unconditional")
-        self.assertPhraseIn("never gated on `gate-ledger` being on `PATH`")
+        self.assertPhraseIn("never gated on the ledger being recordable")
         self.assertPhraseIn("#150")
 
     def test_trust_boundary_is_stated_explicitly(self) -> None:

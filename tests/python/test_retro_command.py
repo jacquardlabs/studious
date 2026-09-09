@@ -24,14 +24,14 @@ def test_recommend_only_posture_is_stated_up_front() -> None:
 def test_section_2_invokes_retro_stats_via_the_plugin_root() -> None:
     text = _door()
     section = text[text.index("### Section 2"):text.index("### Section 3")]
-    assert '"${CLAUDE_PLUGIN_ROOT}/scripts/retro-stats" --since <window start>' in section
+    assert '"${CLAUDE_PLUGIN_ROOT}/bin/studious" retro-stats --since <window start>' in section
     assert "never reimplement the fold" in section
     assert "Omit `--since` on the first run." in section
 
 
 def test_section_2_falls_back_to_glob_when_the_plugin_root_did_not_resolve() -> None:
     section = _door()[_door().index("### Section 2"):_door().index("### Section 3")]
-    assert "locate `scripts/retro-stats` inside the plugin install with Glob" in section
+    assert "locate `bin/studious` inside the plugin install with Glob" in section
 
 
 def test_verbatim_relay_rule_forbids_recomputing_a_number() -> None:

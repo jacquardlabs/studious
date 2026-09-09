@@ -34,7 +34,7 @@ are the decisions this door already names — a stop/rethink token, a Critical w
 round cap, a fork, a sign-off, the pick between `/build` candidates, the ship verdict —
 plus `PAUSED` with a named cause.
 Everything else is a report line, not a question. Measure: human turns per story ≤
-decisions made (`scripts/retro-stats` counts both).
+decisions made (`studious retro-stats` counts both).
 
 **A piece spans the producer and the episode it convenes.** `/shape` and `/build` convene
 their own review episode at exit (`reference/personas.md`, "producer... may *convene* a
@@ -80,10 +80,10 @@ repo evidence, and every later door runs regardless.
 ## Resolve what we're talking about
 
 Position lives in a per-feature work file, `.studious/work/<slug>.json`, read and written
-only through `gate-ledger`.
+only through `studious`.
 
 ```bash
-gate-ledger work-list     # stories in flight
+studious work-list     # stories in flight
 ```
 
 - **`$ARGUMENTS` is empty — "do the next piece."** If a work file's branch matches the
@@ -91,7 +91,7 @@ gate-ledger work-list     # stories in flight
   `done`/`stopped`), use it. If several are active, list them and ask which — don't guess. **Cap that list at the
   5 most recently updated** (`updatedAt`), and say how many more there are rather than
   printing them all: a menu long enough to scroll is not a choice a user can make. If the list
-  is long, say so and suggest `gate-ledger gc`, which collects finished work files — a flow
+  is long, say so and suggest `studious gc`, which collects finished work files — a flow
   that ended should not still be asking for attention. If nothing is in flight, say so and
   invite `/next [idea, issue, or milestone]`.
 - **`$ARGUMENTS` names work in flight** (a slug, branch, or title) — resume it.
@@ -105,7 +105,7 @@ gate-ledger work-list     # stories in flight
   milestone or label name and create the work file at phase `build`:
 
 ```bash
-gate-ledger work-set --slug "<slug>" --title "<milestone title>" --source "#a #b #c" --phase build
+studious work-set --slug "<slug>" --title "<milestone title>" --source "#a #b #c" --phase build
 ```
 
 - **`$ARGUMENTS` is one issue reference** — the same, for one issue: `gh issue view <N>
@@ -115,7 +115,7 @@ gate-ledger work-set --slug "<slug>" --title "<milestone title>" --source "#a #b
   the work file at phase `decide`; `/bet` is the first piece:
 
 ```bash
-gate-ledger work-set --slug "<slug>" --title "<title>" --source "idea" --phase decide
+studious work-set --slug "<slug>" --title "<title>" --source "idea" --phase decide
 ```
 
 ## Find the piece — evidence first
@@ -123,7 +123,7 @@ gate-ledger work-set --slug "<slug>" --title "<title>" --source "idea" --phase d
 The work file's `phase` names the next piece, but verify it against evidence before running
 anything, and correct the file when they disagree — evidence wins:
 
-- **Recorded verdicts** — read via the ledger tool, never the raw file: `gate-ledger gate-get`
+- **Recorded verdicts** — read via the ledger tool, never the raw file: `studious gate-get`
   prints the current branch's recorded verdicts as JSON (`.gates.<gate>.verdict` /
   `.gates.<gate>.sha`); empty output means nothing recorded yet. Staleness is
   **episode-scoped** (`reference/gate-vocabulary.md`), never a cross-episode sha comparison: a
@@ -144,7 +144,7 @@ anything, and correct the file when they disagree — evidence wins:
   (re-offering the handoff is fine).
 - **Executor-reported build status** — an executor satisfying `reference/worker-contract.md`
   may log its own terminal status for the build piece without setting `--phase` itself (phase
-  judgment stays this door's call). Read it with `gate-ledger work-get --slug "<slug>"`'s
+  judgment stays this door's call). Read it with `studious work-get --slug "<slug>"`'s
   `.history`, most recent `step: "build"` entry. Trust it only when its `sha` is still HEAD —
   commits since mean the report is stale and the commit-evidence check above wins instead. If
   current: `BUILT` corroborates the commit check; `PAUSED` — stay at phase `build`, and say so
@@ -176,7 +176,7 @@ Phase `design` instead of `build` only when the user asks for `/shape` here.
   user can explicitly restart it later)
 
 ```bash
-gate-ledger work-log --slug "<slug>" --step decide --outcome "<verdict>" --phase "<next phase>"
+studious work-log --slug "<slug>" --step decide --outcome "<verdict>" --phase "<next phase>"
 ```
 
 ### Design — on request only
@@ -219,7 +219,7 @@ Log with `work-log --step design-review --outcome "<verdict>" --phase "<phase>"`
 verdict logged is the episode's own token (`PROCEED TO PLAN` / `REVISE` / `RETHINK`,
 `reference/gate-vocabulary.md`'s spelling for this gate); `/shape`'s own
 `DESIGNED`/`NEEDS RESEARCH`/`REVISED` rides in the report prose, not this field. **Never
-`--step design`** — `scripts/retro-stats` buckets rounds and time-per-phase by the gate's
+`--step design`** — `studious retro-stats` buckets rounds and time-per-phase by the gate's
 own step name (`GATES`/`PHASES`, both naming `design-review` distinctly from `design`);
 logging under the piece's display name instead of the gate name would silently zero out
 that gate's row going forward.
@@ -282,7 +282,7 @@ this field. **Never `--step build`** — `bin/gate-ledger` closes that step's ou
 vocabulary to `BUILT`/`PAUSED`/`ESCALATED`/`HANDED-OFF`/`SKIPPED` (#213) and refuses a
 gate token like `PASS` written under it.
 
-Whatever the verdict, run `gate-ledger episode-get --gate audit` and carry its first line —
+Whatever the verdict, run `studious episode-get --gate audit` and carry its first line —
 `round R of C — N open, M carried` — into the closing block, verbatim: the episode's own round
 and finding counts, never a re-tally of the report. If it prints nothing (no episode recorded
 on this branch — a legacy ledger, a bare `record`, or no `jq`), carry `none recorded`
@@ -324,7 +324,7 @@ Say "next" when you're ready, or run /next.
 
 When the piece just run was build (2), insert the work episode's readout as a second line —
 the `round R of C — N open, M carried` line the piece read from
-`gate-ledger episode-get --gate audit`, verbatim:
+`studious episode-get --gate audit`, verbatim:
 
 ```text
 Episode: round R of C — N open, M carried
@@ -339,9 +339,9 @@ continue — the user advances the flow with one word, when ready.
 
 ## Record keeping
 
-All flow state goes through `gate-ledger` — `work-set`, `work-log`, `work-get`, `work-list` for
+All flow state goes through `studious` — `work-set`, `work-log`, `work-get`, `work-list` for
 story state, and `gate-get` to read recorded verdicts —
 never hand-edit the JSON or read either store's files directly. The files are local and
-gitignored; they never enter the repo. If `gate-ledger` is not found (the plugin's `bin/` isn't
+gitignored; they never enter the repo. If `studious` is not found (the plugin's `bin/` isn't
 on `PATH` in this environment), tell the user flow position can't be recorded — do not skip
 silently — and navigate from evidence alone for this session.

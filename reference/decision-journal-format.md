@@ -7,7 +7,7 @@ mechanics so drift between writer and readers is a visible diff here, not a sile
 surprise — the same job `reference/evidence-format.md` does for
 `hooks/evidence-capture.sh`.
 
-**Two writes, two jobs.** The journal does not replace `gate-ledger record`. The
+**Two writes, two jobs.** The journal does not replace `studious record`. The
 gate ledger is local, gitignored, per-branch *flow state* (`/next` reads it for
 feature status); the journal is committed, project-lifetime *decision memory*,
 durable across clones, branches, and sessions. Neither substitutes for the other.

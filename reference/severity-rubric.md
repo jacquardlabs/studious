@@ -36,5 +36,5 @@ studious states for `/review` itself is the inline lane's:
 | web-design-guidelines (a11y) | the named guideline that fails (keyboard access, contrast ratio) and the core flow it fails on |
 
 Disposition history is the second filter: a finding already recorded `rejected-as-noise` on this
-episode (`bin/gate-ledger episode-finding`) is settled, and re-raising it at a higher tier does not
+episode (`studious episode-finding`) is settled, and re-raising it at a higher tier does not
 make it a Critical. Re-opening a settled finding needs a new anchor, not a new adjective.

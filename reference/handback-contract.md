@@ -17,10 +17,10 @@ committed... uncommitted work does not exist").
 
 `$ARGUMENTS`, if given, names the branch. Otherwise use the current branch
 (`git rev-parse --abbrev-ref HEAD`). Do not check out a different branch to run this
-command — `gate-ledger evidence-list --branch` and `git log <branch>` both read a named
+command — `studious evidence-list --branch` and `git log <branch>` both read a named
 branch's data without switching.
 
-Derive its slug exactly the way `gate-ledger` does — every `/` replaced with `-`, nothing
+Derive its slug exactly the way `bin/gate-ledger` does — every `/` replaced with `-`, nothing
 else:
 
 ```bash
@@ -34,7 +34,7 @@ evidence log and manifest file are filed under. Don't re-derive with different l
 ## 2. Read the evidence log
 
 ```bash
-gate-ledger evidence-list --branch "$branch"
+studious evidence-list --branch "$branch"
 ```
 
 Always pass `--branch` explicitly (never rely on the tool's current-branch default) — this
@@ -53,13 +53,13 @@ fix cycle, not current-state-only.
 If step 2 printed nothing, distinguish two states before reporting — do not collapse them
 into one message:
 
-- **Not armed** — no work file known to `gate-ledger` has `.branch` equal to the target
-  branch (`gate-ledger work-list`'s third column, exact match): evidence capture never had
+- **Not armed** — no work file known to the ledger has `.branch` equal to the target
+  branch (`studious work-list`'s third column, exact match): evidence capture never had
   a story to attach records to, so nothing was captured regardless of what ran. Report:
 
   > No work file is armed for `<branch>` — evidence capture was never on for this branch,
   > so nothing was captured regardless of what ran. Register the branch first (`/next`
-  > or `gate-ledger work-set --slug <slug> --branch <branch>`) if you expected a log
+  > or `studious work-set --slug <slug> --branch <branch>`) if you expected a log
   > here.
 
 - **Armed, but the log is missing or empty** — a work file does claim this branch, but no
@@ -105,10 +105,10 @@ Structure, top to bottom:
 ```
 
 Capture the evidence log once; derive the manifest rows and all three header counts from
-that single value rather than re-invoking `gate-ledger evidence-list` per derivation:
+that single value rather than re-invoking `studious evidence-list` per derivation:
 
 ```bash
-evidence_log=$(gate-ledger evidence-list --branch "$branch")
+evidence_log=$(studious evidence-list --branch "$branch")
 ```
 
 **Manifest rows.** One row per JSONL record from step 2, in printed order (already
@@ -149,8 +149,8 @@ failed=$(printf '%s\n' "$evidence_log" | jq -r '.predicate.result' | grep -c '^F
 - `git log <merge-base>..<branch> --oneline` (merge-base against the default branch, e.g.
   `git merge-base <branch> origin/main`, falling back to `origin/master` or the repo's
   actual default branch) — what actually changed.
-- The design doc, if recorded (`gate-ledger work-list` for a matching `.branch`, then
-  `gate-ledger work-get --slug <slug>` for `.designDoc`) — what the branch is supposed to
+- The design doc, if recorded (`studious work-list` for a matching `.branch`, then
+  `studious work-get --slug <slug>` for `.designDoc`) — what the branch is supposed to
   do. If none exists, say so rather than guessing; ground the summary in the diff and
   evidence alone.
 - The evidence entries themselves — what was actually verified, and whether it passed.
@@ -172,9 +172,9 @@ git commit -m "docs: handback evidence manifest for <branch>"
 This is the worker's own commit authority (`reference/worker-contract.md`) — the same
 authority already used for the worker's own code.
 
-## 6. If `gate-ledger` is missing
+## 6. If `studious` is missing
 
-If `gate-ledger` is not on `PATH` (the plugin's `bin/` isn't resolvable), say so and stop —
+If `studious` is not on `PATH` (the plugin's `bin/` isn't resolvable), say so and stop —
 do not fall back to reading `.studious/evidence/*.jsonl` directly. That file's location is
 `evidence_dir()`'s to own (see step 2).
 

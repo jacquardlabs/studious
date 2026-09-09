@@ -10,7 +10,7 @@ fresh **Executor** (the Task tool) once per task and, on a load-bearing
 task only, a fresh **Inspector** after it, invoke the four build scripts,
 track status, and report the session verdict. You yourself never see a
 diff and never run `git diff` yourself — every judgment about whether a
-task's work is correct comes from `scripts/verify`'s structured report, not
+task's work is correct comes from `studious verify`'s structured report, not
 from reading the executor's changed files; a load-bearing task's Inspector
 is the one place in this loop that does read the diff, and it is not you.
 
@@ -30,8 +30,8 @@ Four roles, never blurred:
   contract match, technicality gaming), nothing wider. Never sees a leaf
   task, the full `PLAN.md`, another task's history, or this session's own
   conversation.
-- **Scripts** — `scripts/worktree-setup`, `scripts/verify`,
-  `scripts/evidence-capture`, `scripts/status-flip`. Every PASS/FAIL
+- **Scripts** — `studious worktree-setup`, `studious verify`,
+  `studious evidence-capture`, `studious status-flip`. Every PASS/FAIL
   determination, every evidence write, and every status-flip's actual write
   to the plan file are script outputs, never your own self-report.
 
@@ -90,7 +90,7 @@ case you are in before anything else:
   skip its sign-off — a plan reaches Step 1 only at `PLAN READY`.
 - **No plan and no design doc, but the story has source issues** (the argument names
   one or more as `#N`, `owner/repo#N`, or an issue URL, or the work file whose `branch`
-  matches HEAD — `gate-ledger work-list`, then `work-get --slug <slug>` — records them
+  matches HEAD — `studious work-list`, then `work-get --slug <slug>` — records them
   in `source`) — follow `reference/planning-contract.md` with the issues as its
   attachments; the contract resolves and fetches them through viva's manifest. This is
   the default route: design is off unless the human asks for `/shape`. A list of
@@ -168,7 +168,7 @@ may appear anywhere in the block. No `Risk:` line means `LOW` — see Cadence.
    name plus a timestamp: `build/<plan-slug>-<YYYYMMDDHHMM>`. The timestamp
    keeps a second `/build` run over the same plan from colliding with a
    still-present worktree from an earlier, paused session.
-3. **Call `scripts/worktree-setup --branch <name> --path <path> --baseline
+3. **Call `studious worktree-setup --branch <name> --path <path> --baseline
    "<command>"`** (plus `--repo`/`--base` as needed). A non-zero exit means
    a dirty baseline or a setup failure: stop before dispatching any
    executor and report **PAUSED** — the worktree is left in place (per
@@ -189,7 +189,7 @@ may appear anywhere in the block. No `Risk:` line means `LOW` — see Cadence.
    `plan-skill`, issue #23): that story verified,
    against the actually-installed viva, that a `####` level would be
    *coarser* than this rule's own level 1–3 boundary and nest inside the
-   preceding task instead — this parsing rule, and `scripts/plan-lint`'s
+   preceding task instead — this parsing rule, and `studious plan-lint`'s
    matching one, are the two frozen consumers `/build` targets, not the bug
    `/build` fixes.
 5. **Compute the load-bearing set, once (issue #15).** Using the same task
@@ -280,17 +280,17 @@ For each task block, in order:
 4. **Read the executor's return.** Its final message must contain: the
    commit SHA it just created, plus its narrative summary and `Evidence`
    prose citing the fresh run behind each numbered `Done means` item. The
-   executor never emits `scripts/verify`'s `ITEMS_SCHEMA` JSON itself —
+   executor never emits `studious verify`'s `ITEMS_SCHEMA` JSON itself —
    its only context is the task block and the boundary line above, neither
    of which mentions that schema. Transcribing it is the Foreman's own
    next step (2.5), not something asked of a fresh executor.
-5. **Verify, independently.** `scripts/verify` derives the items list
+5. **Verify, independently.** `studious verify` derives the items list
    itself, straight from *this task's own checkpoint block* in `<plan
    path>` — `--plan <plan path> --task <this task's heading number, e.g.
    "3" or "Task 3">`. You no longer hand-transcribe a `script`/`test-backed`
    item's check: its backtick-quoted method path in the block *is* the
    command `verify` runs, read mechanically, the same grammar
-   `scripts/plan-lint` already validates. `verify`'s per-item PASS/FAIL
+   `studious plan-lint` already validates. `verify`'s per-item PASS/FAIL
    report is what you react to next, not the executor's claim.
 
    **A `probe` item is the one exception** — the plan grammar carries no
@@ -312,7 +312,7 @@ For each task block, in order:
    worktree it shows up as untracked in `git status --porcelain`, and the
    very next call in this same task — not just a later one — refuses
    (issue #45). Then call
-   `scripts/verify --plan <plan path> --task <this task's heading number> [--probe-spec <scratch-path>/probe-spec.json] --since <this attempt's dispatch timestamp from step 2.2> --repo <worktree> --out <scratch-path>/results.json`.
+   `studious verify --plan <plan path> --task <this task's heading number> [--probe-spec <scratch-path>/probe-spec.json] --since <this attempt's dispatch timestamp from step 2.2> --repo <worktree> --out <scratch-path>/results.json`.
    **Never the executor's own reported commit SHA** for `--since` — a
    `probe` artifact is written to disk *before* it is committed, so its
    mtime is always at or before that very commit's own timestamp; using the
@@ -338,7 +338,7 @@ For each task block, in order:
      malformed `Done means` line, or a duplicate task heading in `<plan
      path>`. This is a plan-authoring defect, not a Foreman mistake to
      retry past: call
-     `scripts/status-flip --plan <path> --task <label> --status REPLAN --reason "<verify's own parse error>"`
+     `studious status-flip --plan <path> --task <label> --status REPLAN --reason "<verify's own parse error>"`
      and report **PAUSED** directly — the human revises the block by hand,
      then re-invokes `/build`.
 6. **Inspect — conditional on load-bearing status (issue #15).** Consult
@@ -415,8 +415,8 @@ For each task block, in order:
    work episode Step 4 convenes at the end of this same session reads it like any other
    captured artifact, and the evidence table `/ship` assembles into the PR body also
    quotes the captured text artifact inline — so a `/review` run by hand later, on a
-   branch this skill built standalone with no `gate-ledger` on `PATH`, still sees it. No
-   `gate-ledger` coupling and no dependency on studious being installed at all is required
+   branch this skill built standalone with no ledger to record into, still sees it. No
+   ledger coupling and no dependency on studious's doors being installed at all is required
    for the concern itself to survive — only Step 4's own convening does.
 
    | Lens | Lane | Why this lane |
@@ -464,7 +464,7 @@ For each task block, in order:
      `--artifact build:replay-bundle=<scratch-path>/replay-bundle.json`
      flag, no second `evidence-capture` invocation, no new commit —
      exactly how a `probe` item's own artifact already rides that call.
-   - Call `scripts/evidence-capture --task <id> --repo <worktree> --artifact verify:results=<scratch-path>/results.json [...]`
+   - Call `studious evidence-capture --task <id> --repo <worktree> --artifact verify:results=<scratch-path>/results.json [...]`
      — `verify:results` plus one `--artifact` per probe item's *copy* from
      above, pointing `--artifact` straight at each scratch-path file, never
      at a path staged inside `<worktree>` first. `evidence-capture` reads
@@ -485,7 +485,7 @@ For each task block, in order:
      whose evidence this session (or an earlier one) already captured.
      Distinguish two causes mechanically, never by re-running the capture
      and hoping:
-     - Run `scripts/evidence-capture resolve --branch <branch> --task
+     - Run `studious evidence-capture resolve --branch <branch> --task
        <id>` and read the resolved folder's `manifest.json` `commit_sha`
        field. **If it equals this task's own just-verified commit
        (`verify`'s `results.json` sha, or the executor's returned SHA):**
@@ -504,7 +504,7 @@ For each task block, in order:
 
      Keep the recovery instruction in exactly one home: this bullet routes
      the decision, the script's own refusal message
-     (`scripts/evidence-capture`) still names the mechanical fix
+     (`studious evidence-capture`) still names the mechanical fix
      (`--force`, or remove the directory) — never restate that fix's
      wording here, only when to reach for it.
    - **No evidence commit exists any more, deliberately.** `evidence-capture`
@@ -517,7 +517,7 @@ For each task block, in order:
      Do not `git add` the evidence folder to "preserve" it — committing a
      gitignored store back into the diff is the review noise this design
      removed.
-   - Call `scripts/status-flip --plan <path> --task <label> --results <scratch-path>/results.json`,
+   - Call `studious status-flip --plan <path> --task <label> --results <scratch-path>/results.json`,
      the same scratch-path file from step 5 — `status-flip` only reads it,
      never requires it to live in the worktree either.
      `status-flip` derives the `PASS` token itself from `results.json`'s
@@ -556,7 +556,7 @@ an unrelated `verify` `FAIL`, or from a later task's own first `DEFECT`.
    timestamp, never the first attempt's.
 2. **Second FAIL (or `DEFECT`) on the *same* item ID.** Before treating
    this as genuine, rule out noise exactly once more, then stop:
-   - **A `verify` FAIL:** re-run `scripts/verify` exactly once more against
+   - **A `verify` FAIL:** re-run `studious verify` exactly once more against
      the same, already-produced artifacts — no new executor dispatched —
      to rule out an environment flake.
    - **An Inspector `DEFECT`:** dispatch exactly one more independent,
@@ -577,7 +577,7 @@ an unrelated `verify` `FAIL`, or from a later task's own first `DEFECT`.
        written, a `Rests on` that didn't hold, or — for a genuine second
        `DEFECT` — the block's own contract was ambiguous enough that two
        independent Inspectors both couldn't clear it). Call
-       `scripts/status-flip --plan <path> --task <label> --status REPLAN --reason "<why>"`.
+       `studious status-flip --plan <path> --task <label> --status REPLAN --reason "<why>"`.
        Report **PAUSED**: the human revises the block by hand (no `/build`
        exists yet to do it for them), then re-invokes `/build`.
        `status-flip` overwrites a prior `REPLAN` suffix on this same task
@@ -585,7 +585,7 @@ an unrelated `verify` `FAIL`, or from a later task's own first `DEFECT`.
      - **ESCALATE** — something deeper than this task: a contract mismatch
        with an earlier task, a missing dependency, a design assumption
        that doesn't hold in the real codebase. Call
-       `scripts/status-flip --plan <path> --task <label> --status ESCALATE --reason "<why>"`.
+       `studious status-flip --plan <path> --task <label> --status ESCALATE --reason "<why>"`.
        Report **ESCALATED** — terminal for this session; hand off to
        `/shape` in revision mode.
 
@@ -658,7 +658,7 @@ ordinary flow from Step 4 on.
 verdict and `round R of C — N open, M carried` line, Step 3's concepts removed, and the
 branch — and stop for the human's choice. **Never pick between finalists yourself**: the
 pick is a decision, a named stop, the judgment this search exists to leave with the
-human. The chosen branch is the build's branch (`gate-ledger work-set --branch` when a
+human. The chosen branch is the build's branch (`studious work-set --branch` when a
 work file matches); once the human has chosen, remove the other candidates
 (`git worktree remove`, then `git branch -D` on each exact branch name this run created)
 and name what was removed. The session verdict then reports as an ordinary build on the
@@ -728,7 +728,7 @@ with the build proceeding to its verdict.
    Then write the returned report to `<scratch-path>/exorcise-report.md`
    (after the commit, so its mtime clears the freshness check) and capture
    it:
-   `scripts/evidence-capture --task exorcise --repo <worktree> --artifact exorcist:report=<scratch-path>/exorcise-report.md`.
+   `studious evidence-capture --task exorcise --repo <worktree> --artifact exorcist:report=<scratch-path>/exorcise-report.md`.
    The label is pinned in `reference/evidence-format.md`. An exit 2
    ("evidence directory already exists") routes to step 2.7's rule, never
    the Failure routine. The report's `## Held` section — `hold` findings
@@ -760,16 +760,16 @@ run against it, never a lighter or shortcut version. **Convening is not judging:
 may convene the work episode as a convenience, but the verdict is always `/review`'s.
 This door never writes one.**
 
-**Convening itself is unconditional** — never gated on `gate-ledger` being on `PATH` or
+**Convening itself is unconditional** — never gated on the ledger being recordable or
 on this session being able to record. That was a real regression once (#150: a hand-off
-skipped under a gate-ledger presence probe, wrong on both counts — `/review` ships in
+skipped under a ledger presence probe, wrong on both counts — `/review` ships in
 this same plugin, and a missing binary says nothing about whether the gate exists, only
 whether the ledger can record).
 
 Follow `commands/review.md` inline, exactly as written, from "Locate gauntlet" through the
 work episode's "Compile" — don't restate its steps here and don't shortcut them, and don't
 add anything to a dispatch prompt beyond what those steps already gather. Lane 14
-(criteria conformance) resolves its own criteria source through `gate-ledger work-list`/
+(criteria conformance) resolves its own criteria source through `studious work-list`/
 `work-get` or the branch's own design doc, exactly as it would for a human-typed `/review`
 — never shortcut that by handing it `PLAN.md` or this session's own plan context directly;
 `PLAN.md` and `.studious/build-evidence/` are this door's own private artifacts, and the
@@ -780,7 +780,7 @@ it, the same as it would for any other executor:
 2. **Establish the changeset** — merge-base to `HEAD` in this worktree.
 3. **Precompute the changeset diff** — small-changeset scratch file, per that step's
    400-line threshold.
-4. **Resolve the branch's evidence log** — `gate-ledger evidence-list --dedupe`, passed as
+4. **Resolve the branch's evidence log** — `studious evidence-list --dedupe`, passed as
    `--receipts-path` when non-empty.
 5. **Open or re-enter the episode** — `gate-get --gate audit`, the three re-entry
    conditions, then `episode-round --gate audit` (re-entry) or `episode-open --gate audit`
@@ -795,7 +795,7 @@ it, the same as it would for any other executor:
    (1–14), launched in parallel exactly as that section specifies.
 9. **Compile** — `report.py`, the three verdict tokens (`PASS` · `FIX AND RE-REVIEW` ·
    `NEEDS DISCUSSION`), per `reference/audit-compilation.md`.
-10. **Record it** — `gate-ledger episode-verdict --gate audit --verdict "<verdict>"`.
+10. **Record it** — `studious episode-verdict --gate audit --verdict "<verdict>"`.
 
 **On `PASS`:** stop and report. Session verdict `BUILT`, naming Step 3's own outcome and
 the episode's `PASS`, in the same message.
@@ -805,7 +805,7 @@ and the episode ran — plus the episode's `NEEDS DISCUSSION` and its concerns. 
 build work follows from this door; resolving the concern is the human's call.
 
 **On `FIX AND RE-REVIEW`, this episode's first round:** read the blocking findings
-(`gate-ledger episode-get --gate audit --findings`) and apply the Failure routine's own
+(`studious episode-get --gate audit --findings`) and apply the Failure routine's own
 FIX/RESAMPLE choice to this batch, exactly as step 1 of that routine describes, retargeted
 from a `verify` item's gap to a finding's gap:
 
@@ -862,14 +862,14 @@ verdict is the bold token, one sentence naming the cause and resume action (for
 Right before reporting the session verdict above -- never in place of it, and after Step 4
 has resolved (so a `BUILT` logged after a fix-and-reconvene cycle stamps the post-fix
 `HEAD`, not the pre-fix one `/next` would otherwise find stale) -- check `command -v
-gate-ledger`:
+studious`:
 
-- **Found** -- `gate-ledger work-list` and match a row whose branch column
-  equals the current branch. Matched -- `gate-ledger work-log --slug
+- **Found** -- `studious work-list` and match a row whose branch column
+  equals the current branch. Matched -- `studious work-log --slug
   "<that-slug>" --step build --outcome "<BUILT|PAUSED|ESCALATED>"`, never
   `--phase` (`/next` owns that judgment). Those three tokens are the
   closed vocabulary `reference/worker-contract.md`'s "Status reporting"
-  section defines and `gate-ledger` enforces at the write -- every executor
+  section defines and `bin/gate-ledger` enforces at the write -- every executor
   reports in it, not just this one. No matching row -- skip silently; this
   session isn't part of a `/next` flow.
 - **Not found** -- skip silently. Best-effort corroboration, never a
@@ -892,7 +892,7 @@ Inspector's own call and everything around it (evidence capture, the
 Failure routine, `status-flip`'s `PASS` derivation) stays mechanical. A
 `CONCERN` forwards to `/review` by sitting, already committed and
 self-describing, in the diff a human's own later gate run reviews — no new
-dependency on `gate-ledger` or on studious being installed at all. The
+dependency on the ledger recording or on studious's doors being installed at all. The
 load-bearing gate — never inspecting a leaf task — keeps this role from
 becoming a resident reviewer or added persona.
 

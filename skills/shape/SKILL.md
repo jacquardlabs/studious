@@ -33,7 +33,7 @@ Read, in this order, always:
    the named area, never a full-repo read.
 
 If a prior `/bet` verdict was recorded for this feature
-(`gate-ledger` on `PATH`), read it too -- framing context for the interview,
+(`studious` on `PATH`), read it too -- framing context for the interview,
 not a hard input this design requires standalone-capable operation to
 depend on.
 
@@ -151,7 +151,7 @@ naming every prior design doc in this project already uses.
 **Eight required sections, each with a named consumer.**
 `reference/design-doc-contract.md` is the sole authority for the set;
 `templates/design-doc.md` ships the same eight as a scaffold, and
-`scripts/design-lint` checks they are all present before `/build` will read
+`studious design-lint` checks they are all present before `/build` will read
 the doc:
 
 1. **Problem & persona** -- Consumer: the human deciding to fund the work;
@@ -193,12 +193,12 @@ nothing pads a card the reviewer must scroll past to approve.
 
 ## Step 5 -- Call design-lint, fix before viva
 
-Run `scripts/design-lint --doc docs/design/<slug>.md --repo <worktree>` on
+Run `studious design-lint --doc docs/design/<slug>.md --repo <worktree>` on
 the freshly-drafted doc before any viva round launches -- the real script's
 own CLI shape (`--doc` is required; a bare positional argument is a usage
-error), matching how every sibling script in this repo (`scripts/verify`,
-`scripts/evidence-capture`, `scripts/evidence-freshness`,
-`scripts/build-report`) already takes `--repo <worktree>` rather than
+error), matching how every sibling script in this repo (`studious verify`,
+`studious evidence-capture`, `studious evidence-freshness`,
+`studious build-report`) already takes `--repo <worktree>` rather than
 assuming the process's own cwd. This is the same exit-code contract every
 sibling lint/verify script in this repo already uses: `0` (clean), `1`
 (violations, all printed), `2` (usage error -- e.g. missing file, a bad
@@ -208,7 +208,7 @@ invented here.
 **A non-zero exit is fixed and re-linted before Step 6 ever launches a
 server.** `/shape` never starts a viva round against a lint-failing doc --
 if `design-lint` reports a violation, revise the doc and re-run
-`scripts/design-lint` until it exits `0`. Exit `2` means the doc itself (or
+`studious design-lint` until it exits `0`. Exit `2` means the doc itself (or
 the invocation) is malformed -- fix that structurally, not by editing
 around the checker.
 
@@ -283,7 +283,7 @@ them:
    place, never regenerating it.
 5. **Part 4 -- Design verdict.** Synthesize `PROCEED TO PLAN` / `REVISE` / `RETHINK`
    exactly per that Part's criteria -- this door doesn't soften or override it.
-6. **Record it** -- `gate-ledger record --gate design-review --verdict "<verdict>"`,
+6. **Record it** -- `studious record --gate design-review --verdict "<verdict>"`,
    review.md's own recording exception for this gate ("Recording this episode's verdict --
    the one exception"). The design gate carries no `episode-open`/`episode-round`/
    `episode-verdict` cycle and no code-enforced round cap the way `audit`
@@ -318,11 +318,11 @@ reasoning. This is a scope-level problem -- problem validity, principle conflict
 building" -- not a section to patch; going back to brainstorm is the human's decision to
 make, never another automatic redraft.
 
-**Convening itself is unconditional.** `gate-ledger` on `PATH` is a separate question -- it
-governs whether the design gate and this session's status report can *record*, not whether
-the gate or the episode exist. Don't probe for it before convening and don't let its
-absence suppress convening; a broken `PATH` is what `/doctor` reports. That was a real
-regression once (#150: a hand-off skipped under a gate-ledger presence probe, wrong on
+**Convening itself is unconditional.** Whether the ledger can record is a separate
+question -- it governs whether the design gate and this session's status report can
+*record*, not whether the gate or the episode exist. Don't probe for it before convening
+and don't let a failed record suppress convening; a broken `PATH` is what `/doctor` reports. That was a real
+regression once (#150: a hand-off skipped under a ledger presence probe, wrong on
 both counts -- `/review` ships in this same plugin, and a missing binary says nothing
 about whether the gate exists, only whether the ledger can record).
 

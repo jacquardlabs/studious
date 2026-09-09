@@ -68,7 +68,7 @@ Never present a Potential link as a fact. Two commits touching one file a week a
 Verdict history is thin by design, and an absent verdict is the normal case, not a gap to work around. Check both sources, then say plainly in the residual how many units you could attach a verdict to.
 
 - `docs/studious/decisions.jsonl` — committed and durable (shape: `reference/decision-journal-format.md`), but it carries the decide gate only. Match on the `idea` text, never on a path.
-- The gate ledger — `gate-ledger gate-get --branch <branch>` returns `.gates.<gate>.verdict` and `.sha` per gate, and `gate-ledger episode-get --gate <gate> --history --branch <branch>` the rounds behind it (tokens: `reference/gate-vocabulary.md`). This store is local and gitignored, so it exists only for branches worked in this clone, and usually not for most of the window.
+- The gate ledger — `studious gate-get --branch <branch>` returns `.gates.<gate>.verdict` and `.sha` per gate, and `studious episode-get --gate <gate> --history --branch <branch>` the rounds behind it (tokens: `reference/gate-vocabulary.md`). This store is local and gitignored, so it exists only for branches worked in this clone, and usually not for most of the window.
 
 **How the join actually runs.** A ledger record is keyed by *branch* and its `sha` is that branch's tip at verdict time — which is not the squash sha on the default branch. So never join on sha. Go PR number → head branch: `gh pr view <N> --json headRefName,mergedAt,title` when `gh` is available and authenticated, then read that branch's ledger. Without `gh`, or without a PR number, the unit is simply ungraded on the verdict axis — report it as history-only.
 

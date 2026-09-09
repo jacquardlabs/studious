@@ -1,4 +1,4 @@
-"""Regression tests for scripts/status-flip (story build-skill, issue #14).
+"""Regression tests for studious status-flip (story build-skill, issue #14).
 
 Runs against a throwaway git repo (`tests/_tempgit.py`), never the real jig
 repo. Covers: PASS derives its token only from verify's `results.json`

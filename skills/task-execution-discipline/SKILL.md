@@ -69,7 +69,7 @@ Before adding a parameter, option, config flag, or abstraction the cap
 item's test didn't ask for, check the checkpoint block's `Not here` list.
 If it's on the list — or would need to be — it doesn't belong in this
 task; flag it as a follow-up instead of building it. A block that turns
-out wrong gets a `REPLAN` suffix from `scripts/status-flip` and pauses for
+out wrong gets a `REPLAN` suffix from `studious status-flip` and pauses for
 a human to revise by hand (`skills/build/SKILL.md`'s Failure routine;
 `commands/next.md` routes the same state to a manual step) — widening the
 task in place skips that pause.
@@ -87,11 +87,11 @@ NO DONE-MEANS CLAIM WITHOUT FRESH EVIDENCE IN THIS TASK'S EVIDENCE FIELD
 
 A task's status moves `todo` → `in-progress` → `PASS`/`REPLAN`/`ESCALATE`.
 `FIX` is not in that set — it's the failure routine's transient action
-between attempts; `scripts/status-flip` never writes it as a heading
+between attempts; `studious status-flip` never writes it as a heading
 suffix (`skills/build/SKILL.md`, DESIGN.md's Vocabulary table). The flip
 belongs to a script, never the executor's self-report — "Judgment in the
 model, mechanics in scripts," "Nothing signs off on itself" (`PRODUCT.md`,
-Product principles). `scripts/verify` independently re-runs every item
+Product principles). `studious verify` independently re-runs every item
 regardless — that re-run, not your report, backs the flip. The executor's
 job: before writing anything that reads like `Done means` is satisfied, an
 item's `Evidence` must reflect its check's output at the *current* code

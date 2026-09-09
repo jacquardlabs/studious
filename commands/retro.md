@@ -39,9 +39,9 @@ If `$ARGUMENTS` is non-empty and is not `outcomes`, say so, name the two modes, 
   window is the whole store.
 - **The window** — from the previous retro's date to today. Say it in the header.
 - **The ledger, through `bin/gate-ledger` verbs only** — never a raw file under
-  `.studious/`. `scripts/retro-stats` (section 2) does that read for you. When a claim
+  `.studious/`. `studious retro-stats` (section 2) does that read for you. When a claim
   needs one specific record to cite — a park's reason, a waiver's text, a story's timeline —
-  ask the verb: `gate-ledger work-get --slug S`, `episode-get --gate G --history --branch B`,
+  ask the verb: `studious work-get --slug S`, `episode-get --gate G --history --branch B`,
   `evidence-list --branch B`.
 - **The decision journal** — `docs/studious/decisions.jsonl`
   (`reference/decision-journal-format.md`); the script reads it.
@@ -65,11 +65,11 @@ direction the item promised, citing that row. Never mark an item from memory. Fi
 Run the script and paste its output verbatim:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/retro-stats" --since <window start>
+"${CLAUDE_PLUGIN_ROOT}/bin/studious" retro-stats --since <window start>
 ```
 
 (`${CLAUDE_PLUGIN_ROOT}` is substituted to the plugin's install path before you read this.
-If it didn't resolve, locate `scripts/retro-stats` inside the plugin install with Glob —
+If it didn't resolve, locate `bin/studious` inside the plugin install with Glob —
 never reimplement the fold.) Omit `--since` on the first run.
 
 Code owns the counting; you narrate. Every number in the report is a number the script
@@ -80,11 +80,11 @@ an empty ledger is an honest answer, never an error.
 
 If the header instead reads `gate-ledger errored on N call(s)`, or a `## gate-ledger errors
 (N)` section appears at the bottom, relay whichever appears verbatim and mark any count the
-header called `unmeasured` the same way in your prose — a failed `gate-ledger` call is not an
+header called `unmeasured` the same way in your prose — a failed ledger call is not an
 empty store, it is missing data, and sections 3 and 4 shrink around it exactly as they would
 around `no cycle data`: claims resting on the unmeasured table drop out, everything else
 stands. When every call fails, the script prints a single line with no `## gate-ledger
-errors` section at all (`scripts/retro-stats`'s `render()`) — relay that line alone.
+errors` section at all (`studious retro-stats`'s `render()`) — relay that line alone.
 
 ### Section 3 — What the numbers say went well and badly
 

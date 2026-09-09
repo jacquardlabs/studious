@@ -1,4 +1,4 @@
-"""Regression tests for scripts/worktree-setup (story build-scripts, issue #14).
+"""Regression tests for studious worktree-setup (story build-scripts, issue #14).
 
 Runs against a throwaway git repo (`tests/_tempgit.py`), never the real jig
 repo or this story's own worktree. Covers acceptance criteria from

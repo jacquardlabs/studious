@@ -51,7 +51,7 @@ append-only log doesn't need `json_update`'s rename dance).
 
 | Field | Source | Notes |
 |-------|--------|-------|
-| `capturedAt` | `now_iso()` inside `gate-ledger`, not a caller-supplied flag | UTC, `%Y-%m-%dT%H:%M:%SZ` |
+| `capturedAt` | `now_iso()` inside `bin/gate-ledger`, not a caller-supplied flag | UTC, `%Y-%m-%dT%H:%M:%SZ` |
 | `capturer` | Hardcoded `"hook"` inside `cmd_evidence_append` | Not a flag — no caller can write a different capturer value. The field that makes capturer ≠ claimant checkable, per the amendment. |
 | `origin` | `"subagent"` if the hook input's `agent_id` is present, else `"interactive"` | See "Open item: origin and /next's actual dispatch mechanism" below — a real, currently-unverified gap. |
 | `agentType` | Hook input's `agent_type`, when present | **Omitted entirely** (not `null`, not `""`) when absent — e.g. every `origin: "interactive"` record. |
@@ -138,7 +138,7 @@ for it.
 
 ## Reading the log: `evidence-list`
 
-`bin/gate-ledger evidence-list [--branch B] [--dedupe]` is the one read verb for this
+`studious evidence-list [--branch B] [--dedupe]` is the one read verb for this
 store, added by `handback-skill` (`reference/handback-contract.md`). It resolves the branch's
 `.jsonl` path through the same `evidence_dir()`/`branch_slug()` functions
 `evidence-append` already writes through and prints the file verbatim — nothing if
@@ -177,7 +177,7 @@ current-state-only.
 - `reference/handback-contract.md` reads this file's pinned shape before assembling its
   manifest table (timestamp, command, `predicate.result`, origin, `outputDigest`
   only — never any other field).
-- `gate-ledger evidence-list` is a plain passthrough of this shape, one line per
+- `studious evidence-list` is a plain passthrough of this shape, one line per
   record (or, with `--dedupe`, one line per distinct `command`) — neither mode
   reshapes a record, only which ones are selected. `commands/review.md` passes its
   `--dedupe` output to every judge invocation as `receipts_path`; a judge such as

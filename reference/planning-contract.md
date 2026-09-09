@@ -9,7 +9,7 @@ handed over — into a `PLAN.md` the build loop can run unmodified, through
 the cards to the human, stamp. Every step that requires reading for meaning,
 weighing a dependency order, or judging FIX-vs-DESIGN-GAP is yours; every
 pass/fail determination about the *drafted* `PLAN.md`'s structure belongs to
-`scripts/plan-lint`, never self-reported, and every section's sign-off
+`studious plan-lint`, never self-reported, and every section's sign-off
 belongs to the human, via viva, never inferred from "looks fine." "Judgment
 in the model, mechanics in scripts" is the whole shape.
 
@@ -77,7 +77,7 @@ silently "planned around."
 **Method existence** (no checkpoint item may name a method that doesn't
 exist, unless an earlier task creates it) is checked here too, *proactively,
 while drafting* -- so a checkpoint block is never written against a method
-you never confirmed. `scripts/plan-lint`'s `method-not-found` category
+you never confirmed. `studious plan-lint`'s `method-not-found` category
 checks the same thing again, *mechanically*, after drafting, as the
 deterministic backstop that catches anything this pass missed (Step 5 is
 not redundant with this one -- it's the fail-closed re-check "nothing
@@ -118,7 +118,7 @@ actually has:
   **Issue #13's own resolution ("script the probes") is what this check
   enforces, not just states.** A `probe`-tier item is never satisfied by
   executor self-attestation -- "Nothing signs off on itself" forbids the
-  claims-vs-evidence pattern that would reopen, and `scripts/verify` (M4,
+  claims-vs-evidence pattern that would reopen, and `studious verify` (M4,
   shipped) already only accepts a live artifact check for a `probe` item,
   never a narrative claim. So when a task's own behavior genuinely needs
   live-UI verification and this check finds no scripted tool, you do not:
@@ -159,7 +159,7 @@ splitter treats as untouched, undivided content.
 
 Each task's own `Rests on:` field is the spine's *load-bearing* record.
 **Reference a task by the literal token `Task N`** (matching
-`scripts/plan-lint`'s `TASK_REF_RE` and `/build`'s own Failure-routine
+`studious plan-lint`'s `TASK_REF_RE` and `/build`'s own Failure-routine
 language exactly) -- never a free-text description of the dependency. A
 `Rests on:` line that names a task any other way is invisible to both
 downstream consumers' LOAD-BEARING derivation, silently breaking the one
@@ -258,9 +258,9 @@ exactly (`(tier: script \`path\`)`, `(tier: test-backed \`path\`)`,
 `(tier: probe)`) -- the method path transcribed here is exactly what Step
 1b either confirmed exists or confirmed a named earlier task creates.
 
-## Step 5 — Lint (`scripts/plan-lint`, real, not a no-op)
+## Step 5 — Lint (`studious plan-lint`, real, not a no-op)
 
-Call the already-shipped `scripts/plan-lint <path>` against the drafted
+Call the already-shipped `studious plan-lint <path>` against the drafted
 file -- a **real invocation with a real exit code branched on**, never an
 unconditional pass.
 
@@ -298,7 +298,7 @@ required for `/build`'s review step and is not installed -- install it
 (`/plugin install viva@jacquardlabs-marketplace`) and re-invoke `/build`."
 No stack trace, no silent hang, no attempt to skip review -- `/build` has a
 hard dependency on viva for this step, matching how `/build` has a hard
-dependency on `scripts/verify`. "Standalone-capable... none is silent"
+dependency on `studious verify`. "Standalone-capable... none is silent"
 applies to naming this dependency clearly, not to working around it.
 
 Otherwise this is `viva-write`'s hand-off, driven by `loop.py`
@@ -366,17 +366,17 @@ python3 "$VIVA_DIR/scripts/loop.py" arm
 
 Rounds: `loop.py wait`, routed on its classification line per `viva-write`
 step 6. On `has-work`, rewrite the flagged task blocks, **re-run
-`scripts/plan-lint` to exit 0** (Step 5's loop and bound apply again), then
+`studious plan-lint` to exit 0** (Step 5's loop and bound apply again), then
 `loop.py rearm --parse-only --response …`, re-merge the plan-lint flag,
 `loop.py arm`, wait again. A rewrite that cannot clear the lint is the same
 `DESIGN GAP` Step 5 names. On `all-approved`: `loop.py finish --doc
 PLAN.md`. `finish` appends `## Revision History` (with the interview's
-`### Decisions` block); run `scripts/plan-lint PLAN.md` once more against
+`### Decisions` block); run `studious plan-lint PLAN.md` once more against
 the finished file -- it must still exit 0.
 
 **The stamp is `PLAN READY`, not a commit.** `PLAN.md` is disposable
 (CLAUDE.md, "Where a design record lives"): `viva-write`'s commit row does
-not apply, `scripts/status-flip` carries the file on the branch, and
+not apply, `studious status-flip` carries the file on the branch, and
 `/ship` removes it at closeout. The ledger's decisions die with it; the PR
 body is the record.
 
@@ -384,7 +384,7 @@ body is the record.
 
 | Verdict | Fires when |
 |---|---|
-| `PLAN READY` | Every task reaches viva `approved`, `scripts/plan-lint` exits 0 against the final file. Hand the human the `PLAN.md` path and name `/build` as the next step. |
+| `PLAN READY` | Every task reaches viva `approved`, `studious plan-lint` exits 0 against the final file. Hand the human the `PLAN.md` path and name `/build` as the next step. |
 | `DESIGN GAP` | Step 1a falsifies a design assumption against the real codebase, **or** Step 1b finds required infra (test runner, or -- issue #13's own case -- a scripted-probe tool a task's `Done means` needs) missing and uncreatable by an earlier task, **or** Step 5's lint loop can't converge without such a gap (no progress, or the 3-cycle bound). **Never reported bare** -- name which of the three causes fired (falsified assumption / missing test-or-lint infra / missing probe infra), plus the concrete resume action: revise the design doc, or install the missing tool as its own prerequisite. |
 | `TOO BIG` | Step 3's task count doesn't calibrate to 3-8 after merge/split attempts -- names the actual task count and which direction it missed by. |
 

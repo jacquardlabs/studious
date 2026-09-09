@@ -2,7 +2,7 @@
 
 Pins the placement note's design against the prose the Foreman actually reads: the step
 sits after every task's PASS and before Step 4 convenes `/review`'s work episode; it
-delegates to `/exorcist:exorcise` rather than reimplementing it; `scripts/verify` re-runs
+delegates to `/exorcist:exorcise` rather than reimplementing it; `studious verify` re-runs
 after it with each task's own dispatch timestamp; a FAIL is undone with `git checkout -- .`
 and noted as Track, never routed into the Failure routine; exorcist's absence is one line
 naming the install (the cctx pattern in `skills/ship/SKILL.md` Step 2); and the report is
@@ -64,7 +64,7 @@ def test_pass_commits_once_then_captures_the_report_under_the_pinned_label() -> 
     assert "`exorcise: <concepts removed>`" in passed
     assert "`Concepts removed:` line" in passed, "the subject comes from the report, not a diff"
     # verify → commit → write the report → capture (premortem #3).
-    assert passed.index("Commit the working tree") < passed.index("after the commit") < passed.index("scripts/evidence-capture")
+    assert passed.index("Commit the working tree") < passed.index("after the commit") < passed.index("studious evidence-capture")
     assert "--artifact exorcist:report=" in passed
     assert "`## Held`" in passed and "`/review`" in passed, "hold findings ride the artifact"
     assert "routes to step 2.7's rule, never\n   the Failure routine" in passed

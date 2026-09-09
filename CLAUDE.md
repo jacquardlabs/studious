@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-Studious is a **Claude Code plugin**, not a runtime application. Its "source" is mostly Markdown prompt files — agent definitions, slash commands, skills, and hook scripts — that ship to consuming projects via the Jacquard Labs marketplace. The only executable code is one Bash tool (`bin/gate-ledger`), the hook scripts, and the Python CI helpers in `scripts/`. There is nothing to build or run as an app; "correctness" means the prompts are well-formed, the manifest is valid, and the references resolve.
+Studious is a **Claude Code plugin**, not a runtime application. Its "source" is mostly Markdown prompt files — agent definitions, slash commands, skills, and hook scripts — that ship to consuming projects via the Jacquard Labs marketplace. The only executable code is the `studious` entrypoint (`bin/studious`, dispatching to `bin/gate-ledger` and the `scripts/` executables), the hook scripts, and the Python CI helpers in `scripts/`. There is nothing to build or run as an app; "correctness" means the prompts are well-formed, the manifest is valid, and the references resolve.
 
 The product itself is two rhythms (see `README.md`): per-feature **gates** (`/gate-*`) around building, and per-project **health reviews** (`/health`). Both read three context docs in the *consuming* project — PRODUCT.md, DESIGN.md, CLAUDE.md.
 
@@ -38,11 +38,11 @@ bash tests/test_session_start.sh
 shellcheck bin/gate-ledger hooks/evidence-capture.sh hooks/session-start.sh tests/test_gate_ledger.sh tests/test_evidence_capture.sh tests/test_session_start.sh
 
 # Build-script lint and tests (ruff pinned; stdlib unittest, not pytest)
-uv run --no-project --with ruff==0.16.0 ruff check scripts tests/jig
+uv run --no-project --with ruff==0.16.0 ruff check scripts tests/jig bin/studious
 uv run --no-project python3 -m unittest discover -s tests/jig -v
 
 # Runtime version floor for the shipped scripts (vermin pinned; scripts/ only)
-uv run --no-project --with vermin==1.8.0 vermin --no-tips -t=3.9- scripts/
+uv run --no-project --with vermin==1.8.0 vermin --no-tips -t=3.9- scripts/ bin/studious
 ```
 
 Releases are automated via semantic-release (`pyproject.toml`); the version lives in `.claude-plugin/plugin.json` and is bumped by CI on merge to `main` — never edit it by hand.
@@ -56,9 +56,9 @@ The directory layout encodes a role split (full version in `CONTRIBUTING.md`):
 - `skills/<name>/SKILL.md` — two kinds, deliberately. Three are **doors** (`shape`, `build`, `ship`) — a skill and a command are both invokable slash commands, and which one backs a door is an implementation detail, not a class distinction. `reference/personas.md`'s `Backed by` column says which. The fourth, `task-execution-discipline`, is model-invoked but not a door. There is no separate natural-language shim layer: a door's own `description` frontmatter is what lets it fire from plain language.
 - `reference/` — the rubrics the doors read at judgment time (`severity-rubric.md`, `audit-compilation.md`), the contracts a door follows (`planning-contract.md`, `worker-contract.md`, `handback-contract.md`, the two extractions), and the charter itself (`personas.md`). Doors and agents consult these instead of restating them inline — keep depth in `reference/`, keep the door pointing at it. **A file here carries no command frontmatter**: frontmatter is what makes something invokable, and a contract that grows one is a tenth door nobody declared.
 - `hooks/` — shipped hook scripts + `hooks.json`. Two live hooks: a silent PostToolUse/PostToolUseFailure evidence-capture hook on `Bash` that appends verification-command records while a story is armed (`evidence-capture.sh`; format pinned in `reference/evidence-format.md`); and a silent SessionStart hook on `startup`/`resume` that surfaces a counts-only flow-position heads-up when a work file is active (`session-start.sh`).
-- `bin/gate-ledger` — reads/writes the per-branch gate ledger, its episodes, the per-feature `/next` work files, and the evidence log.
+- `bin/studious` — the one entrypoint every door invokes (`studious <verb>`, #346). A verb naming a `scripts/` executable execs it; every other verb execs `bin/gate-ledger`, which reads/writes the per-branch gate ledger, its episodes, the per-feature `/next` work files, and the evidence log. **A rule that leaves prose lands here as a verb**; the prose then names `studious <verb>` and nothing else. Prompts keep judgment (FIX vs RESAMPLE, REPLAN vs ESCALATE, verdict compilation, the interview) and the human stops.
 - `templates/` — PRODUCT.md / DESIGN.md scaffolds created by `/setup` in the consuming project.
-- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence), the producer doors' own executables (`plan-lint`, `design-lint`, `verify`, `status-flip`, `build-report`, `evidence-capture`, `worktree-setup`), and `retro-stats` (run by `/retro`). Those executables are run by `/build`, `/shape`, and `/retro`, not by CI.
+- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence) and the door-run executables (`plan-lint`, `design-lint`, `verify`, `status-flip`, `build-report`, `evidence-capture`, `evidence-freshness`, `worktree-setup`, `retro-stats`), reached as `studious <name>`. Those executables are run by `/build`, `/shape`, `/ship`, and `/retro`, not by CI.
 
 Key invariants when adding or changing prompts:
 
