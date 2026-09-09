@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v6.5.0 (2026-09-09)
+
+### Features
+
+- Studious plan-drift — a task's commits versus its checkpoint block, run on every verify PASS
+  ([#427](https://github.com/jacquardlabs/studious/pull/427),
+  [`d813b9b`](https://github.com/jacquardlabs/studious/commit/d813b9b3c3ddfdc0ea130e412b505d159ac351ec))
+
+
 ## v6.4.1 (2026-09-09)
 
 ### Bug Fixes
