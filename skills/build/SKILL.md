@@ -343,6 +343,20 @@ For each task block, in order:
      `studious status-flip --plan <path> --task <label> --status REPLAN --reason "<verify's own parse error>"`
      and report **PAUSED** directly — the human revises the block by hand,
      then re-invokes `/build`.
+
+   **On `verify`'s PASS, check the plan against the diff (#380).** Run
+   `studious plan-drift --plan <plan path> --task <this task's heading number> --repo <worktree> --since <the sha HEAD was at before this attempt's dispatch>`.
+   It names every file the attempt touched that no task's `Read first:` /
+   `Do:` / method path covers, every `Do:` path the attempt never touched,
+   and every promised method path still missing — the three shapes every
+   Critical in the 2026-09-07 retro had. **Exit 1 is a FAIL on the
+   pseudo-item `"plan-drift"`**, entering the Failure routine like any
+   `verify` item: its FIX is the executor amending `PLAN.md` — `Do:`,
+   `Not here:`, or the `Done means` item — in the same commit as the
+   deviation, to say what actually shipped and why, or reverting the
+   out-of-plan change. A deviation disclosed only in a commit message or a
+   summary is exactly what this catches. Exit 2 routes as `verify`'s exit
+   2 above. Only exit 0 advances to step 2.6.
 6. **Inspect — conditional on load-bearing status (issue #15).** Consult
    the fixed load-bearing set step 1.5 already computed.
 
@@ -531,8 +545,9 @@ For each task block, in order:
 ## Failure routine
 
 Scoped **per verify item ID** — a repeat failure on the *same* item is
-distinguished from a new failure on a *different* one. Step 2.6's `DEFECT`
-verdict enters this identical routine, scoped to its own pseudo-item-ID
+distinguished from a new failure on a *different* one. Step 2.5's
+`plan-drift` exit 1 enters it under the pseudo-item-ID `"plan-drift"`, and
+step 2.6's `DEFECT` verdict enters this identical routine, scoped to its own pseudo-item-ID
 `"inspector"` (distinct from `verify`'s own numbered items) — a repeat
 `DEFECT` on *this* task's inspection is distinguishable the same way from
 an unrelated `verify` `FAIL`, or from a later task's own first `DEFECT`.
@@ -641,8 +656,8 @@ order, stopping at the first that separates them:
 
 1. **Eliminate** any candidate with a task not `PASS` in its verify table after
    exorcise, or whose baseline command is not green after exorcise.
-2. **Fewest out-of-plan files** — files in `git diff --name-only <base>...HEAD` that no
-   task's `Read first:` or `Do:` line names.
+2. **Fewest out-of-plan files** — the `out-of-plan-file` count `studious plan-drift`
+   prints for the candidate's whole range (`--range <base>..HEAD`, any task).
 3. **Smallest post-exorcise diff** — added plus removed lines from
    `git diff --shortstat <base>...HEAD`.
 4. **Fewest Failure-routine dispatches** (FIX plus RESAMPLE) across all tasks.
