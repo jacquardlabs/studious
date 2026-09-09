@@ -2,6 +2,20 @@
 
 <!-- version list -->
 
+## v6.8.1 (2026-09-09)
+
+### Bug Fixes
+
+- Story-loop survivors — known-red baseline as input, hook arms by the command's tree, ledger write
+  lock, CI hardening ([#435](https://github.com/jacquardlabs/studious/pull/435),
+  [`a62d6aa`](https://github.com/jacquardlabs/studious/commit/a62d6aa217e7de1624f217bc74505e8b5678bc0e))
+
+- Three story-loop survivors — dispatch prompts forbid the Agent tool's worktree isolation (#365);
+  /bet writes the work file on BUILD (#355); plan-lint refuses a misspelt Risk tag (#227)
+  ([#434](https://github.com/jacquardlabs/studious/pull/434),
+  [`ace71f8`](https://github.com/jacquardlabs/studious/commit/ace71f8f11d86f83f17e4da330c80f25c07e8107))
+
+
 ## v6.8.0 (2026-09-09)
 
 ### Bug Fixes
