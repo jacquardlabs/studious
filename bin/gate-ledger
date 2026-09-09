@@ -191,10 +191,10 @@ cmd_status() {
   # verdicts, report as if nothing was ever recorded for this branch.
   [ "$stored_branch" = "$cur_branch" ] || branch_mismatch=1
 
-  # Gate→pass-token→mode table: "gate:PASS_TOKEN:MODE". Both gates are
+  # Gate→pass-token→mode table: "gate:PASS_TOKEN:MODE". The one gate is
   # required: absence flags ("never ran"), a clean verdict at HEAD joins the
   # "proceed" summary.
-  local gates=("audit:PASS:required" "acceptance:SHIP:required")
+  local gates=("audit:PASS:required")
   local msgs=()
   local pass_parts=()
   local gate pass mode v s entry rest

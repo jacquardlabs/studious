@@ -37,7 +37,7 @@ excluded from its own Absorbed cell — including it would make `/doctor` flag e
 |---|---|---|---|---|
 | `/bet` | Product Owner | judge | `commands/bet.md` | gate-should-we-build, backlog-priorities |
 | `/shape` | Designer | producer | `skills/shape/SKILL.md` | design |
-| `/review` | Design Reviewer, Reviewer | judge | `commands/review.md` | gate-design-review, gate-audit, gate-acceptance |
+| `/review` | Design Reviewer, Reviewer | judge | `commands/review.md` | gate-design-review, gate-audit |
 | `/build` | Builder | producer | `skills/build/SKILL.md` | plan |
 | `/ship` | Shipper | producer | `skills/ship/SKILL.md` | finish, handback |
 | `/next` | Navigator, Orchestrator | navigator | `commands/next.md` | work-on, work-through, coach |
@@ -64,7 +64,7 @@ tool is worse than a longer one (the same finding #257 hit with the old bare `/d
   executor-agnostic contract a judge may rely on instead.
 - **producer** — writes and commits code, docs, and evidence. May name other producers and
   may *convene* a judge at its own exit (`/shape` the design episode, `/build` the work
-  episode, `/ship` the delivery episode), but may never write a verdict. Convening is not
+  episode), but may never write a verdict. Convening is not
   judging.
 - **navigator** — does neither. `/next` reads position, proposes the next door, and runs it
   only on confirmation. It routes to producers and convenes judges, so it is deliberately
@@ -89,7 +89,6 @@ episode to the door that convenes it, and nothing else.
 | bet | `/bet` | `/next` (on confirmation) |
 | design | `/review` | `/shape`, `/next` (on confirmation, when the doc's route isn't `/shape`) |
 | work | `/review` | `/build`, `/next` (on confirmation, when the branch's route isn't `/build`) |
-| delivery | `/review --delivery` | `/ship`, `/next` (on confirmation) |
 
 ## Specialists
 

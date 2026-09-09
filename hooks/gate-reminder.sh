@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Studious gate reminder — PreToolUse hook for `gh pr create`.
 # Always returns "ask" (non-blocking). If a gate ledger exists for the branch
-# (.studious/gates/<branch>.json, from /review and /review --delivery), names the
+# (.studious/gates/<branch>.json, from /review), names the
 # specific missing/stale/failing gate; otherwise falls back to the generic prompt.
 
 input=$(cat)
 
 printf '%s' "$input" | grep -Eq 'gh[[:space:]]+pr[[:space:]]+create' || exit 0
 
-default_reason="Studious: opening a PR. Did /review and /review --delivery run on this branch? Proceed if the gates passed or don't apply to this change."
+default_reason="Studious: opening a PR. Did /review run on this branch? Proceed if the gates passed or don't apply to this change."
 
 reason=""
 ledger="${CLAUDE_PLUGIN_ROOT:-}/bin/gate-ledger"
@@ -32,7 +32,7 @@ else
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
     "permissionDecision": "ask",
-    "permissionDecisionReason": "Studious: opening a PR. Did /review and /review --delivery run on this branch? Proceed if the gates passed or don't apply to this change."
+    "permissionDecisionReason": "Studious: opening a PR. Did /review run on this branch? Proceed if the gates passed or don't apply to this change."
   }
 }
 JSON

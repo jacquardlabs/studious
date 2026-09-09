@@ -165,12 +165,13 @@ Traced from the commands and the README's two-rhythm description.
    "not building" need a human pass).
 
 2. **The flow, at any scale** — `/bet [idea | issue | milestone]` (worth building? what's
-   the appetite?) > `/shape` or any executor's design doc > `/review` (design episode,
-   which writes the pre-mortem register) > `/build` > `/review` (work episode; parallel
-   specialist lanes, with frontend, infrastructure, operability, dependency, and prompt
-   lanes auto-skipping when not applicable) > `/review --delivery` > `/ship`. `/next`
-   walks that sequence one piece per invocation and never auto-advances. Each episode
-   catches a specific failure; the user narrows or skips what the risk doesn't warrant.
+   the appetite?) > `/build` (plans from the issue, builds, then convenes `/review`'s work
+   episode: parallel specialist lanes, with frontend, infrastructure, operability,
+   dependency, and prompt lanes auto-skipping when not applicable, and a product lane that
+   judges delivery) > `/ship`. `/shape` and the design episode run on request or on
+   `/build`'s `DESIGN GAP`, never by default. `/next` walks that sequence one piece per
+   invocation and never auto-advances. Each episode catches a specific failure; the user
+   narrows or skips what the risk doesn't warrant.
 
 3. **Per-project health loop** — `/health` dispatches gauntlet's posture judges against
    main in parallel, compiles a cross-referenced master summary with a prioritized action

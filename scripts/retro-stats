@@ -37,9 +37,9 @@ from _gitutil import main_checkout_root, run  # noqa: E402
 GATE_LEDGER = Path(__file__).resolve().parent.parent / "bin" / "gate-ledger"
 NO_DATA = "no cycle data in this clone"
 #: The episode gates `bin/gate-ledger` records rounds for (`reference/gate-vocabulary.md`).
-GATES = ("design-review", "audit", "acceptance")
+GATES = ("design-review", "audit")
 #: Story-timeline steps, in flow order (`commands/next.md`), for the time-per-phase table.
-PHASES = ("decide", "design", "design-review", "build", "audit", "acceptance", "merge", "finish")
+PHASES = ("decide", "design", "design-review", "build", "audit", "merge", "finish")
 #: A session boundary, not work — never attributed to a phase's wall time.
 RUN_BOUNDARY = "run-boundary"
 STAMP = "%Y-%m-%dT%H:%M:%SZ"

@@ -88,24 +88,31 @@ case you are in before anything else:
   dependency spine, the task calibration, the checkpoint-block grammar, the `plan-lint`
   gate, and the viva sign-off round in full. Consult it; don't restate it here, and don't
   skip its sign-off — a plan reaches Step 1 only at `PLAN READY`.
-- **Neither exists** — stop and report **PAUSED**, naming what's missing (no plan, no
-  design doc) and the resume action: write a design doc (`/shape`, or any route
-  satisfying `reference/design-doc-contract.md`), or hand over a single checkpoint block
-  for the quick path.
+- **No plan and no design doc, but the story has a source issue** (the argument names
+  one as `#N` or an issue URL, or the work file whose `branch` matches HEAD — `gate-ledger
+  work-list`, then `work-get --slug <slug>` — records a `source` issue) — fetch it
+  (`gh issue view <N> --json title,body`) and follow `reference/planning-contract.md`
+  with the issue as the doc it reads. This is the default route: design is off unless
+  the human asks for `/shape`. An issue too thin to plan from is the contract's own
+  `DESIGN GAP`, naming `/shape` as the resume action.
+- **None of those** — stop and report **PAUSED**, naming what's missing (no plan, no
+  design doc, no source issue) and the resume action: name the issue, write a design doc
+  (`/shape`, or any route satisfying `reference/design-doc-contract.md`), or hand over a
+  single checkpoint block for the quick path.
 
 A `DESIGN GAP` or `TOO BIG` verdict from the planning contract stops this session there —
 report it verbatim and do not proceed to Step 1. Those are the human's to resolve.
 
 **During the absorbed-plan window, announce which case fired** — one line, before Step 1:
-"Plan already present, building it" / "No plan — planning first from `<doc>`". `/build` is
+"Plan already present, building it" / "No plan — planning first from `<doc or #N>`". `/build` is
 the one door name that survived the restructure with larger scope, so an operator's
 remembered `/build` now does strictly more than it used to; saying which half ran is what
 keeps that from being a surprise.
 
 ## Input
 
-One optional argument: a path to a `PLAN.md`-shaped file **or** a design doc, defaulting
-to `PLAN.md` at the target project's repo root. The **quick path** is not a
+One optional argument: a path to a `PLAN.md`-shaped file, a design doc, **or** an issue
+reference (`#N` or URL), defaulting to `PLAN.md` at the target project's repo root. The **quick path** is not a
 different input shape — it is simply a plan file containing exactly one
 `### Task` block, hand-authored in the checkpoint-block format below. One
 input contract serves both the quick path and the full cycle; don't invent

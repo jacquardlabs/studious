@@ -31,7 +31,7 @@ milestone — the doors don't change. [Full definition below](#bets).
 | `/bet [idea \| issue \| milestone]` | Choose the work and set its appetite | betting table · ready · refinement |
 | `/shape [idea]` | Define it before building | shaping · spike |
 | `/build` | Plan, then build | in progress · sprint · TDD |
-| `/review` | Judge it — design, work, or delivery | review column · sprint review |
+| `/review` | Judge it — design or work, and whether it delivers | review column · sprint review |
 | `/ship` | Deliver and close out | done · increment · small releases |
 | `/next [anything]` | The standup question, at any scale | standup · pull · hill chart |
 | `/health [area]` | The periodic inspection | health check · standing review |
@@ -119,9 +119,9 @@ Setting one anyway is a legitimate choice — it's a choice to accept a degraded
 a smaller one.
 
 **Didn't deliver.** The other way to miss is to spend the appetite and not deliver what the
-bet promised. That's `/review --delivery`, at the bet's exit — an episode you convene
-deliberately, because delivery is a boundary someone decides they've reached, never one
-inferred from a diff.
+bet promised. The work episode's product lane asks exactly that of every built branch —
+against the story's criteria and PRODUCT.md's journeys — so there is no separate delivery
+episode to remember to run.
 
 **You are the ceiling.** Nothing runs unsupervised: `/bet` records the verdict, and the
 appetite is a number you hold yourself.
@@ -131,16 +131,15 @@ appetite is a number you hold yourself.
 ```
 /bet     →  scores the idea, ranks it against the backlog, sets the appetite
    ↓
-/shape   →  interview, drafted design doc, viva sign-off per section, then convenes
-            /review's design episode itself — writes the pre-mortem register on a pass
-   ↓
-/build   →  plans, then builds — fresh executor per task, script-verified, evidence
-            captured — then convenes /review's work episode itself: up to 13 specialist
-            lanes, plus criteria conformance
-   ↓
-/review --delivery  →  delivery episode; does this deliver what the bet promised?
+/build   →  plans from the issue (or a design doc), then builds — fresh executor per
+            task, script-verified, evidence captured — then convenes /review's work
+            episode itself: up to 13 specialist lanes, plus product acceptance: does
+            this deliver what the bet promised?
    ↓
 /ship    →  evidence table, follow-ups, build report; the PR is yours
+
+/shape is off the default path: ask for it, or /build asks for it with DESIGN GAP —
+interview, drafted design doc, viva sign-off per section, then /review's design episode.
 ```
 
 `/next` walks that sequence for you, one piece per invocation, and never auto-advances.
@@ -199,9 +198,8 @@ round can't re-litigate what an earlier one settled. The round cap lives in code
 (`bin/gate-ledger`), never in a prompt.
 
 Bare `/review` picks its episode from repo state: a design doc with no built diff opens the
-design episode, a built diff opens the work episode. `--delivery` is always explicit, because
-delivery is a boundary someone decides they've reached, never one inferred from a diff. When
-the signals disagree, it stops and says so rather than guessing.
+design episode, a built diff opens the work episode. When the signals disagree, it stops and
+says so rather than guessing.
 
 Narrow it when the risk doesn't warrant the fan-out: `/review --lane security` or
 `/review --conformance` convenes one lane at one lane's price.
@@ -209,7 +207,7 @@ Narrow it when the risk doesn't warrant the fan-out: `/review --lane security` o
 ### What the work episode checks
 
 Security, code quality, docs, architecture, and test adequacy always run, alongside a
-criteria-conformance review against the story's own stated acceptance criteria. Then, by what
+product-acceptance review against the story's own criteria and PRODUCT.md's journeys. Then, by what
 the changeset touches: UX, frontend, and accessibility on a web surface; infrastructure on
 IaC/container/CI files; operability on runtime code; dependencies on manifest or lockfile
 changes; prompts on agent/command/skill definitions. If the design episode recorded a

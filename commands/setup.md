@@ -136,8 +136,7 @@ Language conventions `code-auditor` enforces at `/review`. Document the rules an
 |------|------|---------|
 | Should we build? | Before any engineering | `/bet [idea]` |
 | Design review | After design doc, before implementation | `/review` |
-| Audit | After implementation, before acceptance | `/review` |
-| Acceptance | After audit passes, before merge | `/review --delivery` |
+| Audit | After implementation, before merge — includes product acceptance | `/review` |
 
 ### Periodic reviews
 
@@ -202,6 +201,6 @@ Report what was created, what was populated, and what the user should review:
 - Review directories created
 - Ward — installed, already present, declined, or exorcist not installed
 
-Note that the plugin's PR-time gate reminder is already active (it ships with Studious as a `PreToolUse` hook — no per-project wiring needed) and fires a non-blocking confirmation when you run `gh pr create`. When `/review` and `/review --delivery` have recorded verdicts to the branch's ledger, the reminder names the specific gates that never ran, ran on a stale commit, or didn't pass.
+Note that the plugin's PR-time gate reminder is already active (it ships with Studious as a `PreToolUse` hook — no per-project wiring needed) and fires a non-blocking confirmation when you run `gh pr create`. When `/review` has recorded a verdict to the branch's ledger, the reminder names the gate if it never ran, ran on a stale commit, or didn't pass.
 
 Suggest the user review PRODUCT.md first (product principles and "not building" sections need human judgment), then DESIGN.md (anti-patterns section needs human input), then README.md if one was generated.

@@ -4,9 +4,8 @@
 record (e.g. the finale acceptance dispatch committing reconciliation notes post-SHIP)
 makes `cmd_status` flag the verdict stale over a no-op commit. Fix: state one ordering
 rule (commit everything the run wrote before `gate-ledger record`) in the three
-doc-write-capable record sites: `commands/review.md` (x2) and the finale acceptance
-dispatch in `workflows/epic-driver.js`. Verdict vocabulary/decision logic unchanged —
-these tests lock the ordering statement only.
+doc-write-capable record site, `commands/review.md`'s shared Record section. Verdict
+vocabulary/decision logic unchanged — these tests lock the ordering statement only.
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ GATE_ACCEPTANCE = REPO_ROOT / "commands" / "review.md"
 
 def _record_section(text: str) -> str:
     """Return the '## Record the verdict' section through end of file."""
-    return text[text.index("\n## Delivery episode"):]
+    return text[text.index("\n## Shared — record findings"):]
 
 
 def test_gate_design_review_states_commit_before_record() -> None:
@@ -56,32 +55,14 @@ def test_gate_design_review_no_longer_defers_the_register_commit() -> None:
     )
 
 
-def test_gate_acceptance_states_commit_before_record() -> None:
-    """Record section states the ordering rule before the `episode-verdict` invocation (renamed from `record` by #289 Task 5)."""
-    text = GATE_ACCEPTANCE.read_text()
-    section = _record_section(text)
-
-    assert "Before running `gate-ledger episode-verdict`" in section, (
-        "no explicit 'before running gate-ledger episode-verdict' ordering statement"
-    )
-
-    rule_pos = section.index("Before running `gate-ledger episode-verdict`")
-    bash_pos = section.index("```bash")
-    assert rule_pos < bash_pos, (
-        "commit-before-record rule must precede the episode-verdict invocation"
-    )
-
-    assert "HEAD" in section, "rule does not explain the sha-vs-HEAD mechanism"
-
-
 def test_verdict_vocab_unchanged() -> None:
     """Locks the full three-token verdict set per surface; retry token is `FIX AND RE-REVIEW` (renamed from `FIX AND RE-CHECK` by #289, canonical in reference/gate-vocabulary.md)."""
     design_text = GATE_DESIGN_REVIEW.read_text()
     for token in ("PROCEED TO PLAN", "REVISE", "RETHINK"):
         assert token in design_text, f"gate-design-review lost verdict token {token!r}"
 
-    acceptance_text = GATE_ACCEPTANCE.read_text()
-    for token in ("SHIP", "FIX AND RE-REVIEW", "HOLD"):
-        assert token in acceptance_text, f"gate-acceptance lost verdict token {token!r}"
+    work_text = GATE_ACCEPTANCE.read_text()
+    for token in ("PASS", "FIX AND RE-REVIEW", "NEEDS DISCUSSION"):
+        assert token in work_text, f"work episode lost verdict token {token!r}"
 
 

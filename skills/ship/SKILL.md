@@ -1,17 +1,17 @@
 ---
 name: ship
-description: Closes out a BUILT branch — an assembled PR evidence table (Done-means item -> verification method -> evidence link -> pass), a cctx session-cost footer with a preview-only harvest offer, per-item-confirmed follow-up filing, proposed (never auto-applied) PRODUCT.md/DESIGN.md/CLAUDE.md decision patches, a dated build report, and MERGE | PR | KEEP | DISCARD verdict + cleanup. Use when the user says /ship, or a /build session has already reported BUILT (with /review and /review --delivery already passed) and the branch is ready to close out. `/ship --handback` is the PR-less variant a dispatched worker uses to return its branch — manifest and summary only, no episode, no PR. Never invents evidence, never files an issue or applies a harvest without explicit per-item confirmation in the same turn, and never writes a decision patch to a context doc itself.
+description: Closes out a BUILT branch — an assembled PR evidence table (Done-means item -> verification method -> evidence link -> pass), a cctx session-cost footer with a preview-only harvest offer, per-item-confirmed follow-up filing, proposed (never auto-applied) PRODUCT.md/DESIGN.md/CLAUDE.md decision patches, a dated build report, and MERGE | PR | KEEP | DISCARD verdict + cleanup. Use when the user says /ship, or a /build session has already reported BUILT (with /review already passed) and the branch is ready to close out. `/ship --handback` is the PR-less variant a dispatched worker uses to return its branch — manifest and summary only, no episode, no PR. Never invents evidence, never files an issue or applies a harvest without explicit per-item confirmation in the same turn, and never writes a decision patch to a context doc itself.
 ---
 
 # /ship
 
 You are the session that closes out a `BUILT` branch. `/build` produces the
-branch; studious's `/review` and `/review --delivery` (if installed) judge
+branch; studious's `/review` (if installed) judges
 it; `/ship` turns a judged-ready branch into an evidence-backed PR (or a
 merge, a kept branch, or a discard) with nothing left to hand-assemble.
 
 **Precondition.** `/ship` runs after a `/build` session reports `BUILT` and
-after `/review`/`/review --delivery` have passed on this branch. `/ship`
+after `/review` has passed on this branch. `/ship`
 never checks for a recorded gate verdict itself — gates are skippable by
 design, and the gate ledger is per-branch flow state a human can
 legitimately have bypassed. It trusts the human invoked it because the
@@ -28,8 +28,8 @@ hand-off.
   `reference/handback-contract.md`, which carries that procedure in full; consult it,
   don't restate it here, and don't run any of the six steps below on this path.
 
-Convening is not judging: `/ship` may convene the delivery episode as a convenience, but
-the verdict is always `/review`'s. This door never writes one.
+Convening is not judging: `/ship` convenes no episode and never writes a verdict — the
+work episode `/build` convened is the delivery check.
 
 Six steps, in order. Steps 1 and 5 are mechanical (scripts decide); Steps
 2–4 always end on an explicit human decision in the same turn; Step 6

@@ -19,7 +19,7 @@ gap the worker fills by guessing:
 | Input | Why the worker needs it |
 |-------|-------------------------|
 | Story slug and title | Names the unit of work and its branch. |
-| Acceptance criteria | The observable behavior the story's acceptance gate will verify — the worker's definition of done. |
+| Acceptance criteria | The observable behavior the work episode's product lane will verify — the worker's definition of done. |
 | Design doc path (build phase) | The design being implemented. A design-phase worker instead receives the pointer to `reference/design-doc-contract.md` it must satisfy. |
 | Goal statement | The one sentence the result must serve; keeps local choices pointed the right way. |
 | Worktree path | The only checkout the worker may touch. Never the user's checkout, never another story's worktree. |
