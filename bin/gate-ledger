@@ -624,11 +624,11 @@ cmd_episode_verdict() {
   # Merge, not replace: keeps round/openedAt, gains the verdict; `sha` is
   # refreshed to HEAD so it matches the sha the dual-write below stamps, and
   # `reviewedSha` keeps the sha the round's judges actually read.
-  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   # A retry outcome certifies nothing, so it carries no reviewedSha; the
   # terminal verdict freezes the sha its round's judges read.
   local reviewed=""
   if [ "$verdict" != "$EPISODE_RETRY_VERDICT" ]; then reviewed="${round_sha:-$head_now}"; fi
+  # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     '.episodes[$g] = (.episodes[$g] + {verdict: $v, sha: $s, verdictAt: $t}
                       + (if $rs != "" then {reviewedSha: $rs} else {} end))' \
