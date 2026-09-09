@@ -32,7 +32,8 @@ SHIPPED = (
 )
 
 # The two paths that keep the name legitimately.
-ALLOWED_PATH = re.compile(r"(docs|tests)/jig\b")
+# `jacquardlabs/jig#N` cites the archived repo's issue (docs/jig-issue-transfer-map.md, #209).
+ALLOWED_PATH = re.compile(r"(docs|tests)/jig\b|jacquardlabs/jig#\d+")
 ANY_JIG = re.compile(r"\bjig\b", re.IGNORECASE)
 
 # Two-repo framing (#218): prose that treats studious as a thing the build skills might

@@ -319,7 +319,7 @@ After the piece finishes, end with exactly this shape and nothing after it:
 ```text
 Flow: <slug> — piece <k>/3 (<name>): <outcome>.
 Next piece: <name> — <one clause on what it involves>.
-Say "next" when you're ready, or run /next.
+Say "next" when you're ready, or run /studious:next.
 ```
 
 When the piece just run was build (2), insert the work episode's readout as a second line —

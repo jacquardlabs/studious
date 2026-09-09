@@ -72,7 +72,7 @@ class TestFinishSkillBody(PhraseInBodyMixin, unittest.TestCase):
         # Pre-mortem risk #1 / issue #44's bug shape one layer up -- the rule
         # is evidence-freshness's; the prose names it so the reader knows why.
         self.assertPhraseIn("never against the branch's current `HEAD`")
-        self.assertIn("issue #44", self.body)
+        self.assertIn("issue jacquardlabs/jig#44", self.body)
 
     def test_stops_and_rows_are_named_and_the_run_never_backfills(self) -> None:
         self.assertPhraseIn("is a\n**stop**: exit 1, the task and reason named on stderr, nothing written")

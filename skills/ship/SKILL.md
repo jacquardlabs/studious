@@ -64,7 +64,7 @@ It resolves `--task exorcise` the same way — `/build` Step 3 captures the exor
 report under that id (`exorcist:report`, pinned in `reference/evidence-format.md`); no
 folder means no pass landed, so no row, no remark. Then it runs the **freshness hold**
 (`evidence-freshness`) over every folder it found, against each folder's own
-`manifest.json` — never against the branch's current `HEAD` (issue #44's shape one
+`manifest.json` — never against the branch's current `HEAD` (issue jacquardlabs/jig#44's shape one
 layer up) — and only then renders:
 
 - one row per `Done means` item: item text → tier → evidence → the item's own `status`
@@ -122,7 +122,7 @@ until now:
 
 - **Not-here follow-ups** — `PLAN.md`'s own `## Not-here follow-ups` section
   (bulleted, one line each). Read it directly. The `##` level is confirmed
-  safe against the actually-installed viva (story `plan-skill`, issue #23),
+  safe against the actually-installed viva (story `plan-skill`, issue jacquardlabs/jig#23),
   including the `Revision History`-collision case a bare heading-level read
   would miss — `/build`'s own viva invocation passes an explicit `--split-on`
   rather than relying on auto-detect alone.

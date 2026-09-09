@@ -237,3 +237,18 @@ if __name__ == "__main__":
     import sys
 
     sys.exit(unittest.main())
+
+
+class TestReviseCapIsPinnedUntilTheDesignGateAdoptsEpisodeVerbs(unittest.TestCase):
+    """#338: the one-redraft-and-reconvene bound on REVISE is a prose-encoded cap,
+    CLAUDE.md's named defect, incurred knowingly because the design gate does not yet
+    run `episode-round` (reference/gate-vocabulary.md, "adopt the episode verbs in a
+    later landing"). Pinned so the sentence cannot drift; delete this test in the
+    commit that moves the cap into the ledger."""
+
+    def test_the_cap_sentence_is_stated_once_and_verbatim(self) -> None:
+        body = (REPO_ROOT / "skills" / "shape" / "SKILL.md").read_text(encoding="utf-8")
+        flat = " ".join(body.split())
+        self.assertIn("A `REVISE` surviving that second round is the human's call", flat)
+        self.assertEqual(flat.count("surviving that second round"), 1)
+

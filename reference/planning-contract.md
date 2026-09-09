@@ -83,7 +83,7 @@ deterministic backstop that catches anything this pass missed (Step 5 is
 not redundant with this one -- it's the fail-closed re-check "nothing
 signs off on itself" always wants).
 
-**1b. Infra inventory (resolves issue #13).** Before any checkpoint block
+**1b. Infra inventory (resolves issue #192).** Before any checkpoint block
 names a verification tier, confirm what verification infrastructure the
 *target* project (the one being planned for, not necessarily this repo)
 actually has:
@@ -95,10 +95,10 @@ actually has:
   must never disagree about what "the tests" means for the same project.
 - **Type checker / linter**, if a proposed task would rely on one as a
   `script`-tier method -- same "read `CLAUDE.md`, don't guess" rule.
-- **Scripted-probe tooling** (issue #13's own subject). Before any task's
+- **Scripted-probe tooling** (issue #192's own subject). Before any task's
   `Done means` proposes a `probe`-tier item, confirm a scripted tool
   capable of producing a live-observed artifact headlessly -- Playwright is
-  issue #13's own named example, not the only acceptable one -- actually
+  issue #192's own named example, not the only acceptable one -- actually
   exists in the target repo. Checkable signals, cheapest first:
   1. **The target `CLAUDE.md` names one explicitly.** This is the
      authoritative signal, same precedent as the test-runner read above --
@@ -232,7 +232,7 @@ grammar cannot see is never linted or verified (#267). Emit it as
 literally `### Task N — <title>` -- Step 6's own `--split-on` pattern
 anchors on `^Task \d+`, and a task heading worded any other way (a
 numberless heading, a `Step N` variant, a translated label) silently
-desyncs the two and reopens issue #23's own absorption bug against
+desyncs the two and reopens issue jacquardlabs/jig#23's own absorption bug against
 `/build`'s *own* output.
 
 **Write each block for one review card.** Step 6 puts one task per card in
@@ -284,7 +284,7 @@ unconditional pass.
   detail line verbatim (never paraphrased) that wouldn't clear, plus which
   of the two stop conditions fired. The clearest case that reaches this
   path is `method-not-found` for a method Step 1b already confirmed doesn't
-  exist and no task can create -- issue #13's own gap, now caught
+  exist and no task can create -- issue #192's own gap, now caught
   mechanically as a second, independent check.
 - **Exit 2** (usage error) is your own bug to fix before proceeding -- same
   "re-read, re-write, don't dispatch/don't escalate" treatment `/build`'s
@@ -294,12 +294,12 @@ unconditional pass.
 gates Step 6: viva review time is a reviewing human's time, and a
 structurally broken draft is not worth spending it on.
 
-## Step 6 — viva, one card per task (resolves issue #23)
+## Step 6 — viva, one card per task (resolves issue jacquardlabs/jig#23)
 
 **If viva is not installed** (`$VIVA_DIR` in the viva SKILL.md's own launch
 block resolves to nothing), stop here and report that plainly: "viva is
 required for `/build`'s review step and is not installed -- install it
-(`/plugin install viva@jacquardlabs-marketplace`) and re-invoke `/build`."
+(`/plugin install viva@jacquardlabs-marketplace`) and re-invoke `/studious:build`."
 No stack trace, no silent hang, no attempt to skip review -- `/build` has a
 hard dependency on viva for this step, matching how `/build` has a hard
 dependency on `studious verify`. "Standalone-capable... none is silent"
@@ -341,7 +341,7 @@ level would sit inside the level 1-3 boundary those two frozen consumers'
 parsing rules require, nesting the section into the preceding task's own
 content -- the exact absorption bug this section exists to close. The
 `--split-on` pattern above, not a heading-level change, is what actually
-fixes issue #23.
+fixes issue jacquardlabs/jig#23.
 
 **Consequence for `PLAN.md`'s own shape.** No heading other than the H1
 title, `### Task N` blocks, and the trailing `## Not-here follow-ups`
@@ -391,7 +391,7 @@ body is the record.
 | Verdict | Fires when |
 |---|---|
 | `PLAN READY` | Every task reaches viva `approved`, `studious plan-lint` exits 0 against the final file. Hand the human the `PLAN.md` path and name `/build` as the next step. |
-| `DESIGN GAP` | Step 1a falsifies a design assumption against the real codebase, **or** Step 1b finds required infra (test runner, or -- issue #13's own case -- a scripted-probe tool a task's `Done means` needs) missing and uncreatable by an earlier task, **or** Step 5's lint loop can't converge without such a gap (no progress, or the 3-cycle bound). **Never reported bare** -- name which of the three causes fired (falsified assumption / missing test-or-lint infra / missing probe infra), plus the concrete resume action: revise the design doc, or install the missing tool as its own prerequisite. |
+| `DESIGN GAP` | Step 1a falsifies a design assumption against the real codebase, **or** Step 1b finds required infra (test runner, or -- issue #192's own case -- a scripted-probe tool a task's `Done means` needs) missing and uncreatable by an earlier task, **or** Step 5's lint loop can't converge without such a gap (no progress, or the 3-cycle bound). **Never reported bare** -- name which of the three causes fired (falsified assumption / missing test-or-lint infra / missing probe infra), plus the concrete resume action: revise the design doc, or install the missing tool as its own prerequisite. |
 | `TOO BIG` | Step 3's task count doesn't calibrate to 3-8 after merge/split attempts -- names the actual task count and which direction it missed by. |
 
 ## Why this shape
@@ -399,7 +399,7 @@ body is the record.
 Judgment in the model, mechanics in scripts: Steps 1-4 and 6 are reading,
 inferring, and deciding; Step 5's pass/fail is `plan-lint`'s alone; Step 6's
 per-section verdict is the human's alone, via viva. "Nothing signs off on
-itself" is why Step 1b exists at all -- issue #13's "script the probes,
+itself" is why Step 1b exists at all -- issue #192's "script the probes,
 don't self-attest" resolution applies that principle to one verification
 tier, and Step 5 gating Step 6 applies it to draft quality. `DESIGN GAP` and
 `TOO BIG` each name one concrete resume action, never hedged options, for

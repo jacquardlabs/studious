@@ -66,7 +66,7 @@ d=$(sandbox)
 out=$(run_hook "$d" "$ROOT" "$(payload startup)")
 check "hookEventName is SessionStart" "SessionStart" "$(printf '%s' "$out" | jq -r '.hookSpecificOutput.hookEventName')"
 ctx=$(printf '%s' "$out" | jq -r '.hookSpecificOutput.additionalContext')
-contains "names one active work file" "1 active work file(s)" "$ctx"
+contains "names one active work file" "1 feature(s) in flight" "$ctx"
 contains "names the active slug" "demo-feature" "$ctx"
 contains "names the phase" "build" "$ctx"
 

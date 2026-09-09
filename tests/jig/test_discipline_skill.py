@@ -75,9 +75,13 @@ class TestDisciplineSkillFile(SkillFileCase):
     def test_derived_vocabulary_is_non_empty(self) -> None:
         # Guards a parsing regression that would empty JIG_VOCABULARY and
         # make test_body_uses_jig_checkpoint_vocabulary pass vacuously.
+        # #176: the three executor fields come from the Formatting bullet, which
+        # `_executor_checkpoint_fields` now refuses to parse softly; assert them by
+        # name so a narrower vocabulary cannot pass on count alone.
+        self.assertLessEqual({"Not here", "Done means", "Evidence"}, set(JIG_VOCABULARY))
         self.assertGreaterEqual(
             len(JIG_VOCABULARY),
-            10,
+            13,
             f"derived JIG_VOCABULARY looks too short ({JIG_VOCABULARY!r}) -- "
             "check DESIGN.md's Vocabulary table and Formatting section "
             "still match _vocabulary.py's parsing assumptions",

@@ -56,11 +56,11 @@ if [ -n "$active_work" ]; then
 fi
 recent_line=$(printf '%s' "$candidates" | sort -r | head -n1)
 
-summary="Studious: $work_count active work file(s) in flight."
+summary="Studious: $work_count feature(s) in flight."
 if [ -n "$recent_line" ]; then
   IFS=$'\t' read -r _ recent_kind recent_slug recent_state _recent_title <<<"$recent_line"
   case "$recent_kind" in
-    work) recent_line_text="Most recent: $recent_slug (phase: $recent_state)." ;;
+    work) recent_line_text="Most recent: $recent_slug, at the $recent_state phase." ;;
     *) recent_line_text="" ;;
   esac
 else
@@ -71,7 +71,7 @@ context="$summary"
 [ -n "$recent_line_text" ] && context="$context
 $recent_line_text"
 context="$context
-Run /next to resume."
+/studious:next picks it up."
 
 jq -n --arg c "$context" '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $c}}'
 

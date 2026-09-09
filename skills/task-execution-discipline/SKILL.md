@@ -12,7 +12,7 @@ Every `/build` task arrives as a checkpoint block: a stated `Do`, a stated
 (`script` | `test-backed` | `probe`), and a `Done means` that the task's own
 `Evidence` field must satisfy (`DESIGN.md`, Vocabulary and Formatting).
 `/build`'s for-loop hands each task to a **fresh** executor with no memory
-of prior tasks' decisions (`PRODUCT.md`, critical user journey 1) — this
+of prior tasks' decisions (`PRODUCT.md`, critical user journey 2) — this
 skill is the shared starting discipline: write the test first, stay inside
 `Not here`, never self-report `Done means` without fresh evidence.
 
