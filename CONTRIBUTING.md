@@ -45,6 +45,21 @@ tests/        — Python and shell tests for commands and CI scripts
 - Review reports save to `docs/studious/` subdirectories in the user's project, not to the plugin itself.
 - **Recommend-only** is CLAUDE.md's invariant, not restated here — see CLAUDE.md's "Key invariants" bullets "Recommend-only means propose, never modify," "One bookkeeping boundary, not a name list," and "Everything else is either an executor or a human-typed one-off" for the exact boundary (any self-declared recommend-only command, the shared bookkeeping boundary, and the executor/one-off carve-out) and the predicate the `.studious/`/`docs/studious/` bookkeeping boundary applies — not an enumerated writer list.
 - **Workers never gate; gates never build.** `/next` dispatches worker agents (design docs, implementation, fixes) and gate agents (the existing gate commands) as separate agents with no shared context. A worker must never record a verdict; a gate agent must never write code.
+- **Code owns bookkeeping; prompts own judgment.** CLAUDE.md's invariant, restated here only because the verification rule below is its corollary — schedulers, ledgers, and cap math live in code; prompts carry decomposition, verdicts, and briefs.
+
+### Verification belongs to scripts and inspectors, never to prompt prose
+
+Verification is a mechanism, not an instruction. It belongs to **scripts** (`scripts/verify`, the CI jobs) and to **fresh-context inspectors** (the `/build` Inspector, the gauntlet judges) — never to self-check prose in a prompt. Do not write "double-check", "re-verify before responding", or "run it again to be sure" into `agents/`, `commands/`, `skills/`, or `reference/`. Gen-5 models already self-verify unprompted, so prose telling them to do it again buys nothing and bills the extra turns at output rates ([#302](https://github.com/jacquardlabs/studious/issues/302)). `tests/python/test_verification_invariant.py` guards exactly that list, as case-insensitive substrings: `("double-check", "re-verify before", "run it again to be sure")` — the second is truncated so it catches "re-verify before responding" and every variant of what follows.
+
+**Carve-out:** a Critical-challenge step that checks a finding's anchor against the diff is *judgment routing* — deciding which finding gets to move a verdict — not self-verification of the model's own output. It stays.
+
+The sites #302 named, and what was decided about each:
+
+| Site | Disposition | Why |
+| --- | --- | --- |
+| `reference/audit-compilation.md` — "Challenge every Critical before it can decide the verdict" | KEEP | The carve-out above. It runs on top of gauntlet's `scripts/report.py` ingest rules and routes uncertainty into filing rather than into re-reading (see `tests/ab/README.md`). |
+| `reference/prompt-contract.md` §4 residual line | MOOT | Reporting language, not a self-check instruction. No door has stamped that file since #349, and #334 S4 deletes it. |
+| `skills/task-execution-discipline/SKILL.md` Pillar 3 (verification-before-completion) | KEEP PENDING #188 | The one real deletion candidate. Deletion is gated on the golden-fixture replay harness ([#188](https://github.com/jacquardlabs/studious/issues/188), open): a regression there — a fresh executor filling `Evidence` less honestly without the prose — would block it. Nothing has run yet, so the prose stays and this row, not the pillar itself, is the gate a future deletion has to satisfy. |
 
 ## Naming conventions
 
@@ -115,7 +130,13 @@ ships worse decisions.
   judgment: `security-auditor`, `infra-auditor`, `operability-auditor`, `dependency-auditor`,
   `prompt-auditor`, `architecture-auditor`, `premortem-auditor`, `product-reviewer`,
   `ux-reviewer`, `accessibility-auditor`, `review-architecture`, `review-product-health`,
-  `review-security-health`.
+  `review-security-health`, plus the four merge-blocking changeset auditors that used to
+  sit at `inherit` — `code-auditor`, `doc-auditor`, `test-auditor`, `frontend-reviewer`.
+  Those four carry the **full model ID `claude-opus-5`** rather than the `opus` alias:
+  subagent frontmatter accepts either (`code.claude.com/docs/en/sub-agents`), and the ID
+  is what makes the judgment reproducible across days rather than just same-tier — the
+  defect #136 names is a *moving* judge, which an alias only half-closes. They are at the
+  `opus` tier, not a dropped one; dropping them is #136's A/B half, still open.
 - **`sonnet`** — recommend-only synthesis and ranking judgment, no merge gate behind it:
   `backlog-priorities`, `review-codebase-health`, `review-interface-health`,
   `review-prompt-health`.
@@ -137,20 +158,24 @@ ships worse decisions.
   - the fix-delta passes (`sonnet`) are a first-ever pin, not a drop from a previously-
     measured tier — the A/B rule below guards against dropping an already-measured
     tier, not against establishing a first one.
-- **`inherit`** — merge-blocking, mechanical or rule-based checks, pending an A/B against a
-  pinned drop (see below): `code-auditor`, `doc-auditor`, `test-auditor`,
-  `frontend-reviewer`.
+  - the five that write or judge a story's own artifacts (`opus`) — the acceptance
+    walkthrough, the story fixer, the build worker, the exorcise pass, and the finale
+    fixer — were the last unpinned dispatches in the file. They are pinned at the tier
+    they were already being handed in an Opus session, so this is a first pin at the
+    observed tier, not a drop; they name the `opus` alias rather than a model ID because
+    the Workflow `agent()` option is documented only as "overrides the model for this
+    agent call" with no statement that a full ID resolves there, and a pin that silently
+    fails to resolve is worse than the alias. Revisit if that API documents IDs.
 
-**`inherit` is a known defect, not a cheap tier — see [#136](https://github.com/jacquardlabs/studious/issues/136).** It resolves to the session model, so an
-agent still pinned to it is billed at whatever the user happens to have selected: identical
-to the `opus` tier in an Opus session, 2× that in a Fable one. Worse, it means the same
-branch audited on two different days can be judged by two different models. The four agents
-above are pinned to it only because they gate a merge and a model drop needs an A/B first —
-they are not "the cheap tier" by design, they are the remaining defect. The five
-`sonnet`/`haiku` agents above show the target shape: no merge gate behind an agent's output
-means no A/B is needed to drop its tier, since a weak result is visible and cheap for a human
-to catch. Do not add new `inherit` agents for that reason, and do not read `inherit`
-anywhere in this file as an endorsed default. #136 also governs the unpinned driver dispatches listed above: walkthrough/story-fixer/worker/finale-fixer dispatches remain deliberately unpinned pending the A/B's outcome on their respective tiers.
+**`inherit` is a known defect, not a cheap tier — see [#136](https://github.com/jacquardlabs/studious/issues/136), and nothing in this repo
+carries it any more.** It resolves to the session model, so an agent pinned to it is billed
+at whatever the user happens to have selected: identical to the `opus` tier in an Opus
+session, 2× that in a Fable one. Worse, it means the same branch audited on two different
+days can be judged by two different models — a judge that moves is not a gate. Do not add
+new `inherit` agents, and do not read `inherit` anywhere in this file as an endorsed
+default. The `sonnet`/`haiku` agents above show where a cheap tier is legitimately chosen:
+no merge gate behind an agent's output means no A/B is needed to drop its tier, since a weak
+result is visible and cheap for a human to catch.
 
 **The A/B is `scripts/run_ab_eval.py`; the protocol is [`tests/ab/README.md`](tests/ab/README.md).**
 It runs each arm over the golden fixtures N times and scores every planted defect as
@@ -160,9 +185,12 @@ from a demotion. `tests/ab/arms/model-drop-136.json` is the configured experimen
 six fixtures now plant a defect in each of the four agents' lanes, so all four can be
 judged in one run — read the per-fixture rows rather than the aggregate.
 
-Two levers move independently, and an A/B should vary one: pinning an explicit model ID
-(`model: claude-opus-5`) removes the same-branch-judged-by-two-models defect without
-changing tier or cost, and is separable from the question of whether the tier can drop.
+Two levers move independently, and an A/B should vary one. The first — pinning an explicit
+model ID (`model: claude-opus-5`) to remove the same-branch-judged-by-two-models defect
+without changing tier or cost — is pulled: no agent is `inherit` any more. That leaves the
+A/B a clean question, whether the tier can drop, on a fleet whose current tier is now a
+fact rather than whatever session ran it. A **first** pin is not a drop and needs no A/B;
+lowering an already-pinned merge-blocking agent's tier does.
 
 ## What we won't merge
 

@@ -105,10 +105,12 @@ const localRules = {
   // #270: `inherit` is a known defect (#136), not a cheap tier — an agent() dispatch
   // with no explicit model silently takes on the session model, so the same call can
   // be judged by two different models on two different days. Every dispatch must
-  // either pin one (`model`), route through a registered agentType, or carry a
-  // `// eslint-disable-next-line local/no-unpinned-agent-dispatch -- <why>` comment
-  // recording that the gap is a deliberate, not-yet-made decision — never a silent
-  // default. Routing through an agentType only pins the model if that agent's own
+  // either pin one (`model`) or route through a registered agentType — never a silent
+  // default. A `// eslint-disable-next-line local/no-unpinned-agent-dispatch -- <why>`
+  // suppression is no longer an accepted answer in `workflows/`: since #136 was closed
+  // out, tests/python/test_model_pins.py fails the suite on any such comment there, so
+  // the exemption machinery below exists only to reject a malformed one coherently.
+  // Routing through an agentType only pins the model if that agent's own
   // frontmatter does; this rule verifies the dispatch names a registered agent and
   // leaves the agent's own pin to that agent's file.
   'no-unpinned-agent-dispatch': {
@@ -116,12 +118,12 @@ const localRules = {
       type: 'problem',
       docs: {
         description:
-          'Every agent() dispatch must carry an explicit `model` or `agentType` option in its options object, or a `// eslint-disable-next-line local/no-unpinned-agent-dispatch -- <why>` justification. An unpinned dispatch silently inherits the session model (#136) rather than a deliberately chosen one. Note: `agentType` only satisfies this statically — it does not guarantee the referenced agent itself is pinned; that is the agent file\'s job.',
+          'Every agent() dispatch must carry an explicit `model` or `agentType` option in its options object. An unpinned dispatch silently inherits the session model (#136) rather than a deliberately chosen one. A `// eslint-disable-next-line local/no-unpinned-agent-dispatch -- <why>` suppression is no longer accepted in `workflows/` — tests/python/test_model_pins.py fails on one — so pin a `model` or route through a pinned `agentType` instead. Note: `agentType` only satisfies this statically — it does not guarantee the referenced agent itself is pinned; that is the agent file\'s job.',
       },
       schema: [],
       messages: {
         unpinned:
-          'agent() dispatch has no explicit `model` or `agentType` option. Pin one, or justify why not with `// eslint-disable-next-line local/no-unpinned-agent-dispatch -- <why>`.',
+          'agent() dispatch has no explicit `model` or `agentType` option. Pin a `model` or route through a pinned `agentType` — a `// eslint-disable-next-line local/no-unpinned-agent-dispatch` suppression is no longer accepted in `workflows/` (tests/python/test_model_pins.py fails on one).',
         bareExemption:
           'eslint-disable-next-line local/no-unpinned-agent-dispatch has no reason after `--`. A bare disable is exactly the silent default this rule exists to prevent — add a reason, e.g. `-- deliberately unpinned: <why>`.',
         bareFileExemption:

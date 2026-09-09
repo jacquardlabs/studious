@@ -67,10 +67,10 @@ check "model resolves from agent frontmatter" "opus" "$(jq -r '.model' "$f")"
 check "effort resolves from agent frontmatter" "high" "$(jq -r '.effort' "$f")"
 check "prompt_bytes recorded as a number" "20" "$(jq -r '.features.prompt_bytes' "$f")"
 
-# --- inherit is recorded verbatim, never normalized away (#136 signal) ---
+# --- the frontmatter value is recorded verbatim, never normalized to a tier (#136) ---
 d=$(sandbox); f=$(telemetry_file "$d" feat/foo)
 run_hook "$d" "$(payload studious:doc-auditor 'x')" >/dev/null
-check "model: inherit recorded verbatim" "inherit" "$(jq -r '.model' "$f")"
+check "a full model ID is recorded verbatim, not normalized to a tier" "claude-opus-5" "$(jq -r '.model' "$f")"
 check "a local agent still resolves its fleet as studious" "studious" "$(jq -r '.fleet' "$f")"
 
 # --- a gauntlet: prefix is its own allow-list: no local file, no local pin ---
