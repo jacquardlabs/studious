@@ -67,7 +67,7 @@ def test_gate_audit_md_points_to_the_new_file_and_does_not_restate_it() -> None:
     """Acceptance criterion 2: commands/review.md's section is a pointer, not a copy."""
     text = GATE_AUDIT_MD.read_text()
     start = text.index("## Compile")
-    end = text.index("\n## Delivery episode")
+    end = text.index("\n## Shared — record findings")
     section = text[start:end]
     assert "reference/audit-compilation.md" in section
     # Must not restate rule text that now belongs only in the new file (premortem item 5).

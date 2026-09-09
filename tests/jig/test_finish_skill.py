@@ -56,7 +56,6 @@ class TestFinishSkillBody(PhraseInBodyMixin, unittest.TestCase):
     def test_precondition_never_reads_gate_ledger_itself(self) -> None:
         self.assertIn("BUILT", self.body)
         self.assertIn("/review", self.body)
-        self.assertIn("/review --delivery", self.body)
         self.assertPhraseIn("`/ship` never checks for a recorded gate verdict itself")
 
     def test_names_both_new_scripts(self) -> None:

@@ -5,8 +5,7 @@
 # is armed (known to gate-ledger).
 #
 # Fully silent: no stdout, no permission decision, never blocks. An unarmed
-# branch or non-verification command produces no record, same as
-# hooks/gate-reminder.sh's no-op.
+# branch or non-verification command produces no record.
 #
 # Two events because Claude Code's hook schema splits a Bash call's outcome
 # across them (code.claude.com/docs/en/hooks; details in

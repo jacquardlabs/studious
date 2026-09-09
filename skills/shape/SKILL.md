@@ -274,8 +274,8 @@ them:
 6. **Record it** -- `gate-ledger record --gate design-review --verdict "<verdict>"`,
    review.md's own recording exception for this gate ("Recording this episode's verdict --
    the one exception"). The design gate carries no `episode-open`/`episode-round`/
-   `episode-verdict` cycle and no code-enforced round cap the way `audit`/`acceptance`
-   do -- `reference/gate-vocabulary.md` notes it "adopts the episode verbs in a later
+   `episode-verdict` cycle and no code-enforced round cap the way `audit`
+   does -- `reference/gate-vocabulary.md` notes it "adopts the episode verbs in a later
    landing," not yet. Never invent one here.
 7. **Persist the register** -- write or amend `docs/studious/premortems/<slug>.md` per
    that section, whatever the verdict.

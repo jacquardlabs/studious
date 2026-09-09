@@ -44,9 +44,9 @@ contains "record adds .studious/ to .gitignore" ".studious/" "$(cat "$d/.gitigno
 check "ledger is gitignored (not in status)" "" "$(cd "$d" && git status --porcelain .studious 2>/dev/null)"
 
 # --- second record upserts (latest wins, second gate added) ---
-( cd "$d" && "$LEDGER" record --gate acceptance --verdict SHIP )
+( cd "$d" && "$LEDGER" record --gate decide --verdict BUILD )
 check "upsert keeps audit" "PASS" "$(jq -r '.gates.audit.verdict' "$f")"
-check "upsert adds acceptance" "SHIP" "$(jq -r '.gates.acceptance.verdict' "$f")"
+check "upsert adds decide" "BUILD" "$(jq -r '.gates.decide.verdict' "$f")"
 
 # --- record --blocking-lanes (delta-scoped re-audit, #130) ---
 dbl=$(sandbox)
@@ -84,53 +84,27 @@ contains "status reports clean pass" "proceed" "$out"
 
 # --- status: missing gate ---
 d2=$(sandbox)
-( cd "$d2" && "$LEDGER" record --gate audit --verdict PASS )
+( cd "$d2" && "$LEDGER" record --gate decide --verdict BUILD )
 out=$(cd "$d2" && "$LEDGER" status)
-contains "status names the missing gate" "acceptance never ran" "$out"
+contains "status names the missing gate" "audit never ran" "$out"
 
 # --- status: non-passing verdict ---
 d3=$(sandbox)
 ( cd "$d3" && "$LEDGER" record --gate audit --verdict "FIX AND RE-AUDIT" )
-( cd "$d3" && "$LEDGER" record --gate acceptance --verdict SHIP )
 out=$(cd "$d3" && "$LEDGER" status)
 contains "status surfaces non-passing audit" "FIX AND RE-AUDIT" "$out"
 
 # --- status: stale sha ---
 d4=$(sandbox)
 ( cd "$d4" && "$LEDGER" record --gate audit --verdict PASS )
-( cd "$d4" && "$LEDGER" record --gate acceptance --verdict SHIP )
 ( cd "$d4" && git commit -q --allow-empty -m more )
 out=$(cd "$d4" && "$LEDGER" status)
 contains "status flags stale gate" "re-run" "$out"
 
-# --- status: no ledger -> empty (hook uses default) ---
+# --- status: no ledger -> empty ---
 d5=$(sandbox)
 out=$(cd "$d5" && "$LEDGER" status)
 check "status empty when no ledger" "" "$out"
-
-# --- hook surfaces the ledger reason and always asks ---
-HOOK="$ROOT/hooks/gate-reminder.sh"
-d6=$(sandbox)
-( cd "$d6" && "$LEDGER" record --gate audit --verdict PASS )
-hook_out=$(cd "$d6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
-  bash "$HOOK" <<<'{"tool_input":{"command":"gh pr create"}}')
-contains "hook decision is ask" '"permissionDecision": "ask"' "$hook_out"
-contains "hook reason names missing acceptance" "acceptance never ran" "$hook_out"
-
-# --- hook stays silent for non-PR commands ---
-hook_noop=$(cd "$d6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
-  bash "$HOOK" <<<'{"tool_input":{"command":"ls -la"}}')
-check "hook ignores non-PR commands" "" "$hook_noop"
-
-# --- hook matches spacing variants that would evade a literal-string grep ---
-hook_spacing=$(cd "$d6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
-  bash "$HOOK" <<<'{"tool_input":{"command":"gh  pr   create"}}')
-contains "hook matches gh pr create with irregular spacing" '"permissionDecision": "ask"' "$hook_spacing"
-
-# --- hook still matches when the phrase is embedded in a longer command ---
-hook_embedded=$(cd "$d6" && CLAUDE_PLUGIN_ROOT="$ROOT" \
-  bash "$HOOK" <<<'{"tool_input":{"command":"git log --grep=\"gh pr create\""}}')
-contains "hook matches gh pr create embedded in a longer command" '"permissionDecision": "ask"' "$hook_embedded"
 
 # --- command prompts invoke the ledger by its bare name, not via ${CLAUDE_PLUGIN_ROOT} ---
 # ${CLAUDE_PLUGIN_ROOT} only expands in JSON-config-driven processes, not in commands/*.md
@@ -147,18 +121,17 @@ check "record from a subdirectory writes the ledger at the repo root" "yes" \
 check "record from a subdirectory does not write under the subdirectory" "no" \
   "$([ -f "$d7/sub/dir/.studious/gates/feat-foo.json" ] && echo yes || echo no)"
 out=$(cd "$d7" && "$LEDGER" status)
-contains "status run from repo root sees a ledger written from a subdirectory" "acceptance never ran" "$out"
+contains "status run from repo root sees a ledger written from a subdirectory" "audit (PASS) ran on this branch at HEAD" "$out"
 
 # --- record stamps schemaVersion, and preserves it on upsert (#55) ---
 f7="$d7/.studious/gates/feat-foo.json"
 check "record sets schemaVersion on the new file" "1" "$(jq -r '.schemaVersion' "$f7")"
-( cd "$d7/sub/dir" && "$LEDGER" record --gate acceptance --verdict SHIP )
+( cd "$d7/sub/dir" && "$LEDGER" record --gate decide --verdict BUILD )
 check "record preserves schemaVersion on upsert" "1" "$(jq -r '.schemaVersion' "$f7")"
 
 # --- status treats a branch-slug collision as no record, not a stale/wrong verdict (#41) ---
 d9=$(sandbox)
 ( cd "$d9" && "$LEDGER" record --gate audit --verdict PASS )
-( cd "$d9" && "$LEDGER" record --gate acceptance --verdict SHIP )
 f9="$d9/.studious/gates/feat-foo.json"
 # Simulate the collision: feat/foo and feat-foo both slug to feat-foo.json. Rewrite
 # the stored .branch to a different branch than the one we're actually on.
@@ -166,7 +139,6 @@ tmp9=$(mktemp)
 jq '.branch = "feat-foo"' "$f9" > "$tmp9" && mv "$tmp9" "$f9"
 out=$(cd "$d9" && "$LEDGER" status)
 contains "branch-slug collision reports audit as never ran" "audit never ran on this branch" "$out"
-contains "branch-slug collision reports acceptance as never ran" "acceptance never ran on this branch" "$out"
 
 # --- gc prunes ledgers for branches that no longer exist, keeps live ones (#42) ---
 d10=$(sandbox)
@@ -870,23 +842,23 @@ check "reopening drops the prior episode's verdict (fresh episode)" "null" "$(jq
 check "reopening leaves the prior dual-written legacy record in place" "PASS" "$(jq -r '.gates.audit.verdict' "$fep1")"
 
 # --- status for an episode-written branch matches the per-gate shape the
-# PR-time hook parses today — the dual-write keeps legacy readers untouched ---
+# `status` parses today — the dual-write keeps legacy readers untouched ---
 dep4=$(sandbox)
 ( cd "$dep4" && "$LEDGER" episode-open --gate audit )
 ( cd "$dep4" && "$LEDGER" episode-verdict --gate audit --verdict PASS )
-( cd "$dep4" && "$LEDGER" episode-open --gate acceptance )
-( cd "$dep4" && "$LEDGER" episode-verdict --gate acceptance --verdict SHIP )
 out=$(cd "$dep4" && "$LEDGER" status)
 check "status for an episode-written branch matches the legacy proceed message verbatim" \
-  "audit (PASS) and acceptance (SHIP) ran on this branch at HEAD — proceed." "$out"
+  "audit (PASS) ran on this branch at HEAD — proceed." "$out"
 
-# an episode-written branch missing a gate reports it exactly like a record-written one
+# an episode-written branch missing the gate reports it exactly like a record-written one
 dep5=$(sandbox)
+( cd "$dep5" && "$LEDGER" episode-open --gate design-review )
+( cd "$dep5" && "$LEDGER" episode-verdict --gate design-review --verdict "PROCEED TO PLAN" )
+out=$(cd "$dep5" && "$LEDGER" status)
+contains "episode-written branch missing audit reports it in the legacy shape" \
+  "audit never ran on this branch" "$out"
 ( cd "$dep5" && "$LEDGER" episode-open --gate audit )
 ( cd "$dep5" && "$LEDGER" episode-verdict --gate audit --verdict PASS )
-out=$(cd "$dep5" && "$LEDGER" status)
-contains "episode-written branch missing acceptance reports it in the legacy shape" \
-  "acceptance never ran on this branch" "$out"
 
 # staleness machinery reads an episode-written record identically
 ( cd "$dep5" && git commit -q --allow-empty -m more )
@@ -1425,7 +1397,7 @@ contains "--history shows the waiver reason back to the operator" \
   "$(printf 'waiver\tsecurity-auditor/ssrf\tcarried\tmetadata IP blocked at the egress proxy')" "$hist"
 contains "--history marks the live episode as current" "episode 2 (current)" "$hist"
 contains "--history reports an unfinished episode as such" "no verdict yet" "$hist"
-check "--history prints nothing for a gate with no episode" "" "$(cd "$dhi" && "$LEDGER" episode-get --gate acceptance --history)"
+check "--history prints nothing for a gate with no episode" "" "$(cd "$dhi" && "$LEDGER" episode-get --gate decide --history)"
 err=$(cd "$dhi" && "$LEDGER" episode-get --gate audit --history --findings 2>&1 1>/dev/null; echo "rc=$?")
 contains "--history and --findings are separate reads" "pass one" "$err"
 contains "asking for both exits 2" "rc=2" "$err"

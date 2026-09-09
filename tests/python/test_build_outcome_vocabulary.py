@@ -110,12 +110,13 @@ def test_work_on_logs_the_design_gate_verdict_under_step_design_review_not_desig
     `/retro` report. (command-surface/option-b: piece 2 absorbed the separate
     design-review piece and briefly inherited the merged piece's own name, `design`,
     instead of keeping the gate's name, `design-review`.)"""
-    piece2 = _next_piece(WORK_ON.read_text(encoding="utf-8"), 2)
+    text = WORK_ON.read_text(encoding="utf-8")
+    piece2 = text[text.index("### Design — on request only"):text.index("### 2 ·")]
     assert '--step design-review --outcome "<verdict>"' in piece2, (
-        "piece 2 does not log the design-review gate's verdict under --step design-review"
+        "the design section does not log the design-review gate's verdict under --step design-review"
     )
     assert '--step design --outcome "<verdict>"' not in piece2, (
-        "piece 2 logs the design gate's verdict under --step design, which "
+        "the design section logs the design gate's verdict under --step design, which "
         "scripts/retro-stats never buckets as the design-review gate — it must be "
         "--step design-review"
     )
@@ -131,12 +132,12 @@ def test_work_on_logs_the_audit_gate_verdict_under_step_audit_not_build() -> Non
     `PASS` at the write, breaking the flow's own bookkeeping call. (command-surface/
     option-b: piece 3 absorbed the separate work-review piece and briefly
     inherited its neighbor's `--step build` instead of keeping `--step audit`.)"""
-    piece3 = _next_piece(WORK_ON.read_text(encoding="utf-8"), 3)
+    piece3 = _next_piece(WORK_ON.read_text(encoding="utf-8"), 2)
     assert '--step audit --outcome "<verdict>"' in piece3, (
-        "piece 3 does not log the audit gate's verdict under --step audit"
+        "piece 2 does not log the audit gate's verdict under --step audit"
     )
     assert '--step build --outcome "<verdict>"' not in piece3, (
-        "piece 3 logs the audit gate's verdict under --step build, which "
+        "piece 2 logs the audit gate's verdict under --step build, which "
         "gate-ledger's closed build-outcome vocabulary would reject for a token "
         "like PASS — it must be --step audit"
     )

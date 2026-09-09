@@ -38,7 +38,6 @@ language and must report the same tokens.
 | bet | `gate-should-we-build` | `BUILD` · `BUILD SMALLER` · `DEFER` · `DON'T BUILD` | `commands/bet.md` | `/next` |
 | design | `gate-design-review` | `PROCEED TO PLAN` · `REVISE` · `RETHINK` | `commands/review.md` | `/next` · `/shape` (convenes) |
 | work | `gate-audit` | `PASS` · `FIX AND RE-REVIEW` · `NEEDS DISCUSSION` | `commands/review.md` | `/next` · `/build` (convenes) |
-| delivery | `gate-acceptance` | `SHIP` · `FIX AND RE-REVIEW` · `HOLD` | `commands/review.md` | `/next` |
 
 Each vocabulary is three or four tokens: one "proceed," one "fix and retry," and (most)
 one "stop/rethink." The canonical listing and per-gate breakdown now live in
@@ -85,7 +84,7 @@ schema, and the calibrate-don't-suppress closer — is inlined by each gauntlet 
 
 - **Report structure** — Summary first, then findings grouped by severity tier (Critical →
   Important → Track), then a final **Verdict** line carrying one of the command's
-  verdict tokens. Used by the work and delivery episodes (`commands/review.md`) and the review agents.
+  verdict tokens. Used by the work episode (`commands/review.md`) and the review agents.
 - **Summary line** — "one line per auditor/review: name, findings by severity, pass/fail."
 - **Report file paths** — periodic reviews write to `docs/studious/<area>-reviews/YYYY-MM-DD-<area>-review.md`.
 - **The checkpoint block** is the build side's closest analog to a type scale — a fixed

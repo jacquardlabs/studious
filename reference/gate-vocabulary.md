@@ -16,10 +16,12 @@ how to resolve it). The tokens differ per episode; the shape doesn't.
 | bet | `decide` | `commands/bet.md` | `BUILD` · `BUILD SMALLER` | — | `DEFER` · `DON'T BUILD` |
 | design | `design-review` | `commands/review.md` | `PROCEED TO PLAN` | `REVISE` | `RETHINK` |
 | work | `audit` | `commands/review.md` | `PASS` | `FIX AND RE-REVIEW` | `NEEDS DISCUSSION` |
-| delivery | `acceptance` | `commands/review.md` | `SHIP` | `FIX AND RE-REVIEW` | `HOLD` |
 
-The work and delivery episodes share one fix-and-retry spelling, `FIX AND RE-REVIEW` (#289),
-replacing `FIX AND RE-AUDIT` and `FIX AND RE-CHECK`. "Ledger gate" is the key
+The work episode's fix-and-retry spelling is `FIX AND RE-REVIEW` (#289), replacing
+`FIX AND RE-AUDIT`. The delivery episode (`acceptance`: `SHIP` · `FIX AND RE-REVIEW` ·
+`HOLD`) folded into the work episode's product lane on 2026-09-09 (#415); a `delivers`
+Critical from that lane routes to `NEEDS DISCUSSION`, every other Critical to
+`FIX AND RE-REVIEW`. "Ledger gate" is the key
 `bin/gate-ledger` and `commands/next.md` record under; the episode name is the vocabulary
 the gate prose and reports speak.
 
@@ -31,8 +33,7 @@ retry state.
 The terms the episode rows above are written against, one line each (#289):
 
 - **episode** — one bounded run of a gate on a branch: opened at a sha, at most two
-  rounds (the first review plus one fix-and-retry) when the audit or acceptance door
-  drives it — `bin/gate-ledger`'s episode verbs refuse a third round or a second
+  rounds (the first review plus one fix-and-retry) when the audit door drives it — `bin/gate-ledger`'s episode verbs refuse a third round or a second
   closing verdict in code — and closed by exactly one **terminal** verdict. A round's
   `FIX AND RE-REVIEW` is that round's *outcome*, not a closing verdict: below the round
   cap, `episode-round` re-enters past it, clearing the outcome and keeping the findings;
@@ -45,9 +46,9 @@ The terms the episode rows above are written against, one line each (#289):
   dispatches for this changeset: the always-on lanes plus the conditionally-routed
   ones, per `commands/review.md`'s routing rules.
 - **open** — a finding's status while it awaits its answer. An Important may ride out
-  a terminal `PASS`, `PROCEED TO PLAN`, or `SHIP` still `open`: the readout's "N open"
+  a terminal `PASS` or `PROCEED TO PLAN` still `open`: the readout's "N open"
   beside a pass names unfinished should-fix work, never a blocked verdict — **only a
-  Critical blocks, in every episode** (design, work, delivery). An Important never opens
+  Critical blocks, in every episode** (design, work). An Important never opens
   a fix-and-re-review round on its own; it rides to `/build`'s plan inputs or `/ship`'s
   follow-ups.
 - **carried** — a finding's status when it rides through the verdict recorded but

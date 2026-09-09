@@ -44,7 +44,7 @@ linked story worktree still finds records in the shared main-tree store. Never r
 `.studious/evidence/*.jsonl` directly or re-derive the branch-slug/repo-root logic —
 one place that store's location lives.
 
-Deliberately **do not** pass `--dedupe` (unlike `/review`'s and `/review --delivery`'s
+Deliberately **do not** pass `--dedupe` (unlike `/review`'s
 evidence dispatches) — a handback manifest is a complete historical record across every
 fix cycle, not current-state-only.
 

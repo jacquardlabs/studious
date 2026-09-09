@@ -3,7 +3,8 @@
 
 # The planning contract — /build, Step 0
 
-You turn a design doc into a `PLAN.md` the build loop can run unmodified. Every
+You turn a design doc — or, with none, the story's issue — into a `PLAN.md` the
+build loop can run unmodified. Every
 step that requires reading a doc for meaning, weighing a dependency order,
 or judging FIX-vs-DESIGN-GAP is yours; every pass/fail determination about
 the *drafted* `PLAN.md`'s structure belongs to `scripts/plan-lint`, never
@@ -13,10 +14,12 @@ scripts" is the whole shape.
 
 ## Input
 
-One optional argument: a path to a design-doc-shaped markdown file. Read it
-**semantically**, not by parsing a fixed heading grammar. A hand-authored
-doc, a dispatched worker's `docs/design/<slug>.md`, and a `/shape`-produced
-doc are three inputs to one reading step, not three parsers. Extract by
+One optional argument: a path to a design-doc-shaped markdown file, or an
+issue's title and body when no design doc exists (`skills/build/SKILL.md`
+Step 0 fetches it). Read it **semantically**, not by parsing a fixed heading
+grammar. A hand-authored doc, a dispatched worker's `docs/design/<slug>.md`,
+a `/shape`-produced doc, and an issue are four inputs to one reading step,
+not four parsers. Extract by
 *content* -- problem, proposed approach, user-facing journey, explicit
 exclusions, risks -- under whatever labels the doc actually uses. Section
 names are deliberately not listed here: `reference/design-doc-contract.md`
@@ -35,10 +38,13 @@ one, is what keeps that flexibility from becoming a silent misreading.
 
 If no path is given and exactly one `.md` file exists under `docs/design/`,
 use it (mirroring viva's own "no path given -> scan for a single `.md`
-file" convention). Zero or more than one candidate is not a guess this step
-makes silently -- **ask the human once, by name**, the same escalation
-shape `skills/ship/SKILL.md` Step 6 already uses for its own
-target-branch ambiguity: never default silently.
+file" convention). More than one candidate is not a guess this step makes
+silently -- **ask the human once, by name**, the same escalation shape
+`skills/ship/SKILL.md` Step 6 already uses for its own target-branch
+ambiguity: never default silently. Zero candidates means the issue is the
+input. An issue that names a problem but no approach the codebase can be
+checked against is `DESIGN GAP`, with `/shape` as the resume action --
+design is off by default, not skipped when it is needed.
 
 ## Step 1 — Inventory
 

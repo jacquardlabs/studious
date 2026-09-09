@@ -33,7 +33,7 @@ bin/          — Executables used by commands (e.g. gate-ledger for gate verdic
 commands/     — Slash commands (description, allowed-tools in frontmatter)
 scripts/      — CI helper scripts (link checking, manifest validation)
 skills/       — Producer doors and model-invoked skills (skills/<name>/SKILL.md)
-hooks/        — Shipped hook scripts + hooks.json (e.g. the PR-time gate reminder)
+hooks/        — Shipped hook scripts + hooks.json (evidence capture, session-start heads-up)
 reference/    — Contracts and rubrics the doors read (e.g. reference/severity-rubric.md)
 templates/    — Scaffold files created by /setup
 tests/        — Python and shell tests for commands and CI scripts

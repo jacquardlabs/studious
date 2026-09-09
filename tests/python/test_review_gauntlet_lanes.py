@@ -74,7 +74,7 @@ def test_invocations_come_from_dispatch_py_and_are_handed_over_verbatim() -> Non
 
 def test_compile_cites_report_py_and_the_compilation_rules() -> None:
     text = _door()
-    compile_section = text[text.index("### Compile"):text.index("\n## Delivery episode")]
+    compile_section = text[text.index("### Compile"):text.index("\n## Shared — record findings")]
     assert "scripts/report.py" in compile_section
     assert "--expect" in compile_section
     assert "reference/audit-compilation.md" in compile_section
@@ -88,14 +88,15 @@ def test_round_two_narrowing_still_filters_the_roster() -> None:
     assert re.search(r"jq .*--argjson keep", filter_step), "the filter step shows no roster filter"
 
 
-def test_design_and_delivery_verdicts_read_tier_and_dimension() -> None:
+def test_design_and_product_verdicts_read_tier_and_dimension() -> None:
     text = _door()
     design = text[text.index("### Part 4 — Design verdict"):text.index("### Recording this episode's verdict")]
     assert "`problem`, `principles`, or `scope`" in design, "RETHINK no longer reads the intake dimension enum"
     assert "BLOCKER" not in design and "SHOULD FIX" not in design
-    delivery = text[text.index("### Part 4 — Delivery verdict"):text.index("\n## Shared — record findings")]
-    assert "`delivers`" in delivery, "HOLD no longer reads the acceptance dimension enum"
-    assert "BLOCKER" not in delivery and "SHOULD FIX" not in delivery
+    product = text[text.index("### Product acceptance"):text.index("### Compile")]
+    assert "`delivers`" in product, "the product lane no longer reads the acceptance dimension enum"
+    assert "NEEDS DISCUSSION" in product, "a `delivers` Critical must route to NEEDS DISCUSSION"
+    assert "BLOCKER" not in product and "SHOULD FIX" not in product
 
 
 def test_round_two_ledger_instruction_speaks_the_findings_document() -> None:
@@ -104,7 +105,7 @@ def test_round_two_ledger_instruction_speaks_the_findings_document() -> None:
     return as findings, resolved ones are named in `coverage`, and a suppressed finding that
     changed comes back at `track` — each carrying the fingerprint the ledger step matches on."""
     text = _door()
-    block = " ".join(text[text.index("Findings ledger for this episode"):text.index("The delivery episode records")].split())
+    block = " ".join(text[text.index("Findings ledger for this episode"):text.index("\n## Build the invocations")].split())
     assert "OBSERVATION" not in block and "still stands" not in block
     assert "`coverage`" in block and "`track`" in block and "fingerprint token" in block
     ledger = text[text.index("On round 2, update round 1's records"):text.index("- fixed — re-record")]

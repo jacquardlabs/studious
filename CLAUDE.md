@@ -35,7 +35,7 @@ bash tests/test_evidence_capture.sh
 bash tests/test_session_start.sh
 
 # Shell lint for the executable scripts
-shellcheck bin/gate-ledger hooks/gate-reminder.sh hooks/evidence-capture.sh hooks/session-start.sh tests/test_gate_ledger.sh tests/test_evidence_capture.sh tests/test_session_start.sh
+shellcheck bin/gate-ledger hooks/evidence-capture.sh hooks/session-start.sh tests/test_gate_ledger.sh tests/test_evidence_capture.sh tests/test_session_start.sh
 
 # Build-script lint and tests (ruff pinned; stdlib unittest, not pytest)
 uv run --no-project --with ruff==0.16.0 ruff check scripts tests/jig
@@ -55,7 +55,7 @@ The directory layout encodes a role split (full version in `CONTRIBUTING.md`):
 - `commands/` — seven of the ten doors (`bet`, `review`, `next`, `health`, `retro`, `setup`, `doctor`). `description`, `allowed-tools` frontmatter.
 - `skills/<name>/SKILL.md` — two kinds, deliberately. Three are **doors** (`shape`, `build`, `ship`) — a skill and a command are both invokable slash commands, and which one backs a door is an implementation detail, not a class distinction. `reference/personas.md`'s `Backed by` column says which. The fourth, `task-execution-discipline`, is model-invoked but not a door. There is no separate natural-language shim layer: a door's own `description` frontmatter is what lets it fire from plain language.
 - `reference/` — the rubrics the doors read at judgment time (`severity-rubric.md`, `audit-compilation.md`), the contracts a door follows (`planning-contract.md`, `worker-contract.md`, `handback-contract.md`, the two extractions), and the charter itself (`personas.md`). Doors and agents consult these instead of restating them inline — keep depth in `reference/`, keep the door pointing at it. **A file here carries no command frontmatter**: frontmatter is what makes something invokable, and a contract that grows one is a tenth door nobody declared.
-- `hooks/` — shipped hook scripts + `hooks.json`. Three live hooks: a non-blocking PreToolUse reminder before `gh pr create` (`gate-reminder.sh`); a silent PostToolUse/PostToolUseFailure evidence-capture hook on `Bash` that appends verification-command records while a story is armed (`evidence-capture.sh`; format pinned in `reference/evidence-format.md`); and a silent SessionStart hook on `startup`/`resume` that surfaces a counts-only flow-position heads-up when a work file is active (`session-start.sh`).
+- `hooks/` — shipped hook scripts + `hooks.json`. Two live hooks: a silent PostToolUse/PostToolUseFailure evidence-capture hook on `Bash` that appends verification-command records while a story is armed (`evidence-capture.sh`; format pinned in `reference/evidence-format.md`); and a silent SessionStart hook on `startup`/`resume` that surfaces a counts-only flow-position heads-up when a work file is active (`session-start.sh`).
 - `bin/gate-ledger` — reads/writes the per-branch gate ledger, its episodes, the per-feature `/next` work files, and the evidence log.
 - `templates/` — PRODUCT.md / DESIGN.md scaffolds created by `/setup` in the consuming project.
 - `scripts/` — Python CI helpers (link-check, manifest validation, gate independence), the producer doors' own executables (`plan-lint`, `design-lint`, `verify`, `status-flip`, `build-report`, `evidence-capture`, `worktree-setup`), and `retro-stats` (run by `/retro`). Those executables are run by `/build`, `/shape`, and `/retro`, not by CI.
@@ -137,7 +137,7 @@ design records under a third-party product's name and was deleted rather than re
 committed design records are the fourth document class the disposability rule exists to
 prevent, and 35 stale specs are 35 surfaces of the drift #147 tracks in PRODUCT.md.
 
-**A delivery-episode fix patches the design doc too.** When a `FIX AND RE-REVIEW` cycle
+**A fix-and-re-review fix patches the design doc too.** When a `FIX AND RE-REVIEW` cycle
 changes what a `SKILL.md` actually does, update the design doc that behavior was ratified
 against in the same commit as the prose and its regression tests. The doc is alive on the
 branch during exactly that cycle, so this costs nothing then and is unrecoverable after

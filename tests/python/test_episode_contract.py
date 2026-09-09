@@ -247,10 +247,10 @@ class EpisodeContractTest(unittest.TestCase):
     def test_episodes_are_per_gate(self) -> None:
         self.ledger("episode-open", "--gate", "audit")
         self.ledger("episode-verdict", "--gate", "audit", "--verdict", "PASS")
-        self.ledger("episode-open", "--gate", "acceptance")
+        self.ledger("episode-open", "--gate", "design-review")
         data = self.gates_file()
-        self.assertEqual(set(data["episodes"]), {"audit", "acceptance"})
-        self.assertEqual(set(data["episodes"]["acceptance"]), OPEN_EPISODE_KEYS)
+        self.assertEqual(set(data["episodes"]), {"audit", "design-review"})
+        self.assertEqual(set(data["episodes"]["design-review"]), OPEN_EPISODE_KEYS)
         self.assertEqual(set(data["episodes"]["audit"]), CLOSED_EPISODE_KEYS)
 
     # --- Task 4 (#289): episode-verdict carries the lane profile ---
@@ -323,15 +323,15 @@ class EpisodeContractTest(unittest.TestCase):
 
 #: Episode name → the ledger gate key it judges, mirroring the first two
 #: columns of reference/gate-vocabulary.md's episode table. `bet` has no
-#: fix-and-retry token and no epic-driver GATES entry.
+#: fix-and-retry token. The delivery episode folded into the work episode's
+#: product lane (#415).
 EPISODE_LEDGER_GATES = {
     "bet": "decide",
     "design": "design-review",
     "work": "audit",
-    "delivery": "acceptance",
 }
 
-#: The one fix-and-retry spelling both review episodes share (#289).
+#: The work episode's fix-and-retry spelling (#289).
 RETRY_TOKEN = "FIX AND RE-REVIEW"
 
 
@@ -365,7 +365,7 @@ class EpisodeVocabularyTest(unittest.TestCase):
 
     # --- Done-means 1: the vocabulary table carries the episode rows ---
 
-    def test_vocabulary_carries_all_four_episode_rows(self) -> None:
+    def test_vocabulary_carries_all_three_episode_rows(self) -> None:
         self.assertEqual(set(_vocabulary_rows()), set(EPISODE_LEDGER_GATES))
 
     def test_episode_rows_name_their_ledger_gates(self) -> None:
@@ -373,17 +373,19 @@ class EpisodeVocabularyTest(unittest.TestCase):
         for episode, gate in EPISODE_LEDGER_GATES.items():
             self.assertEqual(rows[episode]["gate"], gate)
 
-    def test_work_and_delivery_retry_token_is_exactly_fix_and_re_review(self) -> None:
-        rows = _vocabulary_rows()
-        self.assertEqual(rows["work"]["retry"], RETRY_TOKEN)
-        self.assertEqual(rows["delivery"]["retry"], RETRY_TOKEN)
+    def test_work_retry_token_is_exactly_fix_and_re_review(self) -> None:
+        self.assertEqual(_vocabulary_rows()["work"]["retry"], RETRY_TOKEN)
 
-    def test_work_and_delivery_proceed_and_stop_tokens_unchanged(self) -> None:
+    def test_work_proceed_and_stop_tokens_unchanged(self) -> None:
         rows = _vocabulary_rows()
         self.assertEqual(rows["work"]["proceed"], "PASS")
         self.assertEqual(rows["work"]["stop"], "NEEDS DISCUSSION")
-        self.assertEqual(rows["delivery"]["proceed"], "SHIP")
-        self.assertEqual(rows["delivery"]["stop"], "HOLD")
+
+    def test_delivery_row_is_gone(self) -> None:
+        """#415: the delivery episode folded into the work episode's product lane."""
+        text = VOCABULARY.read_text(encoding="utf-8")
+        self.assertNotRegex(text, r"(?m)^\| delivery \|")
+        self.assertIn("folded into the work episode", text)
 
     def test_bet_and_design_tokens_unchanged(self) -> None:
         rows = _vocabulary_rows()
@@ -501,12 +503,11 @@ class GateAuditDoorTest(unittest.TestCase):
         self.assertIn("--status rejected-as-noise", self.door)
         self.assertIn("suppressed", self.door)
 
-    # --- Done means 3: the criteria-conformance lane sits in the roster ---
+    # --- Done means 3: the product lane sits in the roster ---
 
-    def test_criteria_conformance_lane_dispatches_product_reviewer(self) -> None:
-        self.assertIn("criteria-conformance", self.door)
+    def test_product_lane_dispatches_product_reviewer(self) -> None:
         self.assertIn("gauntlet:product-reviewer", self.door)
-        start = self.door.index("### Criteria conformance")
+        start = self.door.index("### Product acceptance")
         lane = self.door[start:self.door.index("### Compile", start)]
         self.assertIn(
             "`acceptance` mount", lane,
@@ -548,12 +549,12 @@ GATE_ACCEPTANCE_MD = REPO_ROOT / "commands" / "review.md"
 
 
 class NavigatorEpisodeTest(unittest.TestCase):
-    """Task 5 (#289): `commands/next.md` navigates the two review episodes.
+    """Task 5 (#289): `commands/next.md` navigates the work episode.
 
-    The audit piece is the work episode — a fix-and-retry re-enters the same
-    episode, and the closing block prints the ledger's own round/finding
-    counts from `episode-get`. Staleness is episode-scoped: no instruction
-    re-arms audit from an acceptance-side verdict. Static prose pins."""
+    The build piece convenes the work episode — a fix-and-retry re-enters the
+    same episode, and the closing block prints the ledger's own round/finding
+    counts from `episode-get`. Staleness is episode-scoped. Since #415 there
+    is no delivery piece: `PASS` sends the flow to `finish`. Static prose pins."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -561,17 +562,17 @@ class NavigatorEpisodeTest(unittest.TestCase):
 
     def piece(self, n: int) -> str:
         start = self.text.index(f"### {n} ·")
-        end = self.text.index(f"### {n + 1} ·") if n < 5 else self.text.index("## Skips")
+        end = self.text.index(f"### {n + 1} ·") if n < 3 else self.text.index("## Skips")
         return self.text[start:end]
 
     # --- Done means 1: the audit piece re-enters the same episode and
     # prints round and finding counts from episode-get ---
-    # Piece 3 ("build") folded the old separate work-review piece into itself
+    # Piece 2 ("build") folded the old separate work-review piece into itself
     # (command-surface/option-b): `/build` convenes the work episode at its own
-    # exit, so this is still the same episode contract, one piece number later.
+    # exit, so this is still the same episode contract under the build piece.
 
     def test_audit_piece_reenters_the_same_episode(self) -> None:
-        piece3 = self.piece(3)
+        piece3 = self.piece(2)
         self.assertIn(RETRY_TOKEN, piece3)
         self.assertIn(
             "re-enters the same episode", piece3,
@@ -581,7 +582,7 @@ class NavigatorEpisodeTest(unittest.TestCase):
         self.assertNotIn("FIX AND RE-AUDIT", self.text)
 
     def test_audit_piece_prints_round_and_counts_from_episode_get(self) -> None:
-        piece3 = self.piece(3)
+        piece3 = self.piece(2)
         self.assertIn("episode-get --gate audit", piece3)
         self.assertIn(
             "round R of C — N open, M carried", piece3,
@@ -600,8 +601,7 @@ class NavigatorEpisodeTest(unittest.TestCase):
         for verb in ("episode-open", "episode-round", "episode-verdict"):
             self.assertNotIn(verb, self.text, f"commands/next.md must never run {verb}")
 
-    # --- Done means 2: episode-scoped staleness — no instruction re-arms
-    # audit from an acceptance verdict ---
+    # --- Done means 2: episode-scoped staleness; no delivery piece (#415) ---
 
     def test_sha_staleness_rule_is_episode_scoped(self) -> None:
         self.assertNotIn(
@@ -611,39 +611,32 @@ class NavigatorEpisodeTest(unittest.TestCase):
         )
         self.assertIn("episode-scoped", self.text)
 
-    def test_no_instruction_rearms_audit_from_an_acceptance_verdict(self) -> None:
-        piece4 = self.piece(4)
-        self.assertIn("never re-arms the work episode", piece4)
-        self.assertNotIn(
-            "phase `audit`", piece4,
-            "no acceptance verdict may route the phase back to audit — a "
-            "story-scale fix routes via the door's own instruction, and the "
-            "explicit backward route belongs to the user",
-        )
-
-    def test_acceptance_retry_keeps_phase_at_acceptance(self) -> None:
-        piece4 = self.piece(4)
-        self.assertIn(RETRY_TOKEN, piece4)
-        self.assertIn("phase stays `acceptance`", piece4)
+    def test_pass_closes_the_flow_to_finish(self) -> None:
+        piece2 = self.piece(2)
+        self.assertIn("phase `finish`", piece2)
+        self.assertNotIn("phase `acceptance`", self.text)
+        self.assertNotIn("--delivery", self.text)
         self.assertNotIn("FIX AND RE-CHECK", self.text)
 
+    def test_flow_has_three_pieces(self) -> None:
+        self.assertIn("piece <k>/3", self.text)
+        self.assertNotIn("### 4 ·", self.text)
 
-class DeliveryDoorTest(unittest.TestCase):
-    """Task 5 (#289): `commands/review.md` is the delivery episode's door —
-    runs once at the delivery boundary (pre-PR), speaks
-    SHIP · FIX AND RE-REVIEW · HOLD, routes story-scale fixes into the work
-    episode instead of looping acceptance per story."""
+
+class DeliveryFoldTest(unittest.TestCase):
+    """#415: the delivery episode folded into the work episode's product lane.
+    `commands/review.md` opens only `audit` and `design-review`; a `delivers`
+    Critical routes to NEEDS DISCUSSION instead of HOLD."""
 
     @classmethod
     def setUpClass(cls) -> None:
         cls.door = GATE_ACCEPTANCE_MD.read_text(encoding="utf-8")
 
-    # --- Done means 3: episode verbs, delivery boundary, tokens, routing ---
-
     def test_door_opens_and_reenters_via_episode_verbs(self) -> None:
-        self.assertIn("episode-open --gate acceptance", self.door)
-        self.assertIn("episode-round --gate acceptance", self.door)
-        self.assertIn("episode-verdict --gate acceptance", self.door)
+        self.assertIn("episode-open --gate audit", self.door)
+        self.assertIn("episode-round --gate audit", self.door)
+        self.assertIn("episode-verdict --gate audit", self.door)
+        self.assertNotIn("--gate acceptance", self.door)
 
     def test_door_never_runs_bare_record(self) -> None:
         self.assertIsNone(
@@ -652,32 +645,19 @@ class DeliveryDoorTest(unittest.TestCase):
             "record` instead of episode-verdict",
         )
 
-    def test_door_runs_once_at_the_delivery_boundary(self) -> None:
-        self.assertIn("delivery episode", self.door)
-        self.assertIn("delivery boundary", self.door)
-        self.assertIn("before the PR", self.door)
+    def test_typed_delivery_flag_gets_an_answer(self) -> None:
+        self.assertIn("`--delivery` no longer exists", self.door)
+        self.assertNotIn("## Delivery episode", self.door)
 
-    def test_door_speaks_the_delivery_tokens(self) -> None:
-        for token in ("SHIP", RETRY_TOKEN, "HOLD"):
-            self.assertIn(token, self.door, f"door never names {token}")
-        self.assertNotIn(
-            "FIX AND RE-CHECK", self.door,
-            "the door still speaks the retry token reference/gate-vocabulary.md "
-            "replaced with FIX AND RE-REVIEW",
-        )
-
-    def test_story_scale_fix_routes_into_the_work_episode(self) -> None:
-        self.assertIn("story scale", self.door)
-        self.assertIn("routes into the work episode", self.door)
-        self.assertIn(
-            "never becomes a per-story fix loop", self.door,
-            "the delivery episode must state that it reviews delivery — a "
-            "story-scale fix belongs to the work episode's next round",
-        )
+    def test_delivers_critical_routes_to_needs_discussion(self) -> None:
+        lane = self.door[self.door.index("### Product acceptance"):self.door.index("### Compile")]
+        self.assertIn("`delivers`", lane)
+        self.assertIn("NEEDS DISCUSSION", lane)
+        for token in ("SHIP", "HOLD"):
+            self.assertNotRegex(self.door, rf"\b{token}\b", f"door still speaks the retired token {token}")
 
     def test_report_quotes_round_and_counts_from_episode_get(self) -> None:
-        """The delivery bound must be visible before it refuses."""
-        self.assertIn("episode-get --gate acceptance", self.door)
+        self.assertIn("episode-get --gate audit", self.door)
         self.assertIn("round R of C — N open, M carried", self.door)
 
     def test_round_cap_lives_in_code_not_prose(self) -> None:
