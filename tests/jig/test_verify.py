@@ -90,10 +90,29 @@ MAX_PROBE_ARTIFACT_BYTES = _script_constant("MAX_PROBE_ARTIFACT_BYTES")
 run_script = functools.partial(_run_script, SCRIPT)
 
 
-def write_items(tmp: Path, items: list[dict], task: str = "task-1") -> Path:
-    path = tmp / "items.json"
-    path.write_text(json.dumps({"task": task, "items": items}), encoding="utf-8")
-    return path
+def write_items(tmp: Path, items: list[dict]) -> list[str]:
+    """Stage `items` as one plan task (#329: verify derives from a plan and nothing
+    else). A command tier becomes an executable stub cited by absolute path; a probe
+    tier goes through `--probe-spec`. Returns the argv prefix that selects the task."""
+    stubs = tmp / "stubs"
+    stubs.mkdir(exist_ok=True)
+    lines: list[str] = []
+    spec: dict[str, dict] = {}
+    for n, item in enumerate(items, 1):
+        tier, kind = item["tier"], item.get("kind", "cap")
+        if tier == "probe":
+            lines.append(f"{n}. [{kind}]  item {n} (tier: probe)\n")
+            spec[str(n)] = {k: item[k] for k in ("artifact", "pattern") if k in item}
+            continue
+        stub = stubs / f"item-{n}"
+        stub.write_text(f"#!/bin/sh\n{item['command']}\n", encoding="utf-8")
+        stub.chmod(0o755)
+        lines.append(f"{n}. [{kind}]  item {n} (tier: {tier} `{stub}`)\n")
+    plan = write_plan(tmp, plan_task(1, "".join(lines)))
+    args = ["--plan", str(plan), "--task", "1"]
+    if spec:
+        args += ["--probe-spec", str(write_probe_spec(tmp, spec))]
+    return args
 
 
 def plan_task(num: int, items: str, title: str = "A task") -> str:
@@ -155,7 +174,7 @@ class TestVerifyCommandTiers(unittest.TestCase):
             items_path = write_items(
                 Path(tmp), [{"id": 1, "kind": "cap", "tier": "script", "command": "python3 -c 'pass'"}]
             )
-            result = run_script(["--items", str(items_path)])
+            result = run_script([*items_path])
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("[PASS] item 1", result.stdout)
             self.assertIn("overall=PASS", result.stdout)
@@ -166,7 +185,7 @@ class TestVerifyCommandTiers(unittest.TestCase):
                 Path(tmp),
                 [{"id": 1, "kind": "hold", "tier": "script", "command": "python3 -c 'import sys; sys.exit(3)'"}],
             )
-            result = run_script(["--items", str(items_path)])
+            result = run_script([*items_path])
             self.assertEqual(result.returncode, 1)
             self.assertIn("[FAIL] item 1", result.stdout)
             self.assertIn("overall=FAIL", result.stdout)
@@ -177,7 +196,7 @@ class TestVerifyCommandTiers(unittest.TestCase):
                 Path(tmp),
                 [{"id": 1, "kind": "cap", "tier": "test-backed", "command": "python3 -c 'assert 1 + 1 == 2'"}],
             )
-            result = run_script(["--items", str(items_path)])
+            result = run_script([*items_path])
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_all_items_must_pass_for_overall_pass(self) -> None:
@@ -189,7 +208,7 @@ class TestVerifyCommandTiers(unittest.TestCase):
                     {"id": 2, "kind": "hold", "tier": "script", "command": "python3 -c 'import sys; sys.exit(1)'"},
                 ],
             )
-            result = run_script(["--items", str(items_path)])
+            result = run_script([*items_path])
             self.assertEqual(result.returncode, 1)
             self.assertIn("[PASS] item 1", result.stdout)
             self.assertIn("[FAIL] item 2", result.stdout)
@@ -208,7 +227,7 @@ class TestProbeArtifactReadIsBounded(unittest.TestCase):
         item = {"id": 1, "kind": "cap", "tier": "probe", "artifact": str(artifact)}
         if pattern is not None:
             item["pattern"] = pattern
-        return run_script(["--items", str(write_items(tmp, [item])), "--since", since])
+        return run_script([*write_items(tmp, [item]), "--since", since])
 
     def test_an_artifact_over_the_limit_fails_rather_than_matching(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -247,7 +266,7 @@ class TestVerifyProbeTier(unittest.TestCase):
                 Path(tmp),
                 [{"id": 1, "kind": "cap", "tier": "probe", "artifact": str(artifact), "pattern": "no orphaned process"}],
             )
-            result = run_script(["--items", str(items_path), "--since", since])
+            result = run_script([*items_path, "--since", since])
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_probe_item_fails_when_artifact_missing(self) -> None:
@@ -255,7 +274,7 @@ class TestVerifyProbeTier(unittest.TestCase):
             since = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
             missing = Path(tmp) / "does-not-exist.txt"
             items_path = write_items(Path(tmp), [{"id": 1, "kind": "cap", "tier": "probe", "artifact": str(missing)}])
-            result = run_script(["--items", str(items_path), "--since", since])
+            result = run_script([*items_path, "--since", since])
             self.assertEqual(result.returncode, 1)
             self.assertIn("not found", result.stdout)
 
@@ -265,7 +284,7 @@ class TestVerifyProbeTier(unittest.TestCase):
             artifact.write_text("stale evidence\n", encoding="utf-8")
             since = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
             items_path = write_items(Path(tmp), [{"id": 1, "kind": "cap", "tier": "probe", "artifact": str(artifact)}])
-            result = run_script(["--items", str(items_path), "--since", since])
+            result = run_script([*items_path, "--since", since])
             self.assertEqual(result.returncode, 1)
             self.assertIn("stale", result.stdout)
 
@@ -274,7 +293,7 @@ class TestVerifyProbeTier(unittest.TestCase):
             artifact = Path(tmp) / "artifact.txt"
             artifact.write_text("content\n", encoding="utf-8")
             items_path = write_items(Path(tmp), [{"id": 1, "kind": "cap", "tier": "probe", "artifact": str(artifact)}])
-            result = run_script(["--items", str(items_path)])
+            result = run_script([*items_path])
             self.assertEqual(result.returncode, 2)
             self.assertIn("--since", result.stderr)
             self.assertNotIn("PASS", result.stdout)
@@ -330,7 +349,7 @@ class TestVerifyProbeFreshnessFloor(unittest.TestCase):
                     }
                 ],
             )
-            result = run_script(["--items", str(items_path), "--since", executor_sha, "--repo", str(repo)])
+            result = run_script([*items_path, "--since", executor_sha, "--repo", str(repo)])
             self.assertEqual(result.returncode, 1)
             self.assertIn("stale", result.stdout)
 
@@ -369,7 +388,7 @@ class TestVerifyProbeFreshnessFloor(unittest.TestCase):
                 ],
             )
             result = run_script(
-                ["--items", str(items_path), "--since", dispatch_time.isoformat(), "--repo", str(repo)]
+                [*items_path, "--since", dispatch_time.isoformat(), "--repo", str(repo)]
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
@@ -397,40 +416,8 @@ class TestVerifyProbeFreshnessFloor(unittest.TestCase):
                     }
                 ],
             )
-            result = run_script(["--items", str(items_path), "--since", baseline_sha, "--repo", str(repo)])
+            result = run_script([*items_path, "--since", baseline_sha, "--repo", str(repo)])
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-
-
-class TestVerifyFailsClosed(unittest.TestCase):
-    def test_empty_items_list_is_a_usage_error_not_a_pass(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            items_path = write_items(Path(tmp), [])
-            result = run_script(["--items", str(items_path)])
-            self.assertEqual(result.returncode, 2)
-            self.assertIn("no items to verify", result.stderr)
-            self.assertNotIn("PASS", result.stdout)
-
-    def test_unknown_tier_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            items_path = write_items(
-                Path(tmp), [{"id": 1, "kind": "cap", "tier": "judgment", "command": "python3 -c 'pass'"}]
-            )
-            result = run_script(["--items", str(items_path)])
-            self.assertEqual(result.returncode, 2)
-            self.assertIn("tier", result.stderr)
-
-    def test_missing_command_for_script_tier_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            items_path = write_items(Path(tmp), [{"id": 1, "kind": "cap", "tier": "script"}])
-            result = run_script(["--items", str(items_path)])
-            self.assertEqual(result.returncode, 2)
-
-    def test_malformed_json_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            items_path = Path(tmp) / "items.json"
-            items_path.write_text("not json", encoding="utf-8")
-            result = run_script(["--items", str(items_path)])
-            self.assertEqual(result.returncode, 2)
 
 
 class TestVerifyTimeout(unittest.TestCase):
@@ -450,7 +437,7 @@ class TestVerifyTimeout(unittest.TestCase):
                     }
                 ],
             )
-            result = run_script(["--items", str(items_path), "--timeout", "1"])
+            result = run_script([*items_path, "--timeout", "1"])
             self.assertEqual(result.returncode, 1)
             self.assertIn("[FAIL] item 1", result.stdout)
             self.assertIn("TIMEOUT", result.stdout)
@@ -462,7 +449,7 @@ class TestVerifyTimeout(unittest.TestCase):
             items_path = write_items(
                 Path(tmp), [{"id": 1, "kind": "cap", "tier": "script", "command": "python3 -c 'pass'"}]
             )
-            result = run_script(["--items", str(items_path), "--timeout", "5"])
+            result = run_script([*items_path, "--timeout", "5"])
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("overall=PASS", result.stdout)
 
@@ -481,7 +468,7 @@ class TestVerifyTimeoutKillsWholeProcessGroup(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             command, marker = orphan_spawning_command(Path(tmp))
             items_path = write_items(Path(tmp), [{"id": 1, "kind": "cap", "tier": "script", "command": command}])
-            result = run_script(["--items", str(items_path), "--timeout", "1"])
+            result = run_script([*items_path, "--timeout", "1"])
             self.assertEqual(result.returncode, 1)
             self.assertIn("[FAIL] item 1", result.stdout)
             self.assertIn("TIMEOUT", result.stdout)
@@ -516,7 +503,7 @@ class TestVerifyOutput(unittest.TestCase):
                 Path(tmp), [{"id": 1, "kind": "cap", "tier": "script", "command": "python3 -c 'pass'"}]
             )
             out_path = Path(tmp) / "results.json"
-            result = run_script(["--items", str(items_path), "--out", str(out_path)])
+            result = run_script([*items_path, "--out", str(out_path)])
             self.assertEqual(result.returncode, 0, result.stderr)
             data = json.loads(out_path.read_text(encoding="utf-8"))
             self.assertEqual(data["overall"], "PASS")
@@ -619,14 +606,6 @@ class TestVerifyPlanModeDerivation(unittest.TestCase):
             (repo / "pyproject.toml").unlink()
             ok = run_script(["--plan", str(plan), "--task", "1", "--repo", str(repo), "--python", str(fake)])
             self.assertNotEqual(ok.returncode, 2, ok.stdout + ok.stderr)
-
-    def test_python_flag_needs_plan_mode(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            repo = Path(tmp)
-            items = write_items(repo, [{"id": 1, "kind": "cap", "tier": "script", "command": "true"}])
-            result = run_script(["--items", str(items), "--repo", str(repo), "--python", "/usr/bin/env"])
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("--python only makes sense with --plan", result.stderr)
 
     def test_failing_derived_item_exits_one_per_item_reported(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -935,38 +914,21 @@ class TestVerifyPlanModeUsageErrors(unittest.TestCase):
     """Plan mode fails closed, exit 2, matching verify's existing
     usage-error convention."""
 
-    def test_items_and_plan_are_mutually_exclusive(self) -> None:
-        result = run_script(["--items", "items.json", "--plan", "PLAN.md", "--task", "1"])
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("--items", result.stderr)
-
-    def test_neither_items_nor_plan_is_a_usage_error(self) -> None:
+    def test_no_plan_is_a_usage_error(self) -> None:
         result = run_script([])
         self.assertEqual(result.returncode, 2)
+        self.assertIn("--plan", result.stderr)
+
+    def test_items_flag_is_gone(self) -> None:
+        """#329: the hand-transcribed item document had no producer."""
+        result = run_script(["--plan", "PLAN.md", "--task", "1", "--items", "items.json"])
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("unrecognized arguments: --items", result.stderr)
 
     def test_plan_without_task_is_a_usage_error(self) -> None:
         result = run_script(["--plan", "PLAN.md"])
         self.assertEqual(result.returncode, 2)
         self.assertIn("--task", result.stderr)
-
-    def test_task_without_plan_is_a_usage_error(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            items_path = write_items(
-                Path(tmp), [{"id": 1, "kind": "cap", "tier": "script", "command": "python3 -c 'pass'"}]
-            )
-            result = run_script(["--items", str(items_path), "--task", "1"])
-            self.assertEqual(result.returncode, 2)
-            self.assertIn("--task", result.stderr)
-
-    def test_probe_spec_without_plan_is_a_usage_error(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            items_path = write_items(
-                Path(tmp), [{"id": 1, "kind": "cap", "tier": "script", "command": "python3 -c 'pass'"}]
-            )
-            spec = write_probe_spec(Path(tmp), {"1": {"artifact": "x"}})
-            result = run_script(["--items", str(items_path), "--probe-spec", str(spec)])
-            self.assertEqual(result.returncode, 2)
-            self.assertIn("--probe-spec", result.stderr)
 
     def test_missing_plan_file_exits_two(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1151,7 +1113,7 @@ class TestVerifyParallel(unittest.TestCase):
                     {"id": 2, "kind": "hold", "tier": "script", "command": f'touch "{marker}"'},
                 ],
             )
-            result = run_script(["--items", str(items_path), "--parallel"])
+            result = run_script([*items_path, "--parallel"])
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn("[PASS] item 1", result.stdout)
             self.assertIn("[PASS] item 2", result.stdout)
@@ -1169,7 +1131,7 @@ class TestVerifyParallel(unittest.TestCase):
                     {"id": 2, "kind": "hold", "tier": "script", "command": f'touch "{marker}"'},
                 ],
             )
-            result = run_script(["--items", str(items_path), "--timeout", "2"])
+            result = run_script([*items_path, "--timeout", "2"])
             self.assertEqual(result.returncode, 1)
             self.assertIn("[FAIL] item 1", result.stdout)
             self.assertIn("TIMEOUT", result.stdout)
@@ -1185,7 +1147,7 @@ class TestVerifyParallel(unittest.TestCase):
                     {"id": 2, "kind": "hold", "tier": "script", "command": "python3 -c 'pass'"},
                 ],
             )
-            result = run_script(["--items", str(items_path), "--parallel"])
+            result = run_script([*items_path, "--parallel"])
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertLess(
                 result.stdout.index("[PASS] item 1"),
@@ -1202,7 +1164,7 @@ class TestVerifyParallel(unittest.TestCase):
                     {"id": 2, "kind": "hold", "tier": "script", "command": "python3 -c 'pass'"},
                 ],
             )
-            result = run_script(["--items", str(items_path), "--parallel", "--timeout", "1"])
+            result = run_script([*items_path, "--parallel", "--timeout", "1"])
             self.assertEqual(result.returncode, 1)
             self.assertIn("[FAIL] item 1", result.stdout)
             self.assertIn("TIMEOUT", result.stdout)
@@ -1222,7 +1184,7 @@ class TestVerifyParallel(unittest.TestCase):
                     {"id": 2, "kind": "hold", "tier": "probe", "artifact": str(artifact), "pattern": "no orphaned"},
                 ],
             )
-            result = run_script(["--items", str(items_path), "--parallel", "--since", since])
+            result = run_script([*items_path, "--parallel", "--since", since])
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn("[PASS] item 2 (hold/probe)", result.stdout)
 

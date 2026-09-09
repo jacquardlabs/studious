@@ -153,7 +153,7 @@ class TestFinishSkillBody(PhraseInBodyMixin, unittest.TestCase):
     def test_build_report_invocation_and_path_are_named(self) -> None:
         self.assertIn("studious build-report", self.body)
         self.assertIn("docs/studious/build-reports/", self.body)
-        self.assertIn("YYYY-MM-DD-<story-slug>-build-report.md", self.body)
+        self.assertIn("YYYY-MM-DD-<slug>-build-report.md", self.body)
 
     def test_build_report_does_not_commit_itself(self) -> None:
         self.assertPhraseIn("`build-report` does not commit its own write")

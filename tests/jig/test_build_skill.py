@@ -150,13 +150,13 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertPhraseIn("Commit your change yourself as your last act, and end your final message with the commit SHA you just created")
 
     def test_executor_return_contract_does_not_claim_a_fenced_json_block(self) -> None:
-        # The executor's context (task block + boundary line) never
-        # mentions verify's ITEMS_SCHEMA, so step 2.4 must not claim the
-        # executor emits that JSON -- the Foreman transcribes it instead
-        # (step 2.5), matching the demonstrated behavior in this story's
-        # evidence folder.
+        # The executor's context (task block + boundary line) never mentions
+        # an item list, so step 2.4 must not claim the executor emits one --
+        # `studious verify` derives it from the plan in step 2.5 (#329 retired
+        # the hand-transcribed document altogether).
         self.assertNotIn("fenced JSON block", self.body)
-        self.assertPhraseIn("The executor never emits `studious verify`'s `ITEMS_SCHEMA` JSON itself")
+        self.assertNotIn("ITEMS_SCHEMA", self.body)
+        self.assertPhraseIn("The executor never transcribes an item list for `studious verify`")
 
     def test_foreman_derives_items_via_verify_plan_mode(self) -> None:
         # `studious verify --plan --task` derives script/test-backed items

@@ -285,10 +285,10 @@ For each task block, in order:
 4. **Read the executor's return.** Its final message must contain: the
    commit SHA it just created, plus its narrative summary and `Evidence`
    prose citing the fresh run behind each numbered `Done means` item. The
-   executor never emits `studious verify`'s `ITEMS_SCHEMA` JSON itself —
-   its only context is the task block and the boundary line above, neither
-   of which mentions that schema. Transcribing it is the Foreman's own
-   next step (2.5), not something asked of a fresh executor.
+   executor never transcribes an item list for `studious verify` — its only
+   context is the task block and the boundary line above. `verify` derives the
+   items from the plan itself in the Foreman's own next step (2.5); nothing is
+   asked of a fresh executor beyond its return.
 5. **Verify, independently.** `studious verify` derives the items list
    itself, straight from *this task's own checkpoint block* in `<plan
    path>` — `--plan <plan path> --task <this task's heading number, e.g.
