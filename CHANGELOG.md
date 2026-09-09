@@ -2,6 +2,16 @@
 
 <!-- version list -->
 
+## v6.2.0 (2026-09-09)
+
+### Features
+
+- /build plans through viva-write — attachments, residual-fork interview, plan-lint around the
+  stamp; /next hands a milestone over as one plan
+  ([#420](https://github.com/jacquardlabs/studious/pull/420),
+  [`71fa6d0`](https://github.com/jacquardlabs/studious/commit/71fa6d00fa2faa9b8395679daa1c1846f0ed48dc))
+
+
 ## v6.1.0 (2026-09-09)
 
 ### Bug Fixes
