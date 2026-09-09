@@ -277,8 +277,8 @@ them:
    `episode-verdict` cycle and no code-enforced round cap the way `audit`
    does -- `reference/gate-vocabulary.md` notes it "adopts the episode verbs in a later
    landing," not yet. Never invent one here.
-7. **Persist the register** -- write or amend `docs/studious/premortems/<slug>.md` per
-   that section, whatever the verdict.
+7. **Persist the register** -- write or amend `docs/design/<slug>-premortem.md` per
+   that section, whatever the verdict. Gitignored beside the doc; nothing to commit.
 
 **On `PROCEED TO PLAN`:** stop and report. Session verdict `DESIGNED` (first pass) or
 `REVISED` (this session already redrafted once, below) plus the episode's own

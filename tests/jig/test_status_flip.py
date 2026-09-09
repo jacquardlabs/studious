@@ -253,7 +253,7 @@ class TestStatusFlipIdempotency(unittest.TestCase):
             self.assertIn("already flipped", second.stderr)
 
     def test_replan_is_overwritable_by_a_later_pass(self) -> None:
-        # Resume path (premortem risk #3, docs/studious/premortems/build-skill.md):
+        # Resume path (premortem risk #3, pre-mortem register build-skill.md at 704381d):
         # REPLAN -> human revises -> re-invoke /build -> eventual PASS must
         # not dead-end on the stale REPLAN suffix.
         with tempfile.TemporaryDirectory() as tmp:

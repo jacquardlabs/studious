@@ -225,12 +225,14 @@ other hook here.
 ## Where your state lives
 
 Two directories, one committed and one not, plus `docs/exorcist/` when you run
-`/health simplify` (exorcist's own register path). Nothing else is written on your behalf.
+`/health simplify` (exorcist's own register path), and the gitignored `docs/design/` a
+`/shape` doc and its pre-mortem register live in until `/ship` removes them. Nothing else
+is written on your behalf.
 
 | Path | Committed | What's in it |
 |---|---|---|
 | `.studious/` | No — gitignored | The per-branch gate ledger (verdicts, episode rounds, the findings ledger), `/next`'s per-feature work files, and the verification evidence a hook captures while a story is armed |
-| `docs/studious/` | Yes | `/health` and `/retro` review reports, pre-mortem registers, dated build reports, and the decision journal |
+| `docs/studious/` | Yes | `/health` and `/retro` review reports, dated build reports, and the decision journal |
 
 `.studious/` is flow state: local, disposable, and never in the diff — which is why the flow
 survives a session ending but not a fresh clone. `bin/gate-ledger status` prints what's

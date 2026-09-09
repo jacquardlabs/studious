@@ -90,8 +90,8 @@ for these entries:
 # Studious local state — gate ledger, work files, build evidence (never committed)
 .studious/
 
-# Disposable build scaffolding — lives on the branch, dies at closeout
-# (the durable record is the PR body's evidence table and the pre-mortem register)
+# Disposable build scaffolding — design doc, its pre-mortem register, the plan.
+# Lives on the branch, dies at closeout; the durable record is the PR body.
 /PLAN.md
 docs/design/
 ```

@@ -69,7 +69,7 @@ is genuinely absent from the inventory.
 Freshness rule (acceptance criteria: "timestamp >= last code commit"): naive
 `now >= last-commit-timestamp` is vacuous when the task's work is still
 uncommitted, since "last commit" then means the pre-task baseline and any
-wall-clock stamp trivially passes (docs/studious/premortems/build-scripts.md,
+wall-clock stamp trivially passes (pre-mortem register build-scripts.md at 704381d,
 risk #1). Two defenses:
 
 1. The working tree must be clean at capture time.

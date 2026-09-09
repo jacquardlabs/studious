@@ -255,10 +255,13 @@ scratch=$(mktemp -d "${TMPDIR:-/tmp}/studious-review.XXXXXX") && mkdir "$scratch
 
 `<context files>` is the comma-separated subset of `CLAUDE.md,DESIGN.md,PRODUCT.md` that
 exists, plus the resolved pre-mortem register path whenever the pre-mortem lane runs. Check
-existence in the tree being judged: `$scratch/tree` for the work episode's
+the three context docs in the tree being judged: `$scratch/tree` for the work episode's
 changeset artifact — never the ambient checkout, which can differ from that worktree — and
 the repository root for the design episode's document artifact, which has no worktree
-(Part 1) and is judged where it sits.
+(Part 1) and is judged where it sits. The register is the one exception: gitignored, it
+exists only in the working tree, so check it there and pass its **absolute** path — a
+relative one would resolve under `$scratch/tree`, where it is absent, and `dispatch.py`
+would then never emit lane 13.
 `dispatch.py` emits `product-reviewer` only when the context names a PRODUCT.md and
 `premortem-auditor` only when it names a register, so a missing input drops the lane there
 rather than dispatching a judge that can only self-skip. If it exits non-zero, relay its
@@ -426,21 +429,18 @@ section below still applies here.
 
 ### Persist the register
 
-Write the pre-mortem to `docs/studious/premortems/<slug>.md` on **every** round, whatever
-the verdict — `<slug>` is the design doc's filename without its extension; create the
-directory if needed. Round 1 creates the file; a re-run after REVISE amends it in place,
-per Part 3's amendment rule. This is what makes "amended per round, never regenerated"
-mechanically possible: a register that only existed on a pass would leave a REVISE round
-nothing to amend. The commit-before-record rule in the shared section below then commits
-whatever this round left, so the recorded sha always contains the register a later reader
-verifies against.
+Write the pre-mortem to `docs/design/<slug>-premortem.md` on **every** round, whatever
+the verdict — `<slug>` is the design doc's filename without its extension, so the register
+sits beside the doc it was written against. Round 1 creates the file; a re-run after REVISE
+amends it in place, per Part 3's amendment rule. This is what makes "amended per round,
+never regenerated" mechanically possible: a register that only existed on a pass would
+leave a REVISE round nothing to amend.
 
-The register outlives the doc it was written against, by design: design docs are
-branch-local and removed at closeout, while the register is committed and read later by the
-work episode. So it records no path to one — `<slug>` already names the
-story, and `Branch:` plus `SHA:` are what let a reader retrieve the doc from history if
-they need it. Do not add a `Design doc:` line back; 29 registers carried one and five were
-already pointing at deleted files (#216).
+The register is disposable like its doc (CLAUDE.md, "Where a design record lives", ruled
+2026-09-09): gitignored under `docs/design/`, branch-local, read from the working tree by
+the work episode's pre-mortem lane, and removed at closeout with the doc. It is never
+committed, so the commit-before-record rule below has nothing to commit for it. `Branch:` and `SHA:`
+stay in the header — they are what lane 13 matches on.
 
 ```markdown
 # Pre-mortem — <feature name>
@@ -583,13 +583,14 @@ holds:
 
 ### Pre-mortem verification (only when a register exists)
 
-Locate the register before spawning: look for `docs/studious/premortems/*.md` in the
-changeset diff; if none, take the most recently modified file under
-`docs/studious/premortems/`; if there are several candidates, ask the user which one rather
-than guessing. A register found via the fallback (not the changeset diff) counts only if
-its `Branch:` header matches the current branch — on mismatch it is another feature's
-register; treat this branch as having no register. If no register exists at all, note "No
-pre-mortem register on this branch — pre-mortem verification skipped." and move on.
+Locate the register before spawning, in the **working tree** — it is gitignored and absent
+from the diff and from `$scratch/tree`: `docs/design/<doc-slug>-premortem.md` beside the
+design doc recorded for this branch's work file, else any `docs/design/*-premortem.md`
+whose `Branch:` header matches the current branch; several candidates → ask the user which
+rather than guessing. On a `Branch:` mismatch it is another feature's register; treat this
+branch as having no register. If none exists, note "No pre-mortem register on this branch —
+pre-mortem verification skipped." and move on. Pass the register by its working-tree path
+in `--context` and beside the invocation, the way lane 14 passes the design doc.
 
 13. **gauntlet:premortem-auditor** — Verify the register at the resolved path against this
     changeset. The path rides in `--context`, which is what makes `dispatch.py` emit this
@@ -726,8 +727,9 @@ words.
 ### Record the verdict
 
 Before running `gate-ledger episode-verdict` — or, in the design episode, the verb named
-in its own section above — commit every file this run wrote or modified — the pre-mortem register the design episode just wrote, or anything
-else the review produced. The ledger stamps the
+in its own section above — commit every tracked file this run wrote or modified. The
+pre-mortem register is gitignored and needs no commit; anything else the review produced
+does. The ledger stamps the
 verdict's sha from HEAD at the moment it runs; a file committed afterward leaves the ledger
 pointing at a commit that doesn't yet contain what this run produced, so `gate-ledger
 status` would flag this verdict as stale over a commit that changed nothing substantive.

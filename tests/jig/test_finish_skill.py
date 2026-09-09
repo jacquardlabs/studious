@@ -195,7 +195,7 @@ class TestFinishSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertPhraseIn("Ask the human which token applies. Do not pick one.")
 
     def test_cleanup_commit_removes_design_doc_and_plan_before_git_action(self) -> None:
-        self.assertPhraseIn("remove `docs/design/<story-slug>.md` and `PLAN.md`")
+        self.assertPhraseIn("remove `docs/design/<story-slug>.md`, its `docs/design/<story-slug>-premortem.md`, and `PLAN.md`")
         self.assertPhraseIn("cleanup step *before* whichever git action happens")
 
     def test_base_branch_resolution_never_guesses_silently(self) -> None:
