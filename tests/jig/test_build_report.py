@@ -71,6 +71,24 @@ class TestSlugComesFromTheWorkFile(unittest.TestCase):
             self.assertIn("--slug", result.stderr)
             self.assertFalse((repo / "docs").exists())
 
+    def test_detached_head_refuses_instead_of_looking_up_a_literal_HEAD(self) -> None:
+        """gate-ledger records the branch as "HEAD" when detached, so a lookup for
+        the sentinel would match that work file. Refuse; `--slug` is the way out."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            repo.mkdir()
+            init_repo(repo)
+            run([str(GATE_LEDGER), "work-set", "--slug", "detached", "--title", "d", "--branch", "HEAD"], cwd=repo)
+            run(["git", "checkout", "-q", "--detach"], cwd=repo)
+            content = Path(tmp) / "body.md"
+            content.write_text("body\n", encoding="utf-8")
+
+            result = run_script(["--repo", str(repo), "--content", str(content)])
+
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("--slug", result.stderr)
+            self.assertFalse((repo / "docs").exists())
+
     def test_explicit_slug_overrides_the_work_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = self._repo_with_work_file(Path(tmp), "fix-footer", "fix/footer")

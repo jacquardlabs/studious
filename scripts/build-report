@@ -29,20 +29,29 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import current_branch  # noqa: E402
+
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 GATE_LEDGER = Path(__file__).resolve().parent.parent / "bin" / "gate-ledger"
 
 
-def current_branch(repo: Path) -> Optional[str]:
+def branch_to_match(repo: Path) -> Optional[str]:
+    """The branch a work file's branch column could name, or None for no branch.
+
+    `_gitutil.current_branch` is the same reader `bin/gate-ledger`'s
+    `branch_name()` mirrors -- the writer of that column -- so both sides of the
+    match agree by construction. It returns the sentinel "HEAD" when detached or
+    unreadable; git forbids a real branch of that name, so mapping it to None
+    loses nothing and stops a detached checkout from matching a work file
+    captured while detached. Guards OSError -- no `git` on PATH lands on the
+    exit-2 refusal, never a traceback (`_gitutil.git_repo_root`'s own idiom).
+    """
     try:
-        r = subprocess.run(
-            ["git", "-C", str(repo), "rev-parse", "--abbrev-ref", "HEAD"],
-            capture_output=True, text=True, check=False,
-        )
-    except OSError:  # no `git` on PATH: the refusal below, never a traceback
+        branch = current_branch(repo)
+    except OSError:
         return None
-    branch = r.stdout.strip()
-    return branch if r.returncode == 0 and branch and branch != "HEAD" else None
+    return branch if branch != "HEAD" else None
 
 
 def slug_for_branch(repo: Path, branch: str) -> Optional[str]:
@@ -80,7 +89,7 @@ def main(argv: list[str]) -> int:
 
     slug = args.slug
     if slug is None:
-        branch = current_branch(repo)
+        branch = branch_to_match(repo)
         slug = slug_for_branch(repo, branch) if branch else None
         if slug is None:
             print(
