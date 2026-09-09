@@ -2,6 +2,42 @@
 
 <!-- version list -->
 
+## v6.8.0 (2026-09-09)
+
+### Bug Fixes
+
+- Cctx-footer keeps the autopsy's verdict, cost, and findings; the CLAUDE.md patches are harvest's
+  preview, not the footer's ([#433](https://github.com/jacquardlabs/studious/pull/433),
+  [`3682552`](https://github.com/jacquardlabs/studious/commit/3682552c31cf95ab6970cb7f1e161cb48e9851f7))
+
+- Cctx-footer probes a rung with --help — cctx ships no --version, so a real install never answered
+  ([#433](https://github.com/jacquardlabs/studious/pull/433),
+  [`3682552`](https://github.com/jacquardlabs/studious/commit/3682552c31cf95ab6970cb7f1e161cb48e9851f7))
+
+### Documentation
+
+- Name cctx-footer in the executable inventory
+  ([#433](https://github.com/jacquardlabs/studious/pull/433),
+  [`3682552`](https://github.com/jacquardlabs/studious/commit/3682552c31cf95ab6970cb7f1e161cb48e9851f7))
+
+### Features
+
+- Studious cctx-footer — launcher ladder in code; record the two-evidence-stores rule
+  ([#433](https://github.com/jacquardlabs/studious/pull/433),
+  [`3682552`](https://github.com/jacquardlabs/studious/commit/3682552c31cf95ab6970cb7f1e161cb48e9851f7))
+
+- Studious cctx-footer — the launcher ladder in code (PATH, uvx --from, pipx run --spec), graceful
+  absence; record the two-evidence-stores rule
+  ([#433](https://github.com/jacquardlabs/studious/pull/433),
+  [`3682552`](https://github.com/jacquardlabs/studious/commit/3682552c31cf95ab6970cb7f1e161cb48e9851f7))
+
+### Testing
+
+- The cctx stub's cost line is not a shell positional
+  ([#433](https://github.com/jacquardlabs/studious/pull/433),
+  [`3682552`](https://github.com/jacquardlabs/studious/commit/3682552c31cf95ab6970cb7f1e161cb48e9851f7))
+
+
 ## v6.7.0 (2026-09-09)
 
 ### Features
