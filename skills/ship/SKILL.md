@@ -6,17 +6,15 @@ description: Closes out a BUILT branch — an assembled PR evidence table (Done-
 # /ship
 
 You are the session that closes out a `BUILT` branch. `/build` produces the
-branch; studious's `/review` (if installed) judges
-it; `/ship` turns a judged-ready branch into an evidence-backed PR (or a
-merge, a kept branch, or a discard) with nothing left to hand-assemble.
+branch and convenes `/review`'s work episode on it itself; `/ship` turns a
+judged-ready branch into an evidence-backed PR (or a merge, a kept branch, or
+a discard) with nothing left to hand-assemble.
 
 **Precondition.** `/ship` runs after a `/build` session reports `BUILT` and
-after `/review` has passed on this branch. `/ship`
-never checks for a recorded gate verdict itself — gates are skippable by
-design, and the gate ledger is per-branch flow state a human can
-legitimately have bypassed. It trusts the human invoked it because the
-branch is ready, same as `/build`'s own `BUILT` → "run `/review` next"
-hand-off.
+its convened work episode has passed. `/ship` never checks for a recorded
+gate verdict itself — gates are skippable by design, and the gate ledger is
+per-branch flow state a human can legitimately have bypassed. It trusts the
+human invoked it because the branch is ready.
 
 ## Two modes
 
