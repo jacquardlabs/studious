@@ -13,9 +13,14 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import check_gate_independence as gi
+
 REPO = Path(__file__).resolve().parents[2]
 SURFACES = ("commands/*.md", "skills/*/SKILL.md", "reference/*.md", "README.md", "hooks/*.sh")
-DOORS = "bet|shape|build|review|ship|next|health|retro|setup|doctor"
+#: Door names come from the charter, never a hand-copied list: `reference/personas.md` is
+#: the authority for the surface, and a door added there has to be guarded here without a
+#: second edit (CLAUDE.md, "never hardcode a door name in a check again").
+DOORS = "|".join(re.escape(d["door"]) for d in gi.doors())
 BARE_HINT = re.compile(
     rf"(?:\b[Rr]un |\bthen |\btype |\binvoke )`?/(?:{DOORS})\b`?(?: next\b| to \w| now\b|\.| picks| resumes)"
 )
