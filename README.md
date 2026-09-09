@@ -104,14 +104,10 @@ A **bet** is what moves through the doors: one thing you've decided is worth bui
 what you're willing to spend on it. `/bet` opens it, `/ship` closes it, and every door
 between judges the same bet.
 
-- **Scope** — one story, a list of stories, or a whole milestone. This is what makes the
-  flow scale-invariant: scope changes how many stories a bet contains and how much runs
-  unattended, never which doors exist.
-- **Appetite** — a budget, not an estimate. Two numbers, both yours rather than a model's
-  guess: a **token ceiling**, and a cap on **open episodes** — how many stories may sit
-  awaiting your judgment at once. Token headroom is rarely what binds first; your review
-  bandwidth is. Sizing at milestone scale:
-  [`reference/epic-pricing.md`](reference/epic-pricing.md).
+- **Scope** — one story, a list of stories, or a whole milestone. Scope changes how many
+  stories a bet contains, never which doors exist: a list is its stories, run one at a
+  time in one session with you present.
+- **Appetite** — a budget, not an estimate, and your number rather than a model's guess.
 - **A bet with no appetite is still a bet.** It runs unpriced; nothing refuses to proceed.
 
 ### When a bet is missed
@@ -140,9 +136,8 @@ bet promised. That's `/review --delivery`, at the bet's exit — an episode you 
 deliberately, because delivery is a boundary someone decides they've reached, never one
 inferred from a diff.
 
-**At story scale, you are the ceiling.** Held and parked belong to the milestone driver,
-and exist because dispatched stories run unattended. A one-story bet has nothing running
-unsupervised: `/bet` records the verdict, and the appetite is a number you hold yourself.
+**You are the ceiling.** Nothing runs unsupervised: `/bet` records the verdict, and the
+appetite is a number you hold yourself.
 
 ## The flow
 
@@ -158,31 +153,16 @@ unsupervised: `/bet` records the verdict, and the appetite is a number you hold 
    ↓
 /review --delivery  →  delivery episode; does this deliver what the bet promised?
    ↓
-/ship    →  evidence table, follow-ups, build report, then for stories the PR is yours; for epics the finale opens it
+/ship    →  evidence table, follow-ups, build report; the PR is yours
 ```
 
 `/next` walks that sequence for you, one piece per invocation, and never auto-advances.
 Position lives in local, gitignored `.studious/` state, so the flow survives across sessions
 and picks up where the work actually stands — including doors you ran by hand.
 
-**At milestone scale,** the same `/next` proposes a story plan (dependency order, acceptance
-criteria, per-story gate profile and merge class, an epic-level pre-mortem), interviews you
-once for the whole epic, shows you what it will cost, and stops for approval. Nothing runs
-before you approve. Then dispatched agents drive the unattended stories in parallel
-worktrees, and hand back the ones a judge can't verify mechanically.
-
-**Entry modes.** An epic may enter interactively — you approve the plan at a terminal — or
-asynchronously. In async mode, an agent authors the brief, records it `proposed`, and waits
-for a viva stamp; once stamped, `scripts/stamp-bridge` fires `/next` for you, and
-`scripts/epic-supervisor` keeps re-firing it while `gate-ledger epic-reconcile` reports
-unsettled work. A story that parks at a human-judgment gate under supervision writes a
-browser QA round (`scripts/park-packet`); resolving it there (`scripts/park-resolve`) needs
-no terminal. Full contract: [`reference/epic-orchestration.md`](reference/epic-orchestration.md).
-
-**Merge authority.** Every story in the plan is classed `auto-merge` (CI green, zero critical
-findings), `human-approve` (a code owner merges), or `never-unattended` (always supervised) —
-decided at plan approval, never inferred later. See PRODUCT.md's "Merge authority" for the
-full matrix.
+**At milestone scale,** `/next <milestone>` expands it to its open issues, proposes an
+order, and runs each story through the same flow, one at a time, naming the next when one
+reaches `done`.
 
 ## The build loop
 
@@ -216,7 +196,7 @@ perform. It ships a route through both. Use it, or don't; the judges can't tell.
   `KEEP`, or `DISCARD`. `/ship --handback` is the PR-less variant a dispatched worker uses.
 
 **No judge requires any of this.** `scripts/check_gate_independence.py` fails CI if a judge
-door, specialist agent, driver, hook, or the ledger so much as invokes a producer door or
+door, specialist agent, hook, or the ledger so much as invokes a producer door or
 reads a producer's private artifact. Its guarded surface is derived from
 [`reference/personas.md`](reference/personas.md), so a renamed door can't fall off it
 silently. What a judge may rely on is `reference/evidence-format.md`, which any executor can
@@ -255,7 +235,7 @@ never ran, ran on an older commit, or didn't pass. It's a reminder, not a block.
 
 A SessionStart hook runs the other direction: on a fresh session or a resumed one (never on
 `/clear`, `/compact`, or a fork — those aren't "arriving new to this project"), it checks the
-gate ledger and, if a feature or epic is in flight, surfaces a one-to-three-line heads-up —
+gate ledger and, if a feature is in flight, surfaces a one-to-three-line heads-up —
 counts and the most-recently-updated item, never the full list — so the session opens already
 knowing what `/next` would resume. Silent otherwise, same degrade-quietly posture as every
 other hook here.
@@ -267,7 +247,7 @@ Two directories, one committed and one not, plus `docs/exorcist/` when you run
 
 | Path | Committed | What's in it |
 |---|---|---|
-| `.studious/` | No — gitignored | The per-branch gate ledger (verdicts, episode rounds, the findings ledger), `/next`'s per-feature work files, approved epic plans and their appetite, routing telemetry, and the verification evidence a hook captures while a story is armed |
+| `.studious/` | No — gitignored | The per-branch gate ledger (verdicts, episode rounds, the findings ledger), `/next`'s per-feature work files, and the verification evidence a hook captures while a story is armed |
 | `docs/studious/` | Yes | `/health` and `/retro` review reports, pre-mortem registers, dated build reports, and the decision journal |
 
 `.studious/` is flow state: local, disposable, and never in the diff — which is why the flow
@@ -311,10 +291,10 @@ every run reports a baseline. The last four rows below are modes, not lanes: the
 when you name them.
 
 `/retro` is the retrospective: it reads what Studious recorded while the work happened — the
-gate ledger, dispatch telemetry, the decision journal, git history — never the code. It opens
+gate ledger, the decision journal, git history — never the code. It opens
 by checking the previous retro's plan item by item, renders the cycle's numbers with
-`scripts/retro-stats` (stories landed and parked, rounds per episode, which lanes blocked,
-findings waived or ruled noise, parks by reason, declared-vs-outside scope, time per phase),
+`scripts/retro-stats` (work files by phase, rounds per episode, which lanes blocked,
+findings waived or ruled noise, declared-vs-outside scope, time per phase),
 says what those rows show went well and badly, proposes changes to the surfaces that govern
 the next cycle as diffs — context docs, audit routing, the appetite's measured rung,
 story-class heuristics, noise suppressions, idiom rubric lines — and closes with the plan

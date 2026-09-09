@@ -2,22 +2,16 @@
 """retro-stats — render one cycle's numbers from the ledger, for `/retro` (#330).
 
 Code owns the counting; the door narrates. Every `.studious/` read goes through
-`bin/gate-ledger` verbs — `work-list`/`work-get`, `epic-list`/`epic-get`/
-`epic-findings`, `gate-get`, `episode-get --branch`, `evidence-list` — never a
-raw file. The two stores with no read verb are read as files, by their own
-contracts: `.studious/telemetry/*.jsonl` (`reference/telemetry-format.md`) and
-`docs/studious/decisions.jsonl` (`reference/decision-journal-format.md`).
+`bin/gate-ledger` verbs — `work-list`/`work-get`, `gate-get`, `episode-get
+--branch`, `evidence-list` — never a raw file. The one store with no read verb
+is read as a file, by its own contract: `docs/studious/decisions.jsonl`
+(`reference/decision-journal-format.md`).
 
 Each table names the record it came from, and a number the store does not hold
 renders as an honest gap ("—", "unmeasured", "none recorded"), never a zero.
-Tokens per story is one of those: telemetry records which dispatches went out,
-not what each spent (`reference/epic-pricing.md`, rung 1), so the cost table
-counts dispatches and the epic table sums `runs[].tokensSpent` where a driver
-recorded it.
 
 `--since YYYY-MM-DD` narrows the window on each record's own stamp: `updatedAt`
-(work files, epics), `at` (telemetry), `capturedAt` (evidence), `date`
-(decisions). Timestamps compare as fixed-width strings — `datetime.fromisoformat`
+(work files), `capturedAt` (evidence), `date` (decisions). Timestamps compare as fixed-width strings — `datetime.fromisoformat`
 rejects the trailing `Z` below 3.11, a runtime break under this directory's 3.9
 floor that vermin can't see.
 
@@ -46,7 +40,7 @@ NO_DATA = "no cycle data in this clone"
 GATES = ("design-review", "audit", "acceptance")
 #: Story-timeline steps, in flow order (`commands/next.md`), for the time-per-phase table.
 PHASES = ("decide", "design", "design-review", "build", "audit", "acceptance", "merge", "finish")
-#: A driver invocation boundary, not work — never attributed to a phase's wall time.
+#: A session boundary, not work — never attributed to a phase's wall time.
 RUN_BOUNDARY = "run-boundary"
 STAMP = "%Y-%m-%dT%H:%M:%SZ"
 
@@ -134,12 +128,6 @@ def branch_of(work: dict[str, Any]) -> str:
     return branch if branch and branch != "-" else str(work.get("slug", "?"))
 
 
-def park_reason_bucket(reason: str) -> str:
-    """`story-supervised: …` / `<gate>: <verdict> — …` -> the prefix; free text -> `unstated`."""
-    head, sep, _ = reason.partition(":")
-    return head.strip() if sep and head.strip() and " " not in head.strip() else "unstated"
-
-
 def phase_durations(work: dict[str, Any]) -> list[tuple[str, float]]:
     """(step, hours) per history entry, measured from the entry before it (or `createdAt`).
 
@@ -172,9 +160,9 @@ def collect(ledger: Ledger, root: Path, since: str) -> dict[str, Any]:
     # Every gate-ledger verb below opens `if ! have jq; then return 0; fi` — a
     # clean exit 0 with empty stdout, so `Ledger.errors` never records a missing
     # jq as a failure. Without jq, every one of the flags below is unmeasured
-    # regardless of what its own before/after error count says; telemetry and
-    # the decisions journal are read as files, not ledger verbs, so jq's absence
-    # doesn't touch them.
+    # regardless of what its own before/after error count says; the decisions
+    # journal is read as a file, not a ledger verb, so jq's absence doesn't
+    # touch it.
     jq_missing = shutil.which("jq") is None
     before = len(ledger.errors)
     work_rows = ledger.tsv("work-list")
@@ -183,27 +171,7 @@ def collect(ledger: Ledger, root: Path, since: str) -> dict[str, Any]:
     works = [ledger.json("work-get", "--slug", row[0]) for row in work_rows if row and row[0] not in ("", "?")]
     work_get_failed = len(ledger.errors) > before
     works = [w for w in works if w and in_window(str(w.get("updatedAt", "")), since)]
-    before = len(ledger.errors)
-    epic_rows = ledger.tsv("epic-list")
-    epic_list_failed = len(ledger.errors) > before
-    before = len(ledger.errors)
-    epics = [ledger.json("epic-get", "--slug", row[0]) for row in epic_rows if row and row[0] not in ("", "?")]
-    epic_get_failed = len(ledger.errors) > before
-    epics = [e for e in epics if e and in_window(str(e.get("updatedAt", "")), since)]
-
-    before = len(ledger.errors)
-    findings = {
-        str(e.get("slug", "")): [
-            row for row in ledger.tsv("epic-findings", "--epic", str(e.get("slug", ""))) if len(row) == 7
-        ]
-        for e in epics
-    }
-    findings_failed = len(ledger.errors) > before
-    branches = sorted(
-        {branch_of(w) for w in works if w.get("branch")}
-        | {str(e.get("branch")) for e in epics if e.get("branch")}
-        | {f"epic/{e.get('slug')}--{s}" for e in epics for s in (e.get("stories") or {})}
-    )
+    branches = sorted({branch_of(w) for w in works if w.get("branch")})
     before = len(ledger.errors)
     gates = {b: ledger.json("gate-get", "--branch", b) for b in branches}
     gates_failed = len(ledger.errors) > before
@@ -235,33 +203,21 @@ def collect(ledger: Ledger, root: Path, since: str) -> dict[str, Any]:
         for b in branches
     }
     evidence_failed = len(ledger.errors) > before
-    telemetry = [
-        r
-        for p in sorted((root / ".studious" / "telemetry").glob("*.jsonl"))
-        for r in read_jsonl(p)
-        if in_window(str(r.get("at", "")), since)
-    ]
     decisions_file = root / "docs" / "studious" / "decisions.jsonl"
     decisions = [r for r in read_jsonl(decisions_file) if in_window(str(r.get("date", "")), since)]
     return {
         "works": works,
-        "epics": epics,
-        "findings": findings,
         "branches": branches,
         "gates": gates,
         "episodes": episodes,
         "episode_findings": episode_findings,
         "evidence": evidence,
-        "telemetry": telemetry,
         "decisions": decisions,
         "has_journal": decisions_file.is_file(),
         "ledger_errors": list(ledger.errors),
         "work_list_failed": work_list_failed or jq_missing,
-        "epic_list_failed": epic_list_failed or jq_missing,
         "work_get_failed": work_get_failed or jq_missing,
-        "epic_get_failed": epic_get_failed or jq_missing,
         "jq_missing": jq_missing,
-        "findings_failed": findings_failed or jq_missing,
         "gates_failed": gates_failed or jq_missing,
         "episodes_failed": episodes_failed or jq_missing,
         "episode_findings_failed": episode_findings_failed or jq_missing,
@@ -278,53 +234,29 @@ def table(header: list[str], rows: list[list[str]]) -> list[str]:
 
 
 def stories_section(data: dict[str, Any]) -> list[str]:
-    rows = []
-    for epic in data["epics"]:
-        stories = epic.get("stories") or {}
-        counts = Counter(str(s.get("status", "pending")) for s in stories.values())
-        runs = [r for r in epic.get("runs") or [] if isinstance(r, dict)]
-        tokens = sum(int(r.get("tokensSpent", 0) or 0) for r in runs)
-        rows.append(
-            [
-                f"`{epic.get('slug', '?')}`",
-                str(epic.get("status", "?")),
-                str(counts["landed"]),
-                str(counts["parked"]),
-                str(counts["dropped"]),
-                str(len(stories) - counts["landed"] - counts["parked"] - counts["dropped"]),
-                f"{len(runs)} ({sum(int(r.get('landed', 0) or 0) for r in runs)} landed)" if runs else "none recorded",
-                f"{tokens:,}" if tokens else "—",
-            ]
-        )
-    standalone = [w for w in data["works"] if not str(w.get("source", "")).startswith("epic:")]
-    phases = Counter(str(w.get("phase", "?")) for w in standalone)
-    lines = ["## Stories (`epic-get`)", ""]
+    phases = Counter(str(w.get("phase", "?")) for w in data["works"])
+    rows = [[phase, str(n)] for phase, n in sorted(phases.items())]
+    lines = ["## Stories (`work-list`)", ""]
     if rows:
-        lines += table(["Epic", "Status", "Landed", "Parked", "Dropped", "Open", "Driver runs", "Tokens spent"], rows)
+        lines += table(["Phase", "Work files"], rows)
     else:
-        lines += ["unmeasured — `epic-list` errored"] if data["epic_list_failed"] else ["no epic recorded"]
-    if standalone:
-        lines += ["", f"Standalone work files (`work-list`): {len(standalone)} — " + ", ".join(f"{n} {p}" for p, n in sorted(phases.items()))]
+        lines += ["unmeasured — `work-list` errored"] if data["work_list_failed"] else ["no work file recorded"]
     return lines
 
 
 def rounds_section(data: dict[str, Any]) -> list[str]:
     rows = []
-    # Story branches carry a work file; an epic branch (the finale's gates) carries
-    # none, so it contributes an empty history and renders only from the ledger.
     sources: list[tuple[str, list[dict[str, Any]]]] = [
         (branch_of(w), [h for h in w.get("history", []) if isinstance(h, dict)]) for w in data["works"]
     ]
-    work_branches = {b for b, _ in sources}
-    sources += [(str(e["branch"]), []) for e in data["epics"] if e.get("branch") and e["branch"] not in work_branches]
     for branch, history in sources:
         for gate in GATES:
             entries = [h for h in history if h.get("step") == gate]
             episodes = [EPISODE_LINE.match(line) for line in data["episodes"].get((branch, gate), [])]
             matched = [m for m in episodes if m]
             escalated = any(line.startswith("escalated\t") for line in data["episodes"].get((branch, gate), []))
-            # A driver-run gate records with bare `record` and opens no episode: the
-            # verdict lives in `gate-get`'s `.gates[<gate>]` only.
+            # A gate recorded with bare `record` opens no episode: the verdict
+            # lives in `gate-get`'s `.gates[<gate>]` only.
             record = ((data["gates"].get(branch) or {}).get("gates") or {}).get(gate) or {}
             if not entries and not matched and not record:
                 continue
@@ -354,11 +286,6 @@ def rounds_section(data: dict[str, Any]) -> list[str]:
 
 def lanes_section(data: dict[str, Any]) -> list[str]:
     per_lane: dict[str, Counter] = defaultdict(Counter)
-    for rows in data["findings"].values():
-        for status, severity, _story, lane, *_ in rows:
-            per_lane[lane]["findings"] += 1
-            per_lane[lane][status] += 1
-            per_lane[lane]["Critical"] += severity == "Critical"
     for (branch, gate), rows in data["episode_findings"].items():
         # A digest line carries lane, fingerprint, status, round — not severity;
         # that is read back from the same branch's `gate-get` record.
@@ -399,13 +326,12 @@ def lanes_section(data: dict[str, Any]) -> list[str]:
     failed_verbs = [
         verb
         for verb, failed in (
-            ("`epic-findings`", data["findings_failed"]),
             ("`episode-get --findings`", data["episode_findings_failed"]),
             ("`gate-get`", data["gates_failed"]),
         )
         if failed
     ]
-    lines = ["## Lanes (`epic-findings`, `episode-get --findings`, `gate-get` blockingLanes)", ""]
+    lines = ["## Lanes (`episode-get --findings`, `gate-get` blockingLanes)", ""]
     if rows:
         lines += table(["Lane", "Findings", "Critical", "Unresolved", "Waived", "Ruled noise", "Named blocking"], rows)
     elif failed_verbs:
@@ -414,21 +340,6 @@ def lanes_section(data: dict[str, Any]) -> list[str]:
         lines += ["no finding recorded in either ledger"]
     if rows and failed_verbs:
         lines += ["", f"unmeasured: {', '.join(failed_verbs)} errored on at least one call — counts above may undercount"]
-    return lines
-
-
-def parks_section(data: dict[str, Any]) -> list[str]:
-    buckets: dict[str, list[str]] = defaultdict(list)
-    for epic in data["epics"]:
-        for slug, story in (epic.get("stories") or {}).items():
-            if story.get("status") == "parked":
-                buckets[park_reason_bucket(str(story.get("reason") or ""))].append(f"`{epic.get('slug')}/{slug}`")
-    rows = [[bucket, str(len(stories)), ", ".join(stories)] for bucket, stories in sorted(buckets.items(), key=lambda kv: (-len(kv[1]), kv[0]))]
-    lines = ["## Parks by reason (`epic-get` story reasons)", ""]
-    if rows:
-        lines += table(["Reason", "Stories", "Which"], rows)
-    else:
-        lines += ["unmeasured — `epic-list`/`epic-get` errored"] if (data["epic_list_failed"] or data["epic_get_failed"]) else ["no story parked"]
     return lines
 
 
@@ -481,31 +392,6 @@ def time_section(data: dict[str, Any]) -> list[str]:
     return lines
 
 
-def cost_section(data: dict[str, Any]) -> list[str]:
-    dispatches = [r for r in data["telemetry"] if r.get("kind") == "dispatch"]
-    outcomes = Counter(str(r.get("task_id", "")) for r in data["telemetry"] if r.get("kind") == "outcome")
-    by_task: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for record in dispatches:
-        by_task[str(record.get("task_id", ""))].append(record)
-    rows = [
-        [
-            f"`{task or '?'}`",
-            str(len(records)),
-            ", ".join(f"{m or 'unpinned'}:{n}" for m, n in sorted(Counter(str(r.get("model", "")) for r in records).items())),
-            ", ".join(f"{s or '?'}:{n}" for s, n in sorted(Counter(str(r.get("skill", "")) for r in records).items())),
-            str(outcomes.get(task, 0)),
-            "—",
-        ]
-        for task, records in sorted(by_task.items(), key=lambda kv: (-len(kv[1]), kv[0]))
-    ]
-    lines = ["## Cost per story (`.studious/telemetry/*.jsonl`; tokens are not recorded per dispatch — `reference/epic-pricing.md` rung 1)", ""]
-    lines += table(["Story", "Dispatches", "Models", "Skills", "Verdicts", "Tokens"], rows) if rows else ["no dispatch telemetry"]
-    unjoined = sum(n for task, n in outcomes.items() if task not in by_task)
-    if unjoined:
-        lines += ["", f"Verdicts with no dispatch line to join: {unjoined}"]
-    return lines
-
-
 def evidence_section(data: dict[str, Any]) -> list[str]:
     rows = [
         [
@@ -538,7 +424,7 @@ def decisions_section(data: dict[str, Any]) -> list[str]:
 def render(data: dict[str, Any], root: Path, since: str) -> str:
     window = f"since {since}" if since else "whole store"
     errors = data["ledger_errors"]
-    if not (data["works"] or data["epics"] or data["telemetry"] or data["decisions"]):
+    if not (data["works"] or data["decisions"]):
         if errors:
             return (
                 f"gate-ledger errored on {len(errors)} call(s) ({window}) — not the same as "
@@ -549,9 +435,7 @@ def render(data: dict[str, Any], root: Path, since: str) -> str:
         return f"{NO_DATA} ({window})"
     work_unit = "work file(s)" + (" (undercount — work-get errored)" if data["work_get_failed"] else "")
     work_count = "unmeasured" if data["work_list_failed"] else str(len(data["works"]))
-    epic_unit = "epic(s)" + (" (undercount — epic-get errored)" if data["epic_get_failed"] else "")
-    epic_count = "unmeasured" if data["epic_list_failed"] else str(len(data["epics"]))
-    header = f"# Cycle numbers — {root.name}, {window}: {work_count} {work_unit}, {epic_count} {epic_unit}, {len(data['branches'])} branch(es)"
+    header = f"# Cycle numbers — {root.name}, {window}: {work_count} {work_unit}, {len(data['branches'])} branch(es)"
     if errors:
         header += f" — gate-ledger errored on {len(errors)} call(s)"
     sections = [
@@ -559,10 +443,8 @@ def render(data: dict[str, Any], root: Path, since: str) -> str:
         stories_section(data),
         rounds_section(data),
         lanes_section(data),
-        parks_section(data),
         scope_section(data),
         time_section(data),
-        cost_section(data),
         evidence_section(data),
         decisions_section(data),
     ]

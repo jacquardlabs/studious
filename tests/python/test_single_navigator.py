@@ -22,7 +22,6 @@ import check_gate_independence as gi
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 NEXT = REPO_ROOT / "commands" / "next.md"
-EPIC = REPO_ROOT / "reference" / "epic-orchestration.md"
 README = REPO_ROOT / "README.md"
 COMMANDS = REPO_ROOT / "commands"
 SKILLS = REPO_ROOT / "skills"
@@ -86,27 +85,6 @@ def test_next_carries_the_read_first_posture_it_absorbed() -> None:
     assert "Never auto-advance" in text
 
 
-def test_next_owns_both_scales() -> None:
-    """Scale-invariance is what makes one door possible; it must reach epic scale
-    itself, not hand off to a second entrypoint."""
-    text = NEXT.read_text(encoding="utf-8")
-    assert "reference/epic-orchestration.md" in text, (
-        "/next names no epic-scale contract — epic work has nowhere to go but a second door"
-    )
-    assert "scale-invariant" in text
-
-
-def test_the_epic_contract_is_not_itself_a_door() -> None:
-    """A frontmatter block here would make it invokable again — a second navigator by
-    another name."""
-    head = EPIC.read_text(encoding="utf-8").lstrip()
-    assert not head.startswith("---"), (
-        "reference/epic-orchestration.md has command frontmatter — it is a contract "
-        "/next reads, never a door of its own"
-    )
-    assert "`/next`'s epic mode" in head
-
-
 def test_the_readme_sends_a_reader_to_one_door() -> None:
     text = README.read_text(encoding="utf-8")
     assert "`/next` is the only door you have to remember" in text
@@ -114,10 +92,7 @@ def test_the_readme_sends_a_reader_to_one_door() -> None:
         assert name not in text, f"README still names the retired door {name}"
 
 
-#: Found by /exorcist:seance G-20: epic-driver.js still named `/work-through` in a
-#: thrown error message years after the collapse.
 OTHER_SHIPPED_PROSE = (
-    REPO_ROOT / "workflows" / "epic-driver.js",
     REPO_ROOT / "scripts" / "build-report",
     REPO_ROOT / "scripts" / "evidence-capture",
     REPO_ROOT / "scripts" / "evidence-freshness",

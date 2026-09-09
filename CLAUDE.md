@@ -10,7 +10,7 @@ The product itself is two rhythms (see `README.md`): per-feature **gates** (`/ga
 
 ## Commands
 
-Tooling is `uv` for Python and `npx` for markdown. The seven CI jobs (`.github/workflows/ci.yml`) are the full local check suite:
+Tooling is `uv` for Python and `npx` for markdown. The CI jobs (`.github/workflows/ci.yml`) are the full local check suite:
 
 ```bash
 # Markdown lint (ratchets current state; config in .markdownlint-cli2.jsonc)
@@ -32,16 +32,10 @@ uv run --no-project --with pytest pytest tests/python/test_check_references.py::
 # Gate-ledger and hook integration tests (Bash)
 bash tests/test_gate_ledger.sh
 bash tests/test_evidence_capture.sh
-bash tests/test_dispatch_telemetry.sh
 bash tests/test_session_start.sh
 
 # Shell lint for the executable scripts
-shellcheck bin/gate-ledger hooks/gate-reminder.sh hooks/evidence-capture.sh hooks/dispatch-telemetry.sh hooks/session-start.sh tests/test_gate_ledger.sh tests/test_evidence_capture.sh tests/test_dispatch_telemetry.sh tests/test_session_start.sh tests/test_workflows_lint.sh
-
-# workflows/ JS checks: parseability, then correctness lint (config in eslint.config.mjs)
-node --check workflows/epic-driver.js
-npx -y eslint@10.6.0 --report-unused-disable-directives workflows/
-bash tests/test_workflows_lint.sh
+shellcheck bin/gate-ledger hooks/gate-reminder.sh hooks/evidence-capture.sh hooks/session-start.sh tests/test_gate_ledger.sh tests/test_evidence_capture.sh tests/test_session_start.sh
 
 # Build-script lint and tests (ruff pinned; stdlib unittest, not pytest)
 uv run --no-project --with ruff==0.16.0 ruff check scripts tests/jig
@@ -60,26 +54,26 @@ The directory layout encodes a role split (full version in `CONTRIBUTING.md`):
 - `agents/` — subagents that **do the work**. Each has `name`, `description`, `tools`, `model` frontmatter.
 - `commands/` — seven of the ten doors (`bet`, `review`, `next`, `health`, `retro`, `setup`, `doctor`). `description`, `allowed-tools` frontmatter.
 - `skills/<name>/SKILL.md` — two kinds, deliberately. Three are **doors** (`shape`, `build`, `ship`) — a skill and a command are both invokable slash commands, and which one backs a door is an implementation detail, not a class distinction. `reference/personas.md`'s `Backed by` column says which. The fourth, `task-execution-discipline`, is model-invoked but not a door. There is no separate natural-language shim layer: a door's own `description` frontmatter is what lets it fire from plain language.
-- `reference/` — the rubrics agents read at judgment time (`security-checklist.md`, `idioms/<lang>.md`), the contracts a door follows (`epic-orchestration.md`, `planning-contract.md`, `handback-contract.md`, the two extractions), and the charter itself (`personas.md`). Doors and agents consult these instead of restating them inline — keep depth in `reference/`, keep the door pointing at it. **A file here carries no command frontmatter**: frontmatter is what makes something invokable, and a contract that grows one is a tenth door nobody declared.
-- `hooks/` — shipped hook scripts + `hooks.json`. Four live hooks: a non-blocking PreToolUse reminder before `gh pr create` (`gate-reminder.sh`); a silent PostToolUse/PostToolUseFailure evidence-capture hook on `Bash` that appends verification-command records while a story is armed (`evidence-capture.sh`; format pinned in `reference/evidence-format.md`); a silent PreToolUse hook on `Task` that appends one routing-telemetry record per dispatched Studious reviewer (`dispatch-telemetry.sh`; format pinned in `reference/telemetry-format.md`); and a silent SessionStart hook on `startup`/`resume` that surfaces a counts-only flow-position heads-up when a work file or epic is active (`session-start.sh`).
-- `bin/gate-ledger` — reads/writes the per-branch gate ledger and the per-feature `/next` work files.
+- `reference/` — the rubrics the doors read at judgment time (`severity-rubric.md`, `audit-compilation.md`), the contracts a door follows (`planning-contract.md`, `worker-contract.md`, `handback-contract.md`, the two extractions), and the charter itself (`personas.md`). Doors and agents consult these instead of restating them inline — keep depth in `reference/`, keep the door pointing at it. **A file here carries no command frontmatter**: frontmatter is what makes something invokable, and a contract that grows one is a tenth door nobody declared.
+- `hooks/` — shipped hook scripts + `hooks.json`. Three live hooks: a non-blocking PreToolUse reminder before `gh pr create` (`gate-reminder.sh`); a silent PostToolUse/PostToolUseFailure evidence-capture hook on `Bash` that appends verification-command records while a story is armed (`evidence-capture.sh`; format pinned in `reference/evidence-format.md`); and a silent SessionStart hook on `startup`/`resume` that surfaces a counts-only flow-position heads-up when a work file is active (`session-start.sh`).
+- `bin/gate-ledger` — reads/writes the per-branch gate ledger, its episodes, the per-feature `/next` work files, and the evidence log.
 - `templates/` — PRODUCT.md / DESIGN.md scaffolds created by `/setup` in the consuming project.
-- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence), the producer doors' own executables (`plan-lint`, `design-lint`, `verify`, `status-flip`, `build-report`, `evidence-capture`, `worktree-setup`), and the saves-ledger renderer (`saves-ledger.py`, run by `/retro`). Those executables are run by `/build` and `/shape`, not by CI.
+- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence), the producer doors' own executables (`plan-lint`, `design-lint`, `verify`, `status-flip`, `build-report`, `evidence-capture`, `worktree-setup`), and `retro-stats` (run by `/retro`). Those executables are run by `/build`, `/shape`, and `/retro`, not by CI.
 
 Key invariants when adding or changing prompts:
 
 - **Stay in lane.** One agent = one concern. The security auditor owns the security rubric; other auditors escalate but don't hunt security issues. Don't bundle concerns into one agent.
 - **One fan-out command, many subagents.** Parallel checks live as subagents under a single entry point (`/review`, `/health`) — never add a top-level command per check.
 - **Recommend-only means propose, never modify.** Any door whose own contract declares itself recommend-only, read-only, or otherwise doing no work of its own — however worded — reports; it never modifies external state — issues, PRs, or files outside the bookkeeping boundary in the next bullet, in the consuming project. Recommending an action, or dispatching another door on the human's explicit confirmation, is not itself a modification — the write, if any, is the dispatched door's own act, governed by whichever bullet that door falls under, not this one. Every `judge`-class and every `periodic`-class door in `reference/personas.md` satisfies it today, as does `/doctor`. The charter's class column is the index, not a name list to keep in sync here: the predicate is what governs, whichever door declares it and however it phrases the declaration. **`/next` is the one door whose posture needs stating rather than deriving:** it is `navigator` class, it writes its own work file (inside the boundary below), and it *runs* the door it names once the human confirms — reporting first is its default, not a promise never to act.
-- **One bookkeeping boundary, not a name list.** `.studious/` (gitignored) and `docs/studious/` (committed) are Studious's own record-keeping, not external state, however either is written, provided the write lands inside one of the two. This covers a gate committing what its own run produced — a register, a note — before recording its verdict, solely to keep the recorded sha honest, never an implementation or a fix. It also covers the `.gitignore` entry that keeps `.studious/` itself untracked (`bin/gate-ledger`'s `ensure_gitignore()`, called by the verbs that first create ledger state, `bin/gate-ledger:220-231`) — the one boundary-maintenance write that isn't inside either directory, licensed because its only job is keeping the boundary gitignored. And it covers git plumbing a run performs on refs and worktrees it created for work it dispatched — creating an epic branch and worktree, merging a story branch it dispatched back into the epic branch, removing a worktree once done — under a plan the human already approved when that run started. At **story** scale that still never covers opening the PR itself, which stays the human's (`/next` never runs `gh pr create` at story scale — `commands/next.md:53-54`). At **epic** scale, one narrow addition (#253): the finale's one PR dispatch — pushing the branch it created and opening its PR — is inside the boundary too, licensed by the same "a plan the human already approved when that run started" clause, fired only after every finale gate passed and `ready` was recorded (`reference/epic-orchestration.md`, "Epic finale"). Every other PR, at either scale, stays outside the boundary and outside this door's reach. One exception inside the boundary, not outside it: `docs/studious/decisions.jsonl` is never auto-committed by any Studious process even though it lives under `docs/studious/` (`reference/decision-journal-format.md`) — a journal that accumulates across the whole project's lifetime, which no single run is positioned to commit honestly, unlike a register or note scoped to that run's own branch. Named by the boundary and the kind of write it covers, not by an enumerated writer list — a name list is what drifted here before (#255's whole reason to exist).
+- **One bookkeeping boundary, not a name list.** `.studious/` (gitignored) and `docs/studious/` (committed) are Studious's own record-keeping, not external state, however either is written, provided the write lands inside one of the two. This covers a gate committing what its own run produced — a register, a note — before recording its verdict, solely to keep the recorded sha honest, never an implementation or a fix. It also covers the `.gitignore` entry that keeps `.studious/` itself untracked (`bin/gate-ledger`'s `ensure_gitignore()`, called by the verbs that first create ledger state, `bin/gate-ledger:220-231`) — the one boundary-maintenance write that isn't inside either directory, licensed because its only job is keeping the boundary gitignored. Opening the PR itself stays the human's at every scale (`/next` never runs `gh pr create` — `commands/next.md`). One exception inside the boundary, not outside it: `docs/studious/decisions.jsonl` is never auto-committed by any Studious process even though it lives under `docs/studious/` (`reference/decision-journal-format.md`) — a journal that accumulates across the whole project's lifetime, which no single run is positioned to commit honestly, unlike a register or note scoped to that run's own branch. Named by the boundary and the kind of write it covers, not by an enumerated writer list — a name list is what drifted here before (#255's whole reason to exist).
 - **Everything else is either an executor or a human-typed one-off.** The `producer`-class doors — `/shape`, `/build`, and `/ship` today, per the charter — write and commit code, evidence, and reports as their normal operation; `reference/worker-contract.md` governs exactly that (story brief in; commits, summary, evidence, tests out). `/ship` additionally opens PRs and files issues, each per item, confirmed in its own flow — a behavior `worker-contract.md` doesn't name and nothing else currently governs either, stated plainly rather than claiming a governance this invariant can't back. A judge door judges what a producer produced; it never becomes one, and `scripts/check_gate_independence.py` enforces that from the charter. A one-off entrypoint the human typed themselves — the `infra`-class doors, `/setup` and `/doctor` — may write freely within that same invocation, provided it reports what it wrote (or will write) as part of it: never a write dispatched, scheduled, or triggered on the human's behalf without them typing it in that turn.
 - **Reviews write to the consuming project, not here.** Review reports land in the user's `docs/studious/` subdirectories. This plugin repo never accumulates them.
 - **Every agent/command reads PRODUCT.md, DESIGN.md, or CLAUDE.md** for project context. The 21 review/audit agents share a standardized prompt contract (posture, output format, calibration) — match it when adding an agent.
-- **Code owns bookkeeping; prompts own judgment.** Schedulers, DAG order, retry caps, and ledgers live in code (`bin/gate-ledger`, `workflows/epic-driver.js`); prompts carry decomposition, verdicts, and briefs. Retry counting or cap math inside a command prompt is a defect. Verification is bookkeeping too: it belongs to scripts and fresh-context inspectors, never to self-check prose in a prompt — CONTRIBUTING.md's "Verification belongs to scripts and inspectors" states the invariant and dispositions the three sites #302 named.
+- **Code owns bookkeeping; prompts own judgment.** Retry caps and ledgers live in code (`bin/gate-ledger`); prompts carry decomposition, verdicts, and briefs. Retry counting or cap math inside a command prompt is a defect. Verification is bookkeeping too: it belongs to scripts and fresh-context inspectors, never to self-check prose in a prompt — CONTRIBUTING.md's "Verification belongs to scripts and inspectors" states the invariant and dispositions the three sites #302 named.
 
 ## Repo boundaries
 
-Layers of the delivery discipline — story, epic, initiative, worker — are directories and entrypoints of **this** repo, never separate repos. Their contracts co-evolve, and the gates can only audit changes they can see whole: one diff domain. Stand up a separate repo only if at least one holds:
+Layers of the delivery discipline — story, initiative, worker — are directories and entrypoints of **this** repo, never separate repos. Their contracts co-evolve, and the gates can only audit changes they can see whole: one diff domain. Stand up a separate repo only if at least one holds:
 
 - **(a)** a different license/commercial regime;
 - **(b)** an independent audience whose users never install the rest;
@@ -94,7 +88,7 @@ Decision records: `docs/initiative-altitude.md` (2026-07-07) — the brigade rep
 ## The build skills, and the one rule that governs them
 
 jig was absorbed into this plugin (#150), not added beside it. `/shape`, `/build`,
-`/build`, `/ship`, and `/next` are `skills/` here like any other; their Python lives
+`/ship`, and `/next` are `skills/` here like any other; their Python lives
 in `scripts/`, their unittest suite in `tests/jig/`. One manifest, one version line, one
 install. The manifest declares `dependencies: ["viva", "gauntlet"]` — `/build` and `/shape`
 stop dead without viva; `/health` dispatches nothing without gauntlet, and `/review`'s
@@ -107,7 +101,7 @@ source, and a manual seed-tag step wedged between merges.
 **The load-bearing rule: a judge door judges the work, never who produced it.**
 `scripts/check_gate_independence.py` enforces it in CI, and derives the surface it
 guards from `reference/personas.md` rather than a hardcoded glob: the charter's
-`judge`-class command files, plus `agents/`, `workflows/`, `hooks/`, and `bin/`.
+`judge`-class command files, plus `agents/`, `hooks/`, and `bin/`.
 Nothing on that surface may invoke a producer door or require a producer artifact
 (`PLAN.md`, the `.studious/build-evidence/` store) — the evidence contract a judge may rely on is
 `reference/evidence-format.md`, which any executor can satisfy. Outside that surface,
@@ -162,8 +156,8 @@ rubric for this repo.
   consuming projects and the build skills invoke them bare — `skills/shape/SKILL.md`
   Step 5 runs `scripts/design-lint --doc <path> --repo <worktree>`, naming no interpreter
   — so they execute on whatever `python3` that project has, which on stock macOS is 3.9.6.
-  This is the one place the 3.11+ target does not reach; `tests/`, `workflows/`, and
-  everything else keeps it. #250 is why the floor is declared rather than assumed:
+  This is the one place the 3.11+ target does not reach; `tests/` and everything else
+  keeps it. #250 is why the floor is declared rather than assumed:
   `design-lint` imported `itertools.pairwise` (3.10) and the traceback read as a
   malformed design doc rather than a wrong interpreter. Raise the floor deliberately if
   a consuming-project baseline moves — don't drift into it one import at a time.

@@ -24,8 +24,8 @@ SKILL_RES = (
     re.compile(r"invoke (?:the )?`([a-z0-9-]+)`"),
     re.compile(r"skill `([a-z0-9-]+)`"),
 )
-# Curated rubric paths agents cite, e.g. `reference/security-checklist.md` or the
-# template `reference/idioms/<language>.md`. Angle-bracket placeholders are allowed.
+# Curated rubric paths doors cite, e.g. `reference/severity-rubric.md`. Angle-bracket
+# placeholders are allowed.
 REFERENCE_RE = re.compile(r"reference/[A-Za-z0-9_./<>-]+\.md")
 #: Directories holding files that outlive any branch. Design docs are branch-local
 #: and deleted at closeout (#219), so a file here citing a *specific* one dangles
@@ -115,8 +115,8 @@ def find_broken(root: Path) -> list[str]:
                     )
             for ref in sorted(set(REFERENCE_RE.findall(text))):
                 if "<" in ref:
-                    # Template path (e.g. reference/idioms/<language>.md): the literal
-                    # file can't exist, so validate the deepest placeholder-free dir.
+                    # Template path (a `<placeholder>` segment): the literal file
+                    # can't exist, so validate the deepest placeholder-free dir.
                     parts: list[str] = []
                     for part in ref.split("/"):
                         if "<" in part:

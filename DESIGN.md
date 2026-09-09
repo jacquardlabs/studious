@@ -9,13 +9,12 @@
 
 | Surface | Framework / tech | Entry point |
 |---------|------------------|-------------|
-| `plugin` | Claude Code plugin — Markdown commands, agents, skills + one hook | `.claude-plugin/plugin.json`; `commands/`, `agents/`, `skills/`, `hooks/` |
+| `plugin` | Claude Code plugin — Markdown commands, agents, skills + three hooks | `.claude-plugin/plugin.json`; `commands/`, `agents/`, `skills/`, `hooks/` |
 
 Studious's one surface is a Claude Code plugin: no build step, no runtime app, output
 is GitHub-flavored markdown that Claude Code renders in the terminal. A local web board
-(`board-ui`) briefly existed as a second surface and was removed unused; the epic
-transition trail it rendered (`.studious/epics/`, `reference/events-format.md`) remains
-the durable record, and a fleet-level operator surface is
+(`board-ui`) briefly existed as a second surface and was removed unused; a fleet-level
+operator surface is
 [jacquardlabs/control-room](https://github.com/jacquardlabs/control-room)'s charter,
 not this repo's.
 
@@ -74,16 +73,13 @@ one you mean whenever both could be read — tracked as #174.
 Findings across audits and reviews sort into three tiers, named consistently everywhere:
 `Critical` · `Important` · `Track`. `/review`'s judge lanes are gauntlet's and emit these
 tiers directly (its findings contract §5, #334); the canonical ladder, the one label→tier
-row `/review` still maps (the `web-design-guidelines` a11y path), the pointer to gauntlet's
-per-judge anchors, and the local `agents/`' own label tables (unread by any door
-since #334 S2, removed with them at S4) live in `reference/severity-rubric.md`, cited by
-`commands/review.md` rather than restated there. `deep-review` and the `review-*` agents
-already emit directly in this vocabulary and need no mapping.
+row `/review` still maps (the `web-design-guidelines` a11y path), and the pointer to
+gauntlet's per-judge anchors live in `reference/severity-rubric.md`, cited by
+`commands/review.md` rather than restated there. `agents/review-outcomes.md` already
+emits directly in this vocabulary and needs no mapping.
 
 The shared audit/review posture — injection-defense, read-only/diff-scope, output-row
-schema, and the calibrate-don't-suppress closer — lives in `reference/prompt-contract.md`
-for the local agents; a gauntlet judge inlines its own, and the epic driver states a
-one-paragraph equivalent for the prose lanes it dispatches itself.
+schema, and the calibrate-don't-suppress closer — is inlined by each gauntlet judge.
 
 ## Formatting
 
@@ -138,7 +134,8 @@ one-paragraph equivalent for the prose lanes it dispatches itself.
   door-backing `skills/<name>/SKILL.md` alike) is what fires it from natural language.
   Triggers are deliberately conservative.
 - **Agents do the work; commands orchestrate** — auditors/reviewers are single-purpose
-  agents (`agents/*.md`) spawned in parallel; commands compose them and synthesize results.
+  agents (gauntlet's judges, plus the three local `agents/*.md`) spawned in parallel;
+  commands compose them and synthesize results.
 - **Propose, never apply** — reviews emit proposed diffs to context docs; they never write
   them. The human approves.
 
@@ -149,9 +146,7 @@ core job is high-stakes reasoning or human judgment, where a weaker model ships 
 decisions; `sonnet` or `haiku` for recommend-only synthesis and inventory work with no merge
 gate behind it. Never `inherit`: it resolves to whatever model the human's session happens
 to be running, so the same branch is judged by two different models on two different days
-and billed at two different rates (#136). The `agent()` dispatches inside
-`workflows/epic-driver.js` are the same rule at a second surface — each names a `model` in
-its call options, or routes through an `agentType` whose own file names one. Full policy and
+and billed at two different rates (#136). Full policy and
 the current per-agent assignments live in `CONTRIBUTING.md` §Model assignments; this section
 documents the policy for the interface surface, it does not restate the per-agent list.
 

@@ -1,15 +1,14 @@
 ---
 description: The standup question at any scale — where is this, and what now. Reads position from recorded state and repo evidence, names the next door, and runs it on your word. One story, a list, or a whole milestone. Use for "what's next", "do the next piece", "where am I", "keep going", "drive this milestone", "knock out this milestone", "run the whole epic", "build issue 12", "take this through the flow". Do NOT use for picking what to work on (that's /bet), for running a specific review (that's /review), or for a periodic project sweep (that's /health).
 argument-hint: "[idea, issue, milestone, or in-flight work] (omit to continue what's in flight)"
-allowed-tools: Read, Glob, Grep, Bash, Task, Write, Workflow
+allowed-tools: Read, Glob, Grep, Bash, Task, Write
 ---
 
 # What's next
 
-One door for "where am I, what now" — at story, list, or milestone scale. The flow is
-scale-invariant: the same doors in the same order regardless of size. Scope changes how many
-stories a bet contains and how much runs dispatched versus supervised; it never changes which
-doors exist.
+One door for "where am I, what now" — at story, list, or milestone scale. The same doors
+in the same order regardless of size: a list or a milestone is its stories, run one at a
+time through the story flow below, in this session, with you present.
 
 This door judges nothing and builds nothing. It reads position, names the next door, and
 runs it on your word. Verdicts belong to `/review`; commits belong to `/build` and `/ship`.
@@ -25,25 +24,16 @@ involves, and stop for the user's word before running it. Propose, don't apply.
 the user's message is an advance ("next", "go", "keep going", a bare `/next`), that *is*
 the confirmation — run it without asking again.
 
-**A second exception, epic scale only (#311):** a recorded viva sign-off on a brief
-satisfying every element in `reference/epic-plan-contract.md` IS the user's word for that
-plan. It approves only the plan it was stamped against; it never licenses auto-advance
-past the piece that plan authorizes — "Never auto-advance past the piece you ran" below
-still governs everything after. A brief missing any required element is
-rejected at intake — never approved by default, never inferred.
-
 **Never auto-advance past the piece you ran.** When it finishes — pass, fail, or handoff —
 stop with the closing block below, even when the result is a clean pass and the next step is
 obvious. The user advances the flow; you never do.
 
-**A piece runs to its next real decision without asking (#371).** Inside a piece — and
-inside a `story-supervised` story under an epic — never pause to ask "run it now?", "pick
-up the next task?", or "ready when you are". `story-supervised` means the human is
-*present* for the class of work (`reference/epic-plan-contract.md`), not that each step
-needs a fresh go. The stops are the decisions this door already names — a stop/rethink
-token, a Critical waiver, a round cap, a fork, a sign-off, the ship verdict, appetite — plus
-`PAUSED`/park with a named cause. Everything else is a report line, not a question. Measure:
-human turns per supervised story ≤ decisions made (`scripts/retro-stats` counts both).
+**A piece runs to its next real decision without asking (#371).** Inside a piece, never
+pause to ask "run it now?", "pick up the next task?", or "ready when you are". The stops
+are the decisions this door already names — a stop/rethink token, a Critical waiver, a
+round cap, a fork, a sign-off, the ship verdict — plus `PAUSED` with a named cause.
+Everything else is a report line, not a question. Measure: human turns per story ≤
+decisions made (`scripts/retro-stats` counts both).
 
 **One deliberate exception, inside a piece rather than between pieces.** Pieces 2 (design)
 and 3 (build) each used to be two pieces — a handoff, then a separate `/review` this door
@@ -79,42 +69,35 @@ episode through this door running `/review` directly instead, exactly as this do
 has; no episode cares which route produced the branch.
 
 After piece 5 the flow is `done`. Never open the PR yourself: the PR is the user's
-(`gh pr create` — the PR-time hook reads the same ledger). This is a story-scale rule.
-At epic scale the finale itself opens the epic's PR, once, after its gates pass
-(`reference/epic-orchestration.md`, "Epic finale") — that is not this door acting; see
-the closing-shape note below.
+(`gh pr create` — the PR-time hook reads the same ledger).
 
 No door is mandatory, only default. Skipping `/bet` means no appetite and no decision record
 exist — position still derives from repo evidence, and every later door runs regardless.
 
 ## Resolve what we're talking about
 
-Story-scale position lives in a per-feature work file, `.studious/work/<slug>.json`; epic
-position lives in the epic ledger. Both are read and written only through `gate-ledger`.
+Position lives in a per-feature work file, `.studious/work/<slug>.json`, read and written
+only through `gate-ledger`.
 
 ```bash
 gate-ledger work-list     # stories in flight
-gate-ledger epic-list     # epics in flight
 ```
 
 - **`$ARGUMENTS` is empty — "do the next piece."** If a work file's branch matches the
-  current branch, that's it. Otherwise, if exactly one epic is `approved`/`running`/`ready`,
-  drive that epic — **`proposed` deliberately does not count here** (#311): a brief awaiting
-  its viva stamp has not been approved yet, and driving it on an empty invocation would be
-  exactly the default-approval this door refuses everywhere else. Otherwise, if exactly one
-  work file is active (phase not `done`/`stopped`),
-  use it. If several are active, list them and ask which — don't guess. **Cap that list at the
+  current branch, that's it. Otherwise, if exactly one work file is active (phase not
+  `done`/`stopped`), use it. If several are active, list them and ask which — don't guess. **Cap that list at the
   5 most recently updated** (`updatedAt`), and say how many more there are rather than
   printing them all: a menu long enough to scroll is not a choice a user can make. If the list
   is long, say so and suggest `gate-ledger gc`, which collects finished work files — a flow
   that ended should not still be asking for attention. If nothing is in flight, say so and
   invite `/next [idea, issue, or milestone]`.
-- **`$ARGUMENTS` names work in flight** (a slug, branch, title, or epic) — resume it.
-- **`$ARGUMENTS` names a milestone, an epic issue, or a label** — epic scale. If no bet is
-  approved for it, **route to `/bet <scope>` first**: scope, stories, and appetite are
-  approved there and only there. With an approved bet, follow
-  `reference/epic-orchestration.md` — it carries the plan piece, the driver, the finale, the
-  park queue, and the reporting shape in full. Consult it; don't restate it here.
+- **`$ARGUMENTS` names work in flight** (a slug, branch, or title) — resume it.
+- **`$ARGUMENTS` names several issues, a milestone, or a label** — a list. Expand it to its
+  open issues (`gh issue list --milestone "<name>" --state open`, or the issues as given),
+  print them in the order you propose to run them (dependencies first, then issue number),
+  and stop for the user's word on the order. Then run the first story through the flow
+  below exactly as a single story, and when it reaches `done` name the next one in the
+  closing block. One story at a time, one branch per story; nothing runs unattended.
 - **Anything else starts a new story** — a raw idea or an issue reference. For an issue,
   fetch its title and body with `gh issue view` and use them as the bet's input. Derive a
   short slug from the title, then create the work file at phase `decide`:
@@ -233,9 +216,7 @@ that gate's row going forward.
 
 **The review model at this scale (#210):** a design doc here gets a human sign-off — viva
 inside `/shape`, or whatever your route's equivalent is — *and* the design episode, because a
-human signs off where an episode cannot verify mechanically. That is the same rule that keeps
-prompt-prose and idea-shaped stories supervised rather than dispatched
-(`reference/epic-plan-contract.md`, "Story class").
+human signs off where an episode cannot verify mechanically.
 
 ### 3 · build
 
@@ -286,7 +267,7 @@ gate token like `PASS` written under it.
 Whatever the verdict, run `gate-ledger episode-get --gate audit` and carry its first line —
 `round R of C — N open, M carried` — into the closing block, verbatim: the episode's own round
 and finding counts, never a re-tally of the report. If it prints nothing (no episode recorded
-on this branch — a legacy ledger, a driver-recorded verdict, or no `jq`), carry `none recorded`
+on this branch — a legacy ledger, a bare `record`, or no `jq`), carry `none recorded`
 instead — never invent counts.
 
 ### 4 · delivery review
@@ -351,10 +332,8 @@ Episode: round R of C — N open, M carried
 ```
 
 When the flow reaches `done` or `stopped`, the last two lines become the wrap-up instead:
-`done` points at `gh pr create`; `stopped` states the verdict that ended it.
-
-At epic scale the closing shape is `reference/epic-orchestration.md`'s own report — the run
-summary, the "Needs you" queue, and the held/landed counts — not this block.
+`done` points at `gh pr create` — and, when a list is in progress, names the next story;
+`stopped` states the verdict that ended it.
 
 Then stop. Do not start the next piece, do part of it "to save time," or ask whether to
 continue — the user advances the flow with one word, when ready.
@@ -362,7 +341,7 @@ continue — the user advances the flow with one word, when ready.
 ## Record keeping
 
 All flow state goes through `gate-ledger` — `work-set`, `work-log`, `work-get`, `work-list` for
-story state, `epic-list`/`epic-get` for epic state, and `gate-get` to read recorded verdicts —
+story state, and `gate-get` to read recorded verdicts —
 never hand-edit the JSON or read either store's files directly. The files are local and
 gitignored; they never enter the repo. If `gate-ledger` is not found (the plugin's `bin/` isn't
 on `PATH` in this environment), tell the user flow position can't be recorded — do not skip

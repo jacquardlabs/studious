@@ -5,8 +5,8 @@ the diff before the verdict is assigned, symmetric with the existing
 anti-suppression machinery.
 
 Since #159 (story `audit-doc-split`) these rules live in
-`reference/audit-compilation.md`, cited (not restated) by `commands/review.md`
-and `workflows/epic-driver.js`'s `auditFanIn()` — this file is the one place
+`reference/audit-compilation.md`, cited (not restated) by `commands/review.md` —
+this file is the one place
 the challenge step's text actually lives.
 
 Static/textual checks only (a real behavioral eval needs a live model — see
@@ -29,7 +29,7 @@ def _challenge_section() -> str:
     # This step's text sits between the severity-mapping line and the
     # report-compilation handoff.
     match = re.search(
-        r"consult it, don't restate it\.\n(.*?)\nThen compile a unified audit report",
+        r"[Cc]onsult it, don't restate it\.\n(.*?)\nThen compile a unified audit report",
         text,
         re.DOTALL,
     )

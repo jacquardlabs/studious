@@ -55,7 +55,7 @@ pattern="(^|[^A-Za-z0-9])(${alt})(\$|[^A-Za-z0-9])"
 printf '%s' "$command_str" | grep -Eq "$pattern" || exit 0
 
 # --- armed check: branch must be one gate-ledger already knows about (a work
-# file's .branch, written by /next or its epic driver). work-list's column 3
+# file's .branch, written by /next). work-list's column 3
 # is the branch; exact string match against full branch names.
 branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || exit 0
 [ -n "$branch" ] && [ "$branch" != "HEAD" ] || exit 0

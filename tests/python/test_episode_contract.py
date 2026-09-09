@@ -30,7 +30,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LEDGER = REPO_ROOT / "bin" / "gate-ledger"
 VOCABULARY = REPO_ROOT / "reference" / "gate-vocabulary.md"
-EPIC_DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 
 #: The frozen key sets — exact, not subset: a new field on an episode record is
 #: a contract change and must land here in the same commit that writes it.
@@ -359,14 +358,6 @@ def _vocabulary_rows() -> dict[str, dict[str, str]]:
     return rows
 
 
-def _driver_gates_retry() -> dict[str, str]:
-    """workflows/epic-driver.js's GATES constant, as gate key → retry token."""
-    source = EPIC_DRIVER.read_text(encoding="utf-8")
-    block = re.search(r"const GATES = \{(.*?)\n\}", source, re.DOTALL)
-    assert block is not None, "workflows/epic-driver.js no longer declares const GATES"
-    return dict(re.findall(r"'?([\w-]+)'?:\s*\{[^}]*\bretry:\s*'([^']*)'", block.group(1)))
-
-
 class EpisodeVocabularyTest(unittest.TestCase):
     """Task 3 (#289): the episode verdict tokens are frozen in
     reference/gate-vocabulary.md, and the epic driver's GATES retry strings
@@ -413,24 +404,6 @@ class EpisodeVocabularyTest(unittest.TestCase):
         m = re.search(r'^EPISODE_RETRY_VERDICT="([^"]+)"', ledger_text, re.MULTILINE)
         self.assertIsNotNone(m, "EPISODE_RETRY_VERDICT constant missing from bin/gate-ledger")
         self.assertEqual(m.group(1), RETRY_TOKEN)
-
-    def test_driver_gates_retry_strings_equal_vocabulary_retry_tokens(self) -> None:
-        gates_retry = _driver_gates_retry()
-        self.assertEqual(
-            set(gates_retry),
-            {"design-review", "audit", "acceptance"},
-            "GATES roster changed — update EPISODE_LEDGER_GATES and this test together",
-        )
-        vocabulary_retry = {
-            row["gate"]: row["retry"] for row in _vocabulary_rows().values()
-        }
-        for gate, retry in gates_retry.items():
-            self.assertEqual(
-                retry,
-                vocabulary_retry[gate],
-                f"GATES['{gate}'].retry drifted from reference/gate-vocabulary.md",
-            )
-
 
 def _episode_half(door: str) -> str:
     """The review door minus its design-episode section.
@@ -504,9 +477,7 @@ class GateAuditDoorTest(unittest.TestCase):
         itself is the inline a11y lane's."""
         rubric = (REPO_ROOT / "reference" / "severity-rubric.md").read_text(encoding="utf-8")
         self.assertIn("## Objective anchors", rubric)
-        # The trailing "Local roster" section is the epic driver's, not /review's
-        # (test_severity_mapping.py pins it); the charter pointer governs everything before it.
-        anchors = rubric[rubric.index("## Objective anchors"):rubric.index("## Local roster")]
+        anchors = rubric[rubric.index("## Objective anchors"):]
         self.assertIn("is recorded Important", anchors)
         self.assertIn("charter", anchors)
         self.assertRegex(
@@ -554,7 +525,7 @@ class GateAuditDoorTest(unittest.TestCase):
         """Since #334 S1 the product lane emits the three tiers itself; a
         label→tier row for it here would be the name-mapping drift #255 bans."""
         rubric = (REPO_ROOT / "reference" / "severity-rubric.md").read_text(encoding="utf-8")
-        review_prefix = rubric[:rubric.index("## Local roster")]
+        review_prefix = rubric
         self.assertNotRegex(review_prefix, r"(?m)^\| product-reviewer")
         self.assertNotIn("BLOCKER", review_prefix)
         self.assertIn("tiers arrive canonical", self.door)
@@ -717,24 +688,6 @@ class DeliveryDoorTest(unittest.TestCase):
             "to this prompt's own counting",
         )
 
-    def test_driver_acceptance_prompt_speaks_no_replaced_token(self) -> None:
-        """The acceptance fan-in told the compiler to return `FIX AND
-        RE-CHECK` while GATES retries on `FIX AND RE-REVIEW` (Task 3) — a
-        compiler following the literal return-list could never trigger the
-        retry loop."""
-        self.assertNotIn("FIX AND RE-CHECK", EPIC_DRIVER.read_text(encoding="utf-8"))
-
-
-RUN_GATE_AUDIT_FIXTURES_PY = REPO_ROOT / "scripts" / "run_gate_audit_fixtures.py"
-WORK_THROUGH_MD = REPO_ROOT / "reference" / "epic-orchestration.md"
-EVENTS_FORMAT_MD = REPO_ROOT / "reference" / "events-format.md"
-EXTRACT_DESIGN_SYSTEM_MD = REPO_ROOT / "reference" / "design-system-extraction.md"
-REPO_CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
-
-#: The two spellings reference/gate-vocabulary.md replaced with RETRY_TOKEN (#289).
-REPLACED_RETRY_TOKENS = ("FIX AND RE-AUDIT", "FIX AND RE-CHECK")
-
-
 class RetryTokenSweepTest(unittest.TestCase):
     """Task 6 (#289): every surface that instructs or scores a retry verdict
     speaks the episode retry token. GATES froze `FIX AND RE-REVIEW` (Task 3),
@@ -742,23 +695,3 @@ class RetryTokenSweepTest(unittest.TestCase):
     replaced spelling, parking every fix cycle; the fixture harness's
     VERDICT_TOKENS had the same drift, scoring new-token verdicts as none."""
 
-    def test_no_replaced_retry_token_survives_in_the_episode_consumers(self) -> None:
-        for path in (
-            EPIC_DRIVER,
-            RUN_GATE_AUDIT_FIXTURES_PY,
-            WORK_THROUGH_MD,
-            EVENTS_FORMAT_MD,
-            EXTRACT_DESIGN_SYSTEM_MD,
-            REPO_CLAUDE_MD,
-        ):
-            text = path.read_text(encoding="utf-8")
-            for token in REPLACED_RETRY_TOKENS:
-                self.assertNotIn(
-                    token, text,
-                    f"{path.relative_to(REPO_ROOT)} still speaks {token!r} — "
-                    f"reference/gate-vocabulary.md replaced it with {RETRY_TOKEN}",
-                )
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -1,7 +1,6 @@
 """Regression tests for the audit-doc-split story (issue #159): moves the ~48
-lines of post-audit compile rules `auditFanIn()` needed out of the 189-line
-`commands/review.md` into `reference/audit-compilation.md`, points both dispatch
-surfaces at that file, and names "routed out" as a third lane state alongside
+lines of post-audit compile rules out of the 189-line
+`commands/review.md` into `reference/audit-compilation.md`, points the door at that file, and names "routed out" as a third lane state alongside
 carry-forward and AGENT DIED (vocabulary unification, not a judgment change).
 
 Static/textual checks, per this repo's precedent in `test_delta_scoped_reaudit.py`
@@ -15,18 +14,14 @@ from pathlib import Path
 from run_gate_audit_fixtures import REPO_ROOT
 
 GATE_AUDIT_MD = REPO_ROOT / "commands" / "review.md"
-DRIVER = REPO_ROOT / "workflows" / "epic-driver.js"
 AUDIT_COMPILATION = REPO_ROOT / "reference" / "audit-compilation.md"
 
 # A line lifted verbatim from the moved section; a second occurrence anywhere means
 # the rules were copied rather than relocated.
 # (Was the severity-mapping sentence until #334 S1 retired label mapping.)
-DISTINCTIVE_MOVED_LINE = "Every auditor lane lands in exactly one of four states before compiling"
+DISTINCTIVE_MOVED_LINE = "Every auditor lane lands in exactly one of three states before compiling"
 
-# `check_references.py` only scans the first four of these — never `workflows/`, where
-# a drifted copy would actually live (premortem 2026-07-21-audit-doc-split-design.md
-# item 4).
-PROMPT_SURFACE_DIRS = ("commands", "agents", "skills", "reference", "workflows")
+PROMPT_SURFACE_DIRS = ("commands", "agents", "skills", "reference")
 
 
 def _count_occurrences(root: Path, phrase: str, dirs: tuple[str, ...]) -> dict[str, int]:
@@ -88,25 +83,6 @@ def test_gate_audit_md_points_to_the_new_file_and_does_not_restate_it() -> None:
         )
 
 
-def test_epic_driver_points_to_the_new_file_not_gate_audit_md() -> None:
-    """Acceptance criterion 3: auditFanIn's opening sentence cites the new file."""
-    text = DRIVER.read_text()
-    anchor = "You are compiling Studious's audit gate verdict."
-    i = text.index(anchor)
-    opening = text[i : i + 400]
-    assert "reference/audit-compilation.md" in opening
-    assert "Read commands/review.md" not in opening, (
-        "auditFanIn still points its compiling agent at commands/review.md "
-        "instead of reference/audit-compilation.md"
-    )
-
-
-def test_both_dispatch_surfaces_cite_the_identical_compilation_file_path() -> None:
-    """Acceptance criterion 3: the same literal path, cited by both surfaces."""
-    assert "reference/audit-compilation.md" in GATE_AUDIT_MD.read_text()
-    assert "reference/audit-compilation.md" in DRIVER.read_text()
-
-
 def test_no_second_copy_of_the_moved_compilation_rules_exists() -> None:
     """Acceptance criterion 3: the distinctive moved line appears exactly once,
     in reference/audit-compilation.md — any other hit means a second copy exists."""
@@ -121,17 +97,17 @@ def test_the_duplicate_copy_detector_actually_detects_a_duplicate(tmp_path: Path
     """Premortem item 4: proves the counting helper isn't a test that passes trivially
     — an injected second copy must make it fail."""
     (tmp_path / "reference").mkdir()
-    (tmp_path / "workflows").mkdir()
+    (tmp_path / "commands").mkdir()
     (tmp_path / "reference" / "audit-compilation.md").write_text(
         f"...{DISTINCTIVE_MOVED_LINE}...", encoding="utf-8"
     )
-    (tmp_path / "workflows" / "epic-driver.js").write_text(
+    (tmp_path / "commands" / "review.md").write_text(
         f"// a second, drifted copy: {DISTINCTIVE_MOVED_LINE}", encoding="utf-8"
     )
     hits = _count_occurrences(tmp_path, DISTINCTIVE_MOVED_LINE, PROMPT_SURFACE_DIRS)
     assert hits == {
         "reference/audit-compilation.md": 1,
-        "workflows/epic-driver.js": 1,
+        "commands/review.md": 1,
     }
     assert hits != {"reference/audit-compilation.md": 1}
 

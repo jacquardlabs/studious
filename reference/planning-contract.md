@@ -298,7 +298,7 @@ second one.
 
 | Verdict | Fires when |
 |---|---|
-| `PLAN READY` | Every task reaches viva `approved`, `scripts/plan-lint` exits 0 against the final file. Hand the human (or the epic driver) the `PLAN.md` path and name `/build` as the next step. |
+| `PLAN READY` | Every task reaches viva `approved`, `scripts/plan-lint` exits 0 against the final file. Hand the human the `PLAN.md` path and name `/build` as the next step. |
 | `DESIGN GAP` | Step 1a falsifies a design assumption against the real codebase, **or** Step 1b finds required infra (test runner, or -- issue #13's own case -- a scripted-probe tool a task's `Done means` needs) missing and uncreatable by an earlier task, **or** Step 5's lint loop can't converge without such a gap (no progress, or the 3-cycle bound). **Never reported bare** -- name which of the three causes fired (falsified assumption / missing test-or-lint infra / missing probe infra), plus the concrete resume action: revise the design doc, or install the missing tool as its own prerequisite. |
 | `TOO BIG` | Step 3's task count doesn't calibrate to 3-8 after merge/split attempts -- names the actual task count and which direction it missed by. |
 

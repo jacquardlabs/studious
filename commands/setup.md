@@ -87,7 +87,7 @@ project's `.gitignore` carries it. Read the `.gitignore` (create one if absent) 
 for these entries:
 
 ```gitignore
-# Studious local state — gate ledger, work files, telemetry, build evidence (never committed)
+# Studious local state — gate ledger, work files, build evidence (never committed)
 .studious/
 
 # Disposable build scaffolding — lives on the branch, dies at closeout
