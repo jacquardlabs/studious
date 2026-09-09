@@ -86,7 +86,7 @@ Structure, top to bottom:
 # Handback — <branch>
 
 > Worker-authored evidence record, assembled by `/ship --handback` — not a Studious gate verdict
-> and not reviewed by one. See `docs/studious/premortems/` for review-agent output.
+> and not reviewed by one.
 
 - Branch: `<branch>`
 - Generated: <ISO-8601 timestamp, `date -u +%Y-%m-%dT%H:%M:%SZ`>
@@ -170,8 +170,7 @@ git commit -m "docs: handback evidence manifest for <branch>"
 ```
 
 This is the worker's own commit authority (`reference/worker-contract.md`) — the same
-authority already used for the worker's own code and, at the design-review gate, for the
-pre-mortem register.
+authority already used for the worker's own code.
 
 ## 6. If `gate-ledger` is missing
 

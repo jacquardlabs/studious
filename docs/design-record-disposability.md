@@ -1,4 +1,4 @@
-# Design records stay disposable — 2026-09-05 re-affirmation
+# Design records stay disposable — 2026-09-05 re-affirmation, amended 2026-09-09
 
 **Status:** ratified · **Date:** 2026-09-05 · **Ruling on:** [#313](https://github.com/jacquardlabs/studious/issues/313) · **Milestone:** [#20 (M0)](https://github.com/jacquardlabs/studious/milestone/20)
 
@@ -45,3 +45,44 @@ concretely, if the pre-mortem register + evidence table prove insufficient to an
 "why does this code look like this" for a real incident — reopen #313 with that incident
 named. Don't reopen it on the strength of a vendor blog post alone; that evidence was
 already weighed here and found insufficient on its own.
+
+## Amendment 2026-09-09 — the register is disposable too (#397)
+
+**Overturns one line of the ruling above:** the pre-mortem register is no longer durable.
+It moves from `docs/studious/premortems/<slug>.md` (committed by `/review`) to
+`docs/design/<slug>-premortem.md`, gitignored beside the design doc it was written
+against, read from the working tree by the work episode's pre-mortem lane, removed by
+`/ship` at closeout. The 56 committed registers were deleted in the same change; git
+history is their archive (`git show <sha>:docs/studious/premortems/<slug>.md`).
+
+Why: the register's only consumer runs pre-merge, the same lifecycle as the doc it
+derives from. Its second job — the committed-spec substitute — was asserted above, never
+exercised: no incident has asked a register "why does this code look like this", while
+56 registers accumulated for designs whose docs are gone. Since 2026-09-09 the design
+gate is off by default (#415), so a register exists only when `/shape` ran; a durable
+class that most stories never produce is a drift surface, not a spine. The durable
+record of a change is its PR: the evidence table `/ship` assembles and the PR's own prose.
+
+### Every artifact class, one table
+
+| Artifact | Path | Class | Written by | Removed by |
+|---|---|---|---|---|
+| Design doc | `docs/design/<slug>.md` | disposable | `/shape`, or any route | `/ship` at closeout |
+| Pre-mortem register | `docs/design/<slug>-premortem.md` | disposable | `/review` design episode | `/ship` at closeout |
+| Plan | `PLAN.md` | disposable | `/build` Step 0 | `/ship` at closeout |
+| Build evidence | `.studious/build-evidence/`, `.studious/evidence/` | local state | `/build`, the evidence hook | `gate-ledger gc` |
+| Gate ledger, work files | `.studious/gates/`, `.studious/work/` | local state | `bin/gate-ledger` | `gate-ledger gc` |
+| PR body and evidence table | the PR | durable | `/ship` | never |
+| Dated build report | `docs/studious/build-reports/<date>-<slug>-build-report.md` | durable | `/ship` | never |
+| Review reports | `docs/studious/<area>-reviews/<date>-<area>-review.md` | durable | `/health` | never — trend history is their reason to exist |
+| Retros | `docs/studious/retros/<date>-retro.md` | durable | `/retro` | never |
+| Decision journal | `docs/studious/decisions.jsonl` | durable, never auto-committed | `/bet` | never |
+| Decision records | `docs/<topic>.md` | durable | the human | never |
+
+A durable file cites a disposable one by issue or by `git show <sha>:<path>`, never by
+path; `scripts/check_references.py` fails the build on a `docs/design/<name>.md` citation
+in a shipped prompt or reference file.
+
+**What would overturn this:** a real incident where the PR body and git history could not
+answer "why does this code look like this" and a committed register would have. Name it
+when reopening.

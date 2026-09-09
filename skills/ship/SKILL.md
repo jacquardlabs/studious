@@ -261,8 +261,8 @@ own row, its own worktree/branch/PR handling, and none of the four is the
 silent default.
 
 Every verdict shares the same cleanup step *before* whichever git action
-happens: remove `docs/design/<story-slug>.md` and `PLAN.md` (and any scratch
-`docs/design/demonstrations/` narrative, if used). A project that gitignores
+happens: remove `docs/design/<story-slug>.md`, its `docs/design/<story-slug>-premortem.md`,
+and `PLAN.md` (and any scratch `docs/design/demonstrations/` narrative, if used). A project that gitignores
 them the way this plugin does has nothing to commit — delete them from the
 worktree and say so. A project that tracks them needs a `git rm` commit whose
 message notes the promoted-elsewhere destination. Check which case you are in

@@ -106,8 +106,9 @@ ruled them out of its fleet (#334): recommend-only readers of the tracker and th
 
 The design doc these tables came from was branch-local and disposable, per CLAUDE.md's
 "Where a design record lives" rule; it was removed at closeout. Its durable half is here,
-plus the failure modes in `docs/studious/premortems/persona-restructure.md`. What it
-ratified, in one line each:
+plus the failure modes in its pre-mortem register (`git show
+ec4764a:docs/studious/premortems/persona-restructure.md`). What it ratified, in one line
+each:
 
 - **The flow is the story flow at every scale.** A bet's scope may be one story, a list of
   stories, or a whole milestone; a list is its stories run one at a time, supervised, in

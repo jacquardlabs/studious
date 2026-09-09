@@ -564,7 +564,7 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
                 self.assertIn(field, self.body)
 
     def test_step_1_1_missing_baseline_convention_pauses_before_any_worktree(self) -> None:
-        # Step 1.1 / pre-mortem risk #5 (docs/studious/premortems/build-skill.md): a
+        # Step 1.1 / pre-mortem risk #5 (pre-mortem register build-skill.md at 704381d): a
         # CLAUDE.md naming no baseline command *at all* is a Setup-time stop, distinct
         # from worktree-setup's dirty-baseline case (a *named* command that fails after
         # the worktree exists; see TestWorktreeSetupDirtyBaseline in

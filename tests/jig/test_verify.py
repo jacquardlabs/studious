@@ -6,7 +6,7 @@ Covers:
    than --since, and (if given) matches the pattern.
 3. Per-item results always reported; overall PASS requires every item to PASS.
 4. Fails closed: empty/malformed items doc is a usage error (exit 2), never a
-   vacuous PASS (docs/studious/premortems/build-scripts.md, risk #4).
+   vacuous PASS (pre-mortem register build-scripts.md at 704381d, risk #4).
 5. probe without --since is also a usage error — the recency floor is
    verify's own, not delegated to evidence-capture (same doc, risk #5).
 

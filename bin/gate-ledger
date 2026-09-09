@@ -1413,7 +1413,7 @@ cmd_evidence_list() { # optional --branch B: print that branch's evidence .jsonl
   # over a command->last-index map), deliberately not unique_by (reorders
   # alphabetically) or whole-object equality (latent bug: two records
   # byte-identical in every field, capturedAt included, would both survive).
-  # See docs/studious/premortems/2026-07-21-evidence-list-dedupe-design.md.
+  # See the evidence-list-dedupe pre-mortem register at 704381d.
   # Fails closed: no jq or a malformed line means no stdout, non-zero exit.
   if ! have jq; then
     echo "gate-ledger: evidence-list --dedupe requires jq" >&2
