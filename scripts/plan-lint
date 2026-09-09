@@ -96,7 +96,16 @@ from _planparse import (  # noqa: E402
     parse_items,
     task_title,
 )
-from _planparse import out_of_grammar_task_headings  # noqa: E402
+from _planparse import (  # noqa: E402
+    BACKTICK_RE,
+    DO_RE,
+    LINE_LOCATOR_SUFFIX_RE,  # noqa: F401  (re-export; the grammar lives in _planparse)
+    READ_FIRST_RE,
+    RESTS_ON_RE,
+    extract_field,
+    out_of_grammar_task_headings,
+    strip_line_locator,
+)
 from _planparse import split_tasks as _split_tasks  # noqa: E402
 
 MAX_ITEMS = 5
@@ -105,12 +114,6 @@ PLACEHOLDER_FOLLOWUPS = frozenset({"", "todo", "tbd", "..."})
 NOT_HERE_FOLLOWUPS_HEADING_RE = re.compile(r"^(#{1,6})[ \t]*Not-here follow-ups[ \t]*$", re.IGNORECASE | re.MULTILINE)
 ANY_HEADING_RE = re.compile(r"^(#{1,6})[ \t]", re.MULTILINE)
 
-READ_FIRST_RE = re.compile(r"^Read first:[ \t]*(.*)$", re.MULTILINE)
-RESTS_ON_RE = re.compile(r"^Rests on:[ \t]*(.*)$", re.MULTILINE)
-DO_RE = re.compile(r"^Do:[ \t]*(.*)$", re.MULTILINE)
-
-BACKTICK_RE = re.compile(r"`([^`]+)`")
-LINE_LOCATOR_SUFFIX_RE = re.compile(r":\d+(?:-\d+)?$")
 BULLET_RE = re.compile(r"^[ \t]*[-*][ \t]+(.*)$", re.MULTILINE)
 
 NOT_HERE_FOLLOWUPS_LABEL = "(Not-here follow-ups)"
@@ -132,16 +135,6 @@ def split_tasks(text: str) -> list[tuple[str, str]]:
     mutation check (tests/_task_split_boundary.py, issue #66) can
     monkeypatch that constant here and see the next call change."""
     return _split_tasks(text, boundary_re=HEADING_LEVEL_1_TO_3_RE)
-
-
-def extract_field(block: str, pattern: re.Pattern[str]) -> str:
-    """First match of a single-line `Label: ...` field, or "" if absent."""
-    m = pattern.search(block)
-    return m.group(1).strip() if m else ""
-
-
-def strip_line_locator(span: str) -> str:
-    return LINE_LOCATOR_SUFFIX_RE.sub("", span)
 
 
 def _is_number_match(rests_on_text: str, task_num: str) -> bool:

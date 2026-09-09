@@ -39,6 +39,45 @@ ITEM_RE = re.compile(
 )
 TIER_BODY_RE = re.compile(r"^([\w-]+)(?:\s+`([^`]+)`)?$")
 
+# The single-line labeled fields of a checkpoint block, and the backtick span
+# that marks a token as a concrete, checkable path (plan-lint's "backtick
+# convention"). Shared by plan-lint and plan-drift so the two read one grammar.
+READ_FIRST_RE = re.compile(r"^Read first:[ \t]*(.*)$", re.MULTILINE)
+RESTS_ON_RE = re.compile(r"^Rests on:[ \t]*(.*)$", re.MULTILINE)
+DO_RE = re.compile(r"^Do:[ \t]*(.*)$", re.MULTILINE)
+BACKTICK_RE = re.compile(r"`([^`]+)`")
+LINE_LOCATOR_SUFFIX_RE = re.compile(r":\d+(?:-\d+)?$")
+
+
+def extract_field(block: str, pattern: re.Pattern[str]) -> str:
+    """First match of a single-line `Label: ...` field, or "" if absent."""
+    m = pattern.search(block)
+    return m.group(1).strip() if m else ""
+
+
+def strip_line_locator(span: str) -> str:
+    return LINE_LOCATOR_SUFFIX_RE.sub("", span)
+
+
+def method_paths(block: str) -> list[str]:
+    """Every command-tier item's backtick-quoted method path in a block."""
+    paths = []
+    for item in parse_items(block):
+        if item.tier_body is None:
+            continue
+        m = TIER_BODY_RE.match(item.tier_body.strip())
+        if m and m.group(1) in COMMAND_TIERS and m.group(2):
+            paths.append(m.group(2))
+    return paths
+
+
+def named_paths(block: str) -> set[str]:
+    """Every repo path a block names as concrete: `Read first:` and `Do:`
+    backtick spans (line locators stripped) plus command-tier method paths.
+    The set the block's own commits may touch without amending the plan."""
+    spans = BACKTICK_RE.findall(extract_field(block, READ_FIRST_RE)) + BACKTICK_RE.findall(extract_field(block, DO_RE))
+    return {strip_line_locator(s) for s in spans} | set(method_paths(block))
+
 
 @dataclass
 class Item:
