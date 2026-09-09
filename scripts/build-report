@@ -96,7 +96,8 @@ def main(argv: list[str]) -> int:
     slug = args.slug
     if slug is None:
         branch = branch_to_match(repo)
-        matches = slugs_for_branch(work_rows(repo), branch) if branch else []
+        rows = work_rows(repo)
+        matches = slugs_for_branch(rows, branch) if branch else []
         if len(matches) > 1:
             print(
                 f"error: {len(matches)} work files record branch '{branch}' in {repo} "
@@ -105,9 +106,17 @@ def main(argv: list[str]) -> int:
             )
             return 2
         if not matches:
+            # An empty listing is not the same fact as a listing without this
+            # branch: `gate-ledger work-list` returns 0 and prints nothing when
+            # jq is absent, so "no work file for your branch" would send the
+            # reader after the wrong fix. Name both possibilities.
+            reason = (
+                "gate-ledger work-list returned no work files at all -- none recorded, or jq is not installed"
+                if not rows else "gate-ledger work-list"
+            )
             print(
                 f"error: no work file records branch '{branch or '?'}' in {repo} "
-                "(gate-ledger work-list); pass --slug to name the story explicitly",
+                f"({reason}); pass --slug to name the story explicitly",
                 file=sys.stderr,
             )
             return 2

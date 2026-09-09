@@ -68,8 +68,24 @@ class TestSlugComesFromTheWorkFile(unittest.TestCase):
 
             self.assertEqual(result.returncode, 2)
             self.assertIn("no work file records branch", result.stderr)
+            # An empty listing can equally mean jq is missing -- say so.
+            self.assertIn("jq", result.stderr)
             self.assertIn("--slug", result.stderr)
             self.assertFalse((repo / "docs").exists())
+
+    def test_a_listing_without_this_branch_does_not_blame_jq(self) -> None:
+        """Rows came back, so the ledger ran -- only the branch is unmatched."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo_with_work_file(Path(tmp), "other-story", "feat/other")
+            run(["git", "checkout", "-q", "-b", "fix/footer"], cwd=repo)
+            content = Path(tmp) / "body.md"
+            content.write_text("body\n", encoding="utf-8")
+
+            result = run_script(["--repo", str(repo), "--content", str(content)])
+
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("no work file records branch 'fix/footer'", result.stderr)
+            self.assertNotIn("jq", result.stderr)
 
     def test_two_work_files_on_one_branch_refuse_instead_of_picking_one(self) -> None:
         """Whichever row the glob yielded first would silently name the report."""
