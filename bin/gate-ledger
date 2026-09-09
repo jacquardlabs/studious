@@ -1346,7 +1346,7 @@ cmd_gc() {
     fi
   done
 
-  # Work files: two independent collection rules, either one sufficient.
+  # Work files: three independent collection rules, any one sufficient.
   #
   #   1. The branch is gone. The flow it tracked cannot be resumed.
   #   2. The phase is terminal (`done`/`stopped`). A finished flow has no
@@ -1377,6 +1377,42 @@ cmd_gc() {
   # in `commands/studious-doctor.md` together, or the rollback is incomplete.
   local wdir; wdir=$(store_dir work)
   local phase sd_len slug
+  #   3. The branch was merged into the default branch but still exists (#346).
+  #      A landed story whose branch was kept never reached a terminal phase by
+  #      itself, so it sat active forever. Resolve it to `done` first, with a
+  #      `merge`/`MERGED` history entry, and let rule 2 collect it below (or
+  #      keep it under the scope-delta guard, reading `done`). Ancestry only:
+  #      a squash-merged branch is not an ancestor and stays for rule 1 once
+  #      its branch is deleted.
+  local default_branch
+  default_branch=$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+  if [ -z "$default_branch" ]; then
+    for cand in main master; do
+      if git rev-parse --verify --quiet "refs/heads/$cand" >/dev/null 2>&1; then default_branch="$cand"; break; fi
+    done
+  fi
+  if [ -n "$default_branch" ]; then
+    for f in "$wdir"/*.json; do
+      [ -e "$f" ] || continue
+      branch=$(jq -r '.branch // empty' "$f" 2>/dev/null)
+      phase=$(jq -r '.phase // empty' "$f" 2>/dev/null)
+      [ -n "$branch" ] && [ "$branch" != "$default_branch" ] || continue
+      case "$phase" in done|stopped|"") continue ;; esac
+      git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1 || continue
+      # Merged means the branch's tip is behind the default branch, not equal to
+      # it — a branch cut from main with no commits yet is in flight, not landed.
+      [ "$(git rev-parse "refs/heads/$branch" 2>/dev/null)" != "$(git rev-parse "refs/heads/$default_branch" 2>/dev/null)" ] || continue
+      if git merge-base --is-ancestor "refs/heads/$branch" "refs/heads/$default_branch" 2>/dev/null; then
+        # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
+        json_update "$f" \
+          '.phase = "done" | .updatedAt = $t
+           | .history = ((.history // []) + [{step: "merge", outcome: "MERGED", sha: $s, at: $t, into: $d}])' \
+          --arg t "$(now_iso)" --arg s "$(git rev-parse --short "refs/heads/$branch" 2>/dev/null)" --arg d "$default_branch"
+        printf 'resolved to done: %s (branch %s is merged into %s and still present)\n' \
+          "$(basename "$f" .json)" "$branch" "$default_branch"
+      fi
+    done
+  fi
   for f in "$wdir"/*.json; do
     [ -e "$f" ] || continue
     branch=$(jq -r '.branch // empty' "$f" 2>/dev/null)
