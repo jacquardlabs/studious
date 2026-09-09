@@ -2,6 +2,118 @@
 
 <!-- version list -->
 
+## v6.10.0 (2026-09-09)
+
+### Bug Fixes
+
+- Build-report guards OSError on both lookups — a missing binary is the exit-2 refusal, not a
+  traceback ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- Build-report refuses when two work files record one branch instead of taking glob order
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- Build-report's empty work-list refusal names jq rather than blaming the branch
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- Review.md description parses as YAML — no ': ' in the plain scalar; pin it for every frontmatter
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+### Continuous Integration
+
+- Pyright over scripts/ and bin/studious at the 3.9 floor
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+### Documentation
+
+- Prose sweep — 13 polish items on studious's own prompt text (#424: #116 #340 #288 #354 #344 #338
+  #287 #225 #209 #174 #176 #228 #341) ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- README enumerates both shipped hooks in one section
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- Ship's precondition names /build's convened episode, not a retired hand-off
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- State the bin/ vs scripts/ placement rule; the independence check guards bin/* whole
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+### Features
+
+- Build-report names the report after the work file matching the branch; /ship stops passing --slug
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- M3 contract & drift guards — one routing table, one locate protocol, plan-only verify, exit
+  ladder, pyright (#410 #411 #329 #284 #222 #184 #424 …)
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- Verify derives items from the plan only; retire the producer-less --items document
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+### Refactoring
+
+- Build-report reuses _gitutil.current_branch; the detached-HEAD sentinel refuses instead of
+  matching ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- Changeset routing defers to gauntlet's PATH_SIGNALS; delete reference/audit-routing-signals.md
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- Delete verify's dead VALID_KINDS — the item grammar already constrains kind
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- State the locate-gauntlet protocol once in reference/locate-gauntlet.md; five doors cite it
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- State the script exit ladder in DESIGN.md and test every verb against it; split worktree-setup's
+  main; narrow ItemResult.id ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+### Testing
+
+- Assert the detached-HEAD work file is actually recorded before the refusal
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- Cover the fail-loud raise when the checkpoint bullet loses its `Do` field
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- Derive the door list from the charter instead of hardcoding it
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- Derive the locate-gauntlet citers from what uses gauntlet's root
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- Frontmatter_blocks() as a comprehension, matching the sibling check's shape
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- Guard two-repo framing of studious in shipped prose; rename the CI job
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+- Pin lane 8's two dispatch paths and the evidence-list --dedupe → --receipts-path wiring
+  ([#438](https://github.com/jacquardlabs/studious/pull/438),
+  [`f5eb769`](https://github.com/jacquardlabs/studious/commit/f5eb769a5ed4d03a2f707281dd7bf0e9796c0a05))
+
+
 ## v6.9.1 (2026-09-09)
 
 ### Bug Fixes
