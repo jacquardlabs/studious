@@ -255,10 +255,13 @@ scratch=$(mktemp -d "${TMPDIR:-/tmp}/studious-review.XXXXXX") && mkdir "$scratch
 
 `<context files>` is the comma-separated subset of `CLAUDE.md,DESIGN.md,PRODUCT.md` that
 exists, plus the resolved pre-mortem register path whenever the pre-mortem lane runs. Check
-existence in the tree being judged: `$scratch/tree` for the work episode's
+the three context docs in the tree being judged: `$scratch/tree` for the work episode's
 changeset artifact — never the ambient checkout, which can differ from that worktree — and
 the repository root for the design episode's document artifact, which has no worktree
-(Part 1) and is judged where it sits.
+(Part 1) and is judged where it sits. The register is the one exception: gitignored, it
+exists only in the working tree, so check it there and pass its **absolute** path — a
+relative one would resolve under `$scratch/tree`, where it is absent, and `dispatch.py`
+would then never emit lane 13.
 `dispatch.py` emits `product-reviewer` only when the context names a PRODUCT.md and
 `premortem-auditor` only when it names a register, so a missing input drops the lane there
 rather than dispatching a judge that can only self-skip. If it exits non-zero, relay its
