@@ -34,10 +34,13 @@ GATE_LEDGER = Path(__file__).resolve().parent.parent / "bin" / "gate-ledger"
 
 
 def current_branch(repo: Path) -> Optional[str]:
-    r = subprocess.run(
-        ["git", "-C", str(repo), "rev-parse", "--abbrev-ref", "HEAD"],
-        capture_output=True, text=True, check=False,
-    )
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True, text=True, check=False,
+        )
+    except OSError:  # no `git` on PATH: the refusal below, never a traceback
+        return None
     branch = r.stdout.strip()
     return branch if r.returncode == 0 and branch and branch != "HEAD" else None
 
@@ -45,10 +48,13 @@ def current_branch(repo: Path) -> Optional[str]:
 def slug_for_branch(repo: Path, branch: str) -> Optional[str]:
     """The work file whose recorded branch is `branch`, via `gate-ledger work-list`
     (slug, phase, branch, title per row, tab-separated)."""
-    r = subprocess.run(
-        [str(GATE_LEDGER), "work-list"], cwd=str(repo),
-        capture_output=True, text=True, check=False,
-    )
+    try:
+        r = subprocess.run(
+            [str(GATE_LEDGER), "work-list"], cwd=str(repo),
+            capture_output=True, text=True, check=False,
+        )
+    except OSError:  # gate-ledger missing or not executable -- same refusal
+        return None
     if r.returncode != 0:
         return None
     rows = (line.split("\t") for line in r.stdout.splitlines() if line.strip())

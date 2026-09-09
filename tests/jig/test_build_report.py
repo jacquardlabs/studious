@@ -12,6 +12,9 @@ Run with:
 from __future__ import annotations
 
 import functools
+import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -78,6 +81,57 @@ class TestSlugComesFromTheWorkFile(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue((repo / "docs" / "studious" / "build-reports" / "2026-09-09-by-hand-build-report.md").is_file())
+
+
+class TestMissingToolingRefuses(unittest.TestCase):
+    """Absent tooling lands on the exit-2 refusal, never an uncaught traceback.
+
+    Both lookups shell out; either binary being missing raised FileNotFoundError
+    out of `main` with exit 1. `tests/jig/test_cli_conventions.py` can't reach
+    this -- `--content` is required, so a bare invocation stops at argparse.
+    """
+
+    def _staged_script(self, tmp: Path) -> Path:
+        """A copy of the script whose sibling `bin/gate-ledger` does not exist."""
+        scripts = tmp / "tree" / "scripts"
+        scripts.mkdir(parents=True)
+        for name in ("build-report", "_gitutil.py"):
+            shutil.copy(REPO_ROOT / "scripts" / name, scripts / name)
+        return scripts / "build-report"
+
+    def test_missing_gate_ledger_refuses_without_a_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            repo.mkdir()
+            init_repo(repo)
+            content = Path(tmp) / "body.md"
+            content.write_text("body\n", encoding="utf-8")
+
+            result = _run_script(self._staged_script(Path(tmp)), ["--repo", str(repo), "--content", str(content)])
+
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertTrue(result.stderr.startswith("error:"), result.stderr)
+            self.assertFalse((repo / "docs").exists())
+
+    def test_missing_git_refuses_without_a_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            repo.mkdir()
+            init_repo(repo)
+            content = Path(tmp) / "body.md"
+            content.write_text("body\n", encoding="utf-8")
+            # PATH emptied, so `git` can't be found -- run the interpreter
+            # directly, since the `#!/usr/bin/env python3` shebang needs PATH too.
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "--repo", str(repo), "--content", str(content)],
+                capture_output=True, text=True, timeout=30, check=False,
+                env={**os.environ, "PATH": ""},
+            )
+
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+            self.assertTrue(result.stderr.startswith("error:"), result.stderr)
 
 
 class TestBuildReportHappyPath(unittest.TestCase):
