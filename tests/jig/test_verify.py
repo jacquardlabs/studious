@@ -550,6 +550,23 @@ class TestVerifyPlanModeDerivation(unittest.TestCase):
             self.assertIn("task=task-1", result.stdout)
             self.assertIn("overall=PASS", result.stdout)
 
+    def test_out_of_grammar_task_heading_is_refused_even_for_another_task(self) -> None:
+        """#267: `--task 1` on a plan carrying a `### Task 2a` card is a usage error
+        (exit 2) naming the heading — a card the grammar can't see can't be
+        verified, and a partial plan must never verify as whole."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            write_method_script(repo, "scripts/ok", exit_code=0)
+            plan = write_plan(
+                repo,
+                plan_task(1, items="1. [cap]  `scripts/ok` exits zero (tier: script `scripts/ok`)\n")
+                + "\n### Task 2a — split late\nWhy now: n/a\n",
+            )
+            result = run_script(["--plan", str(plan), "--task", "1", "--repo", str(repo)])
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertIn("### Task 2a — split late", result.stderr)
+            self.assertNotIn("[PASS]", result.stdout)
+
     def test_failing_derived_item_exits_one_per_item_reported(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)

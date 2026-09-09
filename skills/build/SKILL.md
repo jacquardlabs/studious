@@ -335,8 +335,10 @@ For each task block, in order:
      and report **PAUSED**, naming "verify usage error persisted after
      retry."
    - **The checkpoint block itself doesn't parse** — an ambiguous or
-     malformed `Done means` line, or a duplicate task heading in `<plan
-     path>`. This is a plan-authoring defect, not a Foreman mistake to
+     malformed `Done means` line, a duplicate task heading, or a `### Task`
+     heading outside the `### Task N` grammar (`Task 2a`, `Task 3.1` — `verify`
+     and `plan-lint` both refuse it, naming the heading) in `<plan path>`. This
+     is a plan-authoring defect, not a Foreman mistake to
      retry past: call
      `studious status-flip --plan <path> --task <label> --status REPLAN --reason "<verify's own parse error>"`
      and report **PAUSED** directly — the human revises the block by hand,

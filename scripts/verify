@@ -101,7 +101,15 @@ from textwrap import indent
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _gitutil import DEFAULT_TIMEOUT_SECONDS, resolve_revision_epoch, run_shell_with_timeout  # noqa: E402
-from _planparse import COMMAND_TIERS, TIER_BODY_RE, VALID_TIERS, Item, parse_items, split_tasks  # noqa: E402
+from _planparse import (  # noqa: E402
+    COMMAND_TIERS,
+    TIER_BODY_RE,
+    VALID_TIERS,
+    Item,
+    out_of_grammar_task_headings,
+    parse_items,
+    split_tasks,
+)
 
 VALID_KINDS = frozenset({"cap", "hold"})
 
@@ -259,6 +267,13 @@ def derive_items_from_plan(plan_path: Path, task_label: str, probe_spec_path: Pa
     except OSError as exc:
         raise ValueError(f"could not read plan file '{plan_path}': {exc}") from exc
 
+    bad = out_of_grammar_task_headings(text)
+    if bad:
+        listed = "; ".join(bad)
+        raise ValueError(
+            f"plan '{plan_path}' has a '### Task' heading outside the '### Task N' grammar "
+            f"({listed}) -- a card the grammar can't see can't be verified; fix the heading (#267)"
+        )
     tasks = split_tasks(text)
     if not tasks:
         raise ValueError(f"plan '{plan_path}' contains no '### Task' headings -- nothing to derive items from")

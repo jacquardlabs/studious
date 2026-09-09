@@ -226,6 +226,9 @@ Evidence: ...
 ```
 
 **The heading's title text is load-bearing for Step 6.** Always emit it as
+literally `### Task N — <title>` — `plan-lint` refuses (exit 2, naming the heading)
+any other `### Task` form, `Task 2a` or `Task 3.1` included, because a card the
+grammar cannot see is never linted or verified (#267). Emit it as
 literally `### Task N — <title>` -- Step 6's own `--split-on` pattern
 anchors on `^Task \d+`, and a task heading worded any other way (a
 numberless heading, a `Step N` variant, a translated label) silently

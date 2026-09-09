@@ -54,8 +54,11 @@ first, matching `verify`'s own per-item reporting precedent.
 
 Exit codes: 0 zero violations. 1 one or more violations (all printed).
 2 usage error -- file missing/unreadable, not inside a git repo (paths
-can't be resolved), or zero `### Task` headings (fail-closed, never a
-vacuous PASS, matching `verify`'s refusal on an empty items list).
+can't be resolved), zero `### Task` headings, or any `### Task` heading
+outside the `### Task N` grammar (`Task 2a`, `Task 3.1`, `Task two` --
+named verbatim on stderr; a card the grammar can't see would otherwise
+go unlinted, #267). Fail-closed, never a vacuous PASS, matching
+`verify`'s refusal on an empty items list.
 
 Out of scope: the `/plan` skill itself; issue #23 (Not-here-follow-ups
 heading-*level* fix) and issue #13 (UI-probe mechanization); semantic/
@@ -93,6 +96,7 @@ from _planparse import (  # noqa: E402
     parse_items,
     task_title,
 )
+from _planparse import out_of_grammar_task_headings  # noqa: E402
 from _planparse import split_tasks as _split_tasks  # noqa: E402
 
 MAX_ITEMS = 5
@@ -339,6 +343,17 @@ def main(argv: list[str]) -> int:
     repo_root = git_repo_root(plan_path.resolve().parent)
     if repo_root is None:
         print(f"error: '{plan_path}' is not inside a git repository -- can't resolve its relative paths", file=sys.stderr)
+        return 2
+
+    bad = out_of_grammar_task_headings(text)
+    if bad:
+        print(
+            f"error: '{plan_path}' has {len(bad)} '### Task' heading(s) outside the "
+            f"'### Task N — <title>' grammar -- a card the grammar can't see is never linted:",
+            file=sys.stderr,
+        )
+        for heading in bad:
+            print(f"  {heading}", file=sys.stderr)
         return 2
 
     tasks, violations = lint(text, repo_root)

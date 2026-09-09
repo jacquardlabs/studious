@@ -17,7 +17,12 @@ COMMAND_TIERS = frozenset({"script", "test-backed"})
 # `.*$` tolerates status-flip's trailing suffix (`[PASS]`/`[REPLAN]`/`[ESCALATE]`)
 # without special-casing, so re-parsing a partly-executed plan doesn't fail on
 # the heading. Suffix validation is status-flip's own contract, not this module's.
-TASK_HEADING_RE = re.compile(r"^### Task (\d+)\b.*$", re.MULTILINE)
+TASK_HEADING_RE = re.compile(r"^### Task (\d+)(?=\s|$).*$", re.MULTILINE)
+# Any `### Task…` heading at all. What this matches and TASK_HEADING_RE does not
+# (`### Task 2a`, `### Task two`, `### Task 3.1`, a bare `### Task`) is a card the
+# grammar cannot see: it ends the previous block and belongs to no task, so nothing
+# lints or verifies it. Both CLIs refuse such a plan by name (#267).
+ANY_TASK_HEADING_RE = re.compile(r"^### Task\b.*$", re.MULTILINE)
 # Any heading at level 1-3: the next task heading, or a coarser section
 # (e.g. a closing `## Not-here follow-ups`), either one ends a task block.
 HEADING_LEVEL_1_TO_3_RE = re.compile(r"^(#{1,3})[ \t]", re.MULTILINE)
@@ -60,6 +65,16 @@ def split_tasks(text: str, boundary_re: re.Pattern[str] | None = None) -> list[t
         end = next((b for b in boundary_starts if b > start), len(text))
         tasks.append((m.group(1), text[start:end]))
     return tasks
+
+
+def out_of_grammar_task_headings(text: str) -> list[str]:
+    """Every `### Task…` heading line the task grammar does not accept, verbatim,
+    in document order. Empty means every task card is visible to the grammar."""
+    return [
+        m.group(0)
+        for m in ANY_TASK_HEADING_RE.finditer(text)
+        if not TASK_HEADING_RE.match(m.group(0))
+    ]
 
 
 def task_title(block: str) -> str:
