@@ -48,6 +48,34 @@ def test_doctor_checks_the_root_lookup_command_beside_the_agents() -> None:
     assert "not the `gauntlet:review` skill" not in row
 
 
+def test_lane_eight_not_installed_path_is_a_task_in_the_same_batch_and_installed_path_stays_inline() -> None:
+    """#164 item 1: the accessibility lane's two paths are wired differently, and the wording
+    is what a reader follows. Not installed → `gauntlet:accessibility-auditor` as a Task in
+    the same simultaneous batch as lanes 6, 7, and 9–12. Installed → the skill runs inline,
+    no Task, and the judge is dropped from `$keep` so `report.py` expects no document."""
+    text = _door()
+    lane = text[text.index("8. **Web Interface Guidelines"):text.index("### Routed lanes")]
+    not_installed = lane[lane.index("**Not installed (the common case):**"):lane.index("**Installed:**")]
+    assert "dispatch **gauntlet:accessibility-auditor** as a" in not_installed
+    assert "same simultaneous batch as lanes 6, 7, and 9–12" in " ".join(not_installed.split())
+    installed = lane[lane.index("**Installed:**"):]
+    assert "inline" in installed and "drop `accessibility-auditor` from" in " ".join(installed.split())
+    assert "stays inline rather than dispatching as a Task" in " ".join(installed.split())
+
+
+def test_evidence_log_is_deduped_once_before_dispatch_and_passed_as_receipts_path() -> None:
+    """#164 item 3: the door runs `studious evidence-list --dedupe` once, before any lane,
+    and the file reaches `dispatch.py` as `--receipts-path` — the wiring, not the primitive."""
+    text = _door()
+    evidence = text[text.index("## Resolve the branch's evidence log"):text.index("## Open or re-enter")]
+    assert "Run `studious evidence-list --dedupe` once, before dispatching anyone" in evidence
+    assert 'studious evidence-list --dedupe > "$evidence_file"' in evidence
+    assert "`--receipts-path`" in evidence
+    build = text[text.index("## Build the invocations"):text.index("**Filter to the round's lane profile.**")]
+    assert '${evidence_file:+--receipts-path "$evidence_file"}' in build, "the dedupe file is not what dispatch.py receives"
+    assert text.count("evidence-list --dedupe") <= 3, "the dedupe call is restated beyond its step"
+
+
 def test_no_local_agent_token_remains() -> None:
     assert "@agent-" not in _door(), "commands/review.md still dispatches a local agent"
 
