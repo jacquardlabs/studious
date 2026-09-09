@@ -109,7 +109,7 @@ class TestDesignSkillBody(PhraseInBodyMixin, unittest.TestCase):
                 self.assertIn(field, self.body)
         self.assertIn(".viva/qa-input.json", self.body)
         self.assertIn(".viva/answers.json", self.body)
-        self.assertIn("/viva-qa", self.body)
+        self.assertIn("interview --input .viva/qa-input.json", self.body)
 
     def test_round_2_is_conditional_never_automatic(self) -> None:
         self.assertPhraseIn("Round 2 is conditional, never automatic")

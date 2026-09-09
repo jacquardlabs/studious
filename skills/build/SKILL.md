@@ -88,13 +88,15 @@ case you are in before anything else:
   dependency spine, the task calibration, the checkpoint-block grammar, the `plan-lint`
   gate, and the viva sign-off round in full. Consult it; don't restate it here, and don't
   skip its sign-off — a plan reaches Step 1 only at `PLAN READY`.
-- **No plan and no design doc, but the story has a source issue** (the argument names
-  one as `#N` or an issue URL, or the work file whose `branch` matches HEAD — `gate-ledger
-  work-list`, then `work-get --slug <slug>` — records a `source` issue) — fetch it
-  (`gh issue view <N> --json title,body`) and follow `reference/planning-contract.md`
-  with the issue as the doc it reads. This is the default route: design is off unless
-  the human asks for `/shape`. An issue too thin to plan from is the contract's own
-  `DESIGN GAP`, naming `/shape` as the resume action.
+- **No plan and no design doc, but the story has source issues** (the argument names
+  one or more as `#N`, `owner/repo#N`, or an issue URL, or the work file whose `branch`
+  matches HEAD — `gate-ledger work-list`, then `work-get --slug <slug>` — records them
+  in `source`) — follow `reference/planning-contract.md` with the issues as its
+  attachments; the contract resolves and fetches them through viva's manifest. This is
+  the default route: design is off unless the human asks for `/shape`. A list of
+  issues is one plan; the contract's `TOO BIG` is what sends an oversized list back to
+  be split. An issue too thin to plan from is the contract's own `DESIGN GAP`, naming
+  `/shape` as the resume action.
 - **None of those** — stop and report **PAUSED**, naming what's missing (no plan, no
   design doc, no source issue) and the resume action: name the issue, write a design doc
   (`/shape`, or any route satisfying `reference/design-doc-contract.md`), or hand over a
@@ -111,8 +113,9 @@ keeps that from being a surprise.
 
 ## Input
 
-One optional argument: a path to a `PLAN.md`-shaped file, a design doc, **or** an issue
-reference (`#N` or URL), defaulting to `PLAN.md` at the target project's repo root. The **quick path** is not a
+One optional argument: a path to a `PLAN.md`-shaped file, a design doc, **or** one or
+more issue references (`#N`, `owner/repo#N`, URL), defaulting to `PLAN.md` at the target
+project's repo root. The **quick path** is not a
 different input shape — it is simply a plan file containing exactly one
 `### Task` block, hand-authored in the checkpoint-block format below. One
 input contract serves both the quick path and the full cycle; don't invent

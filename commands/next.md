@@ -71,8 +71,10 @@ route produced the branch.
 After piece 3 the flow is `done`. Never open the PR yourself: the PR is the user's
 (`gh pr create`; the closing block carries the verdict trail they open it on).
 
-No door is mandatory, only default. Skipping `/bet` means no appetite and no decision record
-exist — position still derives from repo evidence, and every later door runs regardless.
+No door is mandatory, only default. Tracker-placed work — an issue, a list, a milestone —
+starts at `build`; `/bet` is the first piece for a raw idea, or whenever the user asks.
+Skipping it means no appetite and no decision record exist — position still derives from
+repo evidence, and every later door runs regardless.
 
 ## Resolve what we're talking about
 
@@ -93,17 +95,26 @@ gate-ledger work-list     # stories in flight
   invite `/next [idea, issue, or milestone]`.
 - **`$ARGUMENTS` names work in flight** (a slug, branch, or title) — resume it.
 - **`$ARGUMENTS` names several issues, a milestone, or a label** — a list. Expand it to its
-  open issues (`gh issue list --milestone "<name>" --state open`, or the issues as given),
-  print them in the order you propose to run them (dependencies first, then issue number),
-  and stop for the user's word on the order. Then run the first story through the flow
-  below exactly as a single story, and when it reaches `done` name the next one in the
-  closing block. One story at a time, one branch per story; nothing runs unattended.
-- **Anything else starts a new story** — a raw idea or an issue reference. For an issue,
-  fetch its title and body with `gh issue view` and use them as the bet's input. Derive a
-  short slug from the title, then create the work file at phase `decide`:
+  open issues (`gh issue list --milestone "<name>" --state open --json number,title` — a
+  milestone by title, number, or URL; or the issues as given), print them in the order you
+  propose (dependencies first, then issue number), and stop for the user's word on the
+  order. A list is **one story**: one work file, one plan the human stamps task by task,
+  one branch, one work episode, one PR closing every issue. `/build`'s planning contract
+  bounds it — `TOO BIG` sends the list back here to be split. Derive the slug from the
+  milestone or label name and create the work file at phase `build`:
 
 ```bash
-gate-ledger work-set --slug "<slug>" --title "<title>" --source "<issue #N or: idea>" --phase decide
+gate-ledger work-set --slug "<slug>" --title "<milestone title>" --source "#a #b #c" --phase build
+```
+
+- **`$ARGUMENTS` is one issue reference** — the same, for one issue: `gh issue view <N>
+  --json title` for the title, slug from it, `--source "#N" --phase build`. Tracker-placed
+  work carries its bet already; `/bet` runs only when the user asks for it.
+- **Anything else starts a new story** — a raw idea. Derive a short slug from it and create
+  the work file at phase `decide`; `/bet` is the first piece:
+
+```bash
+gate-ledger work-set --slug "<slug>" --title "<title>" --source "idea" --phase decide
 ```
 
 ## Find the piece — evidence first
@@ -218,9 +229,12 @@ human signs off where an episode cannot verify mechanically.
 
 ### 2 · build
 
-- **Route is `/build`:** run it, handing over the source issue, the scoped title, and — when
-  they exist — the design doc path and the pre-mortem register path (its items are what the
-  work episode verifies at the end). With no design doc, `/build` plans from the issue.
+- **Route is `/build`:** run it, handing over the work file's `source` issues as its
+  arguments, the scoped title, and — when they exist — the design doc path and the
+  pre-mortem register path (its items are what the work episode verifies at the end).
+  With no design doc, `/build`'s planning contract attaches the issues, interviews the
+  residual forks, drafts `PLAN.md`, lints it, and hands one card per task to the human in
+  viva; `PLAN READY` is the stamp the build proceeds from.
   Once a feature branch exists, record it — the gate ledger is per-branch, so later pieces
   need it: `work-set --branch "<branch>"`. `/build`
   plans, builds one task at a time, exorcises, then convenes `/review`'s work episode
@@ -312,7 +326,7 @@ Episode: round R of C — N open, M carried
 ```
 
 When the flow reaches `done` or `stopped`, the last two lines become the wrap-up instead:
-`done` points at `gh pr create` — and, when a list is in progress, names the next story;
+`done` points at `gh pr create`, one PR closing every issue in the work file's `source`;
 `stopped` states the verdict that ended it.
 
 Then stop. Do not start the next piece, do part of it "to save time," or ask whether to
