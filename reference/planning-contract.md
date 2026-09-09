@@ -319,7 +319,7 @@ Always pass an explicit `--split-on`, never bare auto-detect:
 ```bash
 python3 "$VIVA_DIR/scripts/loop.py" start --doc PLAN.md --type plan \
   --pass architecture --parse-only \
-  --split-on '(?i)^(Task \d+|Not-here follow-ups|Revision History)'
+  --split-on '(?i)^(Task \d+|Not-here follow-ups|Amendments|Revision History)'
 ```
 
 Add `--handoff` when Step 3b's interview is live, so the cards reflow into
@@ -345,7 +345,9 @@ fixes issue #23.
 **Consequence for `PLAN.md`'s own shape.** No heading other than the H1
 title, `### Task N` blocks, and the trailing `## Not-here follow-ups`
 exists anywhere in your output -- no `## Inventory`, no `## Dependency
-spine` section. A second `##`-level heading competes with `## Not-here
+spine` section. (`## Amendments` is not yours to write: `studious
+plan-amend` appends it during the build, for work the human authorized
+outside the blocks -- #366.) A second `##`-level heading competes with `## Not-here
 follow-ups` for auto-detect's split-level selection (and can flip it away
 from level 3 even with `--split-on` unused elsewhere) and visually
 misrepresents the file's structure to a human skimming it outside viva.

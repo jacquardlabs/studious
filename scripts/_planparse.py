@@ -71,6 +71,28 @@ def method_paths(block: str) -> list[str]:
     return paths
 
 
+AMENDMENTS_HEADING_RE = re.compile(r"^## Amendments[ \t]*$", re.MULTILINE)
+HEADING_LEVEL_1_TO_2_RE = re.compile(r"^(#{1,2})[ \t]", re.MULTILINE)
+
+
+def amendments_section(text: str) -> str:
+    """The body under `## Amendments` (written by `plan-amend` during a build,
+    never by the plan author), up to the next level-1/2 heading; "" if absent."""
+    m = AMENDMENTS_HEADING_RE.search(text)
+    if not m:
+        return ""
+    rest = text[m.end():]
+    nxt = HEADING_LEVEL_1_TO_2_RE.search(rest)
+    return rest[: nxt.start()] if nxt else rest
+
+
+def amendment_paths(text: str) -> set[str]:
+    """Every backtick-quoted path an amendment line names — human-authorized
+    work outside the task blocks, and therefore in-plan for plan-drift and
+    intent for exorcise (#366)."""
+    return {strip_line_locator(s) for s in BACKTICK_RE.findall(amendments_section(text))}
+
+
 def named_paths(block: str) -> set[str]:
     """Every repo path a block names as concrete: `Read first:` and `Do:`
     backtick spans (line locators stripped) plus command-tier method paths.

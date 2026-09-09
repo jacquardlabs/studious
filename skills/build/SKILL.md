@@ -357,6 +357,16 @@ For each task block, in order:
    out-of-plan change. A deviation disclosed only in a commit message or a
    summary is exactly what this catches. Exit 2 routes as `verify`'s exit
    2 above. Only exit 0 advances to step 2.6.
+
+   **Work outside the plan that the human authorizes mid-build** — an
+   environment patch, a sibling file, a tool the task turned out to need —
+   is recorded before the next step runs:
+   `studious plan-amend --plan <plan path> --file <path> --reason "<what, why, who authorized>"`.
+   It appends the line to the plan's `## Amendments` block and to the work
+   file when one matches the branch; from then on the file is in-plan for
+   `plan-drift` and part of the intent Step 3 hands exorcise (#366). An
+   authorized addition nobody recorded looks exactly like an unrequested one
+   and is reverted with it.
 6. **Inspect — conditional on load-bearing status (issue #15).** Consult
    the fixed load-bearing set step 1.5 already computed.
 
@@ -701,7 +711,9 @@ with the build proceeding to its verdict.
 2. **Dispatch.** State "exorcising against N tasks' intent", then launch one
    fresh Task-tool subagent whose entire prompt is exactly:
    - the intent: every task's `Do:` and `Done means:` lines, verbatim from
-     the plan, in task order, and — if and only if a design doc exists
+     the plan, in task order, then the plan's `## Amendments` block verbatim
+     when one exists (human-authorized work `studious plan-amend` recorded —
+     intent, not excess), and — if and only if a design doc exists
      (Step 0) — its `Proposed design` section, nothing wider;
    - the worktree path and the base branch noted at Step 1.3;
    - one boundary line, essentially: *"Set this branch's upstream to

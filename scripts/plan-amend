@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""plan-amend -- record work the human authorized outside the plan (#366).
+
+    plan-amend --plan PLAN.md --file scripts/verify --reason "patch the runner gap the human chose to fix now" [--repo .]
+
+Appends one line under `## Amendments` in the plan (creating the section at
+the end of the file on first use) and, when a `/next` work file matches the
+repo's current branch, records the same amendment on it through
+`studious work-log --amend-file`. Once recorded, the file is in-plan for
+`plan-drift` and part of the intent `/build` hands exorcise -- an authorized
+addition and an unrequested one stop looking identical.
+
+Zero-model, append-only: never edits a task block or an earlier amendment.
+
+Exit codes: 0 recorded. 2 usage error -- plan missing/unreadable, empty
+--file or --reason, a reason with a newline, or a repo that is not a git
+checkout. The work-file write is best-effort: no matching work file, or no
+`studious` beside this script, is reported on stderr and is not a failure.
+"""
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import current_branch, git_repo_root  # noqa: E402
+from _planparse import AMENDMENTS_HEADING_RE  # noqa: E402
+
+STUDIOUS = Path(__file__).resolve().parent.parent / "bin" / "studious"
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="plan-amend", description="Record human-authorized work outside the plan.")
+    parser.add_argument("--plan", required=True, help="path to the PLAN.md-shaped file")
+    parser.add_argument("--file", required=True, help="repo-relative path the authorized work touches")
+    parser.add_argument("--reason", required=True, help="one line: what, why, who authorized")
+    parser.add_argument("--repo", default=".", help="the worktree (default: cwd)")
+    return parser.parse_args(argv)
+
+
+def amend_plan(plan_path: Path, file: str, reason: str, when: str) -> str:
+    text = plan_path.read_text(encoding="utf-8")
+    line = f"- `{file}` — {reason} (authorized {when})"
+    if AMENDMENTS_HEADING_RE.search(text):
+        text = text.rstrip("\n") + "\n" + line + "\n"
+    else:
+        text = text.rstrip("\n") + "\n\n## Amendments\n\n" + line + "\n"
+    plan_path.write_text(text, encoding="utf-8")
+    return line
+
+
+def amend_work_file(repo: Path, file: str, reason: str) -> str:
+    """Best-effort: the work file whose branch is this repo's branch, if any."""
+    if not STUDIOUS.is_file():
+        return "work file: skipped (no studious entrypoint beside this script)"
+    listed = subprocess.run([str(STUDIOUS), "work-list"], cwd=repo, capture_output=True, text=True, check=False)
+    if listed.returncode != 0:
+        return "work file: skipped (work-list failed)"
+    branch = current_branch(repo)
+    slug = next(
+        (row.split("\t")[0] for row in listed.stdout.splitlines() if len(row.split("\t")) >= 3 and row.split("\t")[2] == branch),
+        "",
+    )
+    if not slug:
+        return f"work file: none matches branch {branch}; plan amended only"
+    wrote = subprocess.run(
+        [str(STUDIOUS), "work-log", "--slug", slug, "--scope-delta-phase", "build", "--amend-file", file, "--amend-reason", reason],
+        cwd=repo, capture_output=True, text=True, check=False,
+    )
+    if wrote.returncode != 0:
+        return f"work file: write failed for slug {slug}: {wrote.stderr.strip()}"
+    return f"work file: amendment recorded on {slug}"
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+    plan_path = Path(args.plan)
+    repo = Path(args.repo).resolve()
+    file, reason = args.file.strip(), args.reason.strip()
+    if not file or not reason or "\n" in reason:
+        print("error: --file and --reason are required, and the reason is one line", file=sys.stderr)
+        return 2
+    if git_repo_root(repo) is None:
+        print(f"error: '{repo}' is not inside a git repository", file=sys.stderr)
+        return 2
+    if not plan_path.is_file():
+        print(f"error: '{plan_path}' does not exist or is not a file", file=sys.stderr)
+        return 2
+    when = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    line = amend_plan(plan_path, file, reason, when)
+    print(f"plan-amend: {plan_path} << {line}")
+    print(f"plan-amend: {amend_work_file(repo, file, reason)}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
