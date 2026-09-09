@@ -26,7 +26,7 @@ acceptance criteria and the epic/story pre-mortems' named risks:
    auto-detect; `Not-here follow-ups` heading level stays `##` (resolves
    issue #23; epic risks #1/#5).
 7. Step 4's `Rests on:` references tasks by the literal `Task N` token,
-   matching `scripts/plan-lint`'s and `/build`'s parsing (epic risk #6).
+   matching `studious plan-lint`'s and `/build`'s parsing (epic risk #6).
 8. Step 6 names a clear, non-silent failure when viva isn't installed
    (story risk #7).
 9. Step 1 names which doc section supplied each extracted concept, and asks
@@ -207,7 +207,7 @@ class TestPlanSkillBody(PhraseInBodyMixin, unittest.TestCase):
     # -- Step 5: lint (bounded revise loop) ----------------------------------
 
     def test_lint_invocation_is_real_not_a_no_op(self) -> None:
-        self.assertIn("scripts/plan-lint", self.body)
+        self.assertIn("studious plan-lint", self.body)
         self.assertPhraseIn("never an unconditional pass")
 
     def test_lint_revise_loop_is_bounded(self) -> None:

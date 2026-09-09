@@ -410,7 +410,7 @@ class EpisodeVocabularyTest(unittest.TestCase):
 def _episode_half(door: str) -> str:
     """The review door minus its design-episode section.
 
-    The design episode still records via `gate-ledger record --gate
+    The design episode still records via `studious record --gate
     design-review`, not `episode-verdict`: the retry token is one shared
     constant (`FIX AND RE-REVIEW`), and a design `REVISE` handed to
     `episode-verdict` would read as a closing verdict rather than a bound. So
@@ -444,8 +444,8 @@ class GateAuditDoorTest(unittest.TestCase):
 
     def test_door_never_runs_bare_record(self) -> None:
         self.assertIsNone(
-            re.search(r"gate-ledger record\b", _episode_half(self.door)),
-            "commands/review.md still records via bare `gate-ledger record` "
+            re.search(r"studious record\b", _episode_half(self.door)),
+            "commands/review.md still records via bare `studious record` "
             "instead of episode-verdict",
         )
 
@@ -640,7 +640,7 @@ class DeliveryFoldTest(unittest.TestCase):
 
     def test_door_never_runs_bare_record(self) -> None:
         self.assertIsNone(
-            re.search(r"gate-ledger record\b", _episode_half(self.door)),
+            re.search(r"studious record\b", _episode_half(self.door)),
             "commands/review.md still records via bare `gate-ledger "
             "record` instead of episode-verdict",
         )

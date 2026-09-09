@@ -1,4 +1,4 @@
-"""Tests for `scripts/retro-stats` (issue #330; defect regressions #351/#349).
+"""Tests for `studious retro-stats` (issue #330; defect regressions #351/#349).
 
 Moved here from `tests/jig/` (#351): the end-to-end tests need `jq`, which the
 `python-checks` CI job already has (unlike `build-scripts`, which never

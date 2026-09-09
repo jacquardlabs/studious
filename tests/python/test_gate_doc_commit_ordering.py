@@ -3,7 +3,7 @@
 `cmd_record` stamps a verdict's sha from HEAD at record time; a doc committed after
 record (e.g. the finale acceptance dispatch committing reconciliation notes post-SHIP)
 makes `cmd_status` flag the verdict stale over a no-op commit. Fix: state one ordering
-rule (commit everything the run wrote before `gate-ledger record`) in the three
+rule (commit everything the run wrote before `studious record`) in the three
 doc-write-capable record site, `commands/review.md`'s shared Record section. Verdict
 vocabulary/decision logic unchanged — these tests lock the ordering statement only.
 """
@@ -27,14 +27,14 @@ def test_gate_design_review_states_commit_before_record() -> None:
     text = GATE_DESIGN_REVIEW.read_text()
     section = _record_section(text)
 
-    assert "Before running `gate-ledger episode-verdict`" in section, (
-        "no explicit 'before running gate-ledger record' ordering statement"
+    assert "Before running `studious episode-verdict`" in section, (
+        "no explicit 'before running studious record' ordering statement"
     )
 
-    rule_pos = section.index("Before running `gate-ledger episode-verdict`")
+    rule_pos = section.index("Before running `studious episode-verdict`")
     bash_pos = section.index("```bash")
     assert rule_pos < bash_pos, (
-        "commit-before-record rule must precede the gate-ledger record invocation"
+        "commit-before-record rule must precede the studious record invocation"
     )
 
     # The rule must reference what this gate's own run may have just written.

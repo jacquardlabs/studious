@@ -128,11 +128,11 @@ def test_gate_read_step_untrusted_data_posture() -> None:
 
 def test_gate_appends_after_verdict_and_keeps_ledger_write() -> None:
     """Two writes, two jobs: the journal append is added and the existing
-    gate-ledger record stays untouched; append failure is told, never silent."""
+    studious record stays untouched; append failure is told, never silent."""
     text = GATE.read_text()
 
-    assert "gate-ledger record --gate should-we-build" in text, (
-        "the existing gate-ledger write must survive (two writes, two jobs)"
+    assert "studious record --gate should-we-build" in text, (
+        "the existing studious write must survive (two writes, two jobs)"
     )
     journal_pos = text.index("## Journal the decision")
     record_pos = text.index("## Record the verdict")

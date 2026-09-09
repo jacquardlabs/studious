@@ -1,4 +1,4 @@
-"""Regression tests for scripts/verify (story build-scripts, issue #14).
+"""Regression tests for studious verify (story build-scripts, issue #14).
 
 Covers:
 1. script/test-backed items re-run their named command and PASS/FAIL on exit code.

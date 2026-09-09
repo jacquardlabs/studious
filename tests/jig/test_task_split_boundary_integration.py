@@ -1,6 +1,6 @@
 """Integration test binding jig's three task-splitting surfaces (story
 plan-lint-build-boundary-integration-test, issue #66; epic
-pre-dogfood-hardening) -- `scripts/plan-lint`'s `split_tasks()`,
+pre-dogfood-hardening) -- `studious plan-lint`'s `split_tasks()`,
 `skills/build/SKILL.md` Step 1.4's boundary prose, and
 `reference/planning-contract.md` Step 6's `--split-on` pattern -- and
 checks mechanically that they agree on where a `### Task N` block ends.

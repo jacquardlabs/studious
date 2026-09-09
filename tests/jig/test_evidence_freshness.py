@@ -1,4 +1,4 @@
-"""Regression tests for scripts/evidence-freshness (story finish-skill, issue #20).
+"""Regression tests for studious evidence-freshness (story finish-skill, issue #20).
 
 Runs against a throwaway git repo (`tests/_tempgit.py`), never the real jig repo.
 

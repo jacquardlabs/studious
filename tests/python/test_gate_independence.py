@@ -106,13 +106,25 @@ def test_catches_a_gate_shelling_out_to_a_build_executable(tmp_path: Path, monke
     agents = tmp_path / "agents"
     agents.mkdir()
     (agents / "some-auditor.md").write_text(
-        "Run `uv run --no-project python scripts/verify` to check the task.\n",
+        "Run `uv run --no-project python studious verify` to check the task.\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(gi, "REPO", tmp_path)
     problems = gi.violations()
     assert len(problems) == 1
-    assert "must not shell out to scripts/verify" in problems[0]
+    assert "must not shell out to studious verify" in problems[0]
+
+
+def test_catches_a_gate_shelling_out_through_the_scripts_path_too(tmp_path: Path, monkeypatch) -> None:
+    """#346: `scripts/verify` and `studious verify` are the same executable; the guard
+    reads both spellings."""
+    agents = tmp_path / "agents"
+    agents.mkdir()
+    (agents / "some-auditor.md").write_text("Run `scripts/verify --task 3` to check it.\n", encoding="utf-8")
+    monkeypatch.setattr(gi, "REPO", tmp_path)
+    problems = gi.violations()
+    assert len(problems) == 1
+    assert "must not shell out to studious verify" in problems[0]
 
 
 def test_every_build_executable_is_actually_guarded(tmp_path: Path, monkeypatch) -> None:

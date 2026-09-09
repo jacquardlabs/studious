@@ -48,8 +48,9 @@ STRUCTURAL_SURFACE = (
     "bin/gate-ledger",
 )
 
-#: The producer doors' own executables (`scripts/<name>`) — shelling out to one directly
-#: is the same dependency as naming the door that wraps it (#246).
+#: The producer doors' own executables (`scripts/<name>`, or `studious <name>` through
+#: the one entrypoint) — shelling out to one directly is the same dependency as naming
+#: the door that wraps it (#246).
 BUILD_EXECUTABLES = (
     "plan-lint",
     "design-lint",
@@ -96,7 +97,7 @@ def invocation_re() -> re.Pattern:
     `docs/design/`, and "never run install/build/test" from misreading as invocations."""
     return re.compile(
         r"(?<![\w/-])/(?P<door>{})(?![\w/-])".format("|".join(producer_names()))
-        + r"|(?<![\w/-])scripts/(?P<executable>{})(?![\w/-])".format(
+        + r"|(?<![\w/-])(?:scripts/|studious )(?P<executable>{})(?![\w/-])".format(
             "|".join(BUILD_EXECUTABLES)
         )
     )
@@ -130,7 +131,7 @@ def scan(rel: str, text: str, invocation: re.Pattern | None = None) -> list[str]
             else:
                 problems.append(
                     f"{rel}:{n}: a judge door must not shell out to "
-                    f"scripts/{match.group('executable')} — it judges the work, never "
+                    f"studious {match.group('executable')} — it judges the work, never "
                     f"who produced it\n    {line.strip()}"
                 )
         if match := ARTIFACTS.search(line):

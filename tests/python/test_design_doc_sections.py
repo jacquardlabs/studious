@@ -1,7 +1,7 @@
 """One authority, four copies of the design-doc section set (#211).
 
 `reference/design-doc-contract.md`'s Required sections table is authoritative.
-Before this test, `scripts/design-lint`, `skills/shape/SKILL.md`, and `DESIGN.md`
+Before this test, `studious design-lint`, `skills/shape/SKILL.md`, and `DESIGN.md`
 had drifted to 7 sections vs. the contract's 8 (`Success metrics` added by #120),
 so design-lint rejected the shipped `templates/design-doc.md`. This test derives
 the list from the contract and asserts each copy agrees (same guard pattern as
@@ -69,12 +69,12 @@ def test_contract_table_is_the_eight_sections_120_ratified() -> None:
 
 
 def test_design_lint_canonical_sections_match_the_contract() -> None:
-    """`scripts/design-lint` mirrors the table in `CANONICAL_SECTIONS`. This is
+    """`studious design-lint` mirrors the table in `CANONICAL_SECTIONS`. This is
     the copy whose drift produced #211: it held 7 names and hard-failed any doc
     that didn't carry exactly those."""
     text = DESIGN_LINT.read_text(encoding="utf-8")
     block = re.search(r"^CANONICAL_SECTIONS = \(\n(.*?)^\)", text, re.MULTILINE | re.DOTALL)
-    assert block, "scripts/design-lint has no CANONICAL_SECTIONS tuple"
+    assert block, "studious design-lint has no CANONICAL_SECTIONS tuple"
 
     names = re.findall(r'"([^"]+)"', block.group(1))
     assert names, "CANONICAL_SECTIONS parsed to zero names"

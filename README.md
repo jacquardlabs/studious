@@ -237,7 +237,7 @@ is written on your behalf.
 | `docs/studious/` | Yes | `/health` and `/retro` review reports, dated build reports, and the decision journal |
 
 `.studious/` is flow state: local, disposable, and never in the diff — which is why the flow
-survives a session ending but not a fresh clone. `bin/gate-ledger status` prints what's
+survives a session ending but not a fresh clone. `studious status` prints what's
 recorded for the current branch. `docs/studious/` is the durable record, with one deliberate
 exception: `docs/studious/decisions.jsonl` — every `/bet` verdict with its rationale and
 what would change the answer — is appended by the gate and committed by you, never
@@ -253,7 +253,7 @@ Studious degrades quietly by design — a missing tool or an unregistered skill 
 without erroring. `/studious:doctor` is the read-only pass that surfaces it, in five checks:
 
 1. **Tooling** — `git`, `jq`, `gh`, `python3`, `viva`, `gauntlet`. Missing `jq` is the quiet one:
-   `gate-ledger record` no-ops, so no verdict and no flow position is ever written.
+   `studious record` no-ops, so no verdict and no flow position is ever written.
 2. **Plugin health** — whether every agent and skill Studious ships actually registered this
    session. Malformed frontmatter on `backlog-priorities` means `/bet` silently runs without
    its ranking lane, without an error.

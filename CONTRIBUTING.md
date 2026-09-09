@@ -29,9 +29,9 @@ Open an issue for bugs, unclear documentation, or suggestions. Include:
 
 ```
 agents/       — Agent definitions (name, description, tools, model in frontmatter)
-bin/          — Executables used by commands (e.g. gate-ledger for gate verdicts and /next's per-feature state)
+bin/          — `studious`, the one entrypoint (dispatches to gate-ledger and scripts/), and gate-ledger itself
 commands/     — Slash commands (description, allowed-tools in frontmatter)
-scripts/      — CI helper scripts (link checking, manifest validation)
+scripts/      — Door-run executables (reached as `studious <name>`) and CI helpers (link checking, manifest validation)
 skills/       — Producer doors and model-invoked skills (skills/<name>/SKILL.md)
 hooks/        — Shipped hook scripts + hooks.json (evidence capture, session-start heads-up)
 reference/    — Contracts and rubrics the doors read (e.g. reference/severity-rubric.md)

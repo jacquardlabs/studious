@@ -157,7 +157,7 @@ class TestDesignSkillBody(PhraseInBodyMixin, unittest.TestCase):
     # -- Step 5: design-lint --------------------------------------------------
 
     def test_design_lint_runs_before_any_viva_round(self) -> None:
-        self.assertIn("scripts/design-lint", self.body)
+        self.assertIn("studious design-lint", self.body)
         self.assertPhraseIn("before any viva round launches")
 
     def test_design_lint_commits_to_the_0_1_2_exit_code_contract(self) -> None:

@@ -59,7 +59,7 @@ class TestGatePresenceIsNotConditional(unittest.TestCase):
             "studious not installed; skipping the hand-off",
             "no design doc; studious absent",
             "hands off when studious is installed, degrading otherwise",
-            "if a prior verdict exists (studious installed, gate-ledger on PATH)",
+            "if a prior verdict exists (studious installed, `studious` on PATH)",
             "studious isn't installed",
         ):
             with self.subTest(phrasing=phrasing):

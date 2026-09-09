@@ -96,9 +96,9 @@ is a starting number, not a tuned constant.
 
 ## Resolve the branch's evidence log (before dispatching)
 
-Run `gate-ledger evidence-list --dedupe` once, before dispatching anyone, redirected
+Run `studious evidence-list --dedupe` once, before dispatching anyone, redirected
 straight to a scratch file rather than through your own context —
-`evidence_file=$(mktemp "${TMPDIR:-/tmp}/studious-review-evidence.XXXXXX") && gate-ledger evidence-list --dedupe > "$evidence_file"; test -s "$evidence_file"`.
+`evidence_file=$(mktemp "${TMPDIR:-/tmp}/studious-review-evidence.XXXXXX") && studious evidence-list --dedupe > "$evidence_file"; test -s "$evidence_file"`.
 A non-zero exit from that `test` means the file came back empty: no evidence log exists for
 this branch (or `--dedupe` failed closed, e.g. no `jq`) — unset `evidence_file` and do
 nothing further; `dispatch.py` runs without `--receipts-path`, every invocation omits
@@ -108,7 +108,7 @@ into every invocation as `receipts_path`. The judges own the rest: a finding cla
 command passed cites the matching record's `outputDigest` in `receipts` or is
 `basis: inferred`, and the pre-mortem lane checks the log before settling on CAN'T VERIFY.
 The log's shape is `reference/evidence-format.md`, which gauntlet's contract §6 carries
-verbatim, so nothing is translated at this boundary. If `gate-ledger` is not found or
+verbatim, so nothing is translated at this boundary. If `studious` is not found or
 `evidence-list` errors, treat it identically to empty output and degrade silently — a
 missing evidence log only means the findings cite nothing.
 
@@ -119,7 +119,7 @@ the episode verbs entirely — its Part 4 exception explains why — so on the d
 skip this step: each design round simply runs, records via `record`, and amends the
 register in place.
 
-Run `gate-ledger gate-get` once, before dispatching anyone. `<gate>` below is the work
+Run `studious gate-get` once, before dispatching anyone. `<gate>` below is the work
 episode's ledger gate, `audit`. This round
 **re-enters** the branch's open episode — its one fix-and-retry round — only if every
 applicable condition holds against what it returns for `.gates.<gate>`:
@@ -137,12 +137,12 @@ applicable condition holds against what it returns for `.gates.<gate>`:
    retired lane, `web-design-guidelines`, or `premortem-auditor` — neither of which this
    narrowing mechanism ever tracks) fails this condition.
 
-If `gate-ledger` is not found, `gate-get` errors, or it returns empty output (no ledger
+If `studious` is not found, `gate-get` errors, or it returns empty output (no ledger
 recorded — including every branch's first-ever round), that alone already fails condition
 1. This is not a special case to detect separately: it is simply "no fix-and-retry verdict
 on record," so this round opens fresh, full and unnarrowed.
 
-**All hold → re-enter:** run `gate-ledger episode-round --gate <gate>` and branch on its
+**All hold → re-enter:** run `studious episode-round --gate <gate>` and branch on its
 exit code — the round cap is enforced there, in code, never re-counted here:
 
 - **Exit 0** — this is round 2 of the episode. Dispatch only the lanes named in
@@ -155,10 +155,10 @@ exit code — the round cap is enforced there, in code, never re-counted here:
   convergence check runs first and intercepts a round that failed to shrink the blocking
   set, so a non-converging round never gets here) — the fix cycle was working and ran out
   of room, which is a different fact from exit 3's. Stop before dispatching anyone. Put the
-  choice to the user: record the terminal verdict the rounds already earned (`gate-ledger
+  choice to the user: record the terminal verdict the rounds already earned (`studious
   episode-verdict --gate <gate> --verdict <V>` — at the cap the ledger accepts a terminal
   verdict over the still-riding retry outcome, closing the episode; open Criticals still
-  block it), reopen a fresh episode (`gate-ledger episode-open --gate <gate>`, a full
+  block it), reopen a fresh episode (`studious episode-open --gate <gate>`, a full
   unnarrowed round 1 with fresh eyes), or take the still-open findings to discussion
   instead. Never reopen silently — the cap is the episode's stop-and-rethink point, and
   stepping past it is a deliberate human act.
@@ -174,26 +174,26 @@ exit code — the round cap is enforced there, in code, never re-counted here:
   episode. Never re-run the round to see whether the count moves — the escalation is the
   user's call to answer, not this session's.
 
-**Any condition fails → fresh entry:** run `gate-ledger episode-open --gate audit` —
+**Any condition fails → fresh entry:** run `studious episode-open --gate audit` —
 round 1 of a new episode, full and unnarrowed. The re-entry and verdict verbs take the
 same key:
 
 ```bash
-gate-ledger episode-round --gate audit
-gate-ledger episode-verdict --gate audit --verdict "PASS"
+studious episode-round --gate audit
+studious episode-verdict --gate audit --verdict "PASS"
 ```
 
 State plainly in the report which case applied and why (a first-ever round, a fresh
 episode after a closed one, or which condition failed) — this is the episode's fail-closed
 guarantee: ambiguity always resolves to *more* review, never less.
 
-If `gate-ledger` is not found at all, tell the user the episode could not be opened — run
+If `studious` is not found at all, tell the user the episode could not be opened — run
 the full, unnarrowed round anyway and report, but say up front that neither findings nor
 verdict will be recorded; do not skip silently.
 
 ## Read the findings ledger on re-entry (work episode, round 2 only)
 
-On a fresh round 1 this step does nothing. On re-entry, run `gate-ledger episode-get --gate audit --findings` once. Its first line — "round R of C — N open, M carried" — goes verbatim
+On a fresh round 1 this step does nothing. On re-entry, run `studious episode-get --gate audit --findings` once. Its first line — "round R of C — N open, M carried" — goes verbatim
 into the report's Summary. The lines after it are round 1's recorded findings, in two
 deliberately different shapes:
 
@@ -411,11 +411,11 @@ recommendation. The findings arrive tiered — `critical` / `important` / `track
 
 ### Recording this episode's verdict — the one exception
 
-The work episode closes through `gate-ledger episode-verdict`. **The design
+The work episode closes through `studious episode-verdict`. **The design
 episode does not, and stays an exception for now.** It records with:
 
 ```bash
-gate-ledger record --gate design-review --verdict "PROCEED TO PLAN"
+studious record --gate design-review --verdict "PROCEED TO PLAN"
 ```
 
 `bin/gate-ledger`'s retry token is a single constant, `FIX AND RE-REVIEW`
@@ -615,8 +615,8 @@ in `--context` and beside the invocation, the way lane 14 passes the design doc.
     question. Beside the invocation:
     - the named changeset file list, so the lane never improvises scope;
     - the criteria source — the design doc recorded for this branch's work file
-      (`gate-ledger work-list` to find the slug whose `branch` matches, then
-      `gate-ledger work-get --slug <slug>` for its `designDoc`), by its working-tree path,
+      (`studious work-list` to find the slug whose `branch` matches, then
+      `studious work-get --slug <slug>` for its `designDoc`), by its working-tree path,
       since a branch-local doc is gitignored and absent from the judged worktree; else the
       branch's own added or changed design/spec doc; else the work file's `source` issue
       (`gh issue view <N>` for its title, body, and criteria); else ask the user rather than
@@ -667,7 +667,7 @@ The findings ledger is what this episode's round 2 reads instead of re-deriving 
 round 1 — record it from the compiled report's post-challenge findings before recording the
 verdict. A fingerprint is the finding's identity across rounds: `<lane>/<short-slug>`, chosen
 once at first record and reused verbatim ever after — data for the ledger, never
-re-normalized. The write shapes the ledger refuses are refused in code (`bin/gate-ledger
+re-normalized. The write shapes the ledger refuses are refused in code (`bin/studious
 episode-finding`); this step supplies the judgment, not the bookkeeping.
 
 **A Critical is judged against its lane's anchor, never against the tier a judge gave it.**
@@ -685,7 +685,7 @@ On round 1, record every Critical and Important finding (a Track finding worth r
 be recorded too — it never blocks):
 
 - a finding this verdict requires fixed — every Confirmed Critical, and every Important to be
-  addressed this cycle: `gate-ledger episode-finding --gate <gate> --fingerprint <fp> --lane
+  addressed this cycle: `studious episode-finding --gate <gate> --fingerprint <fp> --lane
   <lane> --severity <tier> --status open`
 - a finding riding through the verdict unfixed: `--status carried`. A Critical reaches
   `carried` (or `waived`) only with `--waiver <reason>` — setting aside an unfixed Critical is
@@ -717,21 +717,21 @@ re-open a settled ruling, put to the user like a waiver, never a write of its ow
   relabel it until the write goes through. A new Critical stays recordable; it is the stop
   signal.
 
-Then run `gate-ledger episode-get --gate audit` and quote its output line ("round R of C — N
+Then run `studious episode-get --gate audit` and quote its output line ("round R of C — N
 open, M carried") verbatim in the report's Summary — the ledger's own round and counts, never
 a re-tally of your own. Those counts answer for `open` and `carried` only, so a Critical set
 aside this round — waived, or ruled `rejected-as-noise` — appears in neither: name it in the
-Summary alongside the quoted line, and point the user at `gate-ledger episode-get --gate audit --history`, which reads back every set-aside with the reason they gave it, in their own
+Summary alongside the quoted line, and point the user at `studious episode-get --gate audit --history`, which reads back every set-aside with the reason they gave it, in their own
 words.
 
 ### Record the verdict
 
-Before running `gate-ledger episode-verdict` — or, in the design episode, the verb named
+Before running `studious episode-verdict` — or, in the design episode, the verb named
 in its own section above — commit every tracked file this run wrote or modified. The
 pre-mortem register is gitignored and needs no commit; anything else the review produced
 does. The ledger stamps the
 verdict's sha from HEAD at the moment it runs; a file committed afterward leaves the ledger
-pointing at a commit that doesn't yet contain what this run produced, so `gate-ledger
+pointing at a commit that doesn't yet contain what this run produced, so `studious
 status` would flag this verdict as stale over a commit that changed nothing substantive.
 The recorded sha must be the same commit a later reader lands on at HEAD.
 
@@ -740,7 +740,7 @@ After stating the verdict, close the round by recording it — never bare `recor
 re-entry check read exactly what they always have.
 
 ```bash
-gate-ledger episode-verdict --gate audit --verdict "PASS"
+studious episode-verdict --gate audit --verdict "PASS"
 ```
 
 **Every Critical must be resolved before a closing verdict is recordable.** The ledger refuses
@@ -758,7 +758,7 @@ which this mechanism doesn't track) whose report contributed a Critical that sur
 challenge step as Confirmed and helped drive this verdict:
 
 ```bash
-gate-ledger episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" --blocking-lanes "security-auditor,test-auditor"
+studious episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" --blocking-lanes "security-auditor,test-auditor"
 ```
 
 If any lane dispatched this round is AGENT DIED — no findings document, or one `report.py`
@@ -768,6 +768,6 @@ re-review. Likewise omit it when no tracked lane contributed a surviving Critica
 list is not a lane profile. This is
 the same fail-closed posture as the shared episode step, applied on the writing side.
 
-The ledger is local and gitignored — it never enters the repo. If `gate-ledger` is not found
+The ledger is local and gitignored — it never enters the repo. If `studious` is not found
 (the plugin's `bin/` isn't on `PATH` in this environment), tell the user the verdict could not
 be recorded to the gate ledger — do not skip silently.

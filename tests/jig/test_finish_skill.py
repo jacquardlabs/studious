@@ -160,7 +160,7 @@ class TestFinishSkillBody(PhraseInBodyMixin, unittest.TestCase):
     # -- Step 5: dated build report -------------------------------------------
 
     def test_build_report_invocation_and_path_are_named(self) -> None:
-        self.assertIn("scripts/build-report", self.body)
+        self.assertIn("studious build-report", self.body)
         self.assertIn("docs/studious/build-reports/", self.body)
         self.assertIn("YYYY-MM-DD-<story-slug>-build-report.md", self.body)
 
@@ -260,7 +260,7 @@ class TestFinishResolvesTheEvidenceFolderByAsking(PhraseInBodyMixin, unittest.Te
         # note that guarded it against the raw-URL call site) is retired — an
         # absolute path ignores `evidence-freshness`'s cwd resolution entirely.
         self.assertIn(
-            "scripts/evidence-freshness --repo <worktree> --evidence <folder>",
+            "studious evidence-freshness --repo <worktree> --evidence <folder>",
             normalize_ws(self.body),
         )
         self.assertPhraseIn("passed **verbatim**")

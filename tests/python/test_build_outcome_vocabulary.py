@@ -104,7 +104,7 @@ def test_work_on_logs_the_design_gate_verdict_under_step_design_review_not_desig
     """The write /next itself makes at the end of the design piece records a
     gate-vocabulary token (`PROCEED TO PLAN` / `REVISE` / `RETHINK`) under the ledger
     gate's own name, `design-review` — never the piece's display name, `design`.
-    `scripts/retro-stats` buckets rounds and time-per-phase by exactly this step string
+    `studious retro-stats` buckets rounds and time-per-phase by exactly this step string
     (`GATES`/`PHASES`, both naming `design-review` distinctly from `design`); logging
     under `design` instead would silently zero out that gate's row in every future
     `/retro` report. (command-surface/option-b: piece 2 absorbed the separate
@@ -117,7 +117,7 @@ def test_work_on_logs_the_design_gate_verdict_under_step_design_review_not_desig
     )
     assert '--step design --outcome "<verdict>"' not in piece2, (
         "the design section logs the design gate's verdict under --step design, which "
-        "scripts/retro-stats never buckets as the design-review gate — it must be "
+        "studious retro-stats never buckets as the design-review gate — it must be "
         "--step design-review"
     )
 

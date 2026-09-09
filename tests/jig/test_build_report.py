@@ -1,4 +1,4 @@
-"""Regression tests for scripts/build-report (story finish-skill, issue #20).
+"""Regression tests for studious build-report (story finish-skill, issue #20).
 
 Covers: writes docs/studious/build-reports/YYYY-MM-DD-<slug>-build-report.md
 with content copied verbatim (never summarized/judged); --date defaults to

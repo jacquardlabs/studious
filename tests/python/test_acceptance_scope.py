@@ -31,7 +31,7 @@ def test_changeset_is_computed_once_for_the_work_episode() -> None:
 def test_product_lane_resolves_the_criteria_source() -> None:
     lane = _lane()
     assert "designDoc" in lane, "lane 14 does not read the work file's designDoc"
-    assert "gate-ledger work-get" in lane, "lane 14 does not read the work file via gate-ledger"
+    assert "studious work-get" in lane, "lane 14 does not read the work file via studious"
     assert "`source` issue" in lane, "lane 14 has no issue fallback for a doc-less branch"
     assert "ask the user" in lane, "lane 14 must ask rather than guess a criteria source"
 

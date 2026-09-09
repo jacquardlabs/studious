@@ -1,4 +1,4 @@
-"""Binds jig's two independent load-bearing derivations -- `scripts/plan-lint`'s
+"""Binds jig's two independent load-bearing derivations -- `studious plan-lint`'s
 `compute_load_bearing()` and `tests/_load_bearing.py`'s `derive_load_bearing_set()`
 -- against shared fixtures, closing the gap the epic-finale audit for
 `load-bearing-title-match` (issue #62) named: title-matching shipped in the
@@ -37,7 +37,7 @@ def step_1_5_documents_both_match_paths(build_skill_md_text: str) -> bool:
 
 
 def surface_1_plan_lint(plan_lint_module, text: str) -> frozenset[str]:
-    """The load-bearing set per `scripts/plan-lint`'s own, real code."""
+    """The load-bearing set per `studious plan-lint`'s own, real code."""
     tasks = plan_lint_module.split_tasks(text)
     return plan_lint_module.compute_load_bearing(tasks)
 

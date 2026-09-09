@@ -1,7 +1,7 @@
 """Every evidence-folder path a prompt surface names is the grammar capture writes.
 
 studious #260 was one table row in `commands/next.md` naming
-`docs/jig/evidence/<date>-<task>/` -- the shape `scripts/evidence-capture`
+`docs/jig/evidence/<date>-<task>/` -- the shape `studious evidence-capture`
 stopped writing when #258 put a branch slug in its `target_dir`. That row's
 own fix is pinned in `test_coach_skill.py`, but the invariant is not: any
 model-facing surface naming a folder shape capture does not write sends a
@@ -46,7 +46,7 @@ EVIDENCE_ROOT = ".studious/build-evidence/"
 # `<` marks a placeholder shape, not a literal directory or glob.
 PLACEHOLDER_PREFIX = EVIDENCE_ROOT + "<"
 
-# Derived from `scripts/evidence-capture`'s `target_dir`, never transcribed --
+# Derived from `studious evidence-capture`'s `target_dir`, never transcribed --
 # see `_evidence_grammar.py` for why a hand copy would inherit the same drift.
 CURRENT_GRAMMAR = EVIDENCE_ROOT + derive_folder_grammar()
 

@@ -1,4 +1,4 @@
-"""Regression tests for scripts/design-lint (#9); section schema follows
+"""Regression tests for studious design-lint (#9); section schema follows
 `reference/design-doc-contract.md` (#211).
 
 Black-box subprocess tests, matching `test_verify.py`/`test_evidence_capture.py`'s

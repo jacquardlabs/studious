@@ -1,6 +1,6 @@
 """A landed story must close its work file out (#237).
 
-Root cause: landing a story keeps the branch, so `gate-ledger gc`'s
+Root cause: landing a story keeps the branch, so `studious gc`'s
 branch-gone rule never fires — `.studious/work/` accumulated 35 files, 34
 still "active" in `commands/next.md`'s menu.
 
@@ -39,7 +39,7 @@ def test_gc_collects_on_terminal_phase() -> None:
 def test_work_on_caps_the_disambiguation_menu() -> None:
     text = WORK_ON.read_text(encoding="utf-8")
     assert "Cap that list" in text
-    assert "gate-ledger gc" in text
+    assert "studious gc" in text
 
 
 def test_doctor_reports_flow_state_but_does_not_collect_it() -> None:
@@ -47,7 +47,7 @@ def test_doctor_reports_flow_state_but_does_not_collect_it() -> None:
     recommend-only like everything else there."""
     text = DOCTOR.read_text(encoding="utf-8")
     assert "## 4. Flow-state hygiene" in text
-    assert "gate-ledger gc" in text
+    assert "studious gc" in text
     assert "never run it" in text
 
 
@@ -67,7 +67,7 @@ def test_doctor_names_gc_force_for_retained_files() -> None:
     `gc` recommendation that a 10-active-file OK would never trigger."""
     text = DOCTOR.read_text(encoding="utf-8")
     assert "Retained" in text
-    assert "gate-ledger gc --force" in text
+    assert "studious gc --force" in text
 
 
 def test_doctor_keep_window_is_keyed_on_last_write_not_flow_end() -> None:
@@ -84,7 +84,7 @@ def test_doctor_keep_window_is_keyed_on_last_write_not_flow_end() -> None:
 def test_doctor_reads_work_files_through_the_ledger_tool() -> None:
     """`commands/next.md` states work files are read and written only through
     the ledger tool. The retained-file check must resolve scope-delta data via
-    `gate-ledger work-get`, never a raw glob of `.studious/work/*.json`."""
+    `studious work-get`, never a raw glob of `.studious/work/*.json`."""
     text = DOCTOR.read_text(encoding="utf-8")
-    assert "gate-ledger work-get" in text
+    assert "studious work-get" in text
     assert ".studious/work/*.json" not in text

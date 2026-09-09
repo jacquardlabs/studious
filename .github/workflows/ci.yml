@@ -54,7 +54,7 @@ jobs:
       # set grows between releases, so an unpinned run turns an upstream release into
       # a surprise red build.
       - name: Ruff
-        run: uv run --no-project --with ruff==0.16.0 ruff check scripts tests/jig
+        run: uv run --no-project --with ruff==0.16.0 ruff check scripts tests/jig bin/studious
       # scripts/ ships to consuming projects and the skills invoke it bare
       # (`scripts/design-lint --doc ...`), so it runs on whatever python3 that
       # project has — not on CI's uv-managed interpreter and not on the 3.11+
@@ -63,7 +63,7 @@ jobs:
       # and the traceback read as a malformed design doc rather than a wrong
       # interpreter. Pinned for the same reason every other linter here is.
       - name: Runtime version floor for shipped scripts
-        run: uv run --no-project --with vermin==1.8.0 vermin --no-tips -t=3.9- scripts/
+        run: uv run --no-project --with vermin==1.8.0 vermin --no-tips -t=3.9- scripts/ bin/studious
       - name: Unit tests
         run: uv run --no-project python3 -m unittest discover -s tests/jig
 

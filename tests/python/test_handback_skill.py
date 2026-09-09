@@ -1,7 +1,7 @@
 """Structural regression tests for the handback-skill story (issue #97).
 
 The contract (`reference/handback-contract.md`) is prose, not executable code — the only
-mechanical surface is `bin/gate-ledger evidence-list` (locked by `tests/test_gate_ledger.sh`).
+mechanical surface is `bin/studious evidence-list` (locked by `tests/test_gate_ledger.sh`).
 These tests lock the prompt's structural commitments that the design doc's pre-mortem
 register (the handback-skill pre-mortem register at 704381d) named as
 audit-time detection hints:
@@ -98,7 +98,7 @@ def test_ship_delegates_the_mode_to_the_contract() -> None:
 
 def test_command_reads_via_evidence_list_verb() -> None:
     text = _command_text()
-    assert "gate-ledger evidence-list" in text
+    assert "studious evidence-list" in text
 
 
 def test_command_forbids_reading_the_raw_jsonl_directly() -> None:
@@ -166,20 +166,20 @@ def _step_four_text() -> str:
 
 def test_step_four_invokes_evidence_list_exactly_once() -> None:
     step_four = _step_four_text()
-    assert step_four.count('gate-ledger evidence-list --branch "$branch"') == 1, (
-        "step 4 must capture the evidence log with a single gate-ledger evidence-list "
+    assert step_four.count('studious evidence-list --branch "$branch"') == 1, (
+        "step 4 must capture the evidence log with a single studious evidence-list "
         "call, not re-invoke it once per derivation"
     )
 
 
 def test_step_four_captures_evidence_log_into_a_variable() -> None:
     step_four = _step_four_text()
-    assert 'evidence_log=$(gate-ledger evidence-list --branch "$branch")' in step_four
+    assert 'evidence_log=$(studious evidence-list --branch "$branch")' in step_four
 
 
 def test_all_four_derivations_reuse_the_captured_evidence_log() -> None:
     """Manifest rows, total, passed, and failed counts must all read from
-    $evidence_log rather than re-invoking gate-ledger evidence-list."""
+    $evidence_log rather than re-invoking studious evidence-list."""
     step_four = _step_four_text()
     assert step_four.count('printf \'%s\\n\' "$evidence_log"') == 4, (
         "expected exactly four derivations (manifest rows, total, passed, failed) "
