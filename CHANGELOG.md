@@ -2,6 +2,33 @@
 
 <!-- version list -->
 
+## v5.0.0 (2026-09-09)
+
+### Bug Fixes
+
+- Drop stale epic prose the review found, and the dead source_root parameter
+  ([#417](https://github.com/jacquardlabs/studious/pull/417),
+  [`31a0861`](https://github.com/jacquardlabs/studious/commit/31a086191b7f27244c33cec9fb93ab6438e4e876))
+
+### Features
+
+- Drop the epic, telemetry, and assignment verbs from gate-ledger; session-start reads work files
+  only ([#417](https://github.com/jacquardlabs/studious/pull/417),
+  [`31a0861`](https://github.com/jacquardlabs/studious/commit/31a086191b7f27244c33cec9fb93ab6438e4e876))
+
+- Remove the epic driver, factory scripts, telemetry, and the 21 gauntlet-mirror agents
+  ([#417](https://github.com/jacquardlabs/studious/pull/417),
+  [`31a0861`](https://github.com/jacquardlabs/studious/commit/31a086191b7f27244c33cec9fb93ab6438e4e876))
+
+- Retire epic scale from the doors, the charter, and the docs
+  ([#417](https://github.com/jacquardlabs/studious/pull/417),
+  [`31a0861`](https://github.com/jacquardlabs/studious/commit/31a086191b7f27244c33cec9fb93ab6438e4e876))
+
+- Retire the unattended epic path — driver, factory scripts, telemetry, 21 mirror agents
+  ([#417](https://github.com/jacquardlabs/studious/pull/417),
+  [`31a0861`](https://github.com/jacquardlabs/studious/commit/31a086191b7f27244c33cec9fb93ab6438e4e876))
+
+
 ## v4.2.0 (2026-09-09)
 
 ### Bug Fixes
