@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v6.6.1 (2026-09-09)
+
+### Bug Fixes
+
+- Verify runs a derived test-backed item under a named interpreter, records it, and refuses one
+  below the project's floor ([#431](https://github.com/jacquardlabs/studious/pull/431),
+  [`f93e98c`](https://github.com/jacquardlabs/studious/commit/f93e98c43a918efa9c2faf40aa6cfb8a4c421bb0))
+
+
 ## v6.6.0 (2026-09-09)
 
 ### Features
