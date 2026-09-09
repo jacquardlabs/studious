@@ -110,8 +110,6 @@ from _planparse import (  # noqa: E402
     split_tasks,
 )
 
-VALID_KINDS = frozenset({"cap", "hold"})
-
 # Ceiling on a probe artifact read before its `pattern` is matched (#223).
 # The pattern is caller-supplied and `re` has no match timeout, so an
 # unbounded read hands a catastrophic-backtracking pattern unbounded input;
