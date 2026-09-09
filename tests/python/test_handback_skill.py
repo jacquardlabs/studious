@@ -3,7 +3,7 @@
 The contract (`reference/handback-contract.md`) is prose, not executable code — the only
 mechanical surface is `bin/gate-ledger evidence-list` (locked by `tests/test_gate_ledger.sh`).
 These tests lock the prompt's structural commitments that the design doc's pre-mortem
-register (`docs/studious/premortems/2026-07-10-handback-skill-design.md`) named as
+register (the handback-skill pre-mortem register at 704381d) named as
 audit-time detection hints:
 
 - item 1: the branch-slug/anchoring reuse (`evidence-list`, never a re-derived slug).

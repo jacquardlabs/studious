@@ -9,7 +9,7 @@ mechanically:
    code commit.
 2. An uncommitted working tree at capture time refuses rather than
    stamping a vacuous `now >= baseline-commit` timestamp
-   (docs/studious/premortems/build-scripts.md, risk #1).
+   (pre-mortem register build-scripts.md at 704381d, risk #1).
 3. An artifact whose own mtime predates the last commit (copied forward
    from a prior attempt) is refused even when the tree is otherwise clean
    (same premortem doc, risk #1's second defense).

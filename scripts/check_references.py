@@ -58,8 +58,8 @@ def find_disposable_citations(root: Path) -> list[str]:
             rel = path.relative_to(root)
             errors.extend(
                 f"{rel} cites docs/design/{name}, a branch-local design doc that is "
-                f"deleted at closeout — attribute the claim to the issue, the "
-                f"pre-mortem register, or state it inline (#233)"
+                f"deleted at closeout — attribute the claim to the issue, a "
+                f"`git show <sha>:<path>` citation, or state it inline (#233)"
                 for name in sorted(set(DISPOSABLE_CITATION.findall(text)))
             )
     return errors

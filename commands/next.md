@@ -121,11 +121,12 @@ anything, and correct the file when they disagree — evidence wins:
   stands, and the only backward route is the user explicitly asking for one.
 - **Design doc** — the `designDoc` path in the work file, else discover a candidate the way
   `/review`'s design episode does. When found, record it: `work-set --design-doc "<path>"`.
-- **Pre-mortem register** — `docs/studious/premortems/<doc-slug>.md`, where `<doc-slug>` is
+- **Pre-mortem register** — `docs/design/<doc-slug>-premortem.md`, where `<doc-slug>` is
   the recorded `designDoc`'s filename without its extension — the register is named after the
-  design doc, not the feature slug, so don't reuse this flow's `<slug>` here. A register at
-  that path with a `Branch:` header matching the current branch is evidence the design episode
-  already returned **PROCEED TO PLAN**.
+  design doc, not the feature slug, so don't reuse this flow's `<slug>` here. Gitignored,
+  like the doc: read the working tree. A register at that path with a `Branch:` header
+  matching the current branch is evidence the design episode already returned
+  **PROCEED TO PLAN**.
 - **Build progress** — implementation commits since the design-review sha. If the phase says
   `build` and there are none, the build piece isn't done: say so rather than advancing
   (re-offering the handoff is fine).

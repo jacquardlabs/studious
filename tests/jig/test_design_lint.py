@@ -9,7 +9,7 @@ failure names the specific element.
 2. Each check's violation (missing section, wrong count, unrecognized
    heading; prose-only Proposed design; Problem & persona's three grounding
    buckets; happy-path-only User journey; unruled fork) exits 1 and names it.
-3. Premortem regressions (docs/studious/premortems/design-lint-reconcile.md,
+3. Premortem regressions (pre-mortem register design-lint-reconcile.md at 704381d,
    design-lint.md): risk #1 (fabricated persona claim not rescued by an
    unrelated real path in the same section), #7 (backtick filler doesn't
    count as concreteness), #3 (a genuine failure path without a listed

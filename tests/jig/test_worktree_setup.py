@@ -2,7 +2,7 @@
 
 Runs against a throwaway git repo (`tests/_tempgit.py`), never the real jig
 repo or this story's own worktree. Covers acceptance criteria from
-docs/studious/premortems/build-scripts.md (risk #2: collision remediation,
+pre-mortem register build-scripts.md at 704381d (risk #2: collision remediation,
 risk #3: leave worktree in place on failure), subprocess-trust-and-timeout
 (#48, #49: BASELINE TIMEOUT vs BASELINE FAILURE), and
 subprocess-timeout-process-group-kill (#61: whole process group killed).

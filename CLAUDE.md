@@ -116,21 +116,24 @@ do not share a runner or a conftest. Don't unify them opportunistically.
 
 ## Where a design record lives
 
-Ratified 2026-07-25 (#219, #216, #181). Re-affirmed 2026-09-05 (#313) against a
-committed-artifact alternative (Anthropic's AI-native SDLC playbook's `intent.md`/
-`spec.md`/`plan.md`); the ruling and its rationale are
+Ratified 2026-07-25 (#219, #216, #181), re-affirmed 2026-09-05 (#313), amended
+2026-09-09 (#397): the pre-mortem register moved from durable to disposable. The ruling,
+its rationale, and the one table of every artifact class are
 `docs/design-record-disposability.md`. One rule, two classes:
 
-- **Disposable** — a `/shape` doc (`docs/design/<slug>.md`), `PLAN.md`, and demonstration
-  scratch. Gitignored, branch-local, removed by `/ship` at closeout. Never committed;
+- **Disposable** — a `/shape` doc (`docs/design/<slug>.md`), its pre-mortem register
+  (`docs/design/<slug>-premortem.md`), `PLAN.md`, and demonstration scratch. Gitignored,
+  branch-local, removed by `/ship` at closeout. Never committed;
   `tests/python/test_no_ignored_paths_tracked.py` fails if one is. Because they are not in
   the diff, `/review` reads the **working tree first** — a diff-first search
   misses every doc the in-box producer writes.
-- **Durable** — the pre-mortem register (`docs/studious/premortems/<slug>.md`, committed by
-  `/review`), the review reports under `docs/studious/<area>-reviews/`, and
+- **Durable** — the review reports under `docs/studious/<area>-reviews/` and
+  `docs/studious/retros/`, the dated build reports, `docs/studious/decisions.jsonl`, and
   decision records at `docs/` root (`initiative-altitude.md` and siblings). These outlive
-  the branch, and a durable file must not cite a disposable one: the register records
-  `Branch:` and `SHA:`, which retrieve the doc from history without a path that expires.
+  the branch, and a durable file must not cite a disposable one by path
+  (`scripts/check_references.py` fails the build if one does): cite the issue, or
+  `git show <sha>:<path>` for a file that lived on a merged branch. The PR body — its
+  evidence table and its own prose — is the record of why a change looks the way it does.
 
 There is no third home. `docs/superpowers/{plans,specs}/` held 42 of this repo's own
 design records under a third-party product's name and was deleted rather than renamed —

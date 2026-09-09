@@ -11,7 +11,7 @@ Checks the story's acceptance criteria:
    applies to itself.
 2. `skills/` has one top-level directory per user-invoked skill (design,
    plan, build, finish, coach), none nested inside another skill's directory
-   (docs/studious/premortems/m1-scaffold-epic.md, risk #2), each with a stub
+   (pre-mortem register m1-scaffold-epic.md at 980d523, risk #2), each with a stub
    `SKILL.md` carrying valid `name`/`description` frontmatter. Known
    model-invoked skill dirs (currently `task-execution-discipline`, see
    test_discipline_skill.py) are also allowed; the set-equality guard below
