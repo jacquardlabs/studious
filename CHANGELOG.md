@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v6.4.0 (2026-09-09)
+
+### Bug Fixes
+
+- /code-review on #425 — guard matches every path and whitespace form of the entrypoint,
+  evidence-freshness guarded, no mirrored verb table, ledger-optional wording says ledger, shared
+  test runner, list[str] hints ([#425](https://github.com/jacquardlabs/studious/pull/425),
+  [`4661ffb`](https://github.com/jacquardlabs/studious/commit/4661ffbf4616efbf2c62926f879d153bca48cdae))
+
+### Features
+
+- Studious — one entrypoint for the plugin's executables (#346 skeleton)
+  ([#425](https://github.com/jacquardlabs/studious/pull/425),
+  [`4661ffb`](https://github.com/jacquardlabs/studious/commit/4661ffbf4616efbf2c62926f879d153bca48cdae))
+
+
 ## v6.3.0 (2026-09-09)
 
 ### Features
