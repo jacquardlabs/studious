@@ -17,13 +17,12 @@ KEY_LINE = re.compile(r"^(?P<key>[A-Za-z_-]+):(?P<value>.*)$")
 
 
 def frontmatter_blocks() -> list[tuple[Path, str]]:
-    out: list[tuple[Path, str]] = []
-    for pattern in SURFACES:
-        for path in sorted(REPO.glob(pattern)):
-            text = path.read_text(encoding="utf-8")
-            if text.startswith("---\n"):
-                out.append((path, text.split("---\n", 2)[1]))
-    return out
+    return [
+        (path, text.split("---\n", 2)[1])
+        for pattern in SURFACES
+        for path in sorted(REPO.glob(pattern))
+        if (text := path.read_text(encoding="utf-8")).startswith("---\n")
+    ]
 
 
 def test_the_surface_is_not_empty() -> None:
