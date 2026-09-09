@@ -2,6 +2,18 @@
 
 <!-- version list -->
 
+## v6.0.0 (2026-09-09)
+
+### Features
+
+- Design gate off by default; delivery episode folded into the work episode's product lane
+  ([#418](https://github.com/jacquardlabs/studious/pull/418),
+  [`9f21fb8`](https://github.com/jacquardlabs/studious/commit/9f21fb813cc3ad8cb5006def88cd004cab6fdb71))
+
+- Retire the PR-time gate reminder hook ([#418](https://github.com/jacquardlabs/studious/pull/418),
+  [`9f21fb8`](https://github.com/jacquardlabs/studious/commit/9f21fb813cc3ad8cb5006def88cd004cab6fdb71))
+
+
 ## v5.0.0 (2026-09-09)
 
 ### Bug Fixes
