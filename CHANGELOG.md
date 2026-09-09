@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v6.7.0 (2026-09-09)
+
+### Features
+
+- Studious ship-body — the PR body's evidence record assembled by a script
+  ([#432](https://github.com/jacquardlabs/studious/pull/432),
+  [`06541f0`](https://github.com/jacquardlabs/studious/commit/06541f0648178c5a2a17b1c52455fa363c9127e6))
+
+
 ## v6.6.1 (2026-09-09)
 
 ### Bug Fixes
