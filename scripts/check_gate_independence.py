@@ -54,6 +54,7 @@ STRUCTURAL_SURFACE = (
 BUILD_EXECUTABLES = (
     "plan-lint",
     "plan-drift",
+    "plan-amend",
     "design-lint",
     "verify",
     "status-flip",

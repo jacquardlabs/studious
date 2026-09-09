@@ -16,8 +16,9 @@ they touched); `--since <sha>` is shorthand for `<sha>..HEAD`.
 **Drift categories** (three, per task):
 
 - `out-of-plan-file` -- a changed file that no task's `Read first:`, `Do:`,
-  or command-tier method path names (a named directory covers what it
-  contains). `PLAN.md` itself is exempt: amending it is the point.
+  or command-tier method path names, and no `## Amendments` line names
+  either (a named directory covers what it contains). `PLAN.md` itself is
+  exempt: amending it is the point.
 - `do-path-untouched` -- a file this task's `Do:` line names that exists in
   the repo and its commits never touched: the plan claims a change the
   diff did not make.
@@ -43,6 +44,7 @@ from _planparse import (  # noqa: E402
     DO_RE,
     extract_field,
     method_paths,
+    amendment_paths,
     named_paths,
     out_of_grammar_task_headings,
     split_tasks,
@@ -89,7 +91,7 @@ def drift(text: str, task: str, repo: Path, changed: list[str]) -> list[str]:
         present = ", ".join(n for n, _ in tasks) or "none"
         raise ValueError(f"task {task} not found (tasks present: {present})")
     block = blocks[task]
-    plan_names = set().union(*(named_paths(b) for _, b in tasks))
+    plan_names = set().union(*(named_paths(b) for _, b in tasks)) | amendment_paths(text)
     lines: list[str] = []
 
     for path in changed:
