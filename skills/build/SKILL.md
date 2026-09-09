@@ -312,7 +312,15 @@ For each task block, in order:
    worktree it shows up as untracked in `git status --porcelain`, and the
    very next call in this same task — not just a later one — refuses
    (issue #45). Then call
-   `studious verify --plan <plan path> --task <this task's heading number> [--probe-spec <scratch-path>/probe-spec.json] --since <this attempt's dispatch timestamp from step 2.2> --repo <worktree> --out <scratch-path>/results.json`.
+   `studious verify --plan <plan path> --task <this task's heading number> [--probe-spec <scratch-path>/probe-spec.json] --since <this attempt's dispatch timestamp from step 2.2> --repo <worktree> --python <interpreter> --out <scratch-path>/results.json`.
+   `--python` is the interpreter the project's own baseline command runs under
+   when `CLAUDE.md`'s convention names one (a `uv run` / venv python), else
+   omit it and `verify` uses its own; either way `results.json` records the
+   path and version every test-backed item ran under (#248). A `verify` exit 2
+   naming an **environment refusal** — the interpreter is below the project's
+   `requires-python` floor — is not a task FAIL and never enters the Failure
+   routine: report **PAUSED**, resume action "re-invoke `/build` under the
+   project's interpreter".
    **Never the executor's own reported commit SHA** for `--since` — a
    `probe` artifact is written to disk *before* it is committed, so its
    mtime is always at or before that very commit's own timestamp; using the
