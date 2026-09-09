@@ -173,7 +173,12 @@ may appear anywhere in the block. No `Risk:` line means `LOW` — see Cadence.
    a dirty baseline or a setup failure: stop before dispatching any
    executor and report **PAUSED** — the worktree is left in place (per
    `worktree-setup`'s own design) for inspection; the pre-existing failure
-   is the human's to resolve outside `/build`. Note the **base branch** the
+   is the human's to resolve outside `/build`. **A known-red baseline is an
+   input, never an override (#364):** when the human says the failure is
+   pre-existing and names why, re-run with `--known-red "<their reason>"`
+   — the script accepts it, prints the reason with the failure, and the
+   session report carries that reason beside every task's evidence. You
+   never pass `--known-red` on your own judgment. Note the **base branch** the
    worktree was cut from (`--base` if you passed one, else the branch that
    was checked out) as a branch name, never a sha — Step 3 hands it to
    exorcise.

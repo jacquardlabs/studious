@@ -156,6 +156,25 @@ out9=$(cd "$d9" && PATH="$fakebin" CLAUDE_PLUGIN_ROOT="$ROOT" bash "$HOOK" \
 check "jq unavailable: hook exits 0 with no output" "rc=0" "$out9"
 check "jq unavailable: no evidence dir created" "no" "$([ -d "$d9/.studious/evidence" ] && echo yes || echo no)"
 
+# --- #377: a command that cd's into an armed worktree is recorded on that branch,
+# even though the hook's own cwd sits on an unarmed one ---
+d377=$(sandbox feat/unarmed)
+wt377="$d377-wt"
+git -C "$d377" worktree add -q -b build/story "$wt377" >/dev/null 2>&1
+arm "$d377" build/story
+out377=$(run_hook "$d377" "$(posttooluse "cd $wt377 && pytest tests/")")
+check "cd-into-worktree command: hook stays silent on stdout" "" "$out377"
+check "cd-into-worktree command: one record on the worktree's branch" "1" \
+  "$(wc -l < "$(evidence_file "$d377" build/story)" | tr -d ' ')"
+check "cd-into-worktree command: nothing on the hook's own branch" "no" \
+  "$([ -f "$(evidence_file "$d377" feat/unarmed)" ] && echo yes || echo no)"
+run_hook "$d377" "$(posttooluse "git -C $wt377 status && pytest -q")" >/dev/null
+check "git -C form: second record on the worktree's branch" "2" \
+  "$(wc -l < "$(evidence_file "$d377" build/story)" | tr -d ' ')"
+run_hook "$d377" "$(posttooluse "pytest tests/")" >/dev/null
+check "no tree form: the hook's own unarmed cwd still produces no record" "no" \
+  "$([ -f "$(evidence_file "$d377" feat/unarmed)" ] && echo yes || echo no)"
+
 # --- CLAUDE_PLUGIN_ROOT missing/unresolved: silent no-op ---
 d10=$(sandbox feat/foo); arm "$d10" feat/foo
 out10=$(cd "$d10" && bash "$HOOK" <<<"$(posttooluse "pytest tests/")" 2>&1; echo "rc=$?")

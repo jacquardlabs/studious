@@ -53,12 +53,28 @@ done
 pattern="(^|[^A-Za-z0-9])(${alt})(\$|[^A-Za-z0-9])"
 printf '%s' "$command_str" | grep -Eq "$pattern" || exit 0
 
+# --- the command's own tree (#377): a verification command that starts with
+# `cd <path> &&`, `git -C <path>`, or carries `--repo <path>` ran THERE, not in
+# this hook's cwd. The build door works in a build/<slug> worktree while the
+# session sits in the main checkout, so arming by the hook's own branch missed
+# every record. First form found wins; no form means the hook's cwd.
+tree=""
+for form in 's/^[[:space:]]*cd[[:space:]]+([^[:space:];&|]+)[[:space:]]*(&&|;).*/\1/p' \
+            's/.*git[[:space:]]+-C[[:space:]]+([^[:space:]]+).*/\1/p' \
+            's/.*--repo(=|[[:space:]]+)([^[:space:]]+).*/\2/p'; do
+  candidate=$(printf '%s' "$command_str" | sed -nE "$form" | head -1 | tr -d "'\"")
+  if [ -n "$candidate" ] && [ -d "$candidate" ] && git -C "$candidate" rev-parse --git-dir >/dev/null 2>&1; then
+    tree="$candidate"; break
+  fi
+done
+[ -n "$tree" ] || tree="$PWD"
+
 # --- armed check: branch must be one gate-ledger already knows about (a work
 # file's .branch, written by /next). work-list's column 3
 # is the branch; exact string match against full branch names.
-branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || exit 0
+branch=$(git -C "$tree" rev-parse --abbrev-ref HEAD 2>/dev/null) || exit 0
 [ -n "$branch" ] && [ "$branch" != "HEAD" ] || exit 0
-armed=$("$ledger" work-list 2>/dev/null | cut -f3 | grep -qxF "$branch" && echo yes || echo no)
+armed=$(cd "$tree" && "$ledger" work-list 2>/dev/null | cut -f3 | grep -qxF "$branch" && echo yes || echo no)
 [ "$armed" = "yes" ] || exit 0
 
 # --- origin: agent_id is present only when the hook fires inside a subagent
@@ -110,6 +126,8 @@ esac
 
 args=(--command "$command_str" --exit-code "$exit_code" --output-digest "sha256:$digest" --origin "$origin")
 [ -n "$agent_type" ] && args+=(--agent-type "$agent_type")
-"$ledger" evidence-append "${args[@]}" >/dev/null 2>&1
+# Run from the command's tree so the record lands on that branch's log
+# (the store itself is anchored to the main checkout either way).
+( cd "$tree" && "$ledger" evidence-append "${args[@]}" ) >/dev/null 2>&1
 
 exit 0

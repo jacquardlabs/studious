@@ -121,6 +121,26 @@ class TestWorktreeSetupTimeout(unittest.TestCase):
     """Issue #49: a hung baseline command is killed and reported distinctly
     from an ordinary non-zero-exit BASELINE FAILURE."""
 
+    def test_known_red_accepts_a_failing_baseline_as_input_and_names_the_reason(self) -> None:
+        """#364: a red baseline on a consuming project is an input the human gives,
+        never an override the Foreman improvises; without the flag exit 1 stands."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            repo.mkdir()
+            init_repo(repo)
+            worktree = Path(tmp) / "wt"
+            without = run_script(["--branch", "b/red", "--path", str(worktree), "--baseline", "exit 3", "--repo", str(repo)])
+            self.assertEqual(without.returncode, 1, without.stderr)
+            worktree2 = Path(tmp) / "wt2"
+            with_flag = run_script([
+                "--branch", "b/red2", "--path", str(worktree2), "--baseline", "exit 3", "--repo", str(repo),
+                "--known-red", "test_x flakes on CI runners; tracked in #12",
+            ])
+            self.assertEqual(with_flag.returncode, 0, with_flag.stderr)
+            self.assertIn("BASELINE KNOWN-RED", with_flag.stderr)
+            self.assertIn("tracked in #12", with_flag.stderr)
+            self.assertIn("baseline is KNOWN-RED", with_flag.stdout)
+
     def test_baseline_exceeding_timeout_is_killed_and_reported_distinctly(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"

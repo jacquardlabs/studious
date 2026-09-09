@@ -1604,5 +1604,22 @@ check "the reviewed sha is what round 2 judged" "$judged" "$(jq -r '.episodes.au
 contains "episode-get --history names the judged sha when it differs" "(judged $judged)" \
   "$(cd "$dcap" && "$LEDGER" episode-get --gate audit --history)"
 
+# --- #399: concurrent writers on one branch both land (json_update takes a lock) ---
+d399=$(sandbox)
+f399="$d399/.studious/gates/feat-foo.json"
+( cd "$d399" && "$LEDGER" record --gate audit --verdict PASS ) >/dev/null
+for i in $(seq 1 8); do
+  ( cd "$d399" && "$LEDGER" work-set --slug "s$i" --title "t$i" --source "#$i" --phase build ) >/dev/null &
+  ( cd "$d399" && "$LEDGER" record --gate "g$i" --verdict OK ) >/dev/null &
+done
+wait
+check "eight concurrent record calls all land on one gates file" "9" "$(jq '.gates | length' "$f399")"
+check "eight concurrent work-set calls all land" "8" "$(cd "$d399" && "$LEDGER" work-list | wc -l | tr -d ' ')"
+check "no lock directory is left behind" "no" "$([ -d "$f399.lock" ] && echo yes || echo no)"
+mkdir "$f399.lock"; touch -t 202001010000 "$f399.lock"
+( cd "$d399" && "$LEDGER" record --gate stale --verdict OK ) >/dev/null; rc=$?
+check "a stale lock (crashed writer) is reclaimed" "0" "$rc"
+check "the write behind the reclaimed lock landed" "OK" "$(jq -r '.gates.stale.verdict' "$f399")"
+
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

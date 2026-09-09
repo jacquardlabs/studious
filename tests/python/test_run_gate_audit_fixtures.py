@@ -292,3 +292,15 @@ def test_extract_section_on_a_nested_report_counts_the_finding() -> None:
 
 def test_extract_section_missing_heading_returns_none() -> None:
     assert extract_section(NESTED_REPORT, "Nonexistent findings") is None
+
+
+def test_headless_run_grants_exactly_the_doors_declared_tools() -> None:
+    """#414: the allowlist is review.md's own frontmatter, never a skip-permissions flag."""
+    import inspect
+
+    import run_gate_audit_fixtures as m
+
+    assert m.review_allowed_tools(m.REPO_ROOT) == "Read,Glob,Grep,Bash,Task,Write,Skill"
+    source = inspect.getsource(m.run_claude_headless_json)
+    assert "--dangerously-skip-permissions" not in source
+    assert "--allowedTools" in source
