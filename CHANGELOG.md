@@ -2,6 +2,103 @@
 
 <!-- version list -->
 
+## v4.2.0 (2026-09-09)
+
+### Bug Fixes
+
+- Align the verification-invariant guard with the phrases CONTRIBUTING names
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+- Harden the finale acceptance-delta dispatch against injection and an unresolvable anchor
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+- Make test_delta_scoped_reaudit.py directly executable for verify
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+- Make test_finale_audit_acceptance_race.py directly executable for verify
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+- Pin the four inherit auditors and every unpinned driver dispatch
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+- Retire the `inherit` framing the pins made false
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+### Chores
+
+- Remove disposable PLAN.md at story closeout
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+### Documentation
+
+- Address delivery-review SHOULD FIX findings on the carry-forward disclosure
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+- Build report for gen5-oververification (MERGE closeout)
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+- Build report for pin-audit-model (MERGE closeout)
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+- Persist pre-mortem register for acceptance-altitude-evidence design
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+- State the verification invariant and disposition the three re-check sites
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+- Sync PLAN.md's Done-means wording to the shipped disclosure line
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+- Tighten the Pillar 3 #188 citation and the KEEP row's tests/ab reference
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+### Features
+
+- Disclose the acceptance carry-forward mechanism in the finale report
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+- Narrow the finale's acceptance redo cascade (#269 remainder)
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+- Pin models, verification invariant, narrowed finale redo cascade (M1 gate & build cost)
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+- Pre-race anchor and acceptance carry-forward for the epic finale
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+### Testing
+
+- Prove the fixed round-9 premortem regression at the fixture level
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+- Seed the model-pin guard for pin-audit-model
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+- Seed the verification-invariant guard for gen5-oververification
+  ([#405](https://github.com/jacquardlabs/studious/pull/405),
+  [`10928ea`](https://github.com/jacquardlabs/studious/commit/10928ea76930088847eed18ac0120e971122d6f1))
+
+
 ## v4.1.2 (2026-09-08)
 
 ### Bug Fixes
