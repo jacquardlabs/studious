@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v6.9.1 (2026-09-09)
+
+### Bug Fixes
+
+- Gc tells a landed branch from a fresh one by the work file's recorded branchSha, not the reflog
+  (absent on CI runners) ([#437](https://github.com/jacquardlabs/studious/pull/437),
+  [`31fb2ad`](https://github.com/jacquardlabs/studious/commit/31fb2adf20045ccb62c347c35e02f7b8a3a40a7c))
+
+
 ## v6.9.0 (2026-09-09)
 
 ### Bug Fixes
