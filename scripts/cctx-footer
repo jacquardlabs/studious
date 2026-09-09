@@ -10,7 +10,7 @@ Finds a cctx launcher by trying, in order:
    is a typosquat of `ccxt`, and bare `uvx cctx` fetches it;
 3. `pipx run --spec cctx-cli cctx` -- same reason for `--spec`.
 
-Each rung is probed with `--version` under a short timeout; the first that
+Each rung is probed with `--help` under a short timeout (cctx has no `--version`); the first that
 answers runs `autopsy --latest` (unmodified, no flags of ours) and its
 output is printed as a footer section. No rung answering prints the one
 graceful line `/ship` used to write by hand, plus the install pointer, and
@@ -46,7 +46,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="cctx-footer", description="Print the PR body's cctx footer.")
     parser.add_argument("--repo", default=".", help="directory to run cctx in (default: cwd)")
     parser.add_argument("--out", default=None, help="also write the footer here")
-    parser.add_argument("--probe-timeout", type=float, default=60.0, help="seconds each launcher rung may take to answer --version")
+    parser.add_argument("--probe-timeout", type=float, default=60.0, help="seconds each launcher rung may take to answer --help")
     return parser.parse_args(argv)
 
 
@@ -55,7 +55,7 @@ def find_launcher(timeout: float) -> list[str] | None:
         if shutil.which(tool) is None:
             continue
         try:
-            probe = subprocess.run([*argv, "--version"], capture_output=True, text=True, timeout=timeout, check=False)
+            probe = subprocess.run([*argv, "--help"], capture_output=True, text=True, timeout=timeout, check=False)
         except (OSError, subprocess.TimeoutExpired):
             continue
         if probe.returncode == 0:

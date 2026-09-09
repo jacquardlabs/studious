@@ -45,7 +45,7 @@ class TestCctxFooter(unittest.TestCase):
     def test_cctx_on_path_runs_autopsy_latest_unmodified(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             b = Path(tmp)
-            stub(b, "cctx", 'if [ "$1" = "--version" ]; then echo 1.0; exit 0; fi; echo "args: $*"; echo "cost: 3.21 USD"\n')
+            stub(b, "cctx", 'if [ "$1" = "--help" ]; then echo 1.0; exit 0; fi; echo "args: $*"; echo "cost: 3.21 USD"\n')
             r = run_with_path(b, ["--repo", tmp])
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("Launcher: `cctx`", r.stdout)
@@ -55,7 +55,7 @@ class TestCctxFooter(unittest.TestCase):
     def test_uvx_rung_uses_from_never_bare_cctx(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             b = Path(tmp)
-            stub(b, "uvx", 'if [ "$1 $2 $3" != "--from cctx-cli cctx" ]; then echo "typosquat: $*" >&2; exit 3; fi; shift 3; if [ "$1" = "--version" ]; then echo 1.0; exit 0; fi; echo "uvx ran: $*"\n')
+            stub(b, "uvx", 'if [ "$1 $2 $3" != "--from cctx-cli cctx" ]; then echo "typosquat: $*" >&2; exit 3; fi; shift 3; if [ "$1" = "--help" ]; then echo 1.0; exit 0; fi; echo "uvx ran: $*"\n')
             r = run_with_path(b, ["--repo", tmp])
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("Launcher: `uvx --from cctx-cli cctx`", r.stdout)
@@ -65,7 +65,7 @@ class TestCctxFooter(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             b = Path(tmp)
             stub(b, "cctx", "exit 1\n")
-            stub(b, "pipx", 'if [ "$1 $2 $3 $4" != "run --spec cctx-cli cctx" ]; then exit 3; fi; shift 4; if [ "$1" = "--version" ]; then echo 1.0; exit 0; fi; echo "pipx ran: $*"\n')
+            stub(b, "pipx", 'if [ "$1 $2 $3 $4" != "run --spec cctx-cli cctx" ]; then exit 3; fi; shift 4; if [ "$1" = "--help" ]; then echo 1.0; exit 0; fi; echo "pipx ran: $*"\n')
             r = run_with_path(b, ["--repo", tmp])
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("Launcher: `pipx run --spec cctx-cli cctx`", r.stdout)
