@@ -466,13 +466,23 @@ word. The profile is the `$keep` list of the filter step above; each entry below
 concern and skip rule, not a prompt — the judge's rubric is its own, and the invocation is
 what it receives.
 
-Auditor 9 (infrastructure) is changeset-routed: skip it when the changeset touches no infrastructure files, per the Infrastructure signal list in `reference/audit-routing-signals.md` — consult it, don't restate it. Note "No infrastructure changes detected — infrastructure audit skipped." When ambiguous, run — default to running, not skipping. The agent itself self-skips if dispatched against a changeset matching none of that list.
+Lanes 9, 11, and 12 (infrastructure, dependency, prompt) are changeset-routed by
+`dispatch.py`'s own path-signal table — gauntlet's `PATH_SIGNALS`, keyed by judge name — and
+this door keeps no second copy of those patterns (#411). A judge absent from
+`invocations.json` is routed out with the note "No infrastructure / dependency-manifest /
+prompt-file changes detected — <lane> audit skipped"; a judge present is dispatched. A
+file-level match deliberately over-fires (a `pyproject.toml` edited only in `[tool.*]`, a
+CLAUDE.md typo fix): the judge's own content-level self-skip is the second layer, so an
+over-fire costs one call, never a wrong verdict.
 
-Auditor 10 (operability) is changeset-routed: skip it when the changeset touches no runtime surface — code that serves requests, consumes queues or streams, runs as a daemon or scheduled job, or performs network I/O. Judge from the diff's content (framework imports, handler/route/consumer definitions, long-running entrypoints, outbound calls), not file paths alone. Note "No runtime surface in this changeset — operability audit skipped." When ambiguous, run — default to running, not skipping. The agent itself self-skips if dispatched against a changeset with no runtime surface.
-
-Auditor 11 (dependency) is changeset-routed: skip it when the changeset touches no dependency manifest or lockfile, per the Dependency signal list in `reference/audit-routing-signals.md` — consult it, don't restate it. Note "No dependency manifest or lockfile changes detected — dependency audit skipped." When ambiguous, run — default to running, not skipping. The agent itself self-skips if dispatched against a changeset matching none of that list.
-
-Auditor 12 (prompt) is changeset-routed: skip it when the changeset touches no prompt files, per the Prompt signal list in `reference/audit-routing-signals.md` — consult it, don't restate it. Note "No prompt-file changes detected — prompt audit skipped." When ambiguous, run — default to running, not skipping. The agent itself self-skips if dispatched against a changeset matching none of that list.
+Auditor 10 (operability) is changeset-routed by content, not path — no file name is a
+reliable proxy for a runtime surface, so `dispatch.py` carries no rule for it and always
+emits it. Skip it when the changeset touches no runtime surface — code that serves requests,
+consumes queues or streams, runs as a daemon or scheduled job, or performs network I/O.
+Judge from the diff's content (framework imports, handler/route/consumer definitions,
+long-running entrypoints, outbound calls). Note "No runtime surface in this changeset —
+operability audit skipped." When ambiguous, run — default to running, not skipping. The
+agent itself self-skips if dispatched against a changeset with no runtime surface.
 
 Lanes 6–8 (ux, frontend, accessibility) are web-specific. Skip them when either condition
 holds:
@@ -487,9 +497,9 @@ holds:
   run the lanes and flag the doc for re-extraction. If DESIGN.md has no `## Surfaces` table
   at all (a doc predating this format), assume a web surface may exist and fall through to
   the per-changeset check. Default to running, not skipping.
-- **Per-changeset:** the changeset has no frontend changes, per the Frontend signal list in
-  `reference/audit-routing-signals.md` — consult it, don't restate it. Note "No frontend
-  changes detected — frontend lanes skipped."
+- **Per-changeset:** `dispatch.py` emitted none of `ux-reviewer`, `frontend-reviewer`, or
+  `accessibility-auditor` — its frontend path signals matched nothing in the changeset.
+  Note "No frontend changes detected — frontend lanes skipped."
 
 ### Backend lanes
 

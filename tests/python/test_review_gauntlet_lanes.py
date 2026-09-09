@@ -73,6 +73,18 @@ def test_compile_cites_report_py_and_the_compilation_rules() -> None:
     assert "reference/audit-compilation.md" in compile_section
 
 
+def test_changeset_routing_defers_to_dispatch_py_and_restates_no_path_patterns() -> None:
+    """#411: gauntlet's `PATH_SIGNALS` is the one routing table. The door names it and
+    carries no file-pattern list of its own — `reference/audit-routing-signals.md` was
+    that second copy, and it is gone."""
+    text = _door()
+    assert "`PATH_SIGNALS`" in text
+    assert "audit-routing-signals" not in text
+    for pattern in ("`*.tf`", "`Dockerfile", "`package.json`", "`*.tsx`"):
+        assert pattern not in text, f"a path pattern is restated in the door: {pattern}"
+    assert "Auditor 10 (operability) is changeset-routed by content" in text
+
+
 def test_round_two_narrowing_still_filters_the_roster() -> None:
     text = _door()
     filter_step = text[text.index("**Filter to the round's lane profile.**"):text.index("**Dispatch.**")]
