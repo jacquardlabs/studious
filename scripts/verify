@@ -130,7 +130,7 @@ TASK_LABEL_RE = re.compile(r"(?:task\s+)?(\d+)", re.IGNORECASE)
 
 @dataclass
 class ItemResult:
-    id: object
+    id: int | str
     kind: str
     tier: str
     status: str  # PASS | FAIL
@@ -240,7 +240,7 @@ def resolve_command_for_method(method_path: str, repo_root: Path, python: str = 
         try:
             parts = full.resolve().relative_to(repo_root.resolve()).parts
         except ValueError:
-            parts = ()
+            return method_path  # outside the repo: no test tree can own it
         if parts[:2] == ("tests", "python"):
             return f"{shlex.quote(python)} -m pytest {shlex.quote(method_path)} -q"
         if parts[:2] == ("tests", "jig"):
@@ -310,6 +310,7 @@ def derive_items_from_plan(
 
     def derive(item: Item, tier: str, method_path: str | None) -> dict:
         if tier in COMMAND_TIERS:
+            assert method_path is not None  # refused above: a command tier names its path
             command = resolve_command_for_method(method_path, repo_root, python)
             derived = {"id": int(item.num), "kind": item.kind, "tier": tier, "command": command}
             if command.startswith(shlex.quote(python) + " -m "):
@@ -399,17 +400,19 @@ def run_items(
     item's own position keeps the output order deterministic regardless of
     completion order.
     """
+    def probe(item: dict) -> ItemResult:
+        if since_ts is None:  # main() refuses a probe item without --since before calling
+            raise ValueError("a probe item needs --since")
+        return check_probe_item(item, since_ts)
+
     if not parallel:
-        return [
-            check_probe_item(item, since_ts) if item["tier"] == "probe" else check_command_item(item, repo, timeout)
-            for item in items
-        ]
+        return [probe(item) if item["tier"] == "probe" else check_command_item(item, repo, timeout) for item in items]
 
     command_indexes = [i for i, item in enumerate(items) if item["tier"] in COMMAND_TIERS]
     with ThreadPoolExecutor(max_workers=max(1, len(command_indexes))) as pool:
         futures = {i: pool.submit(check_command_item, items[i], repo, timeout) for i in command_indexes}
         return [
-            futures[i].result() if i in futures else check_probe_item(item, since_ts)
+            futures[i].result() if i in futures else probe(item)
             for i, item in enumerate(items)
         ]
 

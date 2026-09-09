@@ -117,6 +117,13 @@ schema, and the calibrate-don't-suppress closer — is inlined by each gauntlet 
   is fragmenting or the feature itself is `TOO BIG`.
 - **PR evidence table**: `/ship` promotes each task's Done-means into the PR body as
   item → verification method → evidence link → pass.
+- **Script exit ladder and message prefix** (every `scripts/` verb and `bin/studious`,
+  #222): exit `0` did the work; `1` a refusal the caller acts on (a failed item, a stale
+  folder, a red baseline); `2` a usage error (bad flags, a malformed input, a missing
+  file — nothing ran). A refusal or usage error prints one line to stderr starting
+  lowercase `error:`, or argparse's own `usage:`; headline blocks (`BASELINE FAILURE`,
+  `BASELINE KNOWN-RED`) may follow the line, never replace it.
+  `tests/jig/test_cli_conventions.py` runs every verb against the ladder.
 
 ## Per-surface conventions
 
