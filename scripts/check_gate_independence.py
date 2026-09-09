@@ -53,6 +53,7 @@ STRUCTURAL_SURFACE = (
 #: the door that wraps it (#246).
 BUILD_EXECUTABLES = (
     "plan-lint",
+    "plan-drift",
     "design-lint",
     "verify",
     "status-flip",

@@ -33,7 +33,7 @@ dispatcher's concern, not the worker's.
 | Output | What "done" looks like |
 |--------|------------------------|
 | The work, committed | Implementation commits on the story branch in the given worktree (or, for the design phase, the design doc written in the worktree satisfying `reference/design-doc-contract.md`). Uncommitted work does not exist. |
-| A summary | What changed and why, at the level the gates read — files touched, behavior added, deliberate deviations from the design doc called out rather than hidden. |
+| A summary | What changed and why, at the level the gates read — files touched, behavior added, deliberate deviations from the design doc called out rather than hidden. A deviation from the plan is also **amended into `PLAN.md` in the same commit** (`Do:`, `Not here:`, or the `Done means` item); `studious plan-drift` checks the mechanical half (#380). |
 | Evidence | Commands actually run with their captured output: the test suite passing, the new tests failing before / passing after, lint or build results. "Done" without artifacts is not done — an assertion of success with no output attached is treated as not run. |
 | Tests | New behavior arrives with tests per the project's conventions; bug fixes arrive with regression tests. |
 
@@ -83,6 +83,9 @@ step's token is owned by `reference/gate-vocabulary.md`.
   doing names it in its return for the human to schedule. Narrowing is the same defect
   facing the other way: a criterion dropped because it turned out to be harder than the
   rest is a scope decision, and scope decisions are not a worker's to make silently.
+  Either way the record a later reader consults first is `PLAN.md`, not `git log`: when
+  the literal ask turns out unsatisfiable, out of scope, or wrong, the block is amended
+  in the same commit as the deviation.
 - **A simplification pass is inside the contract.** An executor may run one before
   returning — exorcist's `/exorcist:exorcise` with the acceptance criteria as its intent,
   the way `/build` Step 3 does — to execute the previous rule rather than leave it to a

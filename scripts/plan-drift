@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+"""plan-drift -- did a task's commits do what its checkpoint block says? (#380)
+
+Zero-model. Reads one task's block from a `PLAN.md`-shaped file and the files
+its commits changed, and reports every place the two disagree. Every Critical
+in the 2026-09-07 retro had this shape: the plan said one thing, the diff did
+another, and a judge lane found it a round later. The rule is: amend
+`PLAN.md` in the same commit as the deviation. This is the check that a
+deviation left the plan unamended.
+
+    plan-drift --plan PLAN.md --task 3 --repo <worktree> --range <base>..<head>
+
+`--range` is the task's own commits (`git diff --name-only <range>` names what
+they touched); `--since <sha>` is shorthand for `<sha>..HEAD`.
+
+**Drift categories** (three, per task):
+
+- `out-of-plan-file` -- a changed file that no task's `Read first:`, `Do:`,
+  or command-tier method path names (a named directory covers what it
+  contains). `PLAN.md` itself is exempt: amending it is the point.
+- `do-path-untouched` -- a file this task's `Do:` line names that exists in
+  the repo and its commits never touched: the plan claims a change the
+  diff did not make.
+- `promised-method-missing` -- a command-tier method path named by this task
+  or any earlier one that does not exist after the commits: a creation the
+  plan promised and the diff did not deliver.
+
+Exit codes: 0 no drift. 1 drift (every line printed). 2 usage error --
+missing/unreadable plan, task not found, repo not a git checkout, an
+out-of-grammar `### Task` heading (plan-lint's own refusal), or a range git
+cannot diff.
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import git_repo_root, run  # noqa: E402
+from _planparse import (  # noqa: E402
+    BACKTICK_RE,
+    DO_RE,
+    extract_field,
+    method_paths,
+    named_paths,
+    out_of_grammar_task_headings,
+    split_tasks,
+    strip_line_locator,
+)
+
+EXEMPT = frozenset({"PLAN.md"})
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="plan-drift", description="Report where a task's commits diverge from its checkpoint block."
+    )
+    parser.add_argument("--plan", required=True, help="path to the PLAN.md-shaped file")
+    parser.add_argument("--task", required=True, help="the task's label, e.g. '3' or 'Task 3'")
+    parser.add_argument("--repo", default=".", help="the worktree the commits live in (default: cwd)")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--range", help="git revision range of this task's commits, e.g. abc123..HEAD")
+    group.add_argument("--since", help="shorthand for <sha>..HEAD")
+    return parser.parse_args(argv)
+
+
+def task_number(label: str) -> str:
+    label = label.strip()
+    return label[4:].strip() if label.startswith("Task") else label
+
+
+def changed_files(repo: Path, rev_range: str) -> list[str]:
+    result = run(["git", "-C", str(repo), "diff", "--name-only", "--end-of-options", rev_range])
+    if result.returncode != 0:
+        raise ValueError(f"git cannot diff '{rev_range}': {result.stderr.strip()}")
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def covered(path: str, names: set[str]) -> bool:
+    """A named path covers itself and, when it names a directory, its contents."""
+    return any(path == n or path.startswith(n.rstrip("/") + "/") for n in names)
+
+
+def drift(text: str, task: str, repo: Path, changed: list[str]) -> list[str]:
+    tasks = split_tasks(text)
+    blocks = dict(tasks)
+    if task not in blocks:
+        present = ", ".join(n for n, _ in tasks) or "none"
+        raise ValueError(f"task {task} not found (tasks present: {present})")
+    block = blocks[task]
+    plan_names = set().union(*(named_paths(b) for _, b in tasks))
+    lines: list[str] = []
+
+    for path in changed:
+        if path in EXEMPT or covered(path, plan_names):
+            continue
+        lines.append(
+            f"[out-of-plan-file] task {task}: touched '{path}', which no task's Read first:/Do:/method path "
+            "names -- amend Do: or Not here: to say why, or revert it"
+        )
+
+    do_paths = {strip_line_locator(s) for s in BACKTICK_RE.findall(extract_field(block, DO_RE))}
+    for path in sorted(do_paths):
+        if (repo / path).is_file() and not any(covered(c, {path}) for c in changed):
+            lines.append(
+                f"[do-path-untouched] task {task}: Do: names '{path}' but these commits never touched it "
+                "-- the plan claims a change the diff did not make; amend Do:"
+            )
+
+    for num, b in tasks:
+        for method in method_paths(b):
+            if not (repo / method).exists():
+                lines.append(
+                    f"[promised-method-missing] task {task}: task {num}'s Done means names '{method}', "
+                    "which does not exist after these commits -- create it or amend the item"
+                )
+        if num == task:
+            break
+    return lines
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+    plan_path = Path(args.plan)
+    repo = Path(args.repo).resolve()
+    if git_repo_root(repo) is None:
+        print(f"error: '{repo}' is not inside a git repository", file=sys.stderr)
+        return 2
+    try:
+        text = plan_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"error: could not read '{plan_path}': {exc}", file=sys.stderr)
+        return 2
+    bad = out_of_grammar_task_headings(text)
+    if bad:
+        listed = "; ".join(bad)
+        print(f"error: '{plan_path}' has a '### Task' heading outside the grammar: {listed} (plan-lint refuses it too)", file=sys.stderr)
+        return 2
+    rev_range = args.range if args.range else f"{args.since}..HEAD"
+    task = task_number(args.task)
+    try:
+        changed = changed_files(repo, rev_range)
+        lines = drift(text, task, repo, changed)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    for line in lines:
+        print(line)
+    if lines:
+        print(
+            f"plan-drift: {plan_path} task {task} -- {len(lines)} drift(s) across {len(changed)} changed "
+            "file(s); amend PLAN.md in the same commit as the deviation"
+        )
+        return 1
+    print(f"plan-drift: {plan_path} task {task} -- 0 drift across {len(changed)} changed file(s)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
