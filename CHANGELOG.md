@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v6.4.1 (2026-09-09)
+
+### Bug Fixes
+
+- Plan-lint and verify refuse a plan whose ### Task heading is outside the grammar, naming it
+  ([#426](https://github.com/jacquardlabs/studious/pull/426),
+  [`9218462`](https://github.com/jacquardlabs/studious/commit/9218462aee17956aa1bc1918780963c2ba04f474))
+
+
 ## v6.4.0 (2026-09-09)
 
 ### Bug Fixes
