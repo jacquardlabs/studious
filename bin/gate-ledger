@@ -1384,7 +1384,7 @@ cmd_gc() {
   #      keep it under the scope-delta guard, reading `done`). Ancestry only:
   #      a squash-merged branch is not an ancestor and stays for rule 1 once
   #      its branch is deleted.
-  local default_branch
+  local default_branch tip created
   default_branch=$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
   if [ -z "$default_branch" ]; then
     for cand in main master; do
@@ -1399,9 +1399,15 @@ cmd_gc() {
       [ -n "$branch" ] && [ "$branch" != "$default_branch" ] || continue
       case "$phase" in done|stopped|"") continue ;; esac
       git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1 || continue
-      # Merged means the branch's tip is behind the default branch, not equal to
-      # it — a branch cut from main with no commits yet is in flight, not landed.
-      [ "$(git rev-parse "refs/heads/$branch" 2>/dev/null)" != "$(git rev-parse "refs/heads/$default_branch" 2>/dev/null)" ] || continue
+      # A branch cut from the default with no commits yet is in flight, not
+      # landed — its tip equals the default's, exactly as a fast-forwarded
+      # landed branch's does. The branch's own reflog tells them apart: the
+      # oldest entry is its creation point, and a landed branch has moved.
+      tip=$(git rev-parse "refs/heads/$branch" 2>/dev/null)
+      if [ "$tip" = "$(git rev-parse "refs/heads/$default_branch" 2>/dev/null)" ]; then
+        created=$(git reflog show --format=%H "refs/heads/$branch" 2>/dev/null | tail -1)
+        [ -n "$created" ] && [ "$created" != "$tip" ] || continue
+      fi
       if git merge-base --is-ancestor "refs/heads/$branch" "refs/heads/$default_branch" 2>/dev/null; then
         # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
         json_update "$f" \
