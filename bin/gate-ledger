@@ -1087,6 +1087,11 @@ cmd_work_set() {
   # letting a reader tell "declared nothing" from "never declared." `| unique`
   # matches the report side's treatment of `outsideFiles` — a repeated path
   # must not inflate `declared \(N)`.
+  # `branchSha`: the branch's tip when it was recorded, so gc's rule 3 can tell a
+  # landed branch (tip moved, now an ancestor of the default) from one cut and
+  # never built on (tip unchanged). Empty when the branch does not exist yet.
+  local bsha=""
+  [ -n "$branch" ] && bsha=$(git rev-parse --verify --quiet "refs/heads/$branch" 2>/dev/null) || bsha=""
   # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
   json_update "$file" \
     'def csv_trim: split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(. != ""));
@@ -1096,10 +1101,11 @@ cmd_work_set() {
      | (if $title    != "" then .title        = $title            else . end)
      | (if $src      != "" then .source       = $src              else . end)
      | (if $branch   != "" then .branch       = $branch           else . end)
+     | (if $bsha     != "" then .branchSha    = $bsha             else . end)
      | (if $doc      != "" then .designDoc    = $doc              else . end)
      | (if $declGiven == "1" then .declaredFiles = ($decl | csv_trim | unique) else . end)
      | (if $phase    != "" then .phase        = $phase            else . end)' \
-    --arg title "$title" --arg src "$src" --arg branch "$branch" \
+    --arg title "$title" --arg src "$src" --arg branch "$branch" --arg bsha "$bsha" \
     --arg doc "$doc" --arg decl "$declared" --arg declGiven "$declared_given" \
     --arg phase "$phase" --arg t "$(now_iso)"
   rc=$?
@@ -1384,7 +1390,7 @@ cmd_gc() {
   #      keep it under the scope-delta guard, reading `done`). Ancestry only:
   #      a squash-merged branch is not an ancestor and stays for rule 1 once
   #      its branch is deleted.
-  local default_branch tip created
+  local default_branch tip recorded
   default_branch=$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
   if [ -z "$default_branch" ]; then
     for cand in main master; do
@@ -1401,12 +1407,15 @@ cmd_gc() {
       git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1 || continue
       # A branch cut from the default with no commits yet is in flight, not
       # landed — its tip equals the default's, exactly as a fast-forwarded
-      # landed branch's does. The branch's own reflog tells them apart: the
-      # oldest entry is its creation point, and a landed branch has moved.
+      # landed branch's does. The work file's `branchSha` (the tip when the
+      # branch was recorded) tells them apart: a landed branch has moved. A
+      # file recorded before `branchSha` existed falls back to "tips differ".
       tip=$(git rev-parse "refs/heads/$branch" 2>/dev/null)
-      if [ "$tip" = "$(git rev-parse "refs/heads/$default_branch" 2>/dev/null)" ]; then
-        created=$(git reflog show --format=%H "refs/heads/$branch" 2>/dev/null | tail -1)
-        [ -n "$created" ] && [ "$created" != "$tip" ] || continue
+      recorded=$(jq -r '.branchSha // empty' "$f" 2>/dev/null)
+      if [ -n "$recorded" ]; then
+        [ "$tip" != "$recorded" ] || continue
+      else
+        [ "$tip" != "$(git rev-parse "refs/heads/$default_branch" 2>/dev/null)" ] || continue
       fi
       if git merge-base --is-ancestor "refs/heads/$branch" "refs/heads/$default_branch" 2>/dev/null; then
         # shellcheck disable=SC2016 # jq's own $var syntax, not shell expansion
