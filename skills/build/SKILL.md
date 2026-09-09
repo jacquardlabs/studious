@@ -244,7 +244,7 @@ For each task block, in order:
      you have. The design doc, the full PLAN.md, and every other task's
      history are out of scope for you. Before writing any implementation
      code, or claiming this task's Done means is satisfied, invoke the
-     task-execution-discipline skill. Commit your change yourself as your
+     task-execution-discipline skill. Work in `<worktree>` exactly as given — never the Agent tool's own worktree isolation, which would land this dispatch in a fresh tree on the wrong branch (#365). Commit your change yourself as your
      last act, and end your final message with the commit SHA you just
      created."*
 
@@ -413,7 +413,7 @@ For each task block, in order:
      re-litigating `verify`'s own PASS/FAIL — those belong to scripts or to
      studious's `/review`. The full `PLAN.md`, any other task's
      history, and this session's own conversation are out of scope for
-     you. Return exactly one verdict — `CLEAR`, `DEFECT`, or `CONCERN` —
+     you. Work in `<worktree>` exactly as given — never the Agent tool's own worktree isolation, which would land this dispatch in a fresh tree on the wrong branch (#365). Return exactly one verdict — `CLEAR`, `DEFECT`, or `CONCERN` —
      naming the lens (if any) it turns on and your reasoning cited against
      the diff."*
 
@@ -638,7 +638,10 @@ an unrelated `verify` `FAIL`, or from a later task's own first `DEFECT`.
   straight to the next task with no pause.
 - A task tagged `Risk: REPLAN-RISK` or `Risk: ESCALATE-RISK` in its
   checkpoint block gets a pre-dispatch pause: acknowledge with the human
-  *before* dispatching that task's executor, not only after a failure.
+  *before* dispatching that task's executor, not only after a failure. The
+  pause is a human act and stays prose; the tag's grammar is code —
+  `studious plan-lint`'s `invalid-risk` category refuses any other `Risk:`
+  value, so a typo cannot read as `LOW` (#227).
 - A REPLAN or ESCALATE outcome from the Failure routine always pauses,
   regardless of any pre-assigned risk tag — that pause is the routine's own
   terminal step, not optional cadence.
@@ -658,8 +661,10 @@ for one, say so and run without it.
 all from the same base, each with its own copy of `PLAN.md`. Steps 1.1, 1.4, and 1.5 run
 once; the load-bearing set is shared.
 
-**Per task (Step 2).** Dispatch the task's N executors in one message, one per worktree,
-then verify, inspect, capture, and flip each candidate on its own — evidence and the gate
+**Per task (Step 2).** Dispatch the task's N executors in one message, one per worktree —
+each prompt naming its own candidate's path, with step 2.2's boundary line and its ban on
+the Agent tool's worktree isolation intact — then verify, inspect, capture, and flip each
+candidate on its own — evidence and the gate
 ledger are keyed by branch already, so nothing new is recorded. The Failure routine runs
 per candidate. A candidate whose routine resolves to `REPLAN` or `ESCALATE` is
 **eliminated, not paused**: one line naming it and its diagnosis, then the survivors
@@ -730,7 +735,7 @@ with the build proceeding to its verdict.
      it after (`git branch --unset-upstream`). Run `/exorcist:exorcise`
      with the intent above as its argument, in this worktree. Edit the
      working tree only: never commit, never `git checkout --` or `git
-     reset`. Return the report exorcise prints, verbatim, and nothing else —
+     reset`. Work in `<worktree>` exactly as given — never the Agent tool's own worktree isolation, which would land this dispatch in a fresh tree on the wrong branch (#365). Return the report exorcise prints, verbatim, and nothing else —
      not a review of your own."*
 
    Nothing else goes into the prompt — not `PLAN.md` in full, not any task's

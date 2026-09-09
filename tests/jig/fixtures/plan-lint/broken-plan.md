@@ -100,6 +100,7 @@ Read first: `scripts/_gitutil.py`
 Rests on:   Task 7
 Do:         nothing real -- fixture only.
 Not here:   n/a
+Risk:       HIGH
 
 Done means:
 1. [cap]  `clean` item with a concrete referent   (tier: script `scripts/_gitutil.py`)

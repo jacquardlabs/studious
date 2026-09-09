@@ -51,6 +51,7 @@ ALL_CATEGORIES = frozenset(
         "read-first-unresolved",
         "not-here-followup-undrafted",
         "load-bearing-cap-vague",
+        "invalid-risk",
     }
 )
 
@@ -133,7 +134,7 @@ class TestPlanLintCommittedFixtures(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("### Task 2a", result.stderr)
 
-    def test_broken_fixture_exits_one_with_all_eight_categories_distinct(self) -> None:
+    def test_broken_fixture_exits_one_with_all_nine_categories_distinct(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             result = run_script([str(self.stage(tmp, "broken-plan.md"))])
         self.assertEqual(result.returncode, 1)
@@ -144,7 +145,7 @@ class TestPlanLintCommittedFixtures(unittest.TestCase):
         self.assertEqual(set(categories_seen), ALL_CATEGORIES)
         # No category suppressed by an earlier failure on the same task (premortem risk #6).
         self.assertEqual(len(categories_seen), len(set(categories_seen)))
-        self.assertEqual(len(lines), 8)
+        self.assertEqual(len(lines), 9)
 
 
 class TestPlanLintUsageErrors(unittest.TestCase):
@@ -198,6 +199,19 @@ def _minimal_task(num: int, *, items: str, read_first: str = "`README.md`", rest
 
 
 class TestPlanLintItemBudget(unittest.TestCase):
+    def test_misspelt_risk_tag_is_invalid_risk_and_a_valid_one_is_clean(self) -> None:
+        bad = _minimal_task(1, items="1. [cap] x (tier: probe)\n2. [hold] y (tier: probe)\n").replace("Not here:   n/a\n", "Not here:   n/a\nRisk:       HIGH\n")
+        good = bad.replace("Risk:       HIGH", "Risk:       REPLAN-RISK")
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            init_repo(repo)
+            plan = write(repo / "PLAN.md", bad)
+            result = run_script([str(plan)])
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("[invalid-risk] task 1: Risk: 'HIGH'", result.stdout)
+            write(repo / "PLAN.md", good)
+            self.assertEqual(run_script([str(plan)]).returncode, 0)
+
     def test_missing_cap_item_is_cap_count_violation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"

@@ -113,6 +113,17 @@ studious record --gate should-we-build --verdict "BUILD"
 the door was renamed remain readable, and `reference/gate-vocabulary.md` maps the key to the
 episode name.
 
+**On `BUILD` or `BUILD SMALLER`, write the work file too (#355)** — unless `studious
+work-list` already shows one whose branch is the current branch, in which case `/next`
+made it and owns it. A bet with no work file is invisible to a bare `/next`:
+
+```bash
+studious work-set --slug "<slug>" --title "<title, the scoped-down one on BUILD SMALLER>" --source "idea" --phase build
+```
+
+`--phase design` instead when the user asked, in the same breath, to design before
+building. The slug is derived from the title the way `/next` derives it.
+
 The ledger is local and gitignored — it never enters the repo. If `studious` is not found
 (the plugin's `bin/` isn't on `PATH` in this environment), tell the user the verdict could not
 be recorded to the gate ledger — do not skip silently.
