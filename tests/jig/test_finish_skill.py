@@ -87,8 +87,10 @@ class TestFinishSkillBody(PhraseInBodyMixin, unittest.TestCase):
 
     # -- Step 2: cctx footer ------------------------------------------------
 
-    def test_cctx_gate_check_is_named(self) -> None:
-        self.assertIn("command -v cctx", self.body)
+    def test_cctx_ladder_is_the_scripts(self) -> None:
+        self.assertIn("studious cctx-footer --repo <worktree>", self.body)
+        self.assertIn("uvx --from cctx-cli cctx", self.body)
+        self.assertIn("pipx run --spec cctx-cli cctx", self.body)
 
     def test_cctx_absent_path_is_explicit_and_names_install_pointer(self) -> None:
         self.assertPhraseIn(

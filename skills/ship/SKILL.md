@@ -95,20 +95,23 @@ a gap — `/ship` does not invent or re-capture evidence.
 
 ## Step 2 — cctx footer
 
-Gate everything in this step on `command -v cctx` (or the equivalent
-existence check).
+```
+studious cctx-footer --repo <worktree> --out <scratch-path>/footer.md
+```
 
-**Not installed:** state so explicitly in your own output — "cctx not
-installed; skipping the session-cost footer and harvest offer" plus the
-one-line install pointer (`pipx install cctx-cli`) — and move directly to
-Step 3. No error, no stack trace, no silent gap in the PR body.
+The launcher ladder is the script's (#254): `cctx` on PATH, then
+`uvx --from cctx-cli cctx`, then `pipx run --spec cctx-cli cctx` — the `--from` /
+`--spec` are load-bearing, since PyPI's `cctx` is a typosquat of `ccxt`. The first rung
+that answers runs `cctx autopsy --latest` (unmodified — no flags of our own invented)
+and the footer is its output, a distinct section appended after the evidence table.
+No rung answering prints the one line "cctx not installed; skipping the session-cost
+footer and harvest offer" with the install pointer (`pipx install cctx-cli`) and exits
+0: append that line and move to Step 3. No error, no stack trace, no silent gap in the
+PR body.
 
-**Installed:** run `cctx autopsy --latest` (unmodified — no flags of our own
-invented) and append its findings summary (verdict, findings, session cost)
-to the PR body as a distinct footer section, separate from the evidence
-table. Then offer `cctx harvest` **interactively**: run it in **preview mode
-only** — never pass `--apply` as part of this default flow — show the proposed
-`CLAUDE.md` diff, and stop. Only pass `--apply` after the human's own
+**When the footer names a launcher,** offer `<launcher> harvest` **interactively**:
+run it in **preview mode only** — never pass `--apply` as part of this default flow —
+show the proposed `CLAUDE.md` diff, and stop. Only pass `--apply` after the human's own
 explicit confirmation, typed in that same turn; never infer confirmation
 from anything else (a prior "yes" to a different question, an inferred
 preference, silence). This matches cctx's own CLI contract (`cctx harvest`

@@ -58,7 +58,7 @@ The directory layout encodes a role split (full version in `CONTRIBUTING.md`):
 - `hooks/` — shipped hook scripts + `hooks.json`. Two live hooks: a silent PostToolUse/PostToolUseFailure evidence-capture hook on `Bash` that appends verification-command records while a story is armed (`evidence-capture.sh`; format pinned in `reference/evidence-format.md`); and a silent SessionStart hook on `startup`/`resume` that surfaces a counts-only flow-position heads-up when a work file is active (`session-start.sh`).
 - `bin/studious` — the one entrypoint every door invokes (`studious <verb>`, #346). A verb naming a `scripts/` executable execs it; every other verb execs `bin/gate-ledger`, which reads/writes the per-branch gate ledger, its episodes, the per-feature `/next` work files, and the evidence log. **A rule that leaves prose lands here as a verb**; the prose then names `studious <verb>` and nothing else. Prompts keep judgment (FIX vs RESAMPLE, REPLAN vs ESCALATE, verdict compilation, the interview) and the human stops.
 - `templates/` — PRODUCT.md / DESIGN.md scaffolds created by `/setup` in the consuming project.
-- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence) and the door-run executables (`plan-lint`, `plan-drift`, `plan-amend`, `design-lint`, `verify`, `status-flip`, `build-report`, `ship-body`, `evidence-capture`, `evidence-freshness`, `worktree-setup`, `retro-stats`), reached as `studious <name>`. Those executables are run by `/build`, `/shape`, `/ship`, and `/retro`, not by CI.
+- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence) and the door-run executables (`plan-lint`, `plan-drift`, `plan-amend`, `design-lint`, `verify`, `status-flip`, `build-report`, `ship-body`, `cctx-footer`, `evidence-capture`, `evidence-freshness`, `worktree-setup`, `retro-stats`), reached as `studious <name>`. Those executables are run by `/build`, `/shape`, `/ship`, and `/retro`, not by CI.
 
 Key invariants when adding or changing prompts:
 
@@ -104,7 +104,8 @@ guards from `reference/personas.md` rather than a hardcoded glob: the charter's
 `judge`-class command files, plus `agents/`, `hooks/`, and `bin/`.
 Nothing on that surface may invoke a producer door or require a producer artifact
 (`PLAN.md`, the `.studious/build-evidence/` store) — the evidence contract a judge may rely on is
-`reference/evidence-format.md`, which any executor can satisfy. Outside that surface,
+`reference/evidence-format.md`, which any executor can satisfy; its "Two stores, deliberately"
+section is the recorded rule for why the producer's store stays separate (#148). Outside that surface,
 `/next` routes to the producer doors freely; that is the product working.
 `reference/worker-contract.md` stays normative and `/build` is one implementation of it,
 which is what keeps PRODUCT.md's "the gates being a methodology" non-goal true now that a
