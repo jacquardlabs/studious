@@ -111,7 +111,8 @@ class TestSlugComesFromTheWorkFile(unittest.TestCase):
             repo = Path(tmp) / "repo"
             repo.mkdir()
             init_repo(repo)
-            run([str(GATE_LEDGER), "work-set", "--slug", "detached", "--title", "d", "--branch", "HEAD"], cwd=repo)
+            r = run([str(GATE_LEDGER), "work-set", "--slug", "detached", "--title", "d", "--branch", "HEAD"], cwd=repo)
+            self.assertEqual(r.returncode, 0, r.stderr)  # else the refusal below proves nothing
             run(["git", "checkout", "-q", "--detach"], cwd=repo)
             content = Path(tmp) / "body.md"
             content.write_text("body\n", encoding="utf-8")
