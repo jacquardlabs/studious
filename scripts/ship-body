@@ -1,0 +1,261 @@
+#!/usr/bin/env python3
+"""ship-body -- assemble the PR body's evidence record from the plan and the store (#249, #421).
+
+    ship-body --plan PLAN.md --repo <worktree> --branch <branch> [--out body.md] [--evidence-root DIR]
+
+Zero-model. One row per `Done means` item -- item text, tier, evidence, pass --
+plus the exorcise block, the plan's `## Amendments`, and the viva sign-off's
+`### Decisions`. What `/ship` used to assemble by hand from ninety lines of
+prose, with the rendering contract for every evidence state settled here, in
+one place:
+
+- a **branch-bearing** folder: the item's `verify:results` detail quoted inline
+  in a `<details>` block (text), or the local path named for a `probe` artifact
+  (image evidence lives in the gitignored store; a URL is never fabricated);
+- a **legacy** folder (`[legacy]`, records no branch): promoted with its caveat
+  in the cell -- the folder's manifest is the reader's next stop;
+- **no folder** (`[no-match]`): the cell reads `evidence not found for item N`
+  -- named, never omitted, never backfilled here;
+- an **ambiguous** task (`[ambiguous]`): a stop. Adopting one of several
+  branch-less folders is a human decision after reading its manifest.
+- a folder that fails the **freshness hold** (`evidence-freshness`: manifest
+  commit no longer an ancestor of HEAD, or an artifact touched after capture):
+  a stop naming the task and the reason.
+
+Every folder is asked for through `evidence-capture resolve` and re-validated
+through `evidence-freshness`, never located by rebuilding a path or judged
+against the branch's current HEAD -- the same two scripts, one implementation.
+
+Exit codes: 0 body written to stdout (and --out). 1 a stop -- ambiguous or
+stale/orphaned evidence, named on stderr; nothing is written. 2 usage error.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _gitutil import git_repo_root
+from _planparse import (
+    TIER_BODY_RE,
+    amendments_section,
+    out_of_grammar_task_headings,
+    parse_items,
+    split_tasks_with_titles,
+)
+
+SCRIPTS = Path(__file__).resolve().parent
+DECISIONS_RE = re.compile(r"^### Decisions[ \t]*$", re.MULTILINE)
+NEXT_H1_TO_3_RE = re.compile(r"^#{1,3}[ \t]", re.MULTILINE)
+CONCEPTS_RE = re.compile(r"^Concepts removed:.*$", re.MULTILINE)
+HELD_RE = re.compile(r"^## Held[ \t]*$", re.MULTILINE)
+
+
+class Stop(Exception):
+    """A named reason the body must not be assembled."""
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="ship-body", description="Assemble the PR body's evidence record.")
+    parser.add_argument("--plan", required=True, help="path to the fully status-flipped PLAN.md")
+    parser.add_argument("--repo", required=True, help="the worktree the build ran in")
+    parser.add_argument("--branch", required=True, help="the branch name capture stamped (rev-parse --abbrev-ref HEAD)")
+    parser.add_argument("--out", default=None, help="also write the body here")
+    parser.add_argument("--evidence-root", default=None, help="override the store root (tests)")
+    return parser.parse_args(argv)
+
+
+def run_sibling(name: str, args: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run([str(SCRIPTS / name), *args], capture_output=True, text=True, timeout=120, check=False)
+
+
+def resolve(repo: Path, branch: str, task: str, root: str | None) -> tuple[str, Path | None, str]:
+    """(state, folder, note): state is ok | legacy | no-match | ambiguous."""
+    extra = ["--evidence-root", root] if root else []
+    r = run_sibling("evidence-capture", ["resolve", "--repo", str(repo), "--branch", branch, "--task", task, *extra])
+    if r.returncode == 0:
+        folder = Path(r.stdout.strip())
+        return ("legacy" if "[legacy]" in r.stderr else "ok", folder, r.stderr.strip())
+    if "[ambiguous]" in r.stderr:
+        return ("ambiguous", None, r.stderr.strip())
+    return ("no-match", None, r.stderr.strip())
+
+
+def freshness(repo: Path, folders: list[Path]) -> dict:
+    if not folders:
+        return {"overall": "PASS", "folders": []}
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+        out = Path(tmp.name)
+    args = ["--repo", str(repo), "--out", str(out)]
+    for f in folders:
+        args += ["--evidence", str(f)]
+    r = run_sibling("evidence-freshness", args)
+    if r.returncode == 2:
+        raise Stop(f"evidence-freshness refused: {r.stderr.strip()}")
+    try:
+        return json.loads(out.read_text(encoding="utf-8"))
+    finally:
+        out.unlink(missing_ok=True)
+
+
+def manifest(folder: Path) -> dict:
+    try:
+        return json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def artifact(folder: Path, producer: str, label: str) -> Path | None:
+    for entry in manifest(folder).get("artifacts", []):
+        if entry.get("producer") == producer and entry.get("label") == label:
+            path = folder / entry.get("path", "")
+            return path if path.is_file() else None
+    return None
+
+
+def results_by_item(folder: Path) -> dict[int, dict]:
+    path = artifact(folder, "verify", "results")
+    if path is None:
+        return {}
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {int(item["id"]): item for item in doc.get("items", []) if "id" in item}
+
+
+def details(summary: str, body: str) -> str:
+    return f"<details><summary>{summary}</summary>\n\n```\n{body.rstrip()}\n```\n\n</details>"
+
+
+def item_row(task: str, num: str, kind: str, behavior: str, tier: str, state: str, folder: Path | None, results: dict[int, dict]) -> str:
+    n = int(num)
+    if state in ("no-match", "ambiguous") or folder is None:
+        return f"| {num} | [{kind}] {behavior} | {tier} | evidence not found for item {num} | not run |"
+    result = results.get(n)
+    status = result.get("status", "not run") if result else "not run"
+    caveat = " *(legacy folder — records no branch; read its manifest)*" if state == "legacy" else ""
+    if tier == "probe":
+        art = artifact(folder, "probe", str(n)) or artifact(folder, "verify", f"probe-{n}")
+        where = str(art) if art else str(folder)
+        cell = f"image evidence at `{where}` (local store — attach to the PR if a reviewer needs it){caveat}"
+    else:
+        detail = result.get("detail", "") if result else "no verify:results detail captured"
+        cell = details(f"item {num} evidence", detail) + caveat
+    return f"| {num} | [{kind}] {behavior} | {tier} | {cell} | {status} |"
+
+
+def inspector_block(folder: Path | None) -> str:
+    if folder is None:
+        return ""
+    path = artifact(folder, "inspector", "report")
+    if path is None:
+        return ""
+    text = path.read_text(encoding="utf-8", errors="replace").strip()
+    verdict = next((line for line in text.splitlines() if re.match(r"^\s*(CLEAR|DEFECT|CONCERN)\b", line)), "")
+    body = (verdict + "\n\n" + text) if verdict and not text.startswith(verdict) else text
+    return details("Inspector report (verdict line first)", body)
+
+
+def exorcise_block(repo: Path, branch: str, root: str | None) -> tuple[str, Path | None]:
+    _state, folder, _note = resolve(repo, branch, "exorcise", root)
+    if folder is None:
+        return "", None
+    path = artifact(folder, "exorcist", "report")
+    if path is None:
+        return "", folder
+    text = path.read_text(encoding="utf-8", errors="replace")
+    m = CONCEPTS_RE.search(text)
+    lines = [m.group(0)] if m else ["(report carries no `Concepts removed:` line)"]
+    held = HELD_RE.search(text)
+    if held:
+        rest = text[held.end():]
+        nxt = re.search(r"^## ", rest, re.MULTILINE)
+        lines += ["", "## Held", rest[: nxt.start()].strip() if nxt else rest.strip()]
+    return details("Exorcise pass", "\n".join(lines)), folder
+
+
+def section_after(text: str, heading_re: re.Pattern[str]) -> str:
+    m = heading_re.search(text)
+    if not m:
+        return ""
+    rest = text[m.end():]
+    nxt = NEXT_H1_TO_3_RE.search(rest)
+    return (rest[: nxt.start()] if nxt else rest).strip()
+
+
+def assemble(plan_text: str, repo: Path, branch: str, root: str | None) -> str:
+    bad = out_of_grammar_task_headings(plan_text)
+    if bad:
+        raise Stop(f"the plan has a '### Task' heading outside the grammar: {'; '.join(bad)}")
+    tasks = split_tasks_with_titles(plan_text)
+    if not tasks:
+        raise Stop("the plan has no '### Task' headings")
+
+    resolved: list[tuple[str, str, str, str, Path | None]] = []  # num, title, block, state, folder
+    for num, title, block in tasks:
+        state, folder, note = resolve(repo, branch, num, root)
+        if state == "ambiguous":
+            raise Stop(f"task {num}: {note}")
+        resolved.append((num, title, block, state, folder))
+
+    exorcise, exorcise_folder = exorcise_block(repo, branch, root)
+    folders = [f for *_, f in resolved if f is not None] + ([exorcise_folder] if exorcise_folder else [])
+    fresh = freshness(repo, folders)
+    stale = [f for f in fresh.get("folders", []) if f.get("status") != "PASS"]
+    if stale:
+        named = "; ".join(f"task {f.get('task')}: {f.get('detail')}" for f in stale)
+        raise Stop(f"evidence not promoted — {named}")
+
+    out = ["## Evidence", "", "| # | Done means | Method | Evidence | Pass |", "|---|---|---|---|---|"]
+    for num, title, block, state, folder in resolved:
+        results = results_by_item(folder) if folder else {}
+        out.append(f"| **Task {num}** — {title or ''} | | | | |")
+        for item in parse_items(block):
+            m = TIER_BODY_RE.match((item.tier_body or "").strip())
+            tier = m.group(1) if m else "?"
+            out.append(item_row(num, item.num, item.kind, item.behavior, tier, state, folder, results))
+        insp = inspector_block(folder)
+        if insp:
+            out.append(f"| | Task {num} inspector | — | {insp} | — |")
+    if exorcise:
+        out += ["", exorcise]
+    amendments = amendments_section(plan_text)
+    if amendments:
+        out += ["", "## Amendments", "", amendments]
+    decisions = section_after(plan_text, DECISIONS_RE)
+    if decisions:
+        out += ["", "## Decisions", "", decisions]
+    return "\n".join(out) + "\n"
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+    repo = Path(args.repo).resolve()
+    if git_repo_root(repo) is None:
+        print(f"error: '{repo}' is not inside a git repository", file=sys.stderr)
+        return 2
+    plan_path = Path(args.plan)
+    try:
+        plan_text = plan_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"error: could not read '{plan_path}': {exc}", file=sys.stderr)
+        return 2
+    try:
+        body = assemble(plan_text, repo, args.branch, args.evidence_root)
+    except Stop as exc:
+        print(f"ship-body: stop — {exc}", file=sys.stderr)
+        return 1
+    if args.out:
+        Path(args.out).write_text(body, encoding="utf-8")
+    sys.stdout.write(body)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

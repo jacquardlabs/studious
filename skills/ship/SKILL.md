@@ -45,108 +45,53 @@ flags may be left to default: `--repo` defaults to `.`, so a session whose own
 cwd is some other checkout would read that repository and report its state as
 this feature's — an evidence table assembled, plausibly, off the wrong branch.
 
-For each task in `PLAN.md` (now fully status-flipped), read its `Done
-means` items and the evidence folder `/build`'s own `evidence-capture` call
-wrote for it. The store is local and gitignored — the main checkout's
-`.studious/build-evidence/`, worktree-shared so evidence written in a since-removed
-build worktree is still here — and never enters the repo: the table this step
-assembles into the PR body is the durable record. **Ask the script which folder that
-is — never rebuild the path from its shape**:
-capture writes `.studious/build-evidence/<date>-<task>-<branch-slug>/`, so a path rebuilt to the pre-#258 shape `.studious/build-evidence/<date>-<task>/` matches nothing. <!-- evidence-grammar: counterexample -->
+The table is assembled by a script, never by hand (#249, #421):
 
 ```
-studious evidence-capture resolve --repo <worktree> --branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" --task <task id>
+studious ship-body --plan <worktree>/PLAN.md --repo <worktree> --branch "$(git -C <worktree> rev-parse --abbrev-ref HEAD)" --out <scratch-path>/body.md
 ```
 
-`--branch` takes that exact command, not `git branch --show-current`: capture stamped
-the manifest using `rev-parse --abbrev-ref HEAD` (`scripts/_gitutil.py`'s
-`current_branch`), literal `HEAD` fallback included — `--show-current` prints an empty
-string on a detached checkout that matches no manifest.
+`--branch` takes that exact command, not `git branch --show-current`: capture
+stamped the manifest using `rev-parse --abbrev-ref HEAD` (`scripts/_gitutil.py`'s
+`current_branch`), literal `HEAD` fallback included — `--show-current` prints an
+empty string on a detached checkout that matches no manifest.
 
-It prints one folder path — absolute, since the store lives outside the tracked
-tree — on exit 0. That folder carries a
-`manifest.json` (`commit_sha`, `commit_timestamp`, `branch`, one entry per
-captured artifact) and the captured artifacts themselves — including the task's
-`verify:results` artifact, whose own JSON carries each item's `id`, `kind`,
-`tier`, `status`, and `detail`. A non-zero exit means this task has no folder
-to promote: say so on the row and never invent a link.
+What it does, so you can read its output: for every task in `PLAN.md` (now fully
+status-flipped) it asks `evidence-capture resolve` which folder in the local,
+gitignored store (`.studious/build-evidence/<date>-<task>-<branch-slug>/`, the main
+checkout's, worktree-shared) holds the task's captured artifacts — never rebuilding
+the path from its shape:
+rebuilding `.studious/build-evidence/<date>-<task>/` matches nothing. <!-- evidence-grammar: counterexample -->
+It resolves `--task exorcise` the same way — `/build` Step 3 captures the exorcise
+report under that id (`exorcist:report`, pinned in `reference/evidence-format.md`); no
+folder means no pass landed, so no row, no remark. Then it runs the **freshness hold**
+(`evidence-freshness`) over every folder it found, against each folder's own
+`manifest.json` — never against the branch's current `HEAD` (issue #44's shape one
+layer up) — and only then renders:
 
-**One more `resolve`, `--task exorcise`, same `--repo`/`--branch`.** `/build` Step 3
-captures the exorcise report under that task id (`exorcist:report`, pinned in
-`reference/evidence-format.md`) when its pass landed; it is no `PLAN.md` task, so the
-loop above never reaches it. Non-zero exit: no pass landed (exorcist absent, its `verify`
-re-run failed, or the build predates the step) — no row, no remark. Found: the folder
-joins the freshness hold below like any other, and the table ends with one more
-`<details>` block quoting the report's `Concepts removed:` line — the same line may also
-carry a `Concepts kept:` clause, naming new symbols that survived, and only
-then does the block quote that too — then its `## Held` section verbatim when the report
-carries one — the route `/build` Step 3 promises a `hold` finding, exactly as an
-Inspector `CONCERN` rides `inspector:report` (see Assembling the table). Exorcist omits
-`## Held` entirely when nothing was held, which is the common case: then the `<details>`
-block ends after that `Concepts` line, and that is
-not a gap to fill — there is nothing further to quote.
+- one row per `Done means` item: item text → tier → evidence → the item's own `status`
+  from `verify:results`, transcribed, never re-judged. Text evidence is quoted
+  **inline**, in a collapsible `<details>` block per item; image evidence names the
+  local path — `image evidence at <path> (local store — attach to the PR if a
+  reviewer needs it)` — and never fabricates a URL for a file no remote holds;
+- a load-bearing task's Inspector report, verdict line first, in that task's block;
+- the exorcise block: the report's `Concepts removed:` line (and its `Concepts kept:`
+  clause when present) and its `## Held` section verbatim — the route `/build` Step 3
+  promises a `hold` finding;
+- the plan's `## Amendments` and the viva sign-off's `### Decisions` blocks verbatim —
+  the two records that would otherwise die with `PLAN.md`.
 
-**Freshness hold — run this before promoting anything.** Call
-`studious evidence-freshness --repo <worktree> --evidence <folder>`
-once per evidence folder involved — each `<folder>` being a path `resolve`
-printed above, passed **verbatim** (repeat `--evidence` per folder, or one
-call covering all of them). The printed path is absolute, so no join against
-`<worktree>` is needed or wanted — `evidence-freshness` resolves `--evidence`
-against the process's own cwd, which an absolute path ignores.
-`evidence-freshness` re-validates each folder against its own recorded
-`manifest.json` — never against the branch's current `HEAD`.
-Re-deriving freshness against current `HEAD` reproduces issue #44's bug
-shape one layer up: a producing step that commits *after* writing the
-artifact it's timestamping against makes a "must be >= current HEAD" check
-structurally unpassable for every folder but the most recent one. The
-floor for each folder is that folder's own `manifest.json` — not the
-branch's current `HEAD`. `evidence-freshness` re-confirms two narrower,
-purely mechanical things:
+Three states it renders instead of asking you: a **legacy** folder (records no
+branch) is promoted with its caveat in the cell; a task with **no folder** reads
+`evidence not found for item N` — named, never silently omitted; a **stale or
+orphaned** folder, or an **ambiguous** one (several branch-less candidates), is a
+**stop**: exit 1, the task and reason named on stderr, nothing written. On a stop,
+report it verbatim and end here. The resume action is the human's: re-run the task's
+capture (via `/build` or by hand) for a stale folder, or read the candidates'
+manifests for an ambiguous one. Do not call `evidence-capture` yourself to backfill
+a gap — `/ship` does not invent or re-capture evidence.
 
-1. The manifest's `commit_sha` is still an ancestor of the branch's current
-   `HEAD` (not a since-rewritten or orphaned commit — a real risk after a
-   REPLAN's hand-revision and rebuild).
-2. Every artifact file's own mtime is still >= that same recorded
-   `commit_timestamp` (catches an artifact silently touched or replaced
-   after capture).
-
-**A folder that fails either check is not promoted silently.** Stop before
-assembling the PR body. Report the exact task and reason (stale/orphaned) by
-name. The human's resume action is re-running the task's evidence capture (via
-`/build` or by hand) and re-invoking `/ship`. Do not call `evidence-capture`
-yourself to backfill a gap — `/ship` does not invent or re-capture evidence
-(see Out of scope in the design doc this skill implements).
-
-**Any `Done means` item with no corresponding evidence folder at all** (a
-task that reached `PASS` by a path other than `/build`'s own loop, e.g. a
-hand-verified fix) is named explicitly in the PR body as "evidence not
-found for item N" — never silently omitted, never fabricated.
-
-**Assembling the table.** One row per item: item text (from `PLAN.md`'s own
-numbered `Done means` line) → verification method (the item's own tier —
-`script` / `test-backed` / `probe`) → evidence (the row's own inline
-`<details>` block below — never a repository link, since the store is local
-and a `docs/`-path link would 404 for every reader) → pass (the item's own
-`status` from `verify:results`, transcribed, never re-judged). A
-load-bearing task's Inspector report is one more captured text artifact:
-quote it in that task's `<details>` block too, verdict line first — it is
-the `CONCERN` forwarding path `/build` step 2.6 promises.
-
-Two evidence shapes, two treatments:
-
-- **Text evidence** (a `script`/`test-backed` item's `detail` field —
-  command, exit code, stdout/stderr, already sitting in the captured
-  `verify:results` artifact) is quoted **inline**, in a collapsible
-  `<details>` block per item, directly in the PR body. Never written to a
-  new repository file.
-- **Image evidence** (a `probe` item whose artifact is a screenshot or other
-  binary) stays exactly where `evidence-capture` already put it —
-  `<the folder resolve printed>/<label>.<ext>`, that path verbatim, never
-  rebuilt by hand. A local, gitignored store has no commit for a raw URL to anchor to, so
-  the table names the local path: `image evidence at <path> (local store —
-  attach to the PR if a reviewer needs it)`. Attaching is the human's
-  drag-drop onto the PR body; never fabricate a URL for a file no remote
-  holds, and never force-commit the artifact to mint one.
+`<scratch-path>/body.md` is the PR body's first section. Steps 2–4 append to it.
 
 ## Step 2 — cctx footer
 
@@ -225,7 +170,7 @@ the `PR` verdict, skip this step entirely: the PR body carries everything
 Steps 1–4 produced, and a committed copy would be duplicate review noise.
 
 On `MERGE`, `KEEP`, or `DISCARD` — no PR body exists — the report IS the
-durable record. Assemble what Steps 1–4 produced — the evidence table, the
+durable record. Assemble what Steps 1–4 produced — `ship-body`'s output, the
 cctx footer (or its "not installed" note), which follow-ups were filed (with
 issue numbers) and which were skipped, and the proposed decision patches
 verbatim — into a single markdown file, then call

@@ -55,6 +55,7 @@ BUILD_EXECUTABLES = (
     "plan-lint",
     "plan-drift",
     "plan-amend",
+    "ship-body",
     "design-lint",
     "verify",
     "status-flip",
