@@ -186,7 +186,8 @@ rather than left to whichever gate happens to notice.
 
 Every story carries one of three classes, **decided when its plan is approved — never
 inferred at merge time**. With the epic path retired (2026-09-09) nothing records the
-class mechanically; it is stated in the PLAN.md the human stamps:
+class: no ledger field, no PLAN.md field, no lint asks for it. The matrix is convention
+until a plan artifact carries it again:
 
 - **auto-merge** — dependency bumps, docs, lint, test-only changes. Requires green CI
   **and** a gauntlet run at 0 critical findings. Nothing in this repo exercises this

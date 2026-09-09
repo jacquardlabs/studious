@@ -44,10 +44,9 @@ Every door also answers to its namespaced form, `/studious:<door>`. Reach for it
 bare name collides with a Claude Code built-in or another plugin — the namespaced form is
 always unambiguous.
 
-**The flow is scale-invariant.** A bet's scope may be one story, a list of stories, or a
-whole milestone — same doors, same order, every time. Scope changes how many stories a bet
-contains and how much runs unattended versus supervised. It never changes which doors
-exist, or where the flow enters and exits.
+**The flow is the same at every scale.** A bet's scope may be one story, a list of stories,
+or a whole milestone — same doors, same order, every time. Scope changes how many stories
+a bet contains. It never changes which doors exist, or where the flow enters and exits.
 
 **No door is mandatory, only default.** Skip `/bet` and you have no appetite and no decision
 record — everything else still runs, and position still derives from repo evidence. Use
@@ -113,23 +112,11 @@ between judges the same bet.
 ### When a bet is missed
 
 **Spent the appetite.** Studious borrows Shape Up's vocabulary but not its circuit breaker:
-a spent appetite **pauses the run; it never kills the bet.** Where it stopped is what you
-inherit — a story stopped before its first dispatch is **held** (nothing spent, nothing on
-its branch); one stopped at a phase boundary or before a fix round is **parked** (work is
-already on the branch, and the last round's findings are what you resume from). Either way
-the run report names the story and the gate it stopped at, and `/next` resumes on fresh
-budget.
-
-Two guards bound the overshoot before you reach the ceiling. The **canary** dispatches the
-first story alone, so a bad plan costs one story instead of the whole fleet. The
-**zero-landed stop-loss** refuses to dispatch after two consecutive invocations that landed
-nothing — the one place Studious stops rather than pauses; overriding it is explicit, and
-recorded either way.
-
-Worth knowing before you set a tight number: **an appetite set too small doesn't fail
-loudly.** The work quietly scopes down instead, which reads as a weaker result rather than
-as a ceiling being hit. Setting one anyway is a legitimate choice — it's a choice to accept
-a degraded result, not a smaller one.
+a spent appetite is a number you notice, not a stop the tool enforces. Worth knowing before
+you set a tight one: **an appetite set too small doesn't fail loudly.** The work quietly
+scopes down instead, which reads as a weaker result rather than as a ceiling being hit.
+Setting one anyway is a legitimate choice — it's a choice to accept a degraded result, not
+a smaller one.
 
 **Didn't deliver.** The other way to miss is to spend the appetite and not deliver what the
 bet promised. That's `/review --delivery`, at the bet's exit — an episode you convene
