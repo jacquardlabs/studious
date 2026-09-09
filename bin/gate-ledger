@@ -107,13 +107,33 @@ json_update() { # file, jq filter, then any --arg name value ... pairs for jq
   # below is an explicit branch instead.
   local file="$1" filter="$2"
   shift 2
-  local dir tmp rc
+  local dir tmp rc lock i
   dir=$(dirname -- "$file")
+  # A lock around read→jq→mv (#399): the rename is atomic, the read-modify-
+  # write is not, so two writers — the candidates search's per-branch episodes
+  # share nothing, but two verbs on one branch in one session can race — would
+  # let the last mv win the whole file. `mkdir` is the portable atomic
+  # primitive (no flock on stock macOS). A lock older than a minute is a
+  # crashed writer's and is reclaimed; a live one is waited on for ~5s, then refused.
+  lock="$file.lock"
+  i=0
+  until mkdir "$lock" 2>/dev/null; do
+    if [ -d "$lock" ] && [ -n "$(find "$lock" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then
+      rmdir "$lock" 2>/dev/null; continue
+    fi
+    i=$((i + 1))
+    if [ "$i" -ge 100 ]; then
+      echo "gate-ledger: $file is locked by another writer ($lock) — retry, or remove the lock if no ledger command is running" >&2
+      return 1
+    fi
+    sleep 0.05
+  done
   tmp=$(mktemp "$dir/.tmp.XXXXXX")
   # Capture $? as its own statement, not an `if` condition: POSIX defines a
   # no-branch-taken `if` as exit 0, which would silently swallow a jq/mv failure.
   jq "$@" "$filter" "$file" > "$tmp" && mv "$tmp" "$file"
   rc=$?
+  rmdir "$lock" 2>/dev/null
   if [ "$rc" -eq 0 ]; then
     return 0
   fi

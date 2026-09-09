@@ -260,6 +260,20 @@ def run_claude_headless(
     return text
 
 
+ALLOWED_TOOLS_RE = re.compile(r"^allowed-tools:\s*(.+)$", re.MULTILINE)
+
+
+def review_allowed_tools(plugin_root: Path) -> str:
+    """The tool allowlist for the headless run, read from commands/review.md's own
+    frontmatter so the harness grants exactly what the door declares and nothing
+    wider (#414) -- never `--dangerously-skip-permissions`."""
+    text = (plugin_root / "commands" / "review.md").read_text(encoding="utf-8")
+    m = ALLOWED_TOOLS_RE.search(text.split("---", 2)[1] if text.startswith("---") else text)
+    if not m:
+        raise ValueError("commands/review.md declares no allowed-tools frontmatter")
+    return ",".join(tool.strip() for tool in m.group(1).split(",") if tool.strip())
+
+
 def run_claude_headless_json(
     cwd: Path, timeout_seconds: int = 900, plugin_root: Path = REPO_ROOT
 ) -> tuple[str, float | None]:
@@ -279,7 +293,8 @@ def run_claude_headless_json(
         "claude",
         "-p",
         "/review",
-        "--dangerously-skip-permissions",
+        "--allowedTools",
+        review_allowed_tools(plugin_root),
         "--output-format",
         "json",
     ]

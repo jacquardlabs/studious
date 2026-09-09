@@ -57,6 +57,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--branch", required=True, help="new branch name to create")
     parser.add_argument("--path", required=True, help="filesystem path for the new worktree")
     parser.add_argument(
+        "--known-red",
+        default=None,
+        metavar="REASON",
+        help=(
+            "accept a failing baseline as pre-existing and continue, on the human's word only "
+            "-- the reason is printed with the failure so the session report carries it; "
+            "never a Foreman default (#364)"
+        ),
+    )
+    parser.add_argument(
         "--baseline",
         required=True,
         help=(
@@ -149,6 +159,23 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 1
+
+    if baseline_result.returncode != 0 and args.known_red:
+        print(
+            "BASELINE KNOWN-RED (pre-existing failure accepted as input, not overridden):\n"
+            f"  command:   {args.baseline}\n"
+            f"  exit code: {baseline_result.returncode}\n"
+            f"  worktree:  {worktree_path}\n"
+            f"  reason:    {args.known_red}\n"
+            "Every verify run in this worktree inherits a red baseline; the session report "
+            "must carry this reason beside every task's evidence.",
+            file=sys.stderr,
+        )
+        print(
+            f"worktree-setup: branch '{branch}' and worktree '{worktree_path}' are ready; "
+            f"baseline is KNOWN-RED ({args.known_red})."
+        )
+        return 0
 
     if baseline_result.returncode != 0:
         print(
