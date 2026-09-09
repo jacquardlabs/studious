@@ -10,7 +10,8 @@ interprets. Rules the doors used to carry in prose land as new verbs of this
 entrypoint; the prose then names `studious <verb>` and nothing else.
 
 Exit codes are the target's own. `studious` alone, `-h`, `--help`, or `help`
-prints the verb table and exits 2, the usage code every sibling shares.
+prints the script verbs, then gate-ledger's own usage line and exit 2 — the
+ledger vocabulary has one source, bin/gate-ledger's dispatch.
 `--version` prints the plugin manifest's version.
 """
 from __future__ import annotations
@@ -25,18 +26,7 @@ SCRIPTS_DIR = ROOT / "scripts"
 LEDGER = ROOT / "bin" / "gate-ledger"
 MANIFEST = ROOT / ".claude-plugin" / "plugin.json"
 
-# Ledger verbs, mirrored from bin/gate-ledger's dispatch; tests/jig/test_studious_cli.py
-# fails if the two drift.
-LEDGER_VERBS = (
-    "record", "status", "gate-get",
-    "episode-open", "episode-round", "episode-verdict", "episode-finding", "episode-get",
-    "work-set", "work-log", "work-get", "work-list",
-    "evidence-append", "evidence-list",
-    "gc",
-)
-
-
-def script_verbs() -> list:
+def script_verbs() -> list[str]:
     """Every executable in scripts/ without a suffix — the door-run CLIs, never
     the CI helpers (`*.py`) or the dev installer (`*.sh`)."""
     return sorted(
@@ -49,8 +39,7 @@ def usage() -> str:
     return (
         "usage: studious <verb> [args …]\n"
         "  build scripts:  " + " ".join(script_verbs()) + "\n"
-        "  ledger verbs:   " + " ".join(LEDGER_VERBS) + "\n"
-        "`studious <verb> --help` for a script's own usage; ledger verbs print gate-ledger's."
+        "  ledger verbs:   every other verb — gate-ledger's own usage follows"
     )
 
 
@@ -61,10 +50,10 @@ def version() -> str:
         return "unknown"
 
 
-def main(argv: list) -> int:
+def main(argv: list[str]) -> int:
     if not argv or argv[0] in ("-h", "--help", "help"):
-        print(usage(), file=sys.stderr)
-        return 2
+        print(usage(), file=sys.stderr, flush=True)
+        os.execv(str(LEDGER), [str(LEDGER)])  # its usage, its exit 2
     if argv[0] == "--version":
         print(version())
         return 0

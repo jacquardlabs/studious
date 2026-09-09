@@ -58,6 +58,7 @@ BUILD_EXECUTABLES = (
     "status-flip",
     "build-report",
     "evidence-capture",
+    "evidence-freshness",
     "worktree-setup",
 )
 
@@ -97,7 +98,7 @@ def invocation_re() -> re.Pattern:
     `docs/design/`, and "never run install/build/test" from misreading as invocations."""
     return re.compile(
         r"(?<![\w/-])/(?P<door>{})(?![\w/-])".format("|".join(producer_names()))
-        + r"|(?<![\w/-])(?:scripts/|studious )(?P<executable>{})(?![\w/-])".format(
+        + r"|(?<![\w/-])(?:scripts/|(?:\S*/)?studious[\"']?\s+)(?P<executable>{})(?![\w/-])".format(
             "|".join(BUILD_EXECUTABLES)
         )
     )

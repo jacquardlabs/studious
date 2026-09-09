@@ -415,8 +415,8 @@ For each task block, in order:
    work episode Step 4 convenes at the end of this same session reads it like any other
    captured artifact, and the evidence table `/ship` assembles into the PR body also
    quotes the captured text artifact inline — so a `/review` run by hand later, on a
-   branch this skill built standalone with no `studious` on `PATH`, still sees it. No
-   `studious` coupling and no dependency on studious being installed at all is required
+   branch this skill built standalone with no ledger to record into, still sees it. No
+   ledger coupling and no dependency on studious's doors being installed at all is required
    for the concern itself to survive — only Step 4's own convening does.
 
    | Lens | Lane | Why this lane |
@@ -760,7 +760,7 @@ run against it, never a lighter or shortcut version. **Convening is not judging:
 may convene the work episode as a convenience, but the verdict is always `/review`'s.
 This door never writes one.**
 
-**Convening itself is unconditional** — never gated on `studious` being on `PATH` or
+**Convening itself is unconditional** — never gated on the ledger being recordable or
 on this session being able to record. That was a real regression once (#150: a hand-off
 skipped under a ledger presence probe, wrong on both counts — `/review` ships in
 this same plugin, and a missing binary says nothing about whether the gate exists, only
@@ -892,7 +892,7 @@ Inspector's own call and everything around it (evidence capture, the
 Failure routine, `status-flip`'s `PASS` derivation) stays mechanical. A
 `CONCERN` forwards to `/review` by sitting, already committed and
 self-describing, in the diff a human's own later gate run reviews — no new
-dependency on `studious` on `PATH` or on studious being installed at all. The
+dependency on the ledger recording or on studious's doors being installed at all. The
 load-bearing gate — never inspecting a leaf task — keeps this role from
 becoming a resident reviewer or added persona.
 

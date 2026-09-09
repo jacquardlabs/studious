@@ -10,6 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 import check_gate_independence as gi
 
 REPO = Path(__file__).resolve().parents[2]
@@ -125,6 +127,26 @@ def test_catches_a_gate_shelling_out_through_the_scripts_path_too(tmp_path: Path
     problems = gi.violations()
     assert len(problems) == 1
     assert "must not shell out to studious verify" in problems[0]
+
+
+@pytest.mark.parametrize(
+    "spelling",
+    [
+        "bin/studious verify",
+        '"${CLAUDE_PLUGIN_ROOT}/bin/studious" verify',
+        "python3 bin/studious verify",
+        "studious  verify",
+        "studious evidence-freshness",
+    ],
+)
+def test_catches_every_path_and_whitespace_form_of_the_entrypoint(spelling: str, tmp_path: Path, monkeypatch) -> None:
+    agents = tmp_path / "agents"
+    agents.mkdir()
+    (agents / "some-auditor.md").write_text(f"Run `{spelling} --task 3` to check it.\n", encoding="utf-8")
+    monkeypatch.setattr(gi, "REPO", tmp_path)
+    problems = gi.violations()
+    assert len(problems) == 1, problems
+    assert "must not shell out to studious" in problems[0]
 
 
 def test_every_build_executable_is_actually_guarded(tmp_path: Path, monkeypatch) -> None:

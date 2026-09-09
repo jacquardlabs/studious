@@ -318,10 +318,10 @@ reasoning. This is a scope-level problem -- problem validity, principle conflict
 building" -- not a section to patch; going back to brainstorm is the human's decision to
 make, never another automatic redraft.
 
-**Convening itself is unconditional.** `studious` on `PATH` is a separate question -- it
-governs whether the design gate and this session's status report can *record*, not whether
-the gate or the episode exist. Don't probe for it before convening and don't let its
-absence suppress convening; a broken `PATH` is what `/doctor` reports. That was a real
+**Convening itself is unconditional.** Whether the ledger can record is a separate
+question -- it governs whether the design gate and this session's status report can
+*record*, not whether the gate or the episode exist. Don't probe for it before convening
+and don't let a failed record suppress convening; a broken `PATH` is what `/doctor` reports. That was a real
 regression once (#150: a hand-off skipped under a ledger presence probe, wrong on
 both counts -- `/review` ships in this same plugin, and a missing binary says nothing
 about whether the gate exists, only whether the ledger can record).

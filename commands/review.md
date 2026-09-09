@@ -667,7 +667,7 @@ The findings ledger is what this episode's round 2 reads instead of re-deriving 
 round 1 — record it from the compiled report's post-challenge findings before recording the
 verdict. A fingerprint is the finding's identity across rounds: `<lane>/<short-slug>`, chosen
 once at first record and reused verbatim ever after — data for the ledger, never
-re-normalized. The write shapes the ledger refuses are refused in code (`bin/studious
+re-normalized. The write shapes the ledger refuses are refused in code (`bin/gate-ledger
 episode-finding`); this step supplies the judgment, not the bookkeeping.
 
 **A Critical is judged against its lane's anchor, never against the tier a judge gave it.**

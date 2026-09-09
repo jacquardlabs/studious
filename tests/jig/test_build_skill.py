@@ -512,7 +512,7 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         for lane in ("test-auditor", "architecture-auditor", "code-auditor"):
             with self.subTest(lane=lane):
                 self.assertIn(lane, self.body)
-        self.assertPhraseIn("No `studious` coupling")
+        self.assertPhraseIn("No\nledger coupling")
 
     def test_second_defect_recheck_is_bounded_not_open_ended(self) -> None:
         # Pre-mortem risk #4: exactly one more independent dispatch, never unbounded.
@@ -540,7 +540,7 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         # convenes the work episode itself, and that convening is unconditional
         # on the same axis #150 regressed on.
         self.assertPhraseIn("Convening itself is unconditional")
-        self.assertPhraseIn("never gated on `studious` being on `PATH`")
+        self.assertPhraseIn("never gated on the ledger being recordable")
         self.assertPhraseIn("#150")
 
     def test_trust_boundary_is_stated_explicitly(self) -> None:
