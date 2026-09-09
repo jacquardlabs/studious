@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v6.3.0 (2026-09-09)
+
+### Features
+
+- /build --candidates N — parallel implementation search, mechanical rank, the human picks between
+  two finalists ([#422](https://github.com/jacquardlabs/studious/pull/422),
+  [`479ebfe`](https://github.com/jacquardlabs/studious/commit/479ebfec19ace0f34edf906baed013fdcef80bd6))
+
+
 ## v6.2.0 (2026-09-09)
 
 ### Features
