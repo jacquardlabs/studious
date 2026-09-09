@@ -175,12 +175,14 @@ durable record. Assemble what Steps 1–4 produced — `ship-body`'s output, the
 cctx footer (or its "not installed" note), which follow-ups were filed (with
 issue numbers) and which were skipped, and the proposed decision patches
 verbatim — into a single markdown file, then call
-`studious build-report --repo <worktree> --slug <story-slug> --content
-<path>` (optionally `--date`; defaults to today, UTC). This writes
-`docs/studious/build-reports/YYYY-MM-DD-<story-slug>-build-report.md` — same
-class and naming as studious's own dated review reports. `build-report` only
-performs the mechanical write; the assembly is this step's job, not the
-script's.
+`studious build-report --repo <worktree> --content <path>` (optionally
+`--date`; defaults to today, UTC). The script names the report after the
+story's work file — the `studious work-list` row whose branch is this one —
+so a reader matches `docs/studious/build-reports/YYYY-MM-DD-<slug>-build-report.md`
+back to its story by that one rule (#284); pass `--slug` only for a branch
+with no work file. Same class and naming as studious's own dated review
+reports. `build-report` only performs the mechanical write; the assembly is
+this step's job, not the script's.
 
 `build-report` does not commit its own write. Commit the new report file
 yourself, as its own commit, distinct from Step 6's cleanup commit below.

@@ -4,23 +4,55 @@
 `/ship` Step 5: writes docs/studious/build-reports/YYYY-MM-DD-<slug>-build-report.md,
 matching studious's dated review-report naming convention.
 
+The slug is the story's work-file slug (#284): with `--slug` omitted, the script
+reads `gate-ledger work-list` in `--repo` and takes the row whose branch column
+equals the repo's current branch. That is the one match rule a later reader
+applies in reverse -- report filename -> work file -> story. `--slug` overrides
+it for a branch with no work file, and is validated the same way.
+
 Mechanical write only -- `/ship` assembles the markdown body and passes it via
 --content. Never commits (matches evidence-capture's precedent); the caller
 commits separately so the write and the Step 6 cleanup commit stay
 distinguishable in history.
 
 Exit codes: 0 written. 2 usage error (bad --slug, bad --date, missing
---content, or an existing report without --force).
+--content, an existing report without --force, or no work file matching the
+branch when --slug is omitted).
 """
 from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+GATE_LEDGER = Path(__file__).resolve().parent.parent / "bin" / "gate-ledger"
+
+
+def current_branch(repo: Path) -> Optional[str]:
+    r = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "--abbrev-ref", "HEAD"],
+        capture_output=True, text=True, check=False,
+    )
+    branch = r.stdout.strip()
+    return branch if r.returncode == 0 and branch and branch != "HEAD" else None
+
+
+def slug_for_branch(repo: Path, branch: str) -> Optional[str]:
+    """The work file whose recorded branch is `branch`, via `gate-ledger work-list`
+    (slug, phase, branch, title per row, tab-separated)."""
+    r = subprocess.run(
+        [str(GATE_LEDGER), "work-list"], cwd=str(repo),
+        capture_output=True, text=True, check=False,
+    )
+    if r.returncode != 0:
+        return None
+    rows = (line.split("\t") for line in r.stdout.splitlines() if line.strip())
+    return next((row[0] for row in rows if len(row) >= 3 and row[2] == branch), None)
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -29,7 +61,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         description="Write /ship's dated build report to docs/studious/build-reports/.",
     )
     parser.add_argument("--repo", default=".", help="path to the repo docs/studious/build-reports/ is written under")
-    parser.add_argument("--slug", required=True, help="the story's slug (used in the report's filename)")
+    parser.add_argument("--slug", default=None, help="override the story's slug (default: the work file whose branch is the repo's current branch)")
     parser.add_argument("--content", required=True, help="path to the already-assembled markdown report body")
     parser.add_argument("--date", default=None, help="report date, YYYY-MM-DD (default: today, UTC)")
     parser.add_argument("--force", action="store_true", help="overwrite an existing report at the same date+slug")
@@ -38,9 +70,21 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
+    repo = Path(args.repo).resolve()
 
-    if "/" in args.slug or ".." in args.slug or not args.slug.strip():
-        print(f"error: --slug '{args.slug}' must be a plain identifier (no '/' or '..')", file=sys.stderr)
+    slug = args.slug
+    if slug is None:
+        branch = current_branch(repo)
+        slug = slug_for_branch(repo, branch) if branch else None
+        if slug is None:
+            print(
+                f"error: no work file records branch '{branch or '?'}' in {repo} "
+                "(gate-ledger work-list); pass --slug to name the story explicitly",
+                file=sys.stderr,
+            )
+            return 2
+    if "/" in slug or ".." in slug or not slug.strip():
+        print(f"error: --slug '{slug}' must be a plain identifier (no '/' or '..')", file=sys.stderr)
         return 2
     if args.date is not None and not DATE_RE.match(args.date):
         print(f"error: --date '{args.date}' must be YYYY-MM-DD", file=sys.stderr)
@@ -51,10 +95,9 @@ def main(argv: list[str]) -> int:
         print(f"error: --content '{content_path}' does not exist", file=sys.stderr)
         return 2
 
-    repo = Path(args.repo).resolve()
     date = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     reports_root = repo / "docs" / "studious" / "build-reports"
-    report_path = reports_root / f"{date}-{args.slug}-build-report.md"
+    report_path = reports_root / f"{date}-{slug}-build-report.md"
 
     if report_path.exists() and not args.force:
         print(

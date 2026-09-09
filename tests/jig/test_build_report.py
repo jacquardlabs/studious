@@ -19,11 +19,65 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from _script import run_script as _run_script
+from _tempgit import init_repo, run
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "build-report"
+GATE_LEDGER = REPO_ROOT / "bin" / "gate-ledger"
 
 run_script = functools.partial(_run_script, SCRIPT)
+
+
+class TestSlugComesFromTheWorkFile(unittest.TestCase):
+    """#284: the report's slug is the work file whose branch is the repo's branch."""
+
+    def _repo_with_work_file(self, tmp: Path, slug: str, branch: str) -> Path:
+        repo = tmp / "repo"
+        repo.mkdir()
+        init_repo(repo)
+        run(["git", "checkout", "-q", "-b", branch], cwd=repo)
+        r = run([str(GATE_LEDGER), "work-set", "--slug", slug, "--title", "t", "--branch", branch], cwd=repo)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return repo
+
+    def test_omitted_slug_is_the_work_file_matching_the_branch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo_with_work_file(Path(tmp), "fix-footer", "fix/footer")
+            run([str(GATE_LEDGER), "work-set", "--slug", "other-story", "--title", "o", "--branch", "feat/other"], cwd=repo)
+            content = Path(tmp) / "body.md"
+            content.write_text("body\n", encoding="utf-8")
+
+            result = run_script(["--repo", str(repo), "--date", "2026-09-09", "--content", str(content)])
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            expected = repo / "docs" / "studious" / "build-reports" / "2026-09-09-fix-footer-build-report.md"
+            self.assertTrue(expected.is_file(), sorted((repo / "docs").rglob("*")))
+
+    def test_no_matching_work_file_refuses_and_names_the_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            repo.mkdir()
+            init_repo(repo)
+            content = Path(tmp) / "body.md"
+            content.write_text("body\n", encoding="utf-8")
+
+            result = run_script(["--repo", str(repo), "--content", str(content)])
+
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("no work file records branch", result.stderr)
+            self.assertIn("--slug", result.stderr)
+            self.assertFalse((repo / "docs").exists())
+
+    def test_explicit_slug_overrides_the_work_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self._repo_with_work_file(Path(tmp), "fix-footer", "fix/footer")
+            content = Path(tmp) / "body.md"
+            content.write_text("body\n", encoding="utf-8")
+
+            result = run_script(["--repo", str(repo), "--slug", "by-hand", "--date", "2026-09-09", "--content", str(content)])
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue((repo / "docs" / "studious" / "build-reports" / "2026-09-09-by-hand-build-report.md").is_file())
 
 
 class TestBuildReportHappyPath(unittest.TestCase):
