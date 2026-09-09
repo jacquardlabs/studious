@@ -242,7 +242,7 @@ class TestPlanSkillBody(PhraseInBodyMixin, unittest.TestCase):
     def test_viva_always_passes_explicit_split_on(self) -> None:
         self.assertPhraseIn("Always pass an explicit `--split-on`, never bare auto-detect")
         self.assertIn(
-            "--split-on '(?i)^(Task \\d+|Not-here follow-ups|Revision History)'",
+            "--split-on '(?i)^(Task \\d+|Not-here follow-ups|Amendments|Revision History)'",
             self.body,
         )
 

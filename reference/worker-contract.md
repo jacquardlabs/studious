@@ -80,7 +80,9 @@ step's token is owned by `reference/gate-vocabulary.md`.
   for does not belong in this story, however obvious the improvement — a gate judges the
   diff against a design doc that never described it, so unrequested work reads as
   unexplained work and costs the story a cycle. A worker that spots adjacent work worth
-  doing names it in its return for the human to schedule. Narrowing is the same defect
+  doing names it in its return for the human to schedule. A human-authorized amendment
+  recorded in the plan (`studious plan-amend`, the `## Amendments` block) is a criterion.
+  Narrowing is the same defect
   facing the other way: a criterion dropped because it turned out to be harder than the
   rest is a scope decision, and scope decisions are not a worker's to make silently.
   Either way the record a later reader consults first is `PLAN.md`, not `git log`: when

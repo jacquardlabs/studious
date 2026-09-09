@@ -45,7 +45,7 @@ FIXTURE_NAMES = ("clean-plan.md", "broken-plan.md")
 # Step 6's literal --split-on value, used only to locate it for the
 # mutation demo below (not re-asserted here; see
 # test_plan_step_6_split_on_pattern_matches_documented_flag_value).
-_STEP_6_SPLIT_ON_VALUE = r"(?i)^(Task \d+|Not-here follow-ups|Revision History)"
+_STEP_6_SPLIT_ON_VALUE = r"(?i)^(Task \d+|Not-here follow-ups|Amendments|Revision History)"
 
 
 class TestSurfaceDerivationsMatchDocumentedText(unittest.TestCase):
