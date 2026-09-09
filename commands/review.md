@@ -743,6 +743,12 @@ re-entry check read exactly what they always have.
 studious episode-verdict --gate audit --verdict "PASS"
 ```
 
+**A Critical is never closed by the round that found it.** If this session fixed one itself,
+record `FIX AND RE-REVIEW`, re-enter with `episode-round`, dispatch the blocking lanes at the
+new HEAD, and close it there — the ledger refuses a terminal verdict over a Critical found and
+closed in the same round, and over a HEAD no round's judges read (#368). The one exception is
+the cap, where the terminal verdict is the operator's explicit choice and both shas are recorded.
+
 **Every Critical must be resolved before a closing verdict is recordable.** The ledger refuses
 a terminal verdict while any Critical is still `open` — each one has to be re-recorded
 `--status closed` (fixed) or set aside with `--waiver <reason>` on the user's own word, per the
