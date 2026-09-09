@@ -38,17 +38,13 @@ def _section(text: str, start: str, end: str) -> str:
     return text[text.index(start):text.index(end)]
 
 
-def test_skill_tool_is_allowed_for_the_gauntlet_where_lookup() -> None:
+def test_skill_tool_is_allowed_and_the_locate_step_cites_the_protocol_file() -> None:
     text = _door()
     tools = re.search(r"^allowed-tools: (.*)$", text, re.MULTILINE).group(1)
     assert "Skill" in tools.split(", ")
     locate = _section(text, "## Locate gauntlet", "## Resolve the artifact")
-    assert "`gauntlet:where`" in locate and "GAUNTLET_ROOT" in locate
-    assert locate.index("`gauntlet:where`") < locate.index("`gauntlet:review` with `--help`"), "where first, review --help as the released fallback"
-    assert "If neither is in the listing" in locate
-    assert "/plugin install gauntlet@jacquardlabs-marketplace" in locate, "no stop line for a gauntlet that is not installed"
-    assert "predates" not in locate and "/plugin update" not in locate, "the remedy names an install, not an update no release satisfies"
-    assert "Never Glob the plugin cache" in locate
+    assert "`reference/locate-gauntlet.md`" in locate and "GAUNTLET_ROOT" in locate
+    assert "`gauntlet:where`" not in locate and "--help" not in locate, "the protocol is restated instead of cited (#410)"
 
 
 def test_invocations_come_from_dispatch_py_at_the_ref() -> None:
@@ -91,16 +87,15 @@ def _normalized(path) -> str:
     return re.sub(r"\s+", " ", path.read_text()).replace("`", "")
 
 
-def test_health_and_review_carry_the_same_gauntlet_not_installed_stop_line() -> None:
-    """#353: both doors' 'Locate gauntlet' section must stop the same way when
-    gauntlet isn't installed — a future edit that drops or rewords one door's line
-    without the other should fail this. Reuses `GAUNTLET_MISSING_LINE`
-    (test_driver_gauntlet_dispatch.py) rather than re-encoding the sentence, so the
-    string exists in only one place."""
+def test_health_and_review_stop_the_same_way_when_gauntlet_is_not_installed() -> None:
+    """#353: both doors stop the same way when gauntlet isn't installed. Since #410 the
+    stop line lives once, in `reference/locate-gauntlet.md`, and each door's 'Locate
+    gauntlet' section cites that file instead of carrying its own copy."""
+    protocol = REPO_ROOT / "reference" / "locate-gauntlet.md"
+    assert GAUNTLET_MISSING_LINE in _normalized(protocol)
     for path in (DOOR, REVIEW):
-        assert GAUNTLET_MISSING_LINE in _normalized(path), (
-            f"{path.name} carries no gauntlet-not-installed stop line matching the pinned sentence"
-        )
+        assert "`reference/locate-gauntlet.md`" in path.read_text(encoding="utf-8"), path.name
+        assert GAUNTLET_MISSING_LINE not in _normalized(path), f"{path.name} restates the stop line"
 
 
 def test_health_context_files_paragraph_names_existence_subset_and_worktree_scoping() -> None:

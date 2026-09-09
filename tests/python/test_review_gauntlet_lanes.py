@@ -29,21 +29,15 @@ def _door() -> str:
     return DOOR.read_text(encoding="utf-8")
 
 
-def test_locate_step_falls_back_to_gauntlet_review_when_where_is_not_shipped() -> None:
-    """gauntlet 0.15.0 — the released fleet — ships no `where`; the root is learned by
-    loading any gauntlet command, so the door tries `gauntlet:where` first and falls back
-    to `gauntlet:review --help`. It stops only when neither is listed (gauntlet is not
-    installed), and never with an update line no release could satisfy."""
+def test_locate_step_cites_the_one_protocol_file() -> None:
+    """The root-discovery protocol lives in `reference/locate-gauntlet.md` (#410); the door
+    cites it and records `GAUNTLET_ROOT`, restating nothing."""
     text = _door()
     tools = re.search(r"^allowed-tools: (.*)$", text, re.MULTILINE).group(1)
     assert "Skill" in tools.split(", ")
     locate = text[text.index("## Locate gauntlet"):text.index("## Establish the changeset")]
-    assert "`gauntlet:where`" in locate and "GAUNTLET_ROOT" in locate
-    assert locate.index("`gauntlet:where`") < locate.index("`gauntlet:review` with `--help`"), "where is tried first"
-    assert "If neither is in the listing" in locate
-    assert "/plugin install gauntlet@jacquardlabs-marketplace" in locate
-    assert "predates" not in locate and "/plugin update" not in locate, "the remedy names an install, not an update no release satisfies"
-    assert "Never Glob the plugin cache" in locate
+    assert "`reference/locate-gauntlet.md`" in locate and "GAUNTLET_ROOT" in locate
+    assert "`gauntlet:where`" not in locate and "--help" not in locate, "the protocol is restated instead of cited"
 
 
 def test_doctor_checks_the_root_lookup_command_beside_the_agents() -> None:
@@ -69,7 +63,6 @@ def test_invocations_come_from_dispatch_py_and_are_handed_over_verbatim() -> Non
     assert "scripts/dispatch.py" in text
     assert "--receipts-path" in text, "the evidence log no longer reaches the judges as receipts_path"
     assert "verbatim" in text[text.index("**Dispatch.**"):text.index("## Design episode")]
-    assert "Never\nGlob the plugin cache" in text or "Never Glob the plugin cache" in text
 
 
 def test_compile_cites_report_py_and_the_compilation_rules() -> None:

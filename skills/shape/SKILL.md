@@ -273,7 +273,7 @@ design episode's "Persist the register" -- don't restate its steps here and don'
 them:
 
 1. **Locate gauntlet** (once per session, if a prior step here hasn't already) --
-   `gauntlet:where`, recording `GAUNTLET_ROOT`.
+   per `reference/locate-gauntlet.md`, recording `GAUNTLET_ROOT`.
 2. **Design episode, Part 1 -- Design product review.** Skip its "Find the doc" step: the
    doc is `docs/design/<slug>.md`, already resolved by this skill. Dispatch
    `gauntlet:product-reviewer` exactly per that Part's invocation and compile.

@@ -50,21 +50,8 @@ judges carry their own posture (injection defense, read-only inspection, calibra
 nothing is stamped into a dispatch prompt from `reference/` any more.
 
 **Gauntlet's root.** `${CLAUDE_PLUGIN_ROOT}` resolves to this plugin's root, never
-gauntlet's. The root is learned by loading one gauntlet command: its `${CLAUDE_PLUGIN_ROOT}`
-lines arrive already substituted with an absolute `…/gauntlet/<version>/` path — the same
-substitution every plugin command gets on load, and the documented affordance gauntlet#80
-states beside the payload contract ("Consumer transport for a co-installed plugin", which
-names both routes below). Once per session, in this order: invoke the `gauntlet:where`
-skill if it is in this session's skill listing — its first line is the root; else invoke
-`gauntlet:review` with `--help` as its argument — gauntlet's door reads a non-numeric
-argument as a document path, finds no such file, and stops before any dispatch, and the
-loaded text carries the root in its `python3 "…/scripts/dispatch.py"` lines (gauntlet
-0.15.0, the released fleet, ships no `where`; this is the route that works today). Record
-it as `GAUNTLET_ROOT` for the rest of the session. If neither is in the listing, gauntlet is
-not installed: stop with one line — "gauntlet is not installed —
-`/plugin install gauntlet@jacquardlabs-marketplace`, then re-run" — never a guess.
-**Never Glob the plugin cache** for it — a path guessed from a cache layout is the
-convention-boundary failure that #150 recorded.
+gauntlet's. Learn gauntlet's once per session per `reference/locate-gauntlet.md` and record
+it as `GAUNTLET_ROOT`; a gauntlet that is not installed stops there, with that file's one line.
 
 ## Establish the changeset (work episode)
 

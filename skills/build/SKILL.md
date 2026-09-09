@@ -823,7 +823,7 @@ add anything to a dispatch prompt beyond what those steps already gather. Lane 1
 episode reads only what `reference/evidence-format.md` and its own resolution rules give
 it, the same as it would for any other executor:
 
-1. **Locate gauntlet** — `gauntlet:where`, recording `GAUNTLET_ROOT`.
+1. **Locate gauntlet** — per `reference/locate-gauntlet.md`, recording `GAUNTLET_ROOT`.
 2. **Establish the changeset** — merge-base to `HEAD` in this worktree.
 3. **Precompute the changeset diff** — small-changeset scratch file, per that step's
    400-line threshold.
