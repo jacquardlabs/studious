@@ -124,6 +124,21 @@ studious work-set --slug "<slug>" --title "<title, the scoped-down one on BUILD 
 `--phase design` instead when the user asked, in the same breath, to design before
 building. The slug is derived from the title the way `/next` derives it.
 
+**One work file, whatever the bet's scale.** A list or a milestone is one story — the
+charter's scale rule, and the shape `/next` writes (`commands/next.md`, the list branch).
+Judge every member and journal a verdict for each, then write a single work file whose
+`--source` carries the survivors and whose title names the list:
+
+```bash
+studious work-set --slug "<slug from the list or milestone name>" --title "<list title>" --source "#a #b #c" --phase build
+```
+
+Members that drew `DEFER` or `DON'T BUILD` are left out of `--source`; if none survived,
+write no work file. Never write one file per member — that is decomposition, which belongs
+to the planning contract downstream, and it strands the scale the user bet at. A member
+that needs designing first is a verdict and a journal rationale, not a second work file:
+the exit ladder routes it when the plan says so.
+
 The ledger is local and gitignored — it never enters the repo. If `studious` is not found
 (the plugin's `bin/` isn't on `PATH` in this environment), tell the user the verdict could not
 be recorded to the gate ledger — do not skip silently.
@@ -155,3 +170,11 @@ tell the user the verdict could not be journaled — do not skip silently. Two w
 the gate ledger above is local, gitignored flow state; the journal is committed,
 project-lifetime decision memory. Committing `docs/studious/decisions.jsonl` stays with the
 user's normal git flow — never run `git commit` for them.
+
+## Hand off
+
+Close by naming the one next move: `/next <slug>` — the slug of the work file just written,
+which resumes work in flight rather than expanding a list a second time. Say what the flow
+will do next at the scale the user bet at ("one branch, one plan, one PR closing all three"),
+so a milestone-scale bet doesn't read as a pile of separate errands. On `DEFER` or
+`DON'T BUILD` there is no work file and no handoff: report the verdict and stop.
