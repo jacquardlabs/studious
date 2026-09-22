@@ -1045,10 +1045,11 @@ work_file_init() { # slug → ensures the work file exists, echoes its path
 }
 
 cmd_work_set() {
-  local slug="" title="" src="" branch="" doc="" phase="" declared="" declared_given=0
+  local slug="" title="" src="" branch="" doc="" phase="" init_phase="" declared="" declared_given=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --slug)           slug="$2"; shift 2 ;;
+      --init-phase)     init_phase="$2"; shift 2 ;;
       --title)          title="$2"; shift 2 ;;
       --source)         src="$2"; shift 2 ;;
       --branch)         branch="$2"; shift 2 ;;
@@ -1062,6 +1063,10 @@ cmd_work_set() {
     echo "gate-ledger: --slug required" >&2
     return 2
   fi
+  if [ -n "$phase" ] && [ -n "$init_phase" ]; then
+    echo "gate-ledger: --phase and --init-phase are exclusive" >&2
+    return 2
+  fi
   if ! have jq || ! have git; then
     echo "gate-ledger: work-set skipped (jq and git required)" >&2
     return 0
@@ -1071,6 +1076,23 @@ cmd_work_set() {
   if [ -z "$slug" ]; then
     echo "gate-ledger: --slug reduced to nothing after slugify" >&2
     return 2
+  fi
+
+  # --init-phase (#440): a writer that must never move another flow's phase.
+  # A new work file starts at it; an existing one already at it is left as is;
+  # an existing one at any other phase is a different story on the same slug,
+  # refused before anything is written.
+  if [ -n "$init_phase" ]; then
+    local existing; existing="$(store_dir work)/$slug.json"
+    if [ -f "$existing" ]; then
+      local cur; cur=$(jq -r '.phase // ""' "$existing" 2>/dev/null) || cur=""
+      if [ -n "$cur" ] && [ "$cur" != "$init_phase" ]; then
+        echo "gate-ledger: work file '$slug' is at phase '$cur', not '$init_phase';" \
+             "--init-phase never moves a phase — pick another slug or advance it with work-log --phase" >&2
+        return 2
+      fi
+    fi
+    phase="$init_phase"
   fi
 
   ensure_gitignore
@@ -1190,6 +1212,21 @@ cmd_work_log() {
   # it never has to widen this closed list.
   #   BUILT | PAUSED | ESCALATED  executor-reported terminal status (worker-contract.md)
   #   HANDED-OFF | SKIPPED        /next's own non-terminal flow markers
+  # `finish` is constrained for the same reason: commands/next.md branches on
+  # a `PR` outcome to tell a PR `/build --small` opened from /next's own
+  # hand-off (#440).
+  #   HANDED-OFF  /next handed piece 3 to /ship or the user
+  #   PR          `/build --small` opened the PR (/ship's own token for one)
+  if [ "$step" = "finish" ]; then
+    case "$outcome" in
+      HANDED-OFF|PR) ;;
+      *)
+        echo "gate-ledger: --step finish --outcome '$outcome' is not a recognized outcome;" \
+             "use HANDED-OFF or PR" >&2
+        return 2
+        ;;
+    esac
+  fi
   if [ "$step" = "build" ]; then
     case "$outcome" in
       BUILT|PAUSED|ESCALATED|HANDED-OFF|SKIPPED) ;;
@@ -1567,5 +1604,5 @@ case "${1:-}" in
   evidence-append) shift; cmd_evidence_append "$@" ;;
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH | --init-phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
 esac
