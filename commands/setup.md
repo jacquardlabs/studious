@@ -193,6 +193,9 @@ Every `/build` executor and every dispatched worker reads CLAUDE.md
 from the first task with no further wiring, and `code-auditor` defers to CLAUDE.md
 conventions at `/review`, so the judge holds the same rules.
 
+- **`/exorcist:ward` absent from this session's skill listing:** an install defect, not an
+  optional skip — exorcist is a declared dependency. Report it pointing at
+  `/studious:doctor`'s `exorcist` row, which carries the one stop line, and move to Step 7.
 - **CLAUDE.md already imports `@.claude/ward.md`:** note "ward already present" and move
   on.
 - **Not yet imported:** propose it — name the two writes (`.claude/ward.md`
@@ -209,6 +212,6 @@ Report what was created, what was populated, and what the user should review:
 - README.md — created from scratch, or skipped because one already exists
 - CLAUDE.md — sections added
 - Review directories created
-- Ward — installed, already present, or declined
+- Ward — installed, already present, declined, or exorcist missing (the doctor pointer)
 
 Suggest the user review PRODUCT.md first (product principles and "not building" sections need human judgment), then DESIGN.md (anti-patterns section needs human input), then README.md if one was generated.
