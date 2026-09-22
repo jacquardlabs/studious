@@ -42,7 +42,7 @@ If `$ARGUMENTS` is non-empty but matches no keyword, list the valid keywords and
 
 ## Locate gauntlet (before any dispatch)
 
-Every posture lane is a `gauntlet:<judge>` dispatch, built by `gauntlet dispatch` and compiled by `gauntlet report` exactly as `commands/review.md`'s "Locate gauntlet" describes — find the command, or stop, the same way.
+Every posture lane is a `gauntlet:<judge>` dispatch, built by `gauntlet dispatch` and compiled by `gauntlet report` exactly as `commands/review.md`'s "Locate gauntlet" describes — run its contract check, or stop, the same way.
 
 ## Resolve the artifact (before any dispatch)
 

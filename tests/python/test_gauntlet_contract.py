@@ -4,6 +4,7 @@ Every door reaches gauntlet through its `gauntlet` command (gauntlet#87) and dis
 its judges by registered name. Both surfaces are pinned below from gauntlet v0.17.0
 (4d4790c): the flags `gauntlet dispatch` and `gauntlet report` accept (their `--help`),
 and the charter's judges (`agents/`). A door flag or judge name outside them fails here.
+The contract version itself is checked at run time, by `studious gauntlet-contract`.
 """
 
 from __future__ import annotations

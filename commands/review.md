@@ -49,9 +49,9 @@ handed to its judge verbatim, and this door only decides *which* invocations run
 judges carry their own posture (injection defense, read-only inspection, calibration), so
 nothing is stamped into a dispatch prompt from `reference/` any more.
 
-If `command -v gauntlet` finds nothing, gauntlet is not installed — stop with one line:
-"gauntlet is not installed — `/plugin install gauntlet@jacquardlabs-marketplace`, then
-re-run".
+Run `studious gauntlet-contract` once, before the first dispatch. It finds the `gauntlet`
+command and checks the findings contract version it speaks against the one this door reads.
+A non-zero exit is a stop: relay its one `error:` line verbatim and dispatch nothing.
 
 ## Establish the changeset (work episode)
 
