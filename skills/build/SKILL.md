@@ -926,11 +926,11 @@ Step 0.
    to Step 4's pre-mortem lane.
 3. **Build:** run Step 2.2–2.5 and 2.7 for Task 1, with `<scratch-path>/brief.md` as
    `<plan path>`. Skip `plan-drift`, since the block is a transcription with no plan to
-   drift from. Skip Step 1.5 and Step 2.6: a single task rests on nothing, so nothing is
-   load-bearing. **There is one executor and no Failure routine.** On a `verify` FAIL, run
-   `studious status-flip --plan <scratch-path>/brief.md --task 1 --status REPLAN --reason
-   "<verify's detail>"` and report **PAUSED** with the `REPLAN` cause. The resume action is
-   the full loop: `/studious:build #N`.
+   drift from. Skip Step 2.7's `status-flip`: it commits the plan file into the repo, and
+   the brief lives outside it; item 6's PR body is the record. Skip Step 1.5 and Step 2.6:
+   a single task rests on nothing, so nothing is load-bearing. **There is one executor and
+   no Failure routine.** On a `verify` FAIL, report **PAUSED** with the `REPLAN` cause and
+   verify's detail. The resume action is the full loop: `/studious:build #N`.
 4. **Exorcise:** Step 3, unchanged. Its intent is the brief's `Do:` and `Done means:`.
 5. **Judge:** run Step 4's steps 1–10 **once**, with no fix dispatch and no re-convene.
    Whatever the verdict, the next item opens the PR. On `FIX AND RE-REVIEW` or

@@ -705,6 +705,9 @@ class TestSmallMode(unittest.TestCase):
     def test_one_executor_no_inspector_no_fix_cycle(self) -> None:
         self.assertIn("**There is one executor and no Failure routine.**", self.section)
         self.assertIn("Skip Step 1.5 and Step 2.6", self.section)
+        # status-flip commits the plan into the repo; the brief lives outside it (#440).
+        self.assertIn("Skip Step 2.7's `status-flip`", self.section)
+        self.assertNotIn("studious status-flip", self.section)
         self.assertIn("no fix dispatch and no re-convene", self.section)
 
     def test_a_non_pass_verdict_opens_a_draft_never_a_third_stop(self) -> None:
