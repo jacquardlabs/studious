@@ -112,8 +112,8 @@ jig was absorbed into this plugin (#150), not added beside it. `/shape`, `/build
 in `scripts/`, their unittest suite in `tests/jig/`. One manifest, one version line, one
 install. The manifest declares `viva`, `gauntlet`, and `exorcist` as dependencies by name
 (#441) — `/build` and `/shape` stop dead without viva; `/health` dispatches nothing
-without gauntlet, and `/review`'s judge lanes are `gauntlet:*` dispatches too, live since
-#334 S1 shipped; `/build`'s Step 3 is exorcist's `exorcise`. No version ranges: seam
+without gauntlet, and `/review`'s judge lanes are `gauntlet:*` dispatches too, live
+since #334 S1 shipped; `/build`'s Step 3 is exorcist's `exorcise`. No version ranges: seam
 safety is a contract-version check where studious reads each contract, stopping with a
 named message on a mismatch.
 
