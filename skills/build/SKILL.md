@@ -675,7 +675,8 @@ continue. Only when every candidate is eliminated does the session report `PAUSE
 `ESCALATED`, with the last diagnosis. A risk-tagged pre-dispatch pause still blocks every
 candidate at once — it is the human's acknowledgment, not a candidate's failure.
 
-**Exorcise (Step 3)** runs once per survivor, in its own worktree.
+**Exorcise (Step 3)** runs once per survivor, in its own worktree, with its own
+`<scratch-path>` (a `c<k>` subdirectory) — one candidate's report is never read as another's.
 
 **Pick, mechanically, before any judge runs.** Rank the survivors by these rules in
 order, stopping at the first that separates them:
@@ -718,7 +719,11 @@ no criterion asks for does not belong in this story" is executed rather than
 judged. **A simplification never costs a fix cycle**: every branch below ends
 with the build proceeding to its verdict.
 
-1. **Dispatch.** State "exorcising against N tasks' intent", then launch one
+1. **Dispatch.** State "exorcising against N tasks' intent". Run
+   `rm -f <scratch-path>/exorcise-report.json` — exorcise leaves the path
+   untouched when it writes nothing, so a leftover there would read as this
+   run's — then capture a dispatch timestamp exactly as step 2.2 does, the
+   instant before launch; step 2 passes it as `--since`. Then launch one
    fresh Task-tool subagent, on step 2.2's model, whose entire prompt is exactly:
    - the intent: every task's `Do:` and `Done means:` lines, verbatim from
      the plan, in task order, then the plan's `## Amendments` block verbatim
@@ -730,20 +735,25 @@ with the build proceeding to its verdict.
      <base> --json <scratch-path>/exorcise-report.json` with the intent
      above as its argument, in this worktree. Edit the working tree only:
      never commit, never `git checkout --` or `git reset`. Work in
-     `<worktree>` exactly as given — never the Agent tool's own worktree isolation, which would land this dispatch in a fresh tree on the wrong branch (#365). Return nothing but that JSON path —
-     not a review of your own."*
+     `<worktree>` exactly as given — never the Agent tool's own worktree isolation, which would land this dispatch in a fresh tree on the wrong branch (#365). Return nothing but
+     exorcise's own last line verbatim — its `JSON:` line, or the stop it
+     printed instead — not a review of your own."*
 
    Nothing else goes into the prompt — not `PLAN.md` in full, not any task's
    history, not this session's own conversation. The subagent runs
    exorcise's own §6 checks; that is its claim, not the verdict.
 2. **Check the report, before anything reads it.** Run
-   `studious exorcise-report <scratch-path>/exorcise-report.json`. Exit 0
+   `studious exorcise-report --since <step 1's timestamp> <scratch-path>/exorcise-report.json`. Exit 0
    prints the commit subject step 5 uses. Any non-zero exit — the report is
-   missing (`exorcise dispatch died`) or off contract (`exorcise report off
-   contract`), the script's line says which — is FAIL's cleanup without the
+   missing (`no exorcise report written`), older than the dispatch
+   (`exorcise report predates this dispatch`), or off contract (`exorcise
+   report off contract`), the script's line says which — is FAIL's cleanup without the
    verify run: `git checkout -- .`, confirm `git status --porcelain` is empty,
    one **Track** note quoting that line verbatim, and proceed to the Session
-   verdict. Nothing is captured: an unchecked report never reaches `/review`.
+   verdict. On `no exorcise report written` the note also quotes the line the
+   subagent returned — exorcise's own stop (validate gate failed, base
+   unresolved, empty diff) writes no file — or says it returned none.
+   Nothing is captured: an unchecked report never reaches `/review`.
 3. **Nothing cast out.** If `git status --porcelain` is empty after the
    dispatch — every hunk traced, or every finding held — there is nothing
    to verify or commit: the tree is byte-identical to the one each task's

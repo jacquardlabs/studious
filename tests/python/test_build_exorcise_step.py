@@ -68,14 +68,32 @@ def test_the_json_is_checked_before_any_step_reads_it() -> None:
     )]
     assert order == sorted(order)
     check = _flat(_between("**Check the report", "**Nothing cast out.**"))
-    assert "studious exorcise-report <scratch-path>/exorcise-report.json" in check.replace("`", "")
+    assert "studious exorcise-report --since <step 1's timestamp> <scratch-path>/exorcise-report.json" in check.replace("`", "")
     assert "prints the commit subject step 5 uses" in check
+
+
+def test_a_leftover_report_can_never_pass_as_this_runs() -> None:
+    """#441: the path is fixed and exorcise leaves it untouched when it writes nothing, so
+    the prose clears it and captures the `--since` floor before the dispatch, and the script
+    refuses a report older than that floor."""
+    dispatch = _flat(_between("**Dispatch.**", "**Check the report"))
+    rm_at = dispatch.index("`rm -f <scratch-path>/exorcise-report.json`")
+    stamp_at = dispatch.index("capture a dispatch timestamp exactly as step 2.2 does")
+    assert rm_at < stamp_at < dispatch.index("launch one fresh Task-tool subagent")
+    check = _flat(_between("**Check the report", "**Nothing cast out.**"))
+    assert "`exorcise report predates this dispatch`" in check
+    candidates = SKILL[SKILL.index("## Candidates") : SKILL.index("## Step 3")]
+    assert "one candidate's report is never read as another's" in _flat(candidates)
 
 
 def test_a_missing_report_and_an_off_contract_one_are_labelled_apart() -> None:
     check = _flat(_between("**Check the report", "**Nothing cast out.**"))
-    assert "`exorcise dispatch died`" in check and "`exorcise report off contract`" in check
+    assert "`no exorcise report written`" in check and "`exorcise report off contract`" in check
+    assert "died" not in check, "exorcise's own stops write no file; a missing report is not a crash"
     assert "quoting that line verbatim" in check, "the label comes from the script, not the model"
+    assert "quotes the line the subagent returned" in check, "exorcise's own refusal line rides the note"
+    dispatch = _flat(_between("**Dispatch.**", "**Check the report"))
+    assert "exorcise's own last line verbatim — its `JSON:` line, or the stop it printed instead" in dispatch
     assert "`git checkout -- .`" in check and "**Track**" in check
     assert "Nothing is captured" in check, "an unchecked report never reaches /review"
     assert "**The subagent died" not in STEP, "the died branch folded into the check"
