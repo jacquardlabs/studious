@@ -724,10 +724,24 @@ class TestSmallMode(unittest.TestCase):
     def test_one_executor_no_inspector_no_fix_cycle(self) -> None:
         self.assertIn("**There is one executor and no Failure routine.**", self.section)
         self.assertIn("Skip Step 1.5 and Step 2.6", self.section)
-        # status-flip commits the plan into the repo; the brief lives outside it (#440).
-        self.assertIn("Skip Step 2.7's `status-flip`", self.section)
-        self.assertNotIn("studious status-flip", self.section)
         self.assertIn("no fix dispatch and no re-convene", self.section)
+
+    def test_small_mode_reaches_no_status_flip_on_any_path(self) -> None:
+        # The brief lives outside any repo, where status-flip exits 2 (#440). Small mode runs
+        # steps by reference, so every site that calls status-flip must be one it names the
+        # skip for or one it never runs; a new site elsewhere fails here until it is placed.
+        raw = SKILL_MD.read_text(encoding="utf-8")
+        flipping = {part.splitlines()[0] for part in raw.split("\n## ")[1:] if "studious status-flip --plan" in part}
+        self.assertEqual(flipping, {"Step 2 — Per task, in spine order", "Failure routine"})
+        self.assertIn("**There is one executor and no Failure routine.**", self.section)
+        self.assertIn(
+            "**Skip every `status-flip` a step run here names** — Step 2.5's parse-error path, Step 2.7, "
+            "and Step 3's re-verify, which routes its exit 2 as Step 2.5 does.",
+            self.section,
+        )
+        self.assertIn("or a parse error where Step 2.5 would flip `REPLAN`, report **PAUSED**", self.section)
+        self.assertIn("skipping every `status-flip` as item 3 does", self.section)
+        self.assertNotIn("studious status-flip", self.section)
 
     def test_a_non_pass_verdict_opens_a_draft_never_a_third_stop(self) -> None:
         self.assertIn("Whatever verdict step 9 compiles, the next item opens the PR.", self.section)

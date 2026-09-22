@@ -946,11 +946,13 @@ Step 0.
    never from this skill.
 3. **Build:** run Step 2.2–2.5 and 2.7 for Task 1, with `<scratch-path>/brief.md` as
    `<plan path>`. Skip `plan-drift`, since the block is a transcription with no plan to
-   drift from. Skip Step 2.7's `status-flip`: it commits the plan file into the repo, and
-   the brief lives outside it; item 6's PR body is the record. Skip Step 1.5 and Step 2.6:
-   a single task rests on nothing, so nothing is load-bearing. **There is one executor and
-   no Failure routine.** On a `verify` FAIL, report **PAUSED** with the `REPLAN` cause and
-   verify's detail, and no PR opens.
+   drift from. **Skip every `status-flip` a step run here names** — Step 2.5's parse-error
+   path, Step 2.7, and Step 3's re-verify, which routes its exit 2 as Step 2.5 does. It
+   commits the plan file into the plan's repo, and the brief lives outside any repo, so it
+   exits 2; item 6's PR body is the record. Skip Step 1.5 and Step 2.6: a single task rests
+   on nothing, so nothing is load-bearing. **There is one executor and no Failure
+   routine.** On a `verify` FAIL, or a parse error where Step 2.5 would flip `REPLAN`,
+   report **PAUSED** with the `REPLAN` cause and verify's detail, and no PR opens.
 4. **Exorcise:** Step 3, unchanged. Its intent is the brief's `Do:` and `Done means:`.
 5. **Judge:** run Step 4's steps 1–10 **once**, with no fix dispatch and no re-convene.
    Whatever verdict step 9 compiles, the next item opens the PR. On `FIX AND RE-REVIEW` or
@@ -990,9 +992,9 @@ round past `1` means the one re-entry already ran: stop, named, before any dispa
    body and marks the PR ready for review. It never opens a second PR. Merging stays
    yours."* Then wait for their word.
 2. **Fix:** Step 4's **FIX** dispatch, one fresh executor scoped to exactly the blocking
-   findings, then Step 2.5 and 2.7 for Task 1 against the brief, skipping `status-flip` as
-   before. On a `verify` FAIL, report **PAUSED** with the `REPLAN` cause; the PR stays a
-   draft.
+   findings, then Step 2.5 and 2.7 for Task 1 against the brief, skipping every
+   `status-flip` as item 3 does. On a `verify` FAIL or a parse error, report **PAUSED**
+   with the `REPLAN` cause; the PR stays a draft.
 3. **Re-convene:** Step 4's steps 1–10 once more. Step 5's re-entry condition now holds,
    so the round narrows to the blocking lanes. There is no further fix dispatch after this
    round.
