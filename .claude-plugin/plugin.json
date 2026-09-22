@@ -19,6 +19,7 @@
   ],
   "dependencies": [
     { "name": "viva", "version": "~2.14.0" },
-    { "name": "gauntlet", "version": "~0.15.0" }
+    { "name": "gauntlet", "version": "~0.17.0" },
+    { "name": "exorcist", "version": "~0.6.0" }
   ]
 }

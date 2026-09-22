@@ -193,15 +193,9 @@ Every `/build` executor and every dispatched worker reads CLAUDE.md
 from the first task with no further wiring, and `code-auditor` defers to CLAUDE.md
 conventions at `/review`, so the judge holds the same rules.
 
-Check whether exorcist is installed the way `/studious:doctor` checks for viva: look for
-`exorcist:ward` in this session's registered skill listing — never a file path.
-
-- **Not installed:** one line — "exorcist not installed — ward skipped; install with
-  `/plugin install exorcist@jacquardlabs-marketplace`, then run `/exorcist:ward`." — and
-  move to Step 7. Never an error, never a Critical: the ward is optional.
-- **Installed, CLAUDE.md already imports `@.claude/ward.md`:** note "ward already present"
-  and move on.
-- **Installed, not yet imported:** propose it — name the two writes (`.claude/ward.md`
+- **CLAUDE.md already imports `@.claude/ward.md`:** note "ward already present" and move
+  on.
+- **Not yet imported:** propose it — name the two writes (`.claude/ward.md`
   copied from the plugin; a `## Ward` section with `@.claude/ward.md` appended to
   CLAUDE.md) and the one-line why above — and run `/exorcist:ward` on the user's word in
   this same invocation, the same propose-then-write posture as Step 5b. Declined: note the
@@ -215,6 +209,6 @@ Report what was created, what was populated, and what the user should review:
 - README.md — created from scratch, or skipped because one already exists
 - CLAUDE.md — sections added
 - Review directories created
-- Ward — installed, already present, declined, or exorcist not installed
+- Ward — installed, already present, or declined
 
 Suggest the user review PRODUCT.md first (product principles and "not building" sections need human judgment), then DESIGN.md (anti-patterns section needs human input), then README.md if one was generated.
