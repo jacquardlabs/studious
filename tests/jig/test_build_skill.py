@@ -771,6 +771,12 @@ class TestSmallMode(unittest.TestCase):
         step3 = self.body[self.body.index("## Step 3 — Exorcise"):self.body.index("## Step 4 — Convene")]
         self.assertNotIn("Session verdict", step3)
 
+    def test_the_slug_is_the_one_work_set_printed(self) -> None:
+        # A raw title slug is normalized by work-set, which prints it (tests/test_gate_ledger.sh).
+        self.assertIn("`slug=$(studious work-set --slug <slug> --title", self.section)
+        self.assertIn("`work-set` prints the slug it normalized; that printed value is `<slug>` from here on", self.section)
+        self.assertNotIn("`studious` slugifies it", self.section)
+
     def test_small_mode_never_sets_phase_on_a_log(self) -> None:
         # --init-phase is the code guarantee (tests/test_gate_ledger.sh, #440 round 2).
         self.assertIn("--source \"#N\" --init-phase build", self.section)
@@ -790,11 +796,20 @@ class TestSmallMode(unittest.TestCase):
     def test_re_entry_fixes_the_same_pr_never_a_second(self) -> None:
         # #440 round 2: a small-mode FIX AND RE-REVIEW is fixed by /build --small #N again.
         self.assertIn("**Re-entry comes first.**", self.section)
+        # Keyed on the issue number, so an edited title never yields a second PR (#440 round 3).
+        self.assertIn('Run `studious work-get --source "#N"`.', self.section)
+        self.assertNotIn("work-get --slug", self.section)
         self.assertIn("a `finish` entry with outcome `PR`", self.section)
         self.assertIn("an unreadable PR is never read as no PR", self.section)
         self.assertLess(self.section.index("**Re-entry comes first.**"), self.section.index("**Start — stop 1.**"))
         reentry = self.section[self.section.index("**Re-entry — `/build --small #N`"):]
         self.assertIn("It never opens a second PR.", reentry)
+        # The work file records no worktree; the lookup is stated, and an empty one stops.
+        self.assertIn(
+            """git worktree list --porcelain | awk -v b="refs/heads/<branch>" '/^worktree /{w=substr($0,10)} $0=="branch "b{print w}'""",
+            reentry,
+        )
+        self.assertIn("stop, named, before any dispatch when it prints nothing", reentry)
         self.assertIn("Step 4's **FIX** dispatch, one fresh executor scoped to exactly the blocking findings", reentry)
         self.assertIn(f"Step 4's steps 1{chr(0x2013)}10 once more", reentry)
         self.assertIn("On `PASS`, `gh pr ready <M>`.", reentry)

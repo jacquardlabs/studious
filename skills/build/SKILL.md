@@ -901,16 +901,16 @@ here by reference. Multi-task work stays on the full loop.
 **Issue text never enters a shell command as typed text.** Save the issue once, `gh issue
 view <N> --json title,body,labels > <scratch-path>/issue.json`, and read every argument
 drawn from it back out of that file at run time: the title is always
-`"$(jq -r .title <scratch-path>/issue.json)"`, never the title retyped inside quotes. The
-slug is the one `/next` handed over, or that same title expression (`studious` slugifies
-it).
+`"$(jq -r .title <scratch-path>/issue.json)"`, never the title retyped inside quotes.
 
-**Re-entry comes first.** Run `studious work-get --slug <slug>`. When its `.history` has a
-`finish` entry with outcome `PR`, confirm with `gh pr view <branch> --json
-number,url,state,isDraft` on the file's `.branch`: an `OPEN` PR means this run is a re-entry, so go to "Re-entry"
-below and never open a second PR. A merged or closed PR means the story is over: report
-it and stop. A `gh` error stops the run too, because an unreadable PR is never read as no
-PR. No work file, or no such entry, is a fresh start.
+**Re-entry comes first.** Run `studious work-get --source "#N"`. It keys on the issue
+number, never a slug, so an edited issue title still finds its story. It exits 2 when more
+than one work file carries that source: report its message and stop. When the returned
+file's `.history` has a `finish` entry with outcome `PR`, confirm with `gh pr view <branch>
+--json number,url,state,isDraft` on the file's `.branch`: an `OPEN` PR means this run is a
+re-entry, so go to "Re-entry" below and never open a second PR. A merged or closed PR means
+the story is over: report it and stop. A `gh` error stops the run too, because an
+unreadable PR is never read as no PR. No work file, or no such entry, is a fresh start.
 
 **Start — stop 1.** Transcribe the issue into one checkpoint block in the Input grammar:
 `### Task 1 — <issue title>`, `Do:` from its goal, `Done means:` from its Done means (each
@@ -930,10 +930,13 @@ Step 0.
 
 **Then, without stopping:**
 
-1. **Setup:** first record position with `studious work-set --slug <slug> --title "$(jq
-   -r .title <scratch-path>/issue.json)" --source "#N" --init-phase build`. `--init-phase`
-   starts a new work file at `build`, leaves one `/next` created at `build` as it is, and
-   refuses one at any other phase, which is another story on the same slug. On that
+1. **Setup:** first record position with `slug=$(studious work-set --slug <slug> --title
+   "$(jq -r .title <scratch-path>/issue.json)" --source "#N" --init-phase build)`, handing
+   it the slug handed over, else the `.slug` of the file Re-entry returned, else the title
+   expression. `work-set` prints the slug it normalized; that printed value is `<slug>`
+   from here on, the branch name included. `--init-phase` starts a new work file at
+   `build`, leaves one `/next` created at `build` as it is, and refuses one at any other
+   phase, which is another story on the same slug. On that
    refusal, report gate-ledger's message and stop; nothing has been built, and the resume
    is `/build --small #N` with a different slug handed over. Then run Step 1.1–1.3 on
    branch `build/<slug>-<YYYYMMDDHHMM>` and record it with `studious work-set --slug <slug>
@@ -977,11 +980,19 @@ Step 0.
 
 **Re-entry — `/build --small #N` on a branch that already has its PR.** This is how a
 small-mode `FIX AND RE-REVIEW` gets fixed. It runs in the branch's own worktree, left in
-place at stop 2, with no new branch and no `work-set`. `studious gate-get --branch
-<branch>` must show `.gates.audit.verdict` as `FIX AND RE-REVIEW`, and `studious
-episode-get --gate audit` must open with `round 1 of`. Any other verdict stops the run,
-named: `NEEDS DISCUSSION` is the human's to resolve, and a `PASS` has nothing to fix. A
-round past `1` means the one re-entry already ran: stop, named, before any dispatch.
+place at stop 2, with no new branch and no `work-set`; `<slug>` and `<branch>` are the
+returned work file's `.slug` and `.branch`. The work file records no worktree, so find it
+with this, and stop, named, before any dispatch when it prints nothing:
+
+```bash
+git worktree list --porcelain | awk -v b="refs/heads/<branch>" '/^worktree /{w=substr($0,10)} $0=="branch "b{print w}'
+```
+
+`studious gate-get --branch <branch>` must show `.gates.audit.verdict` as
+`FIX AND RE-REVIEW`, and `studious episode-get --gate audit` must open with `round 1 of`.
+Any other verdict stops the run, named: `NEEDS DISCUSSION` is the human's to resolve, and
+a `PASS` has nothing to fix. A round past `1` means the one re-entry already ran: stop,
+named, before any dispatch.
 
 1. **Start — stop 1 again.** The first run's scratch path does not outlive its session, so
    save the issue and transcribe the brief exactly as the first start did. Read the

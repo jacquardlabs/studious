@@ -1131,6 +1131,9 @@ cmd_work_set() {
     --arg doc "$doc" --arg decl "$declared" --arg declGiven "$declared_given" \
     --arg phase "$phase" --arg t "$(now_iso)"
   rc=$?
+  # The normalized slug on stdout (#440): a caller handing a raw title gets back
+  # the key every later verb and branch name must use.
+  [ "$rc" -eq 0 ] && printf '%s\n' "$slug"
 
   return "$rc"
 }
@@ -1308,15 +1311,40 @@ cmd_work_log() {
 }
 
 cmd_work_get() {
-  local slug=""
+  local slug="" src=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --slug) slug="$2"; shift 2 ;;
+      --slug)   slug="$2"; shift 2 ;;
+      --source) src="$2"; shift 2 ;;
       *) echo "gate-ledger: unknown arg '$1'" >&2; return 2 ;;
     esac
   done
+  if [ -n "$slug" ] && [ -n "$src" ]; then
+    echo "gate-ledger: --slug and --source are exclusive" >&2
+    return 2
+  fi
+  # --source (#440): the one work file whose .source is exactly SRC, so a caller
+  # keyed on an issue ("#N") finds its story whatever slug the title gave it.
+  # None prints nothing, like a missing slug; more than one is refused, naming them.
+  if [ -n "$src" ]; then
+    have jq || return 0
+    local dir f; local -a hits=()
+    dir=$(store_dir work)
+    for f in "$dir"/*.json; do
+      [ -e "$f" ] || continue
+      [ "$(jq -r '.source // ""' "$f" 2>/dev/null)" = "$src" ] && hits+=("$f")
+    done
+    case ${#hits[@]} in
+      0) return 0 ;;
+      1) cat "${hits[0]}" ;;
+      *) echo "gate-ledger: ${#hits[@]} work files have source '$src':" \
+              "$(for f in "${hits[@]}"; do basename "$f" .json; done | paste -sd, -)" >&2
+         return 2 ;;
+    esac
+    return 0
+  fi
   if [ -z "$slug" ]; then
-    echo "gate-ledger: --slug required" >&2
+    echo "gate-ledger: --slug or --source required" >&2
     return 2
   fi
   slug=$(slugify "$slug")
@@ -1604,5 +1632,5 @@ case "${1:-}" in
   evidence-append) shift; cmd_evidence_append "$@" ;;
   evidence-list)   shift; cmd_evidence_list "$@" ;;
   gc)              shift; cmd_gc "$@" ;;
-  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH | --init-phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get --slug S | work-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
+  *) echo "usage: gate-ledger {record --gate G --verdict V [--blocking-lanes L1,L2] | status | gate-get [--branch B] | episode-open --gate G | episode-round --gate G | episode-verdict --gate G --verdict V [--blocking-lanes L1,L2] | episode-finding --gate G --fingerprint F --status open|closed|carried|waived|rejected-as-noise [--lane L] [--severity Critical|Important|Track] [--regression-of FP] [--waiver R] | episode-get --gate G [--findings | --history] [--branch B] | work-set --slug S [--title T] [--source SRC] [--branch B] [--design-doc P] [--declared-files F1,F2] [--phase PH | --init-phase PH] | work-log --slug S ([--step ST --outcome O] | --scope-delta-phase PH2 (--scope-delta-files F1,F2 | --scope-delta-unmeasured [--scope-delta-reason dispatch-failed|no-declaration|unsafe-path]) | --amend-file F --amend-reason R) [--phase PH] | work-get (--slug S | --source SRC) | work-list | evidence-append --command C --exit-code N --output-digest D --origin interactive|subagent [--agent-type T] | evidence-list [--branch B] [--dedupe] | gc [--force]}" >&2; exit 2 ;;
 esac

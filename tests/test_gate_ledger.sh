@@ -165,8 +165,9 @@ check "record does not create a ledger file when jq is unavailable" "no" \
 
 # --- work-set creates a slugged work file with fields and timestamps ---
 d12=$(sandbox)
-( cd "$d12" && "$LEDGER" work-set --slug "Fancy Feature!!" --title "Fancy feature" --source "issue #7" --phase decide )
+out12=$(cd "$d12" && "$LEDGER" work-set --slug "Fancy Feature!!" --title "Fancy feature" --source "issue #7" --phase decide)
 wf12="$d12/.studious/work/fancy-feature.json"
+check "work-set prints the normalized slug, and only it, on stdout (#440)" "fancy-feature" "$out12"
 check "work-set slugs the filename" "yes" "$([ -f "$wf12" ] && echo yes || echo no)"
 check "work-set stores title" "Fancy feature" "$(jq -r '.title' "$wf12")"
 check "work-set stores source" "issue #7" "$(jq -r '.source' "$wf12")"
@@ -1654,6 +1655,22 @@ contains "--init-phase names the phase it refused to move" "is at phase 'design'
 check "--init-phase refusal writes nothing" "$before440" "$(cat "$d440/.studious/work/other.json")"
 ( cd "$d440" && "$LEDGER" work-set --slug fresh --phase build --init-phase build ) >/dev/null 2>&1; rc=$?
 check "--phase and --init-phase together exit 2" "2" "$rc"
+
+# --- work-get --source finds a story by its issue, whatever its slug (#440) ---
+d440s=$(sandbox)
+( cd "$d440s" && "$LEDGER" work-set --slug "Old title" --source "#12" --branch build/old --init-phase build ) >/dev/null
+check "work-get --source returns the one file with that source" "old-title" \
+  "$(cd "$d440s" && "$LEDGER" work-get --source "#12" | jq -r '.slug')"
+check "work-get --source matches exactly, never a prefix" "" "$(cd "$d440s" && "$LEDGER" work-get --source "#1")"
+( cd "$d440s" && "$LEDGER" work-get --source "#99" ) >/dev/null; rc=$?
+check "work-get --source with no match exits 0" "0" "$rc"
+( cd "$d440s" && "$LEDGER" work-set --slug "New title" --source "#12" --init-phase build ) >/dev/null
+err440s=$(cd "$d440s" && "$LEDGER" work-get --source "#12" 2>&1 1>/dev/null); rc=$?
+check "work-get --source with two matches exits 2" "2" "$rc"
+contains "work-get --source names every match" "new-title" "$err440s"
+contains "work-get --source names every match (2)" "old-title" "$err440s"
+( cd "$d440s" && "$LEDGER" work-get --slug x --source "#12" ) >/dev/null 2>&1; rc=$?
+check "--slug and --source together exit 2" "2" "$rc"
 
 # --- work-log --step finish's outcome vocabulary is closed (#440) ---
 ( cd "$d440" && "$LEDGER" work-log --slug fresh --step finish --outcome PR ) >/dev/null; rc=$?
