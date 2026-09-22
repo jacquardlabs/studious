@@ -184,14 +184,18 @@ def exorcise_lines(report: object) -> list[str]:
     removed, kept, held = (report.get(k) for k in ("concepts_removed", "concepts_kept", "held"))
     if not (isinstance(removed, list) and isinstance(kept, list) and isinstance(held, list)
             and all(isinstance(k, dict) and isinstance(k.get("name"), str) for k in kept)
-            and all(isinstance(h, dict) and isinstance(h.get("file"), str) and isinstance(h.get("line"), int)
-                    for h in held)):
-        return ["(exorcise report is malformed: concepts_removed, concepts_kept[].name, held[].file/line -- not rendered)"]
+            and all(isinstance(h, dict) and isinstance(h.get("title"), str) for h in held)):
+        return ["(exorcise report is malformed: concepts_removed, concepts_kept[].name, held[].title -- not rendered)"]
     lines = [f"Concepts removed: {', '.join(map(str, removed)) or 'none'}"]
     lines += [f"Concepts kept: {', '.join(k['name'] for k in kept)}"] if kept else []
     lines += ["", "Held:"] if held else []
-    lines += [f"- {h.get('hold')}: {h.get('title')} ({h['file']}:{h['line']}) -- next: {h.get('next')}" for h in held]
+    # An `unmet claim` hold has a null file: it names what the diff lacks, by claim.
+    lines += [f"- {h.get('hold')}: {h['title']} ({held_locus(h)}) -- next: {h.get('next')}" for h in held]
     return lines
+
+
+def held_locus(hold: dict) -> str:
+    return f"{hold['file']}:{hold.get('line')}" if isinstance(hold.get("file"), str) else f"claim {hold.get('claim')}"
 
 
 def section_after(text: str, heading_re: re.Pattern[str]) -> str:

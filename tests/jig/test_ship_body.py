@@ -19,7 +19,8 @@ from _tempgit import commit_all, init_repo
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO_ROOT / "scripts"
-#: `exorcise --json` in the shape exorcist#10 publishes -- the contract fixture.
+#: The example in exorcist v0.6.0's `reference/report.md` (tag v0.6.0, 9c0c566), verbatim;
+#: exorcist's own `scripts/report.py validate` passes it. Refresh it with the range below.
 EXORCISE_REPORT = Path(__file__).resolve().parent / "fixtures" / "exorcise" / "report.json"
 run = functools.partial(run_script, SCRIPTS / "ship-body")
 
@@ -141,6 +142,7 @@ class TestShipBody(unittest.TestCase):
         self.assertIn("Concepts kept: backoff_delays", body)
         self.assertIn("- implied by intent: give-up test for sendWebhook (tests/test_sender.py:88)"
                       " -- next: nothing; kept because claim 3 entails it", body)
+        self.assertIn("- unmet claim: give-up path never records the failure (claim 2)", body)
         self.assertIn("## Amendments", body)
         self.assertIn("`scripts/verify` — runner gap the human chose to patch", body)
         self.assertIn("## Decisions", body)
@@ -153,7 +155,7 @@ class TestShipBody(unittest.TestCase):
         report = json.loads(EXORCISE_REPORT.read_text(encoding="utf-8"))
         cases = [
             (json.dumps({**report, "contract_version": 2}), "contract_version 2 is not 1"),
-            (json.dumps({**report, "held": [{"title": "no file"}]}), "exorcise report is malformed"),
+            (json.dumps({**report, "held": [{"file": "a.py"}]}), "exorcise report is malformed"),
             (json.dumps({**report, "concepts_kept": ["backoff_delays"]}), "exorcise report is malformed"),
             ("Concepts removed: RetryPolicy\n", "exorcise report unreadable"),
         ]

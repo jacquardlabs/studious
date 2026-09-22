@@ -5,6 +5,7 @@
   "intent": {"source": "text", "pr": null},
   "claims": [
     {"n": 1, "text": "sendWebhook retries a failed POST up to 3 times with backoff"},
+    {"n": 2, "text": "a webhook that exhausts its retries is recorded as failed, not dropped"},
     {"n": 3, "text": "tests cover the retry and give-up paths in tests/test_sender.py"}
   ],
   "scope": {
@@ -41,9 +42,17 @@
       "title": "give-up test for sendWebhook",
       "evidence": "claim 3 names the give-up path; revert would remove its only test",
       "action": "hold", "target": null, "concepts": [], "hold": "implied by intent",
-      "claim": 3, "next": "nothing; kept because claim 3 entails it", "also": ["deletion"]
+      "claim": 3, "next": "nothing; kept because claim 3 entails it", "also": []
+    },
+    {
+      "lane": "trace", "file": null, "line": null, "end_line": null,
+      "title": "give-up path never records the failure",
+      "evidence": "claim 2 → no hunk writes a failed status: grep -n 'status.*failed' src/webhook/ → 0 hits",
+      "action": "hold", "target": null, "concepts": [], "hold": "unmet claim",
+      "claim": 2, "next": "write the failed status in sendWebhook's give-up branch, or drop claim 2", "also": []
     }
   ],
+  "out_of_intent_files": ["src/util/format.ts"],
   "checks": [
     {"name": "npm test -- tests/test_sender.py", "outcome": "pass", "detail": null}
   ],
