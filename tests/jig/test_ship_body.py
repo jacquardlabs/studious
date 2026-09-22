@@ -159,11 +159,9 @@ class TestShipBody(unittest.TestCase):
         self.assertIn("*(legacy folder — records no branch; read its manifest)*", r.stdout)
 
     def test_ambiguous_task_is_a_stop_by_name(self) -> None:
-        for date in ("2026-01-01", "2026-01-02"):
-            folder = capture(self.repo, self.root, "1", {"verify:results": ("results.json", results_doc([(1, "cap", "script", "PASS")]))}) if date == "2026-01-01" else None
-            if folder is None:
-                r = subprocess.run([str(SCRIPTS / "evidence-capture"), "--task", "1", "--repo", str(self.repo), "--evidence-root", str(self.root), "--date", date, "--artifact", f"verify:results={self.repo / 'PLAN.md'}"], capture_output=True, text=True, check=False)
-                self.assertEqual(r.returncode, 0, r.stderr)
+        folder = capture(self.repo, self.root, "1", {"verify:results": ("results.json", results_doc([(1, "cap", "script", "PASS")]))})
+        r = subprocess.run([str(SCRIPTS / "evidence-capture"), "--task", "1", "--repo", str(self.repo), "--evidence-root", str(self.root), "--date", "2026-01-02", "--artifact", f"verify:results={folder / 'results.json'}"], capture_output=True, text=True, check=False)
+        self.assertEqual(r.returncode, 0, r.stderr)
         for p in self.root.iterdir():
             m = json.loads((p / "manifest.json").read_text(encoding="utf-8"))
             m.pop("branch", None)
