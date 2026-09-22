@@ -2,6 +2,29 @@
 
 <!-- version list -->
 
+## v6.11.0 (2026-09-22)
+
+### Bug Fixes
+
+- Record the resolved opus ID beside the alias in the dispatch model
+  ([#439](https://github.com/jacquardlabs/studious/pull/439),
+  [`367d0e3`](https://github.com/jacquardlabs/studious/commit/367d0e3306db9e3bb3749c162989b767bd5ae3b5))
+
+### Features
+
+- Move review-outcomes to opus; fix CONTRIBUTING tier drift
+  ([#439](https://github.com/jacquardlabs/studious/pull/439),
+  [`367d0e3`](https://github.com/jacquardlabs/studious/commit/367d0e3306db9e3bb3749c162989b767bd5ae3b5))
+
+- Pin /build's executor and inspector dispatches to opus
+  ([#439](https://github.com/jacquardlabs/studious/pull/439),
+  [`367d0e3`](https://github.com/jacquardlabs/studious/commit/367d0e3306db9e3bb3749c162989b767bd5ae3b5))
+
+- Re-tier for Opus 5.5 — pin /build dispatches to opus, move review-outcomes to opus
+  ([#439](https://github.com/jacquardlabs/studious/pull/439),
+  [`367d0e3`](https://github.com/jacquardlabs/studious/commit/367d0e3306db9e3bb3749c162989b767bd5ae3b5))
+
+
 ## v6.10.0 (2026-09-09)
 
 ### Bug Fixes
