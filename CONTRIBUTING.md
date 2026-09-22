@@ -89,8 +89,8 @@ session's effort. Lower effort means fewer and more-consolidated tool calls, les
 and terser output — so it is the primary lever on turn count, which is where most of a
 dispatch's tokens actually go.
 
-- **`medium`** — `backlog-priorities`: ranking judgment over a fixed backlog.
-- **`low`** — `review-outcomes`, `backlog-hygiene`: mechanical, rule-based, or inventory
+- **`medium`** — `backlog-priorities`, `review-outcomes`: ranking and attribution judgment.
+- **`low`** — `backlog-hygiene`: mechanical, rule-based, or inventory
   work. (`backlog-hygiene` is `haiku`, which does not take the parameter — the pin records
   the stakes call and becomes live if the agent moves tier.)
 
@@ -100,10 +100,11 @@ overrides them.
 ### `model`
 
 `opus` when the core job is high-stakes reasoning or human judgment — where a weaker model
-ships worse decisions. None of the three local agents gates a merge, so none needs it:
+ships worse decisions. None of the three local agents gates a merge:
 
-- **`sonnet`** — `backlog-priorities`, `review-outcomes`: recommend-only synthesis and
-  ranking judgment.
+- **`opus`** — `review-outcomes`: its durable report grades the gates, and `/retro` proposes
+  governance changes from it — a correlation stated as fact misdirects every later cycle.
+- **`sonnet`** — `backlog-priorities`: recommend-only ranking judgment, read on the spot.
 - **`haiku`** — `backlog-hygiene`: recommend-only inventory and drift checks.
 
 `/build`'s subagents are Task dispatches, not agent files, so the pin lives in
@@ -113,9 +114,9 @@ no override (step 2.6). The Task tool takes no `effort`; these run at the sessio
 
 **`inherit` is a known defect, not a cheap tier — see [#136](https://github.com/jacquardlabs/studious/issues/136), and nothing in this repo
 carries it any more.** It resolves to the session model, so an agent pinned to it is billed
-at whatever the user happens to have selected: identical to the `opus` tier in an Opus
-session, 2× that in a Fable one. Worse, it means the same branch audited on two different
-days can be judged by two different models — a judge that moves is not a gate. Do not add
+at whatever the user happens to have selected: 2.5× the `opus` tier in a Fable session.
+Worse, it means the same branch audited on two different days can be judged by two different
+models — a judge that moves is not a gate. Do not add
 new `inherit` agents, and do not read `inherit` anywhere in this file as an endorsed
 default. The `sonnet`/`haiku` agents above show where a cheap tier is legitimately chosen:
 no merge gate behind an agent's output means no A/B is needed to drop its tier, since a weak
