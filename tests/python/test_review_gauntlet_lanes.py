@@ -51,6 +51,12 @@ def test_doctor_checks_the_contract_verb_beside_the_agents() -> None:
     assert "command -v gauntlet" not in row
 
 
+def test_doctor_python3_row_names_the_seam_checks_it_breaks() -> None:
+    """#441: both seam checks are Python CLIs; a missing python3 breaks them too."""
+    row = next(line for line in DOCTOR.read_text(encoding="utf-8").splitlines() if line.startswith("- **`python3` present**"))
+    assert "`gauntlet-contract`" in row and "`exorcise-report`" in row
+
+
 def test_lane_eight_not_installed_path_is_a_task_in_the_same_batch_and_installed_path_stays_inline() -> None:
     """#164 item 1: the accessibility lane's two paths are wired differently, and the wording
     is what a reader follows. Not installed → `gauntlet:accessibility-auditor` as a Task in
