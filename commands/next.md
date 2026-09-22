@@ -154,14 +154,17 @@ anything, and correct the file when they disagree — evidence wins:
   current: `BUILT` corroborates the commit check; `PAUSED` — stay at phase `build`, and say so
   using the reported status rather than a generic "no commits yet"; `ESCALATED` — regress phase
   to `design` and surface the reported reason, the same shape as the design episode's
-  `RETHINK`. A `step: "finish"` entry with outcome `PR` means `/build --small` opened the
-  PR; once the work episode's verdict is `PASS`, the flow is `done` and merging is the user's. `HANDED-OFF` and `SKIPPED` are this door's own markers rather than an executor's
+  `RETHINK`. `HANDED-OFF` and `SKIPPED` are this door's own markers rather than an executor's
   report — they make no claim about the build, so the commit-evidence check governs on its own.
   **Any other token: name it and fall through to commit evidence, never silently.** Say "the
   work file reports build outcome `<token>`, which isn't one this flow recognizes — going by
   commits instead". `bin/gate-ledger` rejects unknown build outcomes on write, so seeing one
   means a record predating that check or a hand-edited file — either way the diff is the ground
   truth, not the label.
+- **Small mode's PR** — a `step: "finish"` entry with outcome `PR` in the same `.history`
+  means `/build --small` opened the PR. With the work episode at `PASS`, the flow is `done`
+  and merging is the user's. With any other verdict the PR is a draft: phase stays `build`,
+  and the next piece is the fix on that draft PR's branch.
 
 ## Run exactly one piece
 
@@ -277,11 +280,12 @@ Then, from whichever ran:
   the work episode is closed and the branch is judged delivered. When small mode already
   opened the PR, go to phase `done` instead, because piece 3 has nothing left to do.
 - **`NEEDS DISCUSSION`** → phase stays `build`; surface the concerns — the user decides how
-  to resolve them.
-- **`FIX AND RE-REVIEW`** surviving `/build`'s own one internal fix-and-reconvene, or a bare
-  `/review`'s first `FIX AND RE-REVIEW` → phase stays `build`; the next piece is fixing the
-  blocking findings (via whichever route produced the branch) then re-running — that run
-  **re-enters the same episode** for its one re-review round, narrowed to the blocking
+  to resolve them. In small mode they ride on the draft PR it already opened.
+- **`FIX AND RE-REVIEW`** surviving `/build`'s own one internal fix-and-reconvene, small
+  mode's single round, or a bare `/review`'s first `FIX AND RE-REVIEW` → phase stays
+  `build`; the next piece is fixing the blocking findings (via whichever route produced the
+  branch) then re-running. In small mode the fix lands on the draft PR's branch and the
+  re-run is `/review`. That run **re-enters the same episode** for its one re-review round, narrowed to the blocking
   lanes, never a fresh review from scratch. If it reports the round cap or a convergence
   refusal instead, surface the choice named — record a terminal verdict, reopen a fresh
   episode, or take the still-open findings to discussion — and let the user make it.
@@ -312,8 +316,7 @@ Hand over and stop:
   removes the branch-local scaffolding, and ends in one of `MERGE` / `PR` / `KEEP` / `DISCARD`.
   Doing it by hand is equally fine — no episode cares which, and nothing downstream reads a
   `/ship` artifact.
-- The PR is the user's to open either way. Small mode never reaches this piece, because
-  it opened its PR on the start stop's go-ahead.
+- Who opens the PR follows "The flow" above. Small mode never reaches this piece.
 
 Log `work-log --step finish --outcome HANDED-OFF --phase done`.
 
@@ -343,8 +346,8 @@ Episode: round R of C — N open, M carried
 ```
 
 When the flow reaches `done` or `stopped`, the last two lines become the wrap-up instead:
-`done` points at `gh pr create`, one PR closing every issue in the work file's `source`
-(or at the open PR to merge, when small mode opened it);
+`done` points at `gh pr create`, one PR closing every issue in the work file's `source`,
+or at the PR small mode already opened;
 `stopped` states the verdict that ended it.
 
 Then stop. Do not start the next piece, do part of it "to save time," or ask whether to
