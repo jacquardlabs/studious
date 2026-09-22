@@ -106,6 +106,11 @@ ships worse decisions. None of the three local agents gates a merge, so none nee
   ranking judgment.
 - **`haiku`** — `backlog-hygiene`: recommend-only inventory and drift checks.
 
+`/build`'s subagents are Task dispatches, not agent files, so the pin lives in
+`skills/build/SKILL.md`: every Executor-class dispatch passes `model: opus` unless the human
+names another model for the build (step 2.2), and every Inspector passes `model: opus` with
+no override (step 2.6). The Task tool takes no `effort`; these run at the session's.
+
 **`inherit` is a known defect, not a cheap tier — see [#136](https://github.com/jacquardlabs/studious/issues/136), and nothing in this repo
 carries it any more.** It resolves to the session model, so an agent pinned to it is billed
 at whatever the user happens to have selected: identical to the `opus` tier in an Opus

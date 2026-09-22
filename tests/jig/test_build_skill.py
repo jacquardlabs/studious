@@ -199,19 +199,18 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertPhraseIn("capture a fresh dispatch timestamp per step 2.2 for each one")
 
     def test_dispatch_names_the_executor_model_beside_the_timestamp_capture(self) -> None:
-        # Task: the Foreman records which model it dispatched the Executor on -- the
-        # bundle's one decisive field. Step 2's Dispatch item must name, beside its
-        # existing dispatch-timestamp capture, which model runs: an explicit override
-        # if passed, else the Foreman's own resolved session model (a no-override
-        # dispatch inherits it), stated plainly per step 1.5's own pattern.
+        # The Foreman pins every Executor-class dispatch to `opus` so a build never
+        # changes model with the session (#136), and records which model ran -- the
+        # replay bundle's one decisive field -- beside the dispatch-timestamp capture.
         self.assertPhraseIn("Name this attempt's dispatch model")
-        self.assertPhraseIn("an explicit model override")
-        self.assertPhraseIn("state it plainly as `override: <model>`")
+        self.assertPhraseIn("Pass `model: opus` on the dispatch")
+        self.assertPhraseIn("State it plainly as `pinned: opus`")
         self.assertPhraseIn(
-            "this dispatch inherits the Foreman's own resolved session model"
+            "Pass a different model only when the human named one for this build, "
+            "and state it plainly as `override: <model>`"
         )
-        self.assertPhraseIn("the same model named in your own system prompt")
-        self.assertPhraseIn("state it plainly as `inherited: <model>`")
+        self.assertNotIn("inherited: <model>", self.body)
+        self.assertNotIn("`unavailable`", self.body)
 
         # Immediately beside the existing dispatch-timestamp capture -- not
         # merely present somewhere in the body.
@@ -226,30 +225,11 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
             "existing dispatch-timestamp capture instruction",
         )
 
-    def test_dispatch_model_names_unavailable_case_beside_override_and_inherited(self) -> None:
-        # Task 3 (issue #34 follow-up, /review --delivery SHOULD FIX): the design's
-        # documented Failure path names a third case -- model undeterminable --
-        # stated plainly as `unavailable`, beside the `override`/`inherited` cases.
-        self.assertPhraseIn(
-            "If the model genuinely can't be determined at all, state it "
-            "plainly as `unavailable`"
-        )
-
-        # Immediately beside the existing inherited-case phrase -- not
-        # merely present somewhere else in the body.
-        flat_inherited_phrase = normalize_ws("state it plainly as `inherited: <model>`")
-        flat_unavailable_phrase = normalize_ws(
-            "If the model genuinely can't be determined at all, state it "
-            "plainly as `unavailable`"
-        )
-        inherited_idx = self.flat_body.index(flat_inherited_phrase)
-        unavailable_idx = self.flat_body.index(flat_unavailable_phrase)
-        self.assertLess(
-            abs(unavailable_idx - inherited_idx),
-            200,
-            "the `unavailable` third case is not immediately beside the "
-            "existing `override`/`inherited` cases",
-        )
+    def test_every_inspector_dispatch_is_pinned_to_opus(self) -> None:
+        # The Inspector judges; a judge that moves with the session model is not
+        # a gate (#136), so it carries no override path.
+        self.assertPhraseIn("dispatched with `model: opus` — as is every Inspector")
+        self.assertPhraseIn("never overridden")
 
     def test_verify_exit_2_is_not_a_task_fail(self) -> None:
         self.assertPhraseIn("Exit code 2 from `verify` is not a task FAIL")
@@ -360,21 +340,6 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         )
         self.assertPhraseIn("no second `evidence-capture` invocation")
         self.assertPhraseIn("exactly how a `probe` item's own artifact already rides that call")
-
-    def test_step_7_bundle_assembly_writes_unavailable_rather_than_refusing_capture(self) -> None:
-        # Task 3: step 7's bundle-assembly instruction must reference the
-        # unavailable case so a Foreman hitting it still assembles and
-        # writes the bundle -- model recorded as `unavailable`, never a
-        # reason to refuse the whole evidence-capture call (a
-        # documented Failure path, not a judgment call made there).
-        self.assertPhraseIn(
-            "If step 2.2 recorded `unavailable` for this attempt, the "
-            "bundle is still assembled and written the same way"
-        )
-        self.assertPhraseIn(
-            "never a reason for this call to refuse the whole "
-            "`evidence-capture` capture"
-        )
 
     def test_inspector_is_no_longer_a_no_op(self) -> None:
         # Story rough-in-inspector (issue #15) replaced the prior no-op --
