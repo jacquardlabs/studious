@@ -782,7 +782,7 @@ class TestSmallMode(unittest.TestCase):
         reentry = self.section[self.section.index("**Re-entry — `/build --small #N`"):]
         self.assertIn("It never opens a second PR.", reentry)
         self.assertIn("Step 4's **FIX** dispatch, one fresh executor scoped to exactly the blocking findings", reentry)
-        self.assertIn("Step 4's steps 1–10 once more", reentry)
+        self.assertIn(f"Step 4's steps 1{chr(0x2013)}10 once more", reentry)
         self.assertIn("On `PASS`, `gh pr ready <M>`.", reentry)
         self.assertIn("gh pr edit <M> --body-file", reentry)
         self.assertNotIn("gh pr create", reentry)

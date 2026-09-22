@@ -1212,21 +1212,6 @@ cmd_work_log() {
   # it never has to widen this closed list.
   #   BUILT | PAUSED | ESCALATED  executor-reported terminal status (worker-contract.md)
   #   HANDED-OFF | SKIPPED        /next's own non-terminal flow markers
-  # `finish` is constrained for the same reason: commands/next.md branches on
-  # a `PR` outcome to tell a PR `/build --small` opened from /next's own
-  # hand-off (#440).
-  #   HANDED-OFF  /next handed piece 3 to /ship or the user
-  #   PR          `/build --small` opened the PR (/ship's own token for one)
-  if [ "$step" = "finish" ]; then
-    case "$outcome" in
-      HANDED-OFF|PR) ;;
-      *)
-        echo "gate-ledger: --step finish --outcome '$outcome' is not a recognized outcome;" \
-             "use HANDED-OFF or PR" >&2
-        return 2
-        ;;
-    esac
-  fi
   if [ "$step" = "build" ]; then
     case "$outcome" in
       BUILT|PAUSED|ESCALATED|HANDED-OFF|SKIPPED) ;;
@@ -1234,6 +1219,20 @@ cmd_work_log() {
         echo "gate-ledger: --step build --outcome '$outcome' is not a recognized status;" \
              "use BUILT, PAUSED, ESCALATED, HANDED-OFF, or SKIPPED" \
              "(reference/worker-contract.md, Status reporting)" >&2
+        return 2
+        ;;
+    esac
+  fi
+  # `finish` is constrained for the same reason: commands/next.md branches on
+  # a `PR` outcome to tell a PR small mode opened from its own hand-off (#440).
+  #   HANDED-OFF  commands/next.md handed piece 3 on
+  #   PR          small mode opened the PR (the ship verdict's own token for one)
+  if [ "$step" = "finish" ]; then
+    case "$outcome" in
+      HANDED-OFF|PR) ;;
+      *)
+        echo "gate-ledger: --step finish --outcome '$outcome' is not a recognized outcome;" \
+             "use HANDED-OFF or PR" >&2
         return 2
         ;;
     esac
