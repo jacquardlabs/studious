@@ -42,7 +42,7 @@ If `$ARGUMENTS` is non-empty but matches no keyword, list the valid keywords and
 
 ## Locate gauntlet (before any dispatch)
 
-Every posture lane is a `gauntlet:<judge>` dispatch — gauntlet is the fleet, this door is a consumer. Two verbs of gauntlet's `gauntlet` command drive it: `gauntlet dispatch` builds one validated contract-v1 invocation per judge (gauntlet's `docs/findings-contract.md` §3) and resolves each judge's standard from gauntlet's own charter, and `gauntlet report` compiles the findings documents the judges return (§4). Nothing here restates that contract — each invocation is handed to its judge verbatim, and this door only decides *which* invocations run. The judges carry their own posture (injection defense, read-only inspection, calibration). Find the command, or stop, exactly as `commands/review.md`'s "Locate gauntlet" does.
+Every posture lane is a `gauntlet:<judge>` dispatch, built by `gauntlet dispatch` and compiled by `gauntlet report` exactly as `commands/review.md`'s "Locate gauntlet" describes — find the command, or stop, the same way.
 
 ## Resolve the artifact (before any dispatch)
 
