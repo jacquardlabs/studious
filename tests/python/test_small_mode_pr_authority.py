@@ -49,6 +49,19 @@ def test_claude_md_cites_next_and_keeps_merge_human() -> None:
     assert "`/build --small` opens the one PR its start stop authorized" in body
 
 
+def test_small_modes_start_stop_is_nexts_confirmation() -> None:
+    # /next runs the door it names once the human confirms; for small mode, that door's own
+    # start stop is the confirmation, so /next never asks twice.
+    assert (
+        "it *runs* the door it names once the human confirms (for `/build --small`, that door's own "
+        "start stop is the confirmation)" in _text("CLAUDE.md")
+    )
+    assert (
+        "The same holds when the piece is `/build --small`: its own start stop is the confirmation, "
+        "so run it on the report rather than asking twice." in _text("commands/next.md")
+    )
+
+
 def test_the_producer_sites_name_only_their_own_part() -> None:
     assert "`/ship` (or `/build --small`, on its start stop's go-ahead) opens the PR; a code owner merges." in _text(
         "PRODUCT.md"
