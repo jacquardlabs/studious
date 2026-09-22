@@ -66,10 +66,11 @@ Via the Jacquard Labs marketplace:
 /plugin install studious@jacquardlabs-marketplace
 ```
 
-That also installs the two declared dependencies: [viva](https://github.com/jacquardlabs/viva),
-which `/shape` and `/build` drive for their human sign-off rounds, and
+That also installs the three declared dependencies: [viva](https://github.com/jacquardlabs/viva),
+which `/shape` and `/build` drive for their human sign-off rounds,
 [gauntlet](https://github.com/jacquardlabs/gauntlet), whose judges `/review` and `/health`
-dispatch.
+dispatch, and [exorcist](https://github.com/jacquardlabs/exorcist), whose exorcise pass
+ends every `/build`.
 
 Then, in any project:
 

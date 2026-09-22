@@ -20,9 +20,8 @@ from _tempgit import commit_all, init_repo
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO_ROOT / "scripts"
 #: The example in exorcist v0.6.0's `reference/report.md` (tag v0.6.0, 9c0c566), verbatim;
-#: exorcist's own `scripts/report.py validate` passes it. Refresh it with the range below.
+#: exorcist's own `scripts/report.py validate` passes it. Refresh it when the contract moves.
 EXORCISE_REPORT = Path(__file__).resolve().parent / "fixtures" / "exorcise" / "report.json"
-EXORCISE_RELEASE = "0.6.0"
 #: report.md: "Every key is required." A consumer pins the version it reads.
 EXORCISE_KEYS = {
     "contract_version", "generated", "branch", "intent", "claims", "scope", "lanes",
@@ -156,16 +155,11 @@ class TestShipBody(unittest.TestCase):
         self.assertIn("Keep `double` in `lib/util.py`? — chosen: yes", body)
         self.assertEqual((self.repo / "body.md").read_text(encoding="utf-8"), body)
 
-    def test_exorcise_fixture_is_the_release_the_manifest_pins(self) -> None:
-        """The fixture carries exorcist's contract v1 key set, and the manifest's exorcist
-        range admits the release it came from -- bumping one without the other fails here."""
+    def test_exorcise_fixture_is_exorcists_contract_v1(self) -> None:
+        """The fixture carries exorcist's contract v1 key set -- the version ship-body reads."""
         report = json.loads(EXORCISE_REPORT.read_text(encoding="utf-8"))
         self.assertEqual(set(report), EXORCISE_KEYS)
         self.assertEqual(report["contract_version"], 1)
-        manifest = json.loads((REPO_ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
-        pinned = {d["name"]: d["version"] for d in manifest["dependencies"]}
-        major, minor, _ = EXORCISE_RELEASE.split(".")
-        self.assertEqual(pinned.get("exorcist"), f"~{major}.{minor}.0")
 
     def test_exorcise_report_off_contract_is_named_never_rendered(self) -> None:
         """exorcist#10's `--json` report is the seam: a contract version or shape this

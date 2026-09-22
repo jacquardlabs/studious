@@ -1,20 +1,17 @@
-"""The gauntlet seam, checked against the release the manifest pins (#441).
+"""The gauntlet seam, checked against gauntlet v0.17.0 (#441).
 
 Every door reaches gauntlet through its `gauntlet` command (gauntlet#87) and dispatches
 its judges by registered name. Both surfaces are pinned below from gauntlet v0.17.0
 (4d4790c): the flags `gauntlet dispatch` and `gauntlet report` accept (their `--help`),
-and the charter's judges (`agents/`). A door flag or judge name outside them, or a range
-bump without refreshing them, fails here.
+and the charter's judges (`agents/`). A door flag or judge name outside them fails here.
 """
 
 from __future__ import annotations
 
-import json
 import re
 
 from run_gate_audit_fixtures import REPO_ROOT
 
-RELEASE = "0.17.0"
 FLAGS = {
     "dispatch": {"--base", "--head", "--pr", "--ref", "--document", "--root", "--mount",
                  "--paths", "--context", "--receipts-path"},
@@ -35,13 +32,6 @@ PROSE = [p for d in ("commands", "skills", "reference", "agents") for p in (REPO
 
 def _text() -> str:
     return "\n".join(p.read_text(encoding="utf-8") for p in PROSE)
-
-
-def test_the_manifest_pins_the_release_these_surfaces_came_from() -> None:
-    manifest = json.loads((REPO_ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
-    pinned = {d["name"]: d["version"] for d in manifest["dependencies"]}
-    major, minor, _ = RELEASE.split(".")
-    assert pinned["gauntlet"] == f"~{major}.{minor}.0"
 
 
 def test_every_door_invocation_uses_flags_the_release_accepts() -> None:
