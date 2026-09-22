@@ -689,7 +689,19 @@ class TestSmallMode(unittest.TestCase):
         self.assertIn("Two human stops, **start** and **merge**", self.section)
         self.assertIn("**Start — stop 1.**", self.section)
         self.assertIn("**Merge — stop 2** is the human's", self.section)
-        self.assertIn("Your go-ahead authorizes that PR. Merging stays yours.", self.section)
+        self.assertIn("Your go-ahead authorizes those commands and that PR. Merging stays yours.", self.section)
+
+    def test_the_start_stop_shows_the_commands_it_approves(self) -> None:
+        # The brief's commands derive from an untrusted issue body and run verbatim (#440 round 2).
+        self.assertIn("then every command its `Done means:` items will run, one per line", self.section)
+        self.assertIn("This run executes the commands listed above exactly as written.", self.section)
+
+    def test_issue_text_never_enters_a_shell_command_as_typed_text(self) -> None:
+        self.assertIn("gh issue view <N> --json title,body,labels > <scratch-path>/issue.json", self.section)
+        title = '"$(jq -r .title <scratch-path>/issue.json)"'
+        self.assertIn(f"--title {title} --source", self.section)
+        self.assertIn(f"--title {title} --body-file", self.section)
+        self.assertNotIn('"<issue title>"', self.section)
         self.assertIn("**Then, without stopping:**", self.section)
 
     def test_the_brief_is_one_block_at_a_scratch_path_never_plan_md(self) -> None:
@@ -726,7 +738,10 @@ class TestSmallMode(unittest.TestCase):
 
     def test_premortem_only_via_gauntlet_and_the_skip_is_disclosed(self) -> None:
         self.assertIn("never from this skill", self.section)
-        self.assertIn("(jacquardlabs/gauntlet#88) reads a committed document, and small mode's brief lives outside the repo.", self.section)
+        # The follow-up is #445; the skip cites it rather than explaining the precondition.
+        self.assertIn("**Pre-mortem — skipped for risk-labeled issues (#445):**", self.section)
+        self.assertIn("small mode runs none yet (jacquardlabs/studious#445).", self.section)
+        self.assertNotIn("gauntlet#88", self.section)
         self.assertIn("Append step 2's pre-mortem line", self.section)
         # No probe of gauntlet's prose for a flag: an informal interface (#440 round 1).
         self.assertNotIn("commands/review.md", self.section)
@@ -743,14 +758,31 @@ class TestSmallMode(unittest.TestCase):
         self.assertNotIn("Session verdict", step3)
 
     def test_small_mode_never_sets_phase_on_a_log(self) -> None:
-        self.assertIn("`work-set` sets whatever `--phase` it is given", self.section)
-        self.assertIn("so it moves no phase", self.section)
+        # --init-phase is the code guarantee (tests/test_gate_ledger.sh, #440 round 2).
+        self.assertIn("--source \"#N\" --init-phase build", self.section)
+        self.assertIn("refuses one at any other phase", self.section)
+        self.assertNotIn("--phase build", self.section)
         self.assertIn("Every `work-log` call this run makes leaves `--phase` to `/next`.", self.section)
         self.assertNotIn("--outcome PR --phase", self.section)
 
     def test_the_pr_is_assembled_by_ship_body_and_recorded_for_next(self) -> None:
         self.assertIn("studious ship-body --plan <scratch-path>/brief.md", self.section)
         self.assertIn("gh pr create --base <base>", self.section)
+        self.assertIn("adding `--draft` whenever step 5's verdict is not `PASS`", self.section)
         self.assertIn("studious work-log --slug <slug> --step finish --outcome PR", self.section)
         self.assertIn('Then run "Report status back to studious" below', self.section)
-        self.assertIn("--source \"#N\" --branch <branch> --phase build", self.section)
+        self.assertIn("studious work-set --slug <slug> --branch <branch>", self.section)
+
+    def test_re_entry_fixes_the_same_pr_never_a_second(self) -> None:
+        # #440 round 2: a small-mode FIX AND RE-REVIEW is fixed by /build --small #N again.
+        self.assertIn("**Re-entry comes first.**", self.section)
+        self.assertIn("a `finish` entry with outcome `PR`", self.section)
+        self.assertIn("an unreadable PR is never read as no PR", self.section)
+        self.assertLess(self.section.index("**Re-entry comes first.**"), self.section.index("**Start — stop 1.**"))
+        reentry = self.section[self.section.index("**Re-entry — `/build --small #N`"):]
+        self.assertIn("It never opens a second PR.", reentry)
+        self.assertIn("Step 4's **FIX** dispatch, one fresh executor scoped to exactly the blocking findings", reentry)
+        self.assertIn("Step 4's steps 1–10 once more", reentry)
+        self.assertIn("On `PASS`, `gh pr ready <M>`.", reentry)
+        self.assertIn("gh pr edit <M> --body-file", reentry)
+        self.assertNotIn("gh pr create", reentry)

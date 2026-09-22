@@ -53,8 +53,10 @@ def test_the_producer_sites_name_only_their_own_part() -> None:
     assert "`/ship` (or `/build --small`, on its start stop's go-ahead) opens the PR; a code owner merges." in _text(
         "PRODUCT.md"
     )
-    assert "Your go-ahead authorizes that PR. Merging stays yours." in _text("skills/build/SKILL.md")
-    assert "--small <issue> takes one issue to a PR with no PLAN.md" in _text("README.md")
+    assert "Your go-ahead authorizes those commands and that PR. Merging stays yours." in _text("skills/build/SKILL.md")
+    readme = _text("README.md")
+    assert "--small <issue> takes one issue to a PR with no PLAN.md" in readme
+    assert "the PR is yours to open (--small already opened its own; the merge is yours either way)" in readme
 
 
 def test_next_routes_one_issue_stories_to_small_mode() -> None:
@@ -66,7 +68,10 @@ def test_next_routes_one_issue_stories_to_small_mode() -> None:
 def test_next_routes_small_modes_first_round_verdict_on_its_draft_pr() -> None:
     body = _text("commands/next.md")
     assert "small mode's single round, or a bare `/review`'s first `FIX AND RE-REVIEW`" in body
-    assert "In small mode the fix lands on the draft PR's branch and the re-run is `/review`." in body
+    assert "In small mode that piece is `/build --small #N` again: it fixes the findings on the draft PR" in body
+    assert "never opening a second PR" in body
+    assert "On `FIX AND RE-REVIEW` the next piece is `/build --small #N` again, which fixes that same PR." in body
+    assert "the re-run is `/review`" not in body
     assert "With any other verdict the PR is a draft: phase stays `build`" in body
 
 

@@ -163,8 +163,9 @@ anything, and correct the file when they disagree — evidence wins:
   truth, not the label.
 - **Small mode's PR** — a `step: "finish"` entry with outcome `PR` in the same `.history`
   means `/build --small` opened the PR. With the work episode at `PASS`, the flow is `done`
-  and merging is the user's. With any other verdict the PR is a draft: phase stays `build`,
-  and the next piece is the fix on that draft PR's branch.
+  and merging is the user's. With any other verdict the PR is a draft: phase stays `build`.
+  On `FIX AND RE-REVIEW` the next piece is `/build --small #N` again, which fixes that
+  same PR.
 
 ## Run exactly one piece
 
@@ -284,8 +285,9 @@ Then, from whichever ran:
 - **`FIX AND RE-REVIEW`** surviving `/build`'s own one internal fix-and-reconvene, small
   mode's single round, or a bare `/review`'s first `FIX AND RE-REVIEW` → phase stays
   `build`; the next piece is fixing the blocking findings (via whichever route produced the
-  branch) then re-running. In small mode the fix lands on the draft PR's branch and the
-  re-run is `/review`. That run **re-enters the same episode** for its one re-review round, narrowed to the blocking
+  branch) then re-running. In small mode that piece is `/build --small #N` again: it fixes
+  the findings on the draft PR, re-convenes the episode once, and marks the PR ready on
+  `PASS`, never opening a second PR. That run **re-enters the same episode** for its one re-review round, narrowed to the blocking
   lanes, never a fresh review from scratch. If it reports the round cap or a convergence
   refusal instead, surface the choice named — record a terminal verdict, reopen a fresh
   episode, or take the still-open findings to discussion — and let the user make it.
