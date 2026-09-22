@@ -266,15 +266,16 @@ For each task block, in order:
    including a Failure-routine retry (see below) — each attempt gets its
    own floor, not the task's first attempt's.
 
-   **Name this attempt's dispatch model.** If this dispatch passes an
-   explicit model override, state it plainly as `override: <model>`.
-   Otherwise this dispatch inherits the Foreman's own resolved session
-   model — the same model named in your own system prompt — so state it
-   plainly as `inherited: <model>`. If the model genuinely can't be
-   determined at all, state it plainly as `unavailable` — a third case
-   beside `override`/`inherited` — a documented degradation path, not an
-   improvisation at capture time. Name this before you
-   launch the subagent, the same plain-statement discipline step 1's
+   **Name this attempt's dispatch model.** Pass `model: opus` on the
+   dispatch, and on every other Executor-class dispatch in this skill — a
+   FIX or RESAMPLE, each candidate's, Step 3's exorcise — so a build never
+   changes model with the session that runs it (#136). State it plainly as
+   `pinned: opus`, adding the resolved ID when your own system prompt names
+   an Opus model — the alias resolves the same for you and the subagent —
+   e.g. `pinned: opus (claude-opus-5-5)`. Pass a different model only when
+   the human named one for this build (an alias the Task tool accepts), and
+   state it plainly as `override: <model>`. Name this
+   before you launch the subagent, the same plain-statement discipline step 1's
    load-bearing-set computation already uses ("state the computed set
    plainly before proceeding").
 3. **Execute.** The executor works under `task-execution-discipline`'s
@@ -389,7 +390,10 @@ For each task block, in order:
    2.7.
 
    **Load-bearing task: dispatch a fresh Inspector.** One fresh Task-tool
-   subagent whose entire prompt is exactly:
+   subagent, dispatched with `model: opus` — as is every Inspector, the
+   `DEFECT` recheck and a catch-up included, never overridden: a judge
+   that moves with the session is not a gate (#136) — whose entire prompt
+   is exactly:
    - this task's checkpoint block, verbatim (the same block the Executor
      received);
    - the commit range for *this task only* — from this task's first
@@ -487,13 +491,8 @@ For each task block, in order:
      its title, this task's own checkpoint block as raw verbatim text, and
      the verify command(s) and result already sitting in this task's own
      `results.json` — plus step 2.2's recorded dispatch model (the
-     `inherited: <model>` / `override: <model>` value named at dispatch
-     time), the last of the four fields the bundle needs. If step 2.2
-     recorded `unavailable` for this attempt, the bundle is still
-     assembled and written the same way — `model` recorded as
-     `unavailable`, never a reason for this call to refuse the whole
-     `evidence-capture` capture — a documented failure path, not a
-     judgment call made here. The replay
+     `pinned: opus` / `override: <model>` value named at dispatch
+     time), the last of the four fields the bundle needs. The replay
      harness itself (issue #188) and issue #186's richer identity fields
      (`run_id`/`step_id`/`parent_step_id`/`skill`/`role`/`routing_reason`)
      stay out of scope here — none of those exist in this session model
@@ -727,7 +726,7 @@ with the build proceeding to its verdict.
    to the Session verdict. Never an error, never a Track note: the pass is
    optional.
 2. **Dispatch.** State "exorcising against N tasks' intent", then launch one
-   fresh Task-tool subagent whose entire prompt is exactly:
+   fresh Task-tool subagent, on step 2.2's model, whose entire prompt is exactly:
    - the intent: every task's `Do:` and `Done means:` lines, verbatim from
      the plan, in task order, then the plan's `## Amendments` block verbatim
      when one exists (human-authorized work `studious plan-amend` recorded —

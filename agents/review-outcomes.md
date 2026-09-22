@@ -2,7 +2,7 @@
 name: review-outcomes
 description: Periodic post-ship outcome review — grade shipped merges against the fixes and reverts that followed, and against the gate verdicts recorded at the time. Not diff-scoped; reads git history over a lookback window.
 tools: Read, Glob, Grep, Bash, Write
-model: sonnet
+model: opus
 effort: medium
 ---
 
