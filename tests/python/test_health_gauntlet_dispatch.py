@@ -38,15 +38,6 @@ def _section(text: str, start: str, end: str) -> str:
     return text[text.index(start):text.index(end)]
 
 
-def test_skill_tool_is_allowed_and_the_locate_step_cites_the_protocol_file() -> None:
-    text = _door()
-    tools = re.search(r"^allowed-tools: (.*)$", text, re.MULTILINE).group(1)
-    assert "Skill" in tools.split(", ")
-    locate = _section(text, "## Locate gauntlet", "## Resolve the artifact")
-    assert "`reference/locate-gauntlet.md`" in locate and "GAUNTLET_ROOT" in locate
-    assert "`gauntlet:where`" not in locate and "--help" not in locate, "the protocol is restated instead of cited (#410)"
-
-
 def test_invocations_come_from_dispatch_py_at_the_ref() -> None:
     text = _door()
     resolve = _section(text, "## Resolve the artifact", "**Filter to the run's lanes.**")
@@ -88,14 +79,12 @@ def _normalized(path) -> str:
 
 
 def test_health_and_review_stop_the_same_way_when_gauntlet_is_not_installed() -> None:
-    """#353: both doors stop the same way when gauntlet isn't installed. Since #410 the
-    stop line lives once, in `reference/locate-gauntlet.md`, and each door's 'Locate
-    gauntlet' section cites that file instead of carrying its own copy."""
-    protocol = REPO_ROOT / "reference" / "locate-gauntlet.md"
-    assert GAUNTLET_MISSING_LINE in _normalized(protocol)
-    for path in (DOOR, REVIEW):
-        assert "`reference/locate-gauntlet.md`" in path.read_text(encoding="utf-8"), path.name
-        assert GAUNTLET_MISSING_LINE not in _normalized(path), f"{path.name} restates the stop line"
+    """#353: both doors stop the same way when gauntlet isn't installed. The stop line
+    lives once, in review.md's 'Locate gauntlet'; health.md cites that step (#441)."""
+    assert GAUNTLET_MISSING_LINE in _normalized(REVIEW)
+    locate = _section(_door(), "## Locate gauntlet", "## Resolve the artifact")
+    assert "`commands/review.md`'s \"Locate gauntlet\"" in locate and "GAUNTLET_ROOT" in locate
+    assert GAUNTLET_MISSING_LINE not in _normalized(DOOR), "health.md restates the stop line"
 
 
 def test_health_context_files_paragraph_names_existence_subset_and_worktree_scoping() -> None:

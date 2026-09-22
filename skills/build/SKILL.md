@@ -733,13 +733,11 @@ with the build proceeding to its verdict.
      intent, not excess), and — if and only if a design doc exists
      (Step 0) — its `Proposed design` section, nothing wider;
    - the worktree path and the base branch noted at Step 1.3;
-   - one boundary line, essentially: *"Set this branch's upstream to
-     `<base>` for the pass (`git branch --set-upstream-to=<base>`) so
-     exorcise's `@{upstream}...HEAD` scope is exactly this build, and unset
-     it after (`git branch --unset-upstream`). Run `/exorcist:exorcise`
-     with the intent above as its argument, in this worktree. Edit the
-     working tree only: never commit, never `git checkout --` or `git
-     reset`. Work in `<worktree>` exactly as given — never the Agent tool's own worktree isolation, which would land this dispatch in a fresh tree on the wrong branch (#365). Return the report exorcise prints, verbatim, and nothing else —
+   - one boundary line, essentially: *"Run `/exorcist:exorcise --base
+     <base> --json <scratch-path>/exorcise-report.json` with the intent
+     above as its argument, in this worktree. Edit the working tree only:
+     never commit, never `git checkout --` or `git reset`. Work in
+     `<worktree>` exactly as given — never the Agent tool's own worktree isolation, which would land this dispatch in a fresh tree on the wrong branch (#365). Return nothing but that JSON path —
      not a review of your own."*
 
    Nothing else goes into the prompt — not `PLAN.md` in full, not any task's
@@ -750,10 +748,9 @@ with the build proceeding to its verdict.
    to verify or commit: the tree is byte-identical to the one each task's
    `verify` already passed on. Skip steps 4 and 5. Record one line for the
    session report, "exorcise: nothing to cast out — every hunk traced",
-   then write the returned report to `<scratch-path>/exorcise-report.md`
-   and capture it with step 5's exact `evidence-capture` call, exit 2
-   routed the same way — a pass that held everything is this branch too,
-   and its `## Held` section reaches `/review` only through that artifact.
+   then capture the JSON report with step 5's exact `evidence-capture` call,
+   exit 2 routed the same way — a pass that held everything is this branch
+   too, and its `held[]` reaches `/review` only through that artifact.
    Not a Track note: nothing failed.
 4. **Verify, independently.** For every task, in order, re-run step 2.5's
    exact `verify` call — same `--plan`/`--task`, same `--probe-spec` when
@@ -764,33 +761,30 @@ with the build proceeding to its verdict.
    `<scratch-path>/exorcise/results-<task>.json`. Exit 2 here is the same
    usage error step 2.5 names; route it the same way.
 5. **PASS on every task.** Commit the working tree as one commit,
-   `exorcise: <concepts removed>`, the list taken from the report's
-   `Concepts removed:` line (the same line may also carry a `Concepts kept:`
-   clause, naming new symbols that survived; the commit message
-   draws from `Concepts removed:` only). You commit here on `verify`'s PASS — the same
+   `exorcise: <concepts removed>`, the list printed by
+   `jq -r '.concepts_removed | join(", ")' <scratch-path>/exorcise-report.json`.
+   You commit here on `verify`'s PASS — the same
    mechanical ground `status-flip` writes on — and the message comes from
    the report, never from a diff; this is the one commit in this loop an
    executor didn't make, and it is a commit of what a script just passed.
-   Then write the returned report to `<scratch-path>/exorcise-report.md`
-   (after the commit, so its mtime clears the freshness check) and capture
-   it:
-   `studious evidence-capture --task exorcise --repo <worktree> --artifact exorcist:report=<scratch-path>/exorcise-report.md`.
+   Then `touch` the report (after the commit, so its mtime clears the
+   freshness check) and capture it:
+   `studious evidence-capture --task exorcise --repo <worktree> --artifact exorcist:report=<scratch-path>/exorcise-report.json`.
    The label is pinned in `reference/evidence-format.md`. An exit 2
    ("evidence directory already exists") routes to step 2.7's rule, never
-   the Failure routine. The report's `## Held` section — `hold` findings
+   the Failure routine. The report's `held[]` — `hold` findings
    exorcise would not apply (trust boundary, behavior change, spec conflict)
-   — reaches `/review` the way an Inspector `CONCERN` does: quoted from the
+   — reaches `/review` the way an Inspector `CONCERN` does: rendered from the
    captured artifact into the PR body `/ship` assembles (`skills/ship/SKILL.md`
    Step 1 resolves `--task exorcise` for exactly this).
 6. **FAIL on any item.** Run `git checkout -- .` in the worktree —
    exorcise's own documented undo — and confirm `git status --porcelain` is
    empty: the tree is exactly the `BUILT` tree again. Record one **Track**
    note for the session report naming the failing task and item and the
-   report's `Concepts removed:` line, plus its `Concepts kept:` clause too when
-   the report carries one, and proceed to
+   report's `concepts_removed` and `concepts_kept`, and proceed to
    the Session verdict. No
    fix cycle, no re-dispatch, no Failure routine.
-7. **The subagent died or returned no report.** Treat as FAIL's cleanup
+7. **The subagent died or wrote no JSON report.** Treat as FAIL's cleanup
    without the verify run: `git checkout -- .`, confirm clean, one Track note
    ("exorcise dispatch died"), proceed.
 
@@ -822,7 +816,7 @@ add anything to a dispatch prompt beyond what those steps already gather. Lane 1
 episode reads only what `reference/evidence-format.md` and its own resolution rules give
 it, the same as it would for any other executor:
 
-1. **Locate gauntlet** — per `reference/locate-gauntlet.md`, recording `GAUNTLET_ROOT`.
+1. **Locate gauntlet** — `gauntlet root`, recorded as `GAUNTLET_ROOT`.
 2. **Establish the changeset** — merge-base to `HEAD` in this worktree.
 3. **Precompute the changeset diff** — small-changeset scratch file, per that step's
    400-line threshold.

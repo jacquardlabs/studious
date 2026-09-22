@@ -46,9 +46,10 @@ def test_step_delegates_to_the_exorcise_skill_and_never_commits_in_the_dispatch(
     assert "never commit" in STEP
     assert "`Do:` and `Done means:` lines" in STEP, "the intent is the plan's own lines"
     assert "`Proposed design` section" in STEP, "and the design doc's section when one exists"
-    # exorcise scopes its diff from @{upstream}; a build worktree has none (premortem #1).
-    assert "git branch --set-upstream-to=<base>" in STEP
-    assert "never a sha" in SKILL, "Step 1.3 records the base as a branch name"
+    # #441: scope and output are exorcise's flags (exorcist#10), never a temporary
+    # upstream or a scraped printout.
+    assert "`/exorcist:exorcise --base\n     <base> --json <scratch-path>/exorcise-report.json`" in STEP
+    assert "upstream" not in STEP and "Concepts removed:" not in STEP and "## Held" not in STEP
 
 
 def test_verify_reruns_after_exorcise_with_each_tasks_own_timestamp() -> None:
@@ -62,27 +63,26 @@ def test_verify_reruns_after_exorcise_with_each_tasks_own_timestamp() -> None:
 def test_pass_commits_once_then_captures_the_report_under_the_pinned_label() -> None:
     passed = STEP[STEP.index("**PASS on every task.**") : STEP.index("**FAIL on any item.**")]
     assert "`exorcise: <concepts removed>`" in passed
-    assert "`Concepts removed:` line" in passed, "the subject comes from the report, not a diff"
-    # verify → commit → write the report → capture (premortem #3).
+    assert "`jq -r '.concepts_removed" in passed, "the subject comes from the report, not a diff"
+    # verify → commit → touch the report → capture (premortem #3).
     assert passed.index("Commit the working tree") < passed.index("after the commit") < passed.index("studious evidence-capture")
-    assert "--artifact exorcist:report=" in passed
-    assert "`## Held`" in passed and "`/review`" in passed, "hold findings ride the artifact"
+    assert "--artifact exorcist:report=<scratch-path>/exorcise-report.json" in passed
+    assert "`held[]`" in passed and "`/review`" in passed, "hold findings ride the artifact"
     assert "routes to step 2.7's rule, never\n   the Failure routine" in passed
 
 
 def test_a_pass_that_removes_nothing_skips_commit_and_verify_but_still_captures() -> None:
     """A clean tree after the dispatch has nothing to commit; `git commit` with no diff is
     not a branch. The report is still captured — a hold-everything pass is clean too, and
-    its `## Held` section rides nothing else."""
+    its `held[]` rides nothing else."""
     empty = STEP[STEP.index("**Nothing cast out.**") : STEP.index("**Verify, independently.**")]
     assert STEP.index("/exorcist:exorcise") < STEP.index("**Nothing cast out.**")
     assert "`git status --porcelain` is empty" in empty
     assert "every finding held" in empty, "a held-everything pass leaves the tree clean too"
     assert "Skip steps 4 and 5" in empty, "no re-verify, no commit"
     assert '"exorcise: nothing to cast out — every hunk traced"' in empty
-    assert "`<scratch-path>/exorcise-report.md`" in empty
     assert "step 5's exact `evidence-capture` call" in empty, "delegates, never repeats the call"
-    assert "`## Held`" in empty
+    assert "`held[]`" in empty
     assert "Track" not in empty.replace("Not a Track note", ""), "Track is failure vocabulary"
     assert "Not a Track note" in empty
     built_row = next(line for line in SKILL.splitlines() if line.startswith("| `BUILT` |"))
@@ -122,18 +122,15 @@ def test_the_foreman_still_never_reads_a_diff() -> None:
 def test_evidence_format_pins_the_label() -> None:
     assert "`exorcist:report`" in EVIDENCE_FORMAT
     assert "`--task exorcise`" in EVIDENCE_FORMAT
-    assert "`## Held`" in EVIDENCE_FORMAT
+    assert "`held[]`" in EVIDENCE_FORMAT
 
 
-def test_ship_resolves_the_exorcise_report_so_held_findings_reach_the_pr_body() -> None:
+def test_ship_resolves_the_exorcise_report_before_the_freshness_hold() -> None:
     """`--task exorcise` is no PLAN.md task, so /ship's per-task loop never reaches it on its
-    own (premortem #6); Step 1 resolves it explicitly, before the freshness hold so the
-    hold's "each folder resolve printed above" covers it."""
+    own (premortem #6); Step 1 resolves it explicitly, before the freshness hold. What the
+    block renders is `scripts/ship-body`'s, tested against the contract fixture."""
     step1 = SHIP[SHIP.index("## Step 1") : SHIP.index("## Step 2")]
-    resolve_at = step1.index("`--task exorcise`")
-    assert resolve_at < step1.index("**freshness hold**")
-    assert "`exorcist:report`" in step1
-    assert "`## Held`" in step1 and "`Concepts removed:`" in step1
+    assert step1.index("`--task exorcise`") < step1.index("**freshness hold**")
     assert "no row, no remark" in step1, "an absent pass is silent, never an invented row"
 
 

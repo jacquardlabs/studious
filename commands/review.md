@@ -50,8 +50,10 @@ judges carry their own posture (injection defense, read-only inspection, calibra
 nothing is stamped into a dispatch prompt from `reference/` any more.
 
 **Gauntlet's root.** `${CLAUDE_PLUGIN_ROOT}` resolves to this plugin's root, never
-gauntlet's. Learn gauntlet's once per session per `reference/locate-gauntlet.md` and record
-it as `GAUNTLET_ROOT`; a gauntlet that is not installed stops there, with that file's one line.
+gauntlet's. Gauntlet puts a `gauntlet` command on PATH: once per session, run `gauntlet root`
+and record its output as `GAUNTLET_ROOT`. If `command -v gauntlet` finds nothing, gauntlet is
+not installed — stop with one line: "gauntlet is not installed — `/plugin install
+gauntlet@jacquardlabs-marketplace`, then re-run".
 
 ## Establish the changeset (work episode)
 

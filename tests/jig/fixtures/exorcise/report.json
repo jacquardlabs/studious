@@ -1,0 +1,17 @@
+{
+  "contract_version": 1,
+  "concepts_removed": ["helper2", "Foo"],
+  "concepts_kept": ["Bar"],
+  "held": [
+    {
+      "dimension": "trust-boundary",
+      "tier": "important",
+      "summary": "kept X: removing it crosses a trust boundary",
+      "locus": {"path": "lib/util.py", "line": 12},
+      "basis": "sourced"
+    }
+  ],
+  "applied": [],
+  "checks": [],
+  "tripwires": {}
+}

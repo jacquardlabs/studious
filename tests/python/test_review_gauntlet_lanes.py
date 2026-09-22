@@ -29,23 +29,15 @@ def _door() -> str:
     return DOOR.read_text(encoding="utf-8")
 
 
-def test_locate_step_cites_the_one_protocol_file() -> None:
-    """The root-discovery protocol lives in `reference/locate-gauntlet.md` (#410); the door
-    cites it and records `GAUNTLET_ROOT`, restating nothing."""
-    text = _door()
-    tools = re.search(r"^allowed-tools: (.*)$", text, re.MULTILINE).group(1)
-    assert "Skill" in tools.split(", ")
-    locate = text[text.index("## Locate gauntlet"):text.index("## Establish the changeset")]
-    assert "`reference/locate-gauntlet.md`" in locate and "GAUNTLET_ROOT" in locate
-    assert "`gauntlet:where`" not in locate and "--help" not in locate, "the protocol is restated instead of cited"
-
-
-def test_doctor_checks_the_root_lookup_command_beside_the_agents() -> None:
+def test_gauntlet_is_found_by_its_command_never_a_skill_load_or_a_cache_glob() -> None:
+    """#441: gauntlet ships `bin/gauntlet` on PATH (gauntlet#87), so its root is one
+    command's output — no skill load to scrape, no plugin-cache layout to guess."""
+    locate = " ".join(_door()[_door().index("## Locate gauntlet"):_door().index("## Establish the changeset")].split())
+    assert "`command -v gauntlet`" in locate and "`gauntlet root`" in locate and "GAUNTLET_ROOT" in locate
+    assert "/plugin install gauntlet@jacquardlabs-marketplace" in locate
     row = next(line for line in DOCTOR.read_text(encoding="utf-8").splitlines() if line.startswith("- **`gauntlet` available**"))
-    assert "`gauntlet:*` judges" in row and "registered agent listing" in row
-    assert "`gauntlet:where` or `gauntlet:review`" in row, "the root lookup is the second thing a dispatch needs"
+    assert "`gauntlet:*` judges" in row and "`gauntlet root`" in row
     assert "If either is absent: **Critical**" in row
-    assert "not the `gauntlet:review` skill" not in row
 
 
 def test_lane_eight_not_installed_path_is_a_task_in_the_same_batch_and_installed_path_stays_inline() -> None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import functools
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,8 @@ from _tempgit import commit_all, init_repo
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO_ROOT / "scripts"
+#: `exorcise --json` in the shape exorcist#10 publishes -- the contract fixture.
+EXORCISE_REPORT = Path(__file__).resolve().parent / "fixtures" / "exorcise" / "report.json"
 run = functools.partial(run_script, SCRIPTS / "ship-body")
 
 PLAN = """# Plan
@@ -121,7 +124,7 @@ class TestShipBody(unittest.TestCase):
             "inspector:report": ("inspector.md", "CONCERN — test self-dealing looks thin\n\nlens 1: ...\n"),
         })
         capture(self.repo, self.root, "2", {"verify:results": ("results.json", results_doc([(1, "cap", "script", "FAIL")]))})
-        capture(self.repo, self.root, "exorcise", {"exorcist:report": ("exorcise.md", "# Exorcise\n\nConcepts removed: helper2, Foo\n\n## Held\n\n- trust boundary: kept X\n")})
+        capture(self.repo, self.root, "exorcise", {"exorcist:report": ("exorcise.json", EXORCISE_REPORT.read_text(encoding="utf-8"))})
         r = self.body(["--out", str(self.repo / "body.md")])
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         body = r.stdout
@@ -135,13 +138,32 @@ class TestShipBody(unittest.TestCase):
         self.assertIn("CONCERN — test self-dealing looks thin", body)
         self.assertIn("| FAIL |", body)
         self.assertIn("Concepts removed: helper2, Foo", body)
-        self.assertIn("## Held", body)
-        self.assertIn("trust boundary: kept X", body)
+        self.assertIn("Concepts kept: Bar", body)
+        self.assertIn("- important: kept X: removing it crosses a trust boundary (lib/util.py:12)", body)
         self.assertIn("## Amendments", body)
         self.assertIn("`scripts/verify` — runner gap the human chose to patch", body)
         self.assertIn("## Decisions", body)
         self.assertIn("Keep `double` in `lib/util.py`? — chosen: yes", body)
         self.assertEqual((self.repo / "body.md").read_text(encoding="utf-8"), body)
+
+    def test_exorcise_report_off_contract_is_named_never_rendered(self) -> None:
+        """exorcist#10's `--json` report is the seam: a contract version or shape this
+        reader was not written against is named in the block, never parsed as prose."""
+        report = json.loads(EXORCISE_REPORT.read_text(encoding="utf-8"))
+        cases = [
+            (json.dumps({**report, "contract_version": 2}), "contract_version 2 is not 1"),
+            (json.dumps({**report, "held": [{"summary": "no locus"}]}), "exorcise report is malformed"),
+            ("Concepts removed: helper2\n", "exorcise report unreadable"),
+        ]
+        for text, named in cases:
+            with self.subTest(named=named):
+                for p in list(self.root.iterdir()):
+                    shutil.rmtree(p)
+                capture(self.repo, self.root, "exorcise", {"exorcist:report": ("exorcise.json", text)})
+                r = self.body()
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                self.assertIn(named, r.stdout)
+                self.assertNotIn("helper2", r.stdout)
 
     def test_missing_folder_is_a_named_row_never_a_stop(self) -> None:
         capture(self.repo, self.root, "1", {"verify:results": ("results.json", results_doc([(1, "cap", "script", "PASS"), (2, "hold", "probe", "PASS")]))})

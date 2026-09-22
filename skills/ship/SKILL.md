@@ -73,9 +73,9 @@ layer up) — and only then renders:
   local path — `image evidence at <path> (local store — attach to the PR if a
   reviewer needs it)` — and never fabricates a URL for a file no remote holds;
 - a load-bearing task's Inspector report, verdict line first, in that task's block;
-- the exorcise block: the report's `Concepts removed:` line (and its `Concepts kept:`
-  clause when present) and its `## Held` section verbatim — the route `/build` Step 3
-  promises a `hold` finding;
+- the exorcise block: the JSON report's `concepts_removed`, `concepts_kept`, and one
+  line per `held[]` finding — the route `/build` Step 3 promises a `hold` finding. A
+  report off the contract version is named in the block, never parsed;
 - the plan's `## Amendments` and the viva sign-off's `### Decisions` blocks verbatim —
   the two records that would otherwise die with `PLAN.md`.
 

@@ -49,7 +49,7 @@ If `$ARGUMENTS` is non-empty but matches no keyword, list the valid keywords and
 
 Every posture lane is a `gauntlet:<judge>` dispatch — gauntlet is the fleet, this door is a consumer. Two scripts in gauntlet's plugin root drive it: `scripts/dispatch.py` builds one validated contract-v1 invocation per judge (gauntlet's `docs/findings-contract.md` §3) and resolves each judge's standard from gauntlet's own charter, and `scripts/report.py` compiles the findings documents the judges return (§4). Nothing here restates that contract — each invocation is handed to its judge verbatim, and this door only decides *which* invocations run. The judges carry their own posture (injection defense, read-only inspection, calibration).
 
-**Gauntlet's root.** `${CLAUDE_PLUGIN_ROOT}` resolves to this plugin's root, never gauntlet's. Learn gauntlet's once per session per `reference/locate-gauntlet.md` and record it as `GAUNTLET_ROOT`; a gauntlet that is not installed stops there, with that file's one line.
+**Gauntlet's root.** Learn it exactly as `commands/review.md`'s "Locate gauntlet" does — `gauntlet root`, recorded as `GAUNTLET_ROOT` — and stop with that step's one line when gauntlet is not installed.
 
 ## Resolve the artifact (before any dispatch)
 
