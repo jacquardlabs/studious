@@ -918,9 +918,9 @@ Step 0.
 1. **Setup:** Step 1.1–1.3, on branch `build/<issue-slug>-<YYYYMMDDHHMM>`. Record position
    with `studious work-set --slug <slug> --title "<issue title>" --source "#N" --branch
    <branch> --phase build`. Use the slug `/next` handed over, or derive one from the issue
-   title. This is the work file's creation write, the same one `/next` makes for an issue,
-   so it never moves an existing file's phase. Every `work-log` call this run makes leaves
-   `--phase` to `/next`.
+   title. `work-set` sets whatever `--phase` it is given; this write is safe because the only
+   file it can land on is one `/next` created at `build`, or a new one, so it moves no
+   phase. Every `work-log` call this run makes leaves `--phase` to `/next`.
 2. **Pre-mortem, risk-labeled issues only:** this applies when a label name contains
    `risk` in any case (`gh issue view <N> --json labels --jq '[.labels[].name |
    select(test("risk"; "i"))]'` is non-empty). Skip the pre-mortem and keep one line for the

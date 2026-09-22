@@ -743,7 +743,8 @@ class TestSmallMode(unittest.TestCase):
         self.assertNotIn("Session verdict", step3)
 
     def test_small_mode_never_sets_phase_on_a_log(self) -> None:
-        self.assertIn("it never moves an existing file's phase", self.section)
+        self.assertIn("`work-set` sets whatever `--phase` it is given", self.section)
+        self.assertIn("so it moves no phase", self.section)
         self.assertIn("Every `work-log` call this run makes leaves `--phase` to `/next`.", self.section)
         self.assertNotIn("--outcome PR --phase", self.section)
 
