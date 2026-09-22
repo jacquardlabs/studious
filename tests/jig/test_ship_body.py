@@ -137,9 +137,10 @@ class TestShipBody(unittest.TestCase):
         self.assertIn("Inspector report (verdict line first)", body)
         self.assertIn("CONCERN — test self-dealing looks thin", body)
         self.assertIn("| FAIL |", body)
-        self.assertIn("Concepts removed: helper2, Foo", body)
-        self.assertIn("Concepts kept: Bar", body)
-        self.assertIn("- important: kept X: removing it crosses a trust boundary (lib/util.py:12)", body)
+        self.assertIn("Concepts removed: RetryPolicy", body)
+        self.assertIn("Concepts kept: backoff_delays", body)
+        self.assertIn("- implied by intent: give-up test for sendWebhook (tests/test_sender.py:88)"
+                      " -- next: nothing; kept because claim 3 entails it", body)
         self.assertIn("## Amendments", body)
         self.assertIn("`scripts/verify` — runner gap the human chose to patch", body)
         self.assertIn("## Decisions", body)
@@ -152,8 +153,9 @@ class TestShipBody(unittest.TestCase):
         report = json.loads(EXORCISE_REPORT.read_text(encoding="utf-8"))
         cases = [
             (json.dumps({**report, "contract_version": 2}), "contract_version 2 is not 1"),
-            (json.dumps({**report, "held": [{"summary": "no locus"}]}), "exorcise report is malformed"),
-            ("Concepts removed: helper2\n", "exorcise report unreadable"),
+            (json.dumps({**report, "held": [{"title": "no file"}]}), "exorcise report is malformed"),
+            (json.dumps({**report, "concepts_kept": ["backoff_delays"]}), "exorcise report is malformed"),
+            ("Concepts removed: RetryPolicy\n", "exorcise report unreadable"),
         ]
         for text, named in cases:
             with self.subTest(named=named):
@@ -163,7 +165,7 @@ class TestShipBody(unittest.TestCase):
                 r = self.body()
                 self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
                 self.assertIn(named, r.stdout)
-                self.assertNotIn("helper2", r.stdout)
+                self.assertNotIn("RetryPolicy", r.stdout)
 
     def test_missing_folder_is_a_named_row_never_a_stop(self) -> None:
         capture(self.repo, self.root, "1", {"verify:results": ("results.json", results_doc([(1, "cap", "script", "PASS"), (2, "hold", "probe", "PASS")]))})
