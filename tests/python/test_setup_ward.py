@@ -53,3 +53,14 @@ def test_doctor_carries_the_one_exorcist_stop_line() -> None:
     row = next(line for line in doctor.splitlines() if line.startswith("- **`exorcist` available**"))
     assert "registered skill listing" in row
     assert "/plugin install exorcist@jacquardlabs-marketplace" in row
+
+
+def test_doctor_holds_exorcist_to_the_release_that_ships_json() -> None:
+    """#441: an exorcist before 0.6.0 has no `--json`, passes the listing check, then loses
+    every /build Step 3 pass -- doctor reads the installed version the way the viva row does."""
+    doctor = (REPO_ROOT / "commands" / "doctor.md").read_text(encoding="utf-8")
+    row = next(line for line in doctor.splitlines() if line.startswith("- **`exorcist` available**"))
+    assert "the way the `viva` row resolves its install" in row
+    assert "`jacquardlabs-marketplace/exorcist/*`" in row and "`.claude-plugin/plugin.json` `version`" in row
+    assert "Older than `0.6.0`: **Important**" in row
+    assert "`no exorcise report written`" in row

@@ -30,7 +30,8 @@ from pathlib import Path
 #: The findings contract version studious's doors are written against.
 GAUNTLET_CONTRACT_VERSION = 1
 NOT_INSTALLED = (
-    "error: gauntlet is not installed -- `/plugin install gauntlet@jacquardlabs-marketplace`, then re-run"
+    "error: gauntlet is not installed, or older than the release that ships bin/gauntlet (0.16.0) -- "
+    "`/plugin install gauntlet@jacquardlabs-marketplace`, then re-run"
 )
 
 

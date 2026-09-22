@@ -86,7 +86,7 @@ class TestGauntletContract(unittest.TestCase):
     def test_gauntlet_not_on_path_is_the_install_stop(self) -> None:
         r = self.check(None)
         self.assertEqual(r.returncode, 1)
-        self.assertIn("error: gauntlet is not installed", r.stderr)
+        self.assertIn("error: gauntlet is not installed, or older than the release that ships bin/gauntlet", r.stderr)
         self.assertIn("/plugin install gauntlet@jacquardlabs-marketplace", r.stderr)
 
 
