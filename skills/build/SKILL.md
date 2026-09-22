@@ -270,8 +270,11 @@ For each task block, in order:
    dispatch, and on every other Executor-class dispatch in this skill — a
    FIX or RESAMPLE, each candidate's, Step 3's exorcise — so a build never
    changes model with the session that runs it (#136). State it plainly as
-   `pinned: opus`. Pass a different model only when the human named one
-   for this build, and state it plainly as `override: <model>`. Name this
+   `pinned: opus`, adding the resolved ID when your own system prompt names
+   an Opus model — the alias resolves the same for you and the subagent —
+   e.g. `pinned: opus (claude-opus-5-5)`. Pass a different model only when
+   the human named one for this build (an alias the Task tool accepts), and
+   state it plainly as `override: <model>`. Name this
    before you launch the subagent, the same plain-statement discipline step 1's
    load-bearing-set computation already uses ("state the computed set
    plainly before proceeding").

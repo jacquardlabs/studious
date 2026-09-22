@@ -206,9 +206,12 @@ class TestBuildSkillBody(PhraseInBodyMixin, unittest.TestCase):
         self.assertPhraseIn("Pass `model: opus` on the dispatch")
         self.assertPhraseIn("State it plainly as `pinned: opus`")
         self.assertPhraseIn(
-            "Pass a different model only when the human named one for this build, "
-            "and state it plainly as `override: <model>`"
+            "adding the resolved ID when your own system prompt names an Opus model"
         )
+        self.assertPhraseIn(
+            "Pass a different model only when the human named one for this build"
+        )
+        self.assertPhraseIn("state it plainly as `override: <model>`")
         self.assertNotIn("inherited: <model>", self.body)
         self.assertNotIn("`unavailable`", self.body)
 
