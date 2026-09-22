@@ -1,6 +1,6 @@
 ---
 name: build
-description: Runs the build loop over a hand-written PLAN.md (one checkpoint block for the quick path, several in spine order for the full cycle) -- a fresh, isolated executor per task, independent script-run verification, evidence capture, status flips written only by scripts never the model, a conditional fresh inspector dispatched on load-bearing tasks only, judging exactly test self-dealing, contract match, and technicality gaming, and one exorcise simplification pass (exorcist's /exorcist:exorcise) after the last PASS, re-verified by script before it is committed. After the last PASS, convenes /review's work episode itself (the full gauntlet lane fan-out, compiled to one verdict) rather than handing off to a separate /review invocation; a FIX AND RE-REVIEW dispatches a fresh executor scoped to the blocking findings and re-convenes once before an unresolved fix cycle goes back to the human. Use when the user says /build, asks to build or implement a PLAN.md's tasks, or hands over a single checkpoint block for the quick path (no /shape or /build doc required). Reports one session verdict -- BUILT, PAUSED, or ESCALATED -- plus the convened episode's own PASS, FIX AND RE-REVIEW, or NEEDS DISCUSSION -- and never auto-continues past a pause.
+description: Runs the build loop over a hand-written PLAN.md (one checkpoint block for the quick path, several in spine order for the full cycle) -- a fresh, isolated executor per task, independent script-run verification, evidence capture, status flips written only by scripts never the model, a conditional fresh inspector dispatched on load-bearing tasks only, judging exactly test self-dealing, contract match, and technicality gaming, and one exorcise simplification pass (exorcist's /exorcist:exorcise) after the last PASS, re-verified by script before it is committed. After the last PASS, convenes /review's work episode itself (the full gauntlet lane fan-out, compiled to one verdict) rather than handing off to a separate /review invocation; a FIX AND RE-REVIEW dispatches a fresh executor scoped to the blocking findings and re-convenes once before an unresolved fix cycle goes back to the human. /build --small <issue> is the small mode -- one issue to one PR through one executor, exorcise, and the work episode once, with two human stops (start and merge). Use when the user says /build, asks to build or implement a PLAN.md's tasks, or hands over a single checkpoint block for the quick path (no /shape or /build doc required). Reports one session verdict -- BUILT, PAUSED, or ESCALATED -- plus the convened episode's own PASS, FIX AND RE-REVIEW, or NEEDS DISCUSSION -- and never auto-continues past a pause.
 ---
 
 # /build
@@ -79,6 +79,7 @@ failure (issue jacquardlabs/jig#49).
 `/build` plans and then builds; the planning step is not a separate door. Resolve which
 case you are in before anything else:
 
+- **`--small <issue>`** — skip this step; "Small mode" below says what runs.
 - **A `PLAN.md`-shaped file already exists** at the resolved input path — go straight to
   Step 1. This is the common case on a re-invocation, and the case a hand-authored
   quick-path block is in.
@@ -116,7 +117,8 @@ keeps that from being a surprise.
 One optional argument: a path to a `PLAN.md`-shaped file, a design doc, **or** one or
 more issue references (`#N`, `owner/repo#N`, URL), defaulting to `PLAN.md` at the target
 project's repo root. One optional flag, `--candidates N` (2 or 3), runs the stamped plan
-as an implementation search — see "Candidates" below; absent, one build, as always. The **quick path** is not a
+as an implementation search — see "Candidates" below; absent, one build, as always. One more flag,
+`--small <issue>`, takes one issue straight to a PR — see "Small mode" below. The **quick path** is not a
 different input shape — it is simply a plan file containing exactly one
 `### Task` block, hand-authored in the checkpoint-block format below. One
 input contract serves both the quick path and the full cycle; don't invent
@@ -888,6 +890,66 @@ session's own fix cycle only ever gets the one re-convene. Session verdict `PAUS
 naming which of the two fired and review.md's own named choices for it verbatim (record a
 terminal verdict over the still-riding retry outcome, reopen a fresh episode, or take the
 still-open findings to discussion) — the human's call, not this door's.
+
+## Small mode — `/build --small <issue>`
+
+One issue to one PR, for a change expected to land under about 100 lines. Two human stops,
+**start** and **merge**; everything between them is a step this skill already runs, named
+here by reference. Multi-task work stays on the full loop.
+
+**Start — stop 1.** Read the issue (`gh issue view <N> --json title,body,labels`) and
+transcribe it into one checkpoint block in the Input grammar: `### Task 1 — <issue title>`,
+`Do:` from its goal, `Done means:` from its Done means (each item tiered), `Not here:` from
+what it excludes. Write it to `<scratch-path>/brief.md`, outside any worktree. It is the
+quick path's one-block plan, not `PLAN.md`: no planning contract, no task floor, no viva
+round. Show the human the block, the base branch, and this line: *"Once the review
+finishes, this run pushes the branch and opens a PR against `<base>`, as a draft unless
+the review passed. Your go-ahead authorizes that PR. Merging stays yours."* Then wait for
+their word. The block's commands run verbatim (Trust boundary above), and the block came
+from an issue body, so this stop is where the human reads them. If the human says the work is bigger than small, drop `--small` and start at
+Step 0.
+
+**Then, without stopping:**
+
+1. **Setup:** Step 1.1–1.3, on branch `build/<issue-slug>-<YYYYMMDDHHMM>`. Record position
+   with `studious work-set --slug <slug> --title "<issue title>" --source "#N" --branch
+   <branch> --phase build`. Use the slug `/next` handed over, or derive one from the issue
+   title.
+2. **Pre-mortem, risk-labeled issues only:** this applies when a label name contains
+   `risk` in any case (`gh issue view <N> --json labels --jq '[.labels[].name |
+   select(test("risk"; "i"))]'` is non-empty). The register comes from gauntlet's
+   generator (jacquardlabs/gauntlet#88), never from this skill. Locate gauntlet (Step 4.1).
+   If `$GAUNTLET_ROOT/commands/review.md` doesn't document `--premortem`, skip the
+   pre-mortem and keep one line for the PR body: `Pre-mortem skipped: risk-labeled
+   (<labels>); gauntlet's generator is not available yet (jacquardlabs/gauntlet#88).`
+   If it does document the flag, run it on the issue body and give the register it writes
+   to Step 4's pre-mortem lane.
+3. **Build:** run Step 2.2–2.5 and 2.7 for Task 1, with `<scratch-path>/brief.md` as
+   `<plan path>`. Skip `plan-drift`, since the block is a transcription with no plan to
+   drift from. Skip Step 1.5 and Step 2.6: a single task rests on nothing, so nothing is
+   load-bearing. **There is one executor and no Failure routine.** On a `verify` FAIL, run
+   `studious status-flip --plan <scratch-path>/brief.md --task 1 --status REPLAN --reason
+   "<verify's detail>"` and report **PAUSED** with the `REPLAN` cause. The resume action is
+   the full loop: `/studious:build #N`.
+4. **Exorcise:** Step 3, unchanged. Its intent is the brief's `Do:` and `Done means:`.
+5. **Judge:** run Step 4's steps 1–10 **once**, with no fix dispatch and no re-convene.
+   Whatever the verdict, the next item opens the PR. On `FIX AND RE-REVIEW` or
+   `NEEDS DISCUSSION` it opens as a draft (`--draft`), with the verdict line and its
+   findings appended to the body. The fix, and the `/studious:review` re-run that
+   re-enters the episode, then happen on that PR, the way `/next` already routes those
+   verdicts.
+6. **Open the PR:** run `studious ship-body --plan <scratch-path>/brief.md --repo
+   <worktree> --branch <branch> --out <scratch-path>/body.md`. A stop from it routes as in
+   `/ship` Step 1. Append step 2's pre-mortem line if one was kept, then `Closes #N`. Run
+   `git -C <worktree> push -u origin <branch>`, then `gh pr create --base <base> --head
+   <branch> --title "<issue title>" --body-file <scratch-path>/body.md`. Record it with
+   `studious work-log --slug <slug> --step finish --outcome PR`. `PR` is `/ship`'s own
+   token for an opened PR. Then run "Report status back to studious" below, as every run
+   does.
+
+**Merge — stop 2** is the human's, on the PR. The worktree and branch stay, as in `/ship`'s
+`PR` row. The session report is the Session verdict below, followed by the PR URL and
+`git diff --shortstat <base>...HEAD`, so the size target is visible.
 
 ## Session verdict
 

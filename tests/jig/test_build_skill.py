@@ -665,3 +665,62 @@ class TestDispatchIsolationBan(unittest.TestCase):
         self.assertGreaterEqual(body.count(needle), 3, "executor, Inspector, and exorcise boundary lines")
         self.assertIn("its ban on\nthe Agent tool's worktree isolation intact", body)
 
+
+
+class TestSmallMode(unittest.TestCase):
+    """#440: `/build --small <issue>` takes one issue to a PR with two human stops,
+    reusing the loop's own steps by reference rather than restating them."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        body = SKILL_MD.read_text(encoding="utf-8")
+        start = body.index("## Small mode — `/build --small <issue>`")
+        cls.body = normalize_ws(body)
+        cls.section = normalize_ws(body[start:body.index("## Session verdict", start)])
+
+    def test_the_flag_is_named_in_input_and_step_0(self) -> None:
+        before = self.body[: self.body.index("## Step 1 — Setup")]
+        self.assertIn("`--small <issue>`, takes one issue straight to a PR", before)
+        self.assertIn("**`--small <issue>`** — skip this step", before)
+
+    def test_exactly_two_stops_and_the_start_authorizes_the_pr(self) -> None:
+        self.assertIn("Two human stops, **start** and **merge**", self.section)
+        self.assertIn("**Start — stop 1.**", self.section)
+        self.assertIn("**Merge — stop 2** is the human's", self.section)
+        self.assertIn("Your go-ahead authorizes that PR. Merging stays yours.", self.section)
+        self.assertIn("**Then, without stopping:**", self.section)
+
+    def test_the_brief_is_one_block_at_a_scratch_path_never_plan_md(self) -> None:
+        self.assertIn("`<scratch-path>/brief.md`, outside any worktree", self.section)
+        self.assertIn("no planning contract, no task floor, no viva round", self.section)
+
+    def test_steps_are_reused_by_reference_not_restated(self) -> None:
+        dash = "\N{EN DASH}"
+        for ref in (f"Step 1.1{dash}1.3", f"Step 2.2{dash}2.5 and 2.7", "Step 3, unchanged", f"Step 4's steps 1{dash}10 **once**"):
+            self.assertIn(ref, self.section)
+        # The executor's boundary line and exorcise's dispatch prompt live once, in their steps.
+        self.assertEqual(self.body.count("This is the only task information you have."), 1)
+        self.assertNotIn("git branch --set-upstream-to", self.section)
+
+    def test_one_executor_no_inspector_no_fix_cycle(self) -> None:
+        self.assertIn("**There is one executor and no Failure routine.**", self.section)
+        self.assertIn("Skip Step 1.5 and Step 2.6", self.section)
+        self.assertIn("no fix dispatch and no re-convene", self.section)
+
+    def test_a_non_pass_verdict_opens_a_draft_never_a_third_stop(self) -> None:
+        self.assertIn("Whatever the verdict, the next item opens the PR.", self.section)
+        self.assertIn("it opens as a draft (`--draft`), with the verdict line and its findings", self.section)
+        self.assertNotIn("/studious:ship", self.section)
+
+    def test_premortem_only_via_gauntlet_and_the_skip_is_disclosed(self) -> None:
+        self.assertIn("never from this skill", self.section)
+        self.assertIn("jacquardlabs/gauntlet#88", self.section)
+        self.assertIn("doesn't document `--premortem`, skip the pre-mortem", self.section)
+        self.assertIn("Append step 2's pre-mortem line", self.section)
+
+    def test_the_pr_is_assembled_by_ship_body_and_recorded_for_next(self) -> None:
+        self.assertIn("studious ship-body --plan <scratch-path>/brief.md", self.section)
+        self.assertIn("gh pr create --base <base>", self.section)
+        self.assertIn("studious work-log --slug <slug> --step finish --outcome PR", self.section)
+        self.assertIn('Then run "Report status back to studious" below', self.section)
+        self.assertIn("--source \"#N\" --branch <branch> --phase build", self.section)
