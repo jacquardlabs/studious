@@ -1227,12 +1227,13 @@ cmd_work_log() {
   # a `PR` outcome to tell a PR small mode opened from its own hand-off (#440).
   #   HANDED-OFF  commands/next.md handed piece 3 on
   #   PR          small mode opened the PR (the ship verdict's own token for one)
+  #   SKIPPED     the user explicitly skipped piece 3 (commands/next.md "Skips")
   if [ "$step" = "finish" ]; then
     case "$outcome" in
-      HANDED-OFF|PR) ;;
+      HANDED-OFF|PR|SKIPPED) ;;
       *)
         echo "gate-ledger: --step finish --outcome '$outcome' is not a recognized outcome;" \
-             "use HANDED-OFF or PR" >&2
+             "use HANDED-OFF, PR, or SKIPPED" >&2
         return 2
         ;;
     esac

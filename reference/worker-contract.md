@@ -62,8 +62,9 @@ and any third-party workflow alike:
 rather than being read back as an unhandled case (#213). Two further tokens are
 reserved for `/next`'s own bookkeeping and are not a worker's to write:
 `HANDED-OFF` (the flow handed the build to a human or another tool) and `SKIPPED` (the
-user explicitly skipped the piece). Other steps' outcomes are free-form here — a gate
-step's token is owned by `reference/gate-vocabulary.md`.
+user explicitly skipped the piece). `finish` is closed the same way, to `HANDED-OFF`,
+`PR`, and `SKIPPED`. Other steps' outcomes are free-form here — a gate step's token is
+owned by `reference/gate-vocabulary.md`.
 
 ## Boundaries
 

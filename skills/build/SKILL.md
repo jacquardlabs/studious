@@ -976,8 +976,10 @@ Step 0.
 **Re-entry — `/build --small #N` on a branch that already has its PR.** This is how a
 small-mode `FIX AND RE-REVIEW` gets fixed. It runs in the branch's own worktree, left in
 place at stop 2, with no new branch and no `work-set`. `studious gate-get --branch
-<branch>` must show `.gates.audit.verdict` as `FIX AND RE-REVIEW`. Any other verdict stops the run,
-named: `NEEDS DISCUSSION` is the human's to resolve, and a `PASS` has nothing to fix.
+<branch>` must show `.gates.audit.verdict` as `FIX AND RE-REVIEW`, and `studious
+episode-get --gate audit` must open with `round 1 of`. Any other verdict stops the run,
+named: `NEEDS DISCUSSION` is the human's to resolve, and a `PASS` has nothing to fix. A
+round past `1` means the one re-entry already ran: stop, named, before any dispatch.
 
 1. **Start — stop 1 again.** The first run's scratch path does not outlive its session, so
    save the issue and transcribe the brief exactly as the first start did. Read the

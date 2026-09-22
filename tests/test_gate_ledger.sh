@@ -1664,8 +1664,10 @@ check "--step finish --outcome HANDED-OFF is accepted" "0" "$rc"
 before440=$(cat "$d440/.studious/work/fresh.json")
 err440=$(cd "$d440" && "$LEDGER" work-log --slug fresh --step finish --outcome OPENED 2>&1 1>/dev/null); rc=$?
 check "--step finish with an unknown outcome exits 2" "2" "$rc"
-contains "--step finish names its vocabulary" "use HANDED-OFF or PR" "$err440"
+contains "--step finish names its vocabulary" "use HANDED-OFF, PR, or SKIPPED" "$err440"
 check "--step finish refusal writes nothing" "$before440" "$(cat "$d440/.studious/work/fresh.json")"
+( cd "$d440" && "$LEDGER" work-log --slug fresh --step finish --outcome SKIPPED ) >/dev/null; rc=$?
+check "--step finish --outcome SKIPPED (/next's Skips) is accepted" "0" "$rc"
 
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi
