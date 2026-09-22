@@ -67,10 +67,12 @@ def find_disposable_citations(root: Path) -> list[str]:
 
 def _declared_dependencies() -> set[str]:
     """Plugins this one depends on — their skills are citable by name though
-    absent from `skills/`. Derived from the manifest, not restated here."""
+    absent from `skills/`. Derived from the manifest, not restated here. An entry
+    is a bare name or a `{"name", "version"}` object (a pinned range, #441)."""
     try:
-        return set(json.loads(MANIFEST.read_text(encoding="utf-8")).get("dependencies", []))
-    except (OSError, json.JSONDecodeError):
+        deps = json.loads(MANIFEST.read_text(encoding="utf-8")).get("dependencies", [])
+        return {d if isinstance(d, str) else d["name"] for d in deps}
+    except (OSError, json.JSONDecodeError, KeyError, TypeError):
         return set()  # validate_plugin.py owns manifest validity; don't double-report
 
 

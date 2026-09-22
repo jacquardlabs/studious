@@ -18,7 +18,7 @@
     "tdd"
   ],
   "dependencies": [
-    "viva",
-    "gauntlet"
+    { "name": "viva", "version": "~2.14.0" },
+    { "name": "gauntlet", "version": "~0.15.0" }
   ]
 }
