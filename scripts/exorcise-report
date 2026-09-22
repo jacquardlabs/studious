@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+"""exorcise-report -- check exorcise's JSON report before /build Step 3 acts on it (#441).
+
+    exorcise-report <report.json>
+
+Validates the report `/exorcist:exorcise --json` wrote against the contract
+version studious reads (`scripts/_exorcise.py`, the same reader `ship-body`
+renders with), then prints the `exorcise:` commit subject Step 3 commits under:
+the report's `concepts_removed`, or -- on a pass that removed no concept but
+still applied edits (reverts, say) -- the applied actions by count. The subject
+is never a bare `exorcise: `.
+
+The two failures carry distinct labels, because they mean different things: no
+report at the path is `exorcise dispatch died`; a report this reader was not
+written against is `exorcise report off contract`.
+
+Exit codes: 0 report valid, subject on stdout. 1 the report is off contract,
+named on stderr. 2 usage error, or no report at the path (the dispatch died).
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _exorcise import off_contract
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="exorcise-report", description="Check exorcise's JSON report; print the commit subject.")
+    parser.add_argument("report", help="the path passed to `/exorcist:exorcise --json`")
+    return parser.parse_args(argv)
+
+
+def subject(report: dict) -> str:
+    removed = [str(c) for c in report["concepts_removed"]]
+    if removed:
+        return "exorcise: " + ", ".join(removed)
+    actions = Counter(str(a.get("action")) for a in report["applied"] if a.get("status") == "applied")
+    if actions:
+        return "exorcise: no concept removed; " + ", ".join(f"{action} x{n}" for action, n in sorted(actions.items()))
+    return "exorcise: no concept removed, no applied entry"
+
+
+def main(argv: list[str]) -> int:
+    path = Path(parse_args(argv).report)
+    if not path.is_file():
+        print(f"error: no exorcise report at {path} -- exorcise dispatch died", file=sys.stderr)
+        return 2
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"error: exorcise report unreadable ({exc}) -- exorcise report off contract", file=sys.stderr)
+        return 1
+    why = off_contract(report)
+    if why or not isinstance(report, dict):
+        print(f"error: exorcise report {why} -- exorcise report off contract", file=sys.stderr)
+        return 1
+    print(subject(report))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -736,16 +736,24 @@ with the build proceeding to its verdict.
    Nothing else goes into the prompt — not `PLAN.md` in full, not any task's
    history, not this session's own conversation. The subagent runs
    exorcise's own §6 checks; that is its claim, not the verdict.
-2. **Nothing cast out.** If `git status --porcelain` is empty after the
+2. **Check the report, before anything reads it.** Run
+   `studious exorcise-report <scratch-path>/exorcise-report.json`. Exit 0
+   prints the commit subject step 5 uses. Any non-zero exit — the report is
+   missing (`exorcise dispatch died`) or off contract (`exorcise report off
+   contract`), the script's line says which — is FAIL's cleanup without the
+   verify run: `git checkout -- .`, confirm `git status --porcelain` is empty,
+   one **Track** note quoting that line verbatim, and proceed to the Session
+   verdict. Nothing is captured: an unchecked report never reaches `/review`.
+3. **Nothing cast out.** If `git status --porcelain` is empty after the
    dispatch — every hunk traced, or every finding held — there is nothing
    to verify or commit: the tree is byte-identical to the one each task's
-   `verify` already passed on. Skip steps 3 and 4. Record one line for the
+   `verify` already passed on. Skip steps 4 and 5. Record one line for the
    session report, "exorcise: nothing to cast out — every hunk traced",
-   then capture the JSON report with step 4's exact `evidence-capture` call,
+   then capture the JSON report with step 5's exact `evidence-capture` call,
    exit 2 routed the same way — a pass that held everything is this branch
    too, and its `held[]` reaches `/review` only through that artifact.
    Not a Track note: nothing failed.
-3. **Verify, independently.** For every task, in order, re-run step 2.5's
+4. **Verify, independently.** For every task, in order, re-run step 2.5's
    exact `verify` call — same `--plan`/`--task`, same `--probe-spec` when
    the task had one, **the same `--since` that task's step 2.2 dispatch
    timestamp gave**, never a fresh one (exorcise touched no `probe`
@@ -753,9 +761,9 @@ with the build proceeding to its verdict.
    the #44 shape again) — writing each `--out` to
    `<scratch-path>/exorcise/results-<task>.json`. Exit 2 here is the same
    usage error step 2.5 names; route it the same way.
-4. **PASS on every task.** Commit the working tree as one commit,
-   `exorcise: <concepts removed>`, the list printed by
-   `jq -r '.concepts_removed | join(", ")' <scratch-path>/exorcise-report.json`.
+5. **PASS on every task.** Commit the working tree as one commit, under
+   the subject step 2 printed — `exorcise: <concepts removed>`, or the
+   applied actions by count on a pass that removed no concept.
    You commit here on `verify`'s PASS — the same
    mechanical ground `status-flip` writes on — and the message comes from
    the report, never from a diff; this is the one commit in this loop an
@@ -770,16 +778,13 @@ with the build proceeding to its verdict.
    — reaches `/review` the way an Inspector `CONCERN` does: rendered from the
    captured artifact into the PR body `/ship` assembles (`skills/ship/SKILL.md`
    Step 1 resolves `--task exorcise` for exactly this).
-5. **FAIL on any item.** Run `git checkout -- .` in the worktree — exorcise
+6. **FAIL on any item.** Run `git checkout -- .` in the worktree — exorcise
    edits only the working tree, so this is its undo — and confirm `git status --porcelain` is
    empty: the tree is exactly the `BUILT` tree again. Record one **Track**
    note for the session report naming the failing task and item and the
    report's `concepts_removed` and `concepts_kept`, and proceed to
    the Session verdict. No
    fix cycle, no re-dispatch, no Failure routine.
-6. **The subagent died or wrote no JSON report.** Treat as FAIL's cleanup
-   without the verify run: `git checkout -- .`, confirm clean, one Track note
-   ("exorcise dispatch died"), proceed.
 
 A branch that never went through `/build` gets no pass from this skill —
 that is `/review`'s finding or the human's own `/exorcist:exorcise`.
