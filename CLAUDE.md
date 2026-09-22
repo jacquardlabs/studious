@@ -114,8 +114,10 @@ install. The manifest declares `viva`, `gauntlet`, and `exorcist` as dependencie
 (#441) — `/build` and `/shape` stop dead without viva; `/health` dispatches nothing
 without gauntlet, and `/review`'s judge lanes are `gauntlet:*` dispatches too, live
 since #334 S1 shipped; `/build`'s Step 3 is exorcist's `exorcise`. No version ranges: seam
-safety is a contract-version check where studious reads each contract, stopping with a
-named message on a mismatch.
+safety is a contract-version check where studious reads each versioned payload —
+`studious gauntlet-contract` for gauntlet's findings contract, `studious exorcise-report`
+for exorcist's report — stopping with a named message on a mismatch. viva's seam has no
+version check; `/studious:doctor` checks the entrypoints studious invokes.
 
 Two plugins was considered and rejected: separate installability served an audience of
 zero while costing two version lines, two release paths, a `git-subdir` marketplace
