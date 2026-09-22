@@ -809,7 +809,7 @@ add anything to a dispatch prompt beyond what those steps already gather. Lane 1
 episode reads only what `reference/evidence-format.md` and its own resolution rules give
 it, the same as it would for any other executor:
 
-1. **Locate gauntlet** — `gauntlet root`, recorded as `GAUNTLET_ROOT`.
+1. **Locate gauntlet** — per that step, its stop line included.
 2. **Establish the changeset** — merge-base to `HEAD` in this worktree.
 3. **Precompute the changeset diff** — small-changeset scratch file, per that step's
    400-line threshold.
@@ -826,7 +826,7 @@ it, the same as it would for any other executor:
    episode, narrowed to `.gates.audit.blockingLanes` on re-entry.
 8. **The work episode itself** — every lane and skip rule commands/review.md names
    (1–14), launched in parallel exactly as that section specifies.
-9. **Compile** — `report.py`, the three verdict tokens (`PASS` · `FIX AND RE-REVIEW` ·
+9. **Compile** — `gauntlet report`, the three verdict tokens (`PASS` · `FIX AND RE-REVIEW` ·
    `NEEDS DISCUSSION`), per `reference/audit-compilation.md`.
 10. **Record it** — `studious episode-verdict --gate audit --verdict "<verdict>"`.
 

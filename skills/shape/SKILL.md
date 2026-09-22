@@ -272,8 +272,7 @@ Follow `commands/review.md` inline, exactly as written, from "Locate gauntlet" t
 design episode's "Persist the register" -- don't restate its steps here and don't shortcut
 them:
 
-1. **Locate gauntlet** (once per session, if a prior step here hasn't already) --
-   `gauntlet root`, recorded as `GAUNTLET_ROOT`.
+1. **Locate gauntlet** -- per that step, its stop line included.
 2. **Design episode, Part 1 -- Design product review.** Skip its "Find the doc" step: the
    doc is `docs/design/<slug>.md`, already resolved by this skill. Dispatch
    `gauntlet:product-reviewer` exactly per that Part's invocation and compile.

@@ -4,7 +4,7 @@ Canonical source for how a round of returned auditor reports becomes one compile
 
 ## Tiers arrive canonical
 
-Every judge lane returns a findings document whose `tier` is already `critical`, `important`, or `track` (gauntlet's `docs/findings-contract.md` §5), and gauntlet's `scripts/report.py` applies anchor-or-demote and taste-caps-at-track at ingest, naming each change it made — nothing is mapped here. The one lane outside that path is `/review`'s inline `web-design-guidelines` run (lane 8, skill installed), whose labels map through the a11y row in `reference/severity-rubric.md`. Consult it, don't restate it.
+Every judge lane returns a findings document whose `tier` is already `critical`, `important`, or `track` (gauntlet's `docs/findings-contract.md` §5), and `gauntlet report` applies anchor-or-demote and taste-caps-at-track at ingest, naming each change it made — nothing is mapped here. The one lane outside that path is `/review`'s inline `web-design-guidelines` run (lane 8, skill installed), whose labels map through the a11y row in `reference/severity-rubric.md`. Consult it, don't restate it.
 
 ## Three lane states
 
@@ -16,7 +16,7 @@ When this round was narrowed, every narrowing-tracked lane **not** in `.gates.au
 
 ### AGENT DIED
 
-A lane that *was* dispatched this round but left no findings document — or left one `report.py` rejected (unparseable after its one fence-unwrap, or failing the contract's validation) — is `AGENT DIED — no report; this lane is UNAUDITED`, and per the existing rule can never certify a PASS. An empty `findings` list beside a `coverage` line is a **clean lane, never died**: the contract requires `coverage` precisely so an empty list is distinguishable from a shallow run. Distinct from carried forward: misreading a died lane as carried forward launders a genuine gap into an unearned PASS; misreading a carried-forward lane as died forces needless re-auditing of a lane already cleared.
+A lane that *was* dispatched this round but left no findings document — or left one `gauntlet report` rejected (unparseable after its one fence-unwrap, or failing the contract's validation) — is `AGENT DIED — no report; this lane is UNAUDITED`, and per the existing rule can never certify a PASS. An empty `findings` list beside a `coverage` line is a **clean lane, never died**: the contract requires `coverage` precisely so an empty list is distinguishable from a shallow run. Distinct from carried forward: misreading a died lane as carried forward launders a genuine gap into an unearned PASS; misreading a carried-forward lane as died forces needless re-auditing of a lane already cleared.
 
 ### Routed out
 
@@ -45,7 +45,7 @@ Resolve each cited Critical to exactly one outcome:
 - **Downgraded** (code-content claims only — a non-code claim resolves only to Confirmed or Dropped, since downgrading needs rendering/tooling judgment you don't have) — the citation resolves to something real in the diff, but the diff supports a lower severity than claimed (e.g. a permission check was narrowed, not deleted). Moves to whichever tier (Important or Track) its actual severity warrants. Citation-integrity check only — downgrade because the diff doesn't back the claimed severity, never because it would score lower on your own taste, and never as a rewrite of the auditor's judgment.
 - **Dropped** — the citation doesn't resolve against the diff: wrong file, wrong line, a claim the diff doesn't support, or (non-code) a named component/style rule/register item not in the diff. Removed from the report entirely. Name every drop in the Summary section — auditor, claim, why it didn't confirm — so the reader sees a finding was filtered, not silently missing.
 
-Only a Critical that survives this challenge as Confirmed can drive **FIX AND RE-REVIEW** below. If every cited Critical is downgraded or dropped, the verdict reflects whatever remains in Important/Track, which does not by itself block a **PASS**. Applies to Critical findings only — Important and Track are reported as returned, unchallenged. This challenge runs on top of `report.py`'s ingest rules, not instead of them: ingest checks that an anchor is present (and, on a document, quoted); this step checks that the anchor is true against the diff.
+Only a Critical that survives this challenge as Confirmed can drive **FIX AND RE-REVIEW** below. If every cited Critical is downgraded or dropped, the verdict reflects whatever remains in Important/Track, which does not by itself block a **PASS**. Applies to Critical findings only — Important and Track are reported as returned, unchallenged. This challenge runs on top of `gauntlet report`'s ingest rules, not instead of them: ingest checks that an anchor is present (and, on a document, quoted); this step checks that the anchor is true against the diff.
 
 Then compile a unified audit report:
 

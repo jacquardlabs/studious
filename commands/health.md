@@ -42,27 +42,25 @@ If `$ARGUMENTS` is non-empty but matches no keyword, list the valid keywords and
 
 ## Locate gauntlet (before any dispatch)
 
-Every posture lane is a `gauntlet:<judge>` dispatch — gauntlet is the fleet, this door is a consumer. Two scripts in gauntlet's plugin root drive it: `scripts/dispatch.py` builds one validated contract-v1 invocation per judge (gauntlet's `docs/findings-contract.md` §3) and resolves each judge's standard from gauntlet's own charter, and `scripts/report.py` compiles the findings documents the judges return (§4). Nothing here restates that contract — each invocation is handed to its judge verbatim, and this door only decides *which* invocations run. The judges carry their own posture (injection defense, read-only inspection, calibration).
-
-**Gauntlet's root.** Learn it exactly as `commands/review.md`'s "Locate gauntlet" does — `gauntlet root`, recorded as `GAUNTLET_ROOT` — and stop with that step's one line when gauntlet is not installed.
+Every posture lane is a `gauntlet:<judge>` dispatch — gauntlet is the fleet, this door is a consumer. Two verbs of gauntlet's `gauntlet` command drive it: `gauntlet dispatch` builds one validated contract-v1 invocation per judge (gauntlet's `docs/findings-contract.md` §3) and resolves each judge's standard from gauntlet's own charter, and `gauntlet report` compiles the findings documents the judges return (§4). Nothing here restates that contract — each invocation is handed to its judge verbatim, and this door only decides *which* invocations run. The judges carry their own posture (injection defense, read-only inspection, calibration). Find the command, or stop, exactly as `commands/review.md`'s "Locate gauntlet" does.
 
 ## Resolve the artifact (before any dispatch)
 
-A posture judge reads a whole repository at one ref, and every finding it files cites that ref — so it must read a tree that *is* that ref, never the working directory. Always the worktree, never a condition (the same rule gauntlet's own review command follows; `dispatch.py` refuses a tree that is not the ref):
+A posture judge reads a whole repository at one ref, and every finding it files cites that ref — so it must read a tree that *is* that ref, never the working directory. Always the worktree, never a condition (the same rule gauntlet's own review command follows; `gauntlet dispatch` refuses a tree that is not the ref):
 
 ```bash
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/studious-health.XXXXXX") && mkdir "$scratch/findings"
 REF=$(git rev-parse HEAD)
 git worktree add --detach "$scratch/tree" "$REF"
 git ls-tree -r --name-only "$REF" > "$scratch/paths.txt"
-python3 "$GAUNTLET_ROOT/scripts/dispatch.py" \
+gauntlet dispatch \
   --ref "$REF" --root "$scratch/tree" --paths "$scratch/paths.txt" \
   --context "<context files>" > "$scratch/invocations.json"
 ```
 
-`<context files>` is the comma-separated subset of `CLAUDE.md,DESIGN.md,PRODUCT.md` that exists — check existence in `$scratch/tree`, the detached worktree being judged, never the ambient checkout, which can differ. Do not pass prior reports as context and do not ask for a trend: every run is a baseline, and continuity lives in the issue tracker, not in a report store. If `dispatch.py` exits non-zero, relay its stderr — a refused tree or an empty selection is the answer, not an error to route around. Remove the worktree (`git worktree remove --force "$scratch/tree"`) and the scratch directory when the run ends, even if it failed. A dirty tree therefore judges HEAD, not the work in progress — say so when you report the artifact.
+`<context files>` is the comma-separated subset of `CLAUDE.md,DESIGN.md,PRODUCT.md` that exists — check existence in `$scratch/tree`, the detached worktree being judged, never the ambient checkout, which can differ. Do not pass prior reports as context and do not ask for a trend: every run is a baseline, and continuity lives in the issue tracker, not in a report store. If `gauntlet dispatch` exits non-zero, relay its stderr — a refused tree or an empty selection is the answer, not an error to route around. Remove the worktree (`git worktree remove --force "$scratch/tree"`) and the scratch directory when the run ends, even if it failed. A dirty tree therefore judges HEAD, not the work in progress — say so when you report the artifact.
 
-**Filter to the run's lanes.** `dispatch.py` emits every `posture` judge; keep only the ones this run dispatches — the table's one judge for a single-area run, all seven for the sweep (six when the prompt-surface check below found none). Write that list as a JSON array of judge names and keep the matching invocations:
+**Filter to the run's lanes.** `gauntlet dispatch` emits every `posture` judge; keep only the ones this run dispatches — the table's one judge for a single-area run, all seven for the sweep (six when the prompt-surface check below found none). Write that list as a JSON array of judge names and keep the matching invocations:
 
 ```bash
 jq --argjson keep '["codebase-posture-auditor",...]' \
@@ -72,7 +70,7 @@ jq --argjson keep '["codebase-posture-auditor",...]' \
 Report which judges the run dispatches and which it does not, and why. An unrun lane the
 operator does not know about reads as a clean one.
 
-**Dispatch.** One `Task` per invocation in `round.json`, all in a single message, in parallel — `subagent_type` is `gauntlet:<judge>`, and the prompt is that judge's invocation object, verbatim, followed by "your entire reply must be the findings document — one JSON object and nothing else" and "judge the tree at `artifact.root`, never this working directory". Prose rides *beside* the invocation, never inside it. Write each reply verbatim to `$scratch/findings/<judge>.json`; a reply that does not parse is a lane that did not report — keep the file as it came back, never repair or re-ask, and let `report.py` say so.
+**Dispatch.** One `Task` per invocation in `round.json`, all in a single message, in parallel — `subagent_type` is `gauntlet:<judge>`, and the prompt is that judge's invocation object, verbatim, followed by "your entire reply must be the findings document — one JSON object and nothing else" and "judge the tree at `artifact.root`, never this working directory". Prose rides *beside* the invocation, never inside it. Write each reply verbatim to `$scratch/findings/<judge>.json`; a reply that does not parse is a lane that did not report — keep the file as it came back, never repair or re-ask, and let `gauntlet report` say so.
 
 ## Single-area run (argument given)
 
@@ -88,7 +86,7 @@ Spawn all seven judges simultaneously (or six, when the prompt-surface check abo
 
 ### Phase 2 — Compile master summary
 
-After every judge returns, compile (below): one `report.py` run per lane writes each area's report at the table's path, and one run over the whole findings directory is the sweep's compiled report. Synthesize the master summary from the seven area reports and that compiled report — a finding `report.py` merged across lanes (its attribution names more than one judge) is a cross-review finding by construction.
+After every judge returns, compile (below): one `gauntlet report` run per lane writes each area's report at the table's path, and one run over the whole findings directory is the sweep's compiled report. Synthesize the master summary from the seven area reports and that compiled report — a finding `gauntlet report` merged across lanes (its attribution names more than one judge) is a cross-review finding by construction.
 
 #### Cross-review findings
 
@@ -132,18 +130,18 @@ Save the master summary to `docs/studious/health-reviews/YYYY-MM-DD-health-summa
 Run gauntlet's compiler over the run's findings directory, expecting exactly the judges this run dispatched:
 
 ```bash
-python3 "$GAUNTLET_ROOT/scripts/report.py" --findings "$scratch/findings" \
+gauntlet report --findings "$scratch/findings" \
   --expect "$(jq -r '[.[].judge] | join(",")' "$scratch/round.json")"
 ```
 
 It validates every document at the boundary, applies the contract's ingest rules (anchor-or-demote, taste-caps-at-track), names every demotion and unwrap, and renders the findings most-severe-first with each judge's `coverage`; a non-zero exit means at least one expected lane did not report — say so in the report and the summary, never drop the lane. An empty findings list with a substantive `coverage` is a clean result, not a failed lane. It prints no verdict, by design — this door records none either.
 
-The area report files are `report.py`'s markdown, one run per lane — `report.py` reads one flat directory and merges findings across the judges in it, so a per-lane directory is simpler than splitting a merged report by judge. On a single-area run the compiled run above *is* the area report. On the sweep:
+The area report files are `gauntlet report`'s markdown, one run per lane — `gauntlet report` reads one flat directory and merges findings across the judges in it, so a per-lane directory is simpler than splitting a merged report by judge. On a single-area run the compiled run above *is* the area report. On the sweep:
 
 ```bash
 for judge in $(jq -r '.[].judge' "$scratch/round.json"); do
   mkdir -p "$scratch/lane/$judge" && cp "$scratch/findings/$judge.json" "$scratch/lane/$judge/" 2>/dev/null
-  python3 "$GAUNTLET_ROOT/scripts/report.py" --findings "$scratch/lane/$judge" --expect "$judge" > <that judge's report path>
+  gauntlet report --findings "$scratch/lane/$judge" --expect "$judge" > <that judge's report path>
 done
 ```
 

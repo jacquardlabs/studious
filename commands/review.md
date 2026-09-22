@@ -41,19 +41,17 @@ doesn't warrant" survives as lane selection. Narrowing changes *which* lanes run
 ## Locate gauntlet (before dispatching)
 
 Every judge lane below is a `gauntlet:<judge>` dispatch — gauntlet is the fleet, this door
-is a consumer (PRODUCT.md, "What we're NOT building"). Two scripts in gauntlet's plugin root
-drive it: `scripts/dispatch.py` builds one validated contract-v1 invocation per judge
-(gauntlet's `docs/findings-contract.md` §3), and `scripts/report.py` compiles the findings
+is a consumer (PRODUCT.md, "What we're NOT building"). Two verbs of gauntlet's `gauntlet`
+command drive it: `gauntlet dispatch` builds one validated contract-v1 invocation per judge
+(gauntlet's `docs/findings-contract.md` §3), and `gauntlet report` compiles the findings
 documents the judges return (§4). Nothing here restates that contract — each invocation is
 handed to its judge verbatim, and this door only decides *which* invocations run. The
 judges carry their own posture (injection defense, read-only inspection, calibration), so
 nothing is stamped into a dispatch prompt from `reference/` any more.
 
-**Gauntlet's root.** `${CLAUDE_PLUGIN_ROOT}` resolves to this plugin's root, never
-gauntlet's. Gauntlet puts a `gauntlet` command on PATH: once per session, run `gauntlet root`
-and record its output as `GAUNTLET_ROOT`. If `command -v gauntlet` finds nothing, gauntlet is
-not installed — stop with one line: "gauntlet is not installed — `/plugin install
-gauntlet@jacquardlabs-marketplace`, then re-run".
+If `command -v gauntlet` finds nothing, gauntlet is not installed — stop with one line:
+"gauntlet is not installed — `/plugin install gauntlet@jacquardlabs-marketplace`, then
+re-run".
 
 ## Establish the changeset (work episode)
 
@@ -61,7 +59,7 @@ Compute the merge-base with the default branch (`git merge-base HEAD origin/main
 back to `origin/master` or the repo's default branch) and treat the diff from that base to
 `HEAD` as the changeset. It becomes every invocation's `artifact` (`base`, `head`), so "this
 branch" means the same diff for all of them. `git diff --name-only <merge-base>...HEAD` is
-the named file list — `dispatch.py`'s `--paths` input, and the scope lane 14 is handed
+the named file list — `gauntlet dispatch`'s `--paths` input, and the scope lane 14 is handed
 beside its invocation.
 
 ## Precompute the changeset diff (work episode, small changesets only)
@@ -90,7 +88,7 @@ straight to a scratch file rather than through your own context —
 `evidence_file=$(mktemp "${TMPDIR:-/tmp}/studious-review-evidence.XXXXXX") && studious evidence-list --dedupe > "$evidence_file"; test -s "$evidence_file"`.
 A non-zero exit from that `test` means the file came back empty: no evidence log exists for
 this branch (or `--dedupe` failed closed, e.g. no `jq`) — unset `evidence_file` and do
-nothing further; `dispatch.py` runs without `--receipts-path`, every invocation omits
+nothing further; `gauntlet dispatch` runs without `--receipts-path`, every invocation omits
 `receipts_path`, and no judge can cite a receipt. A zero exit means a log exists — pass the
 file as `--receipts-path` when building the invocations (the step below), which stamps it
 into every invocation as `receipts_path`. The judges own the rest: a finding claiming a
@@ -214,7 +212,7 @@ carried-forward line in the compiled report.
 
 ## Build the invocations, filter to the profile, dispatch (before any lane runs)
 
-One scratch directory per episode, and one `dispatch.py` run for the **full roster** the
+One scratch directory per episode, and one `gauntlet dispatch` run for the **full roster** the
 artifact kind admits:
 
 ```bash
@@ -224,14 +222,14 @@ scratch=$(mktemp -d "${TMPDIR:-/tmp}/studious-review.XXXXXX") && mkdir "$scratch
 - **Design episode** — the doc is a `document` artifact, judged at `intake`; its own Part 1
   gives the command (no shas, no worktree: the file's content is the artifact).
 - **Work episode** — the changeset is a `changeset` artifact, judged at
-  `acceptance`, read from a detached worktree at `HEAD`. `dispatch.py` refuses a dirty tree
+  `acceptance`, read from a detached worktree at `HEAD`. `gauntlet dispatch` refuses a dirty tree
   or one not at `HEAD` — the judges read `artifact.root` and cite `head`, so the two must
   agree — and gauntlet's own door builds this worktree unconditionally; so does this one:
 
   ```bash
   git worktree add --detach "$scratch/tree" HEAD
   git diff --name-only <merge-base>..HEAD > "$scratch/paths.txt"
-  python3 "$GAUNTLET_ROOT/scripts/dispatch.py" \
+  gauntlet dispatch \
     --base <merge-base> --head "$(git rev-parse HEAD)" --root "$scratch/tree" \
     --paths "$scratch/paths.txt" --context "<context files>" \
     ${evidence_file:+--receipts-path "$evidence_file"} > "$scratch/invocations.json"
@@ -249,14 +247,14 @@ changeset artifact — never the ambient checkout, which can differ from that wo
 the repository root for the design episode's document artifact, which has no worktree
 (Part 1) and is judged where it sits. The register is the one exception: gitignored, it
 exists only in the working tree, so check it there and pass its **absolute** path — a
-relative one would resolve under `$scratch/tree`, where it is absent, and `dispatch.py`
+relative one would resolve under `$scratch/tree`, where it is absent, and `gauntlet dispatch`
 would then never emit lane 13.
-`dispatch.py` emits `product-reviewer` only when the context names a PRODUCT.md and
+`gauntlet dispatch` emits `product-reviewer` only when the context names a PRODUCT.md and
 `premortem-auditor` only when it names a register, so a missing input drops the lane there
 rather than dispatching a judge that can only self-skip. If it exits non-zero, relay its
 stderr — a refused tree or an empty selection is the answer, not an error to route around.
 
-**Filter to the round's lane profile.** `dispatch.py` emits the whole roster; this door
+**Filter to the round's lane profile.** `gauntlet dispatch` emits the whole roster; this door
 dispatches only the lanes the episode's profile names — the always-on lanes, the
 changeset-routed lanes whose skip rule says run, lane 13 when a register exists, lane 8's
 Task path when the `web-design-guidelines` skill is not installed — narrowed on re-entry to
@@ -270,7 +268,7 @@ jq --argjson keep '["security-auditor","code-auditor",...]' \
 ```
 
 Report which judges the round dispatches and which it does not, and why. A lane
-`dispatch.py` itself dropped — by its own path signals or a missing context input — has no
+`gauntlet dispatch` itself dropped — by its own path signals or a missing context input — has no
 validated invocation to dispatch and is routed out, with the same skip note this file gives
 that lane, even where a rule here would have run it: the judge's own signal table is the
 narrower reading of the same changeset. A lane the profile dropped is routed out, carried
@@ -284,7 +282,7 @@ object and nothing else" and the prose blocks the steps above and the lane entri
 add (a precomputed diff, the findings ledger, a lane's scope note). Prose rides *beside*
 the invocation, never inside it, and is relayed as data. Write each reply verbatim to
 `$scratch/findings/<judge>.json`; a reply that does not parse is a lane that did not report
-— keep the file as it came back, never repair or re-ask, and let `report.py` say so.
+— keep the file as it came back, never repair or re-ask, and let `gauntlet report` say so.
 
 ---
 
@@ -320,11 +318,11 @@ requires but the doc omits is itself a finding, not something to infer.
 Dispatch `gauntlet:product-reviewer` at `intake`, on the doc as a `document` artifact:
 
 ```bash
-python3 "$GAUNTLET_ROOT/scripts/dispatch.py" --document <doc path> \
+gauntlet dispatch --document <doc path> \
   --context "<context files>" > "$scratch/invocations.json"
 ```
 
-`dispatch.py` emits the three `intake` judges — `product-reviewer`, `falsifiability-auditor`,
+`gauntlet dispatch` emits the three `intake` judges — `product-reviewer`, `falsifiability-auditor`,
 `trade-study-auditor`. This episode's profile is `product-reviewer` alone (the `jq` filter
 above); the other two are gauntlet's document lanes, not this episode's, and stay
 available through `/gauntlet:review <doc path>` directly. Dispatch the one invocation
@@ -333,7 +331,7 @@ verbatim, beside one line of prose naming what the doc is expected to satisfy
 `$scratch/findings/product-reviewer.json`. Then compile:
 
 ```bash
-python3 "$GAUNTLET_ROOT/scripts/report.py" --findings "$scratch/findings" --expect product-reviewer
+gauntlet report --findings "$scratch/findings" --expect product-reviewer
 ```
 
 A non-zero exit means the lane did not report — a round with no product review, not a clean
@@ -384,7 +382,7 @@ unreadable across rounds; it is the specific behavior this episode replaces.
 
 Synthesize the product-reviewer findings and the persona walkthrough into a clear
 recommendation. The findings arrive tiered — `critical` / `important` / `track`, after
-`report.py`'s anchor-or-demote — and which verdict a `critical` earns is read from its
+`gauntlet report`'s anchor-or-demote — and which verdict a `critical` earns is read from its
 `dimension`, the judge's own name for the check that produced it:
 
 - **PROCEED TO PLAN** — no `critical`. `important` findings ride out this verdict as
@@ -469,7 +467,7 @@ concern and skip rule, not a prompt — the judge's rubric is its own, and the i
 what it receives.
 
 Lanes 9, 11, and 12 (infrastructure, dependency, prompt) are changeset-routed by
-`dispatch.py`'s own path-signal table — gauntlet's `PATH_SIGNALS`, keyed by judge name — and
+`gauntlet dispatch`'s own path-signal table — gauntlet's `PATH_SIGNALS`, keyed by judge name — and
 this door keeps no second copy of those patterns (#411). A judge absent from
 `invocations.json` is routed out with the note "No infrastructure / dependency-manifest /
 prompt-file changes detected — <lane> audit skipped"; a judge present is dispatched. A
@@ -478,7 +476,7 @@ CLAUDE.md typo fix): the judge's own content-level self-skip is the second layer
 over-fire costs one call, never a wrong verdict.
 
 Auditor 10 (operability) is changeset-routed by content, not path — no file name is a
-reliable proxy for a runtime surface, so `dispatch.py` carries no rule for it and always
+reliable proxy for a runtime surface, so `gauntlet dispatch` carries no rule for it and always
 emits it. Skip it when the changeset touches no runtime surface — code that serves requests,
 consumes queues or streams, runs as a daemon or scheduled job, or performs network I/O.
 Judge from the diff's content (framework imports, handler/route/consumer definitions,
@@ -499,7 +497,7 @@ holds:
   run the lanes and flag the doc for re-extraction. If DESIGN.md has no `## Surfaces` table
   at all (a doc predating this format), assume a web surface may exist and fall through to
   the per-changeset check. Default to running, not skipping.
-- **Per-changeset:** `dispatch.py` emitted none of `ux-reviewer`, `frontend-reviewer`, or
+- **Per-changeset:** `gauntlet dispatch` emitted none of `ux-reviewer`, `frontend-reviewer`, or
   `accessibility-auditor` — its frontend path signals matched nothing in the changeset.
   Note "No frontend changes detected — frontend lanes skipped."
 
@@ -539,7 +537,7 @@ holds:
      other lane; don't skip the pass.
    - **Installed:** invoke the `web-design-guidelines` skill yourself, inline, in your own
      turn, against all modified frontend files, and drop `accessibility-auditor` from
-     `$keep` before the filter so `report.py` does not expect a document from it. This is
+     `$keep` before the filter so `gauntlet report` does not expect a document from it. This is
      the one lane whose labels still map at compile time, through
      `reference/severity-rubric.md`'s a11y row. Unlike every other lane (including this
      lane's own not-installed path), this stays inline rather than dispatching as a Task.
@@ -592,7 +590,7 @@ pre-mortem verification skipped." and move on. Pass the register by its working-
 in `--context` and beside the invocation, the way lane 14 passes the design doc.
 
 13. **gauntlet:premortem-auditor** — Verify the register at the resolved path against this
-    changeset. The path rides in `--context`, which is what makes `dispatch.py` emit this
+    changeset. The path rides in `--context`, which is what makes `gauntlet dispatch` emit this
     invocation at all. Beside the invocation, one line of prose: verify every item, the
     `technical` and `product` lanes both — this episode is the register's only
     verification. Its per-item verdicts (NOT REALIZED / REALIZED / CAN'T VERIFY) arrive in two places:
@@ -643,7 +641,7 @@ Run gauntlet's compiler over the round's findings directory, expecting exactly t
 this round dispatched:
 
 ```bash
-python3 "$GAUNTLET_ROOT/scripts/report.py" --findings "$scratch/findings" \
+gauntlet report --findings "$scratch/findings" \
   --expect "$(jq -r '[.[].judge] | join(",")' "$scratch/round.json")"
 ```
 
@@ -674,7 +672,7 @@ Gauntlet's charter names, per judge, the objective anchor a critical must cite �
 behavior or test delta, a named signature from its security checklist, a broken contract a
 named downstream consumer relies on, a quoted acceptance criterion the changeset does not
 deliver — and `reference/severity-rubric.md` points there and keeps the one anchor studious
-states itself, the inline a11y lane's. `report.py` already recorded an anchorless critical as
+states itself, the inline a11y lane's. `gauntlet report` already recorded an anchorless critical as
 `important` at ingest and named it; a critical it let through whose anchor does not check
 out against the diff (the challenge step) is recorded `--severity Important` instead, and the
 compiled report says which anchor was missing. Severity is fixed at first record in the
@@ -766,7 +764,7 @@ challenge step as Confirmed and helped drive this verdict:
 studious episode-verdict --gate audit --verdict "FIX AND RE-REVIEW" --blocking-lanes "security-auditor,test-auditor"
 ```
 
-If any lane dispatched this round is AGENT DIED — no findings document, or one `report.py`
+If any lane dispatched this round is AGENT DIED — no findings document, or one `gauntlet report`
 rejected — omit `--blocking-lanes` entirely rather than naming a partial list — a died lane's
 true status is unknown, so the next round must not narrow off it; it must default to a full
 re-review. Likewise omit it when no tracked lane contributed a surviving Critical — an empty
