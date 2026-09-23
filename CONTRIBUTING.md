@@ -64,7 +64,7 @@ The sites #302 named, and what was decided about each:
 
 | Site | Disposition | Why |
 | --- | --- | --- |
-| `reference/audit-compilation.md` — "Challenge every Critical before it can decide the verdict" | KEEP | The carve-out above. It runs on top of gauntlet's `scripts/report.py` ingest rules and routes uncertainty into filing rather than into re-reading (see `tests/ab/README.md`). |
+| `reference/audit-compilation.md` — "Challenge every Critical before it can decide the verdict" | KEEP | The carve-out above. It runs on top of `gauntlet report`'s ingest rules and routes uncertainty into filing rather than into re-reading (see `tests/ab/README.md`). |
 | `skills/task-execution-discipline/SKILL.md` Pillar 3 (verification-before-completion) | KEEP PENDING #188 | The one real deletion candidate. Deletion is gated on the golden-fixture replay harness ([#188](https://github.com/jacquardlabs/studious/issues/188), open): a regression there — a fresh executor filling `Evidence` less honestly without the prose — would block it. Nothing has run yet, so the prose stays and this row, not the pillar itself, is the gate a future deletion has to satisfy. |
 
 ## Naming conventions

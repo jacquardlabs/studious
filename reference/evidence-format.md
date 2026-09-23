@@ -142,12 +142,11 @@ Separate from the log above. `/build` captures per-task artifacts through
 checkout's gitignored build-evidence store; `/ship` Step 1 quotes captured text artifacts
 into the PR body, which is how they reach a judge. Labels in use, each pinned where its
 producer is described in `skills/build/SKILL.md`: `verify:results`, `inspector:report`,
-`build:replay-bundle` (Step 2), and `exorcist:report` (Step 3) — the report
-`/exorcist:exorcise` prints, captured under `--task exorcise` only after the post-exorcise
+`build:replay-bundle` (Step 2), and `exorcist:report` (Step 3) — the JSON report
+`/exorcist:exorcise --json` writes (exorcist#10), captured under `--task exorcise` only after the post-exorcise
 `verify` re-run passed and the `exorcise:` commit landed — or, when the pass left the tree
-clean, with neither, since there is nothing to re-verify or commit. Its `## Held` section
-is the one route a `hold` finding takes to `/review`; no separate findings format exists
-for it.
+clean, with neither, since there is nothing to re-verify or commit. Its `held[]` is the
+one route a `hold` finding takes to `/review`; no separate findings format exists for it.
 
 ## Reading the log: `evidence-list`
 

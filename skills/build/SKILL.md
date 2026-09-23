@@ -1,6 +1,6 @@
 ---
 name: build
-description: Runs the build loop over a hand-written PLAN.md (one checkpoint block for the quick path, several in spine order for the full cycle) -- a fresh, isolated executor per task, independent script-run verification, evidence capture, status flips written only by scripts never the model, a conditional fresh inspector dispatched on load-bearing tasks only, judging exactly test self-dealing, contract match, and technicality gaming, and one exorcise simplification pass (exorcist's /exorcist:exorcise, when installed) after the last PASS, re-verified by script before it is committed. After the last PASS, convenes /review's work episode itself (the full gauntlet lane fan-out, compiled to one verdict) rather than handing off to a separate /review invocation; a FIX AND RE-REVIEW dispatches a fresh executor scoped to the blocking findings and re-convenes once before an unresolved fix cycle goes back to the human. Use when the user says /build, asks to build or implement a PLAN.md's tasks, or hands over a single checkpoint block for the quick path (no /shape or /build doc required). Reports one session verdict -- BUILT, PAUSED, or ESCALATED -- plus the convened episode's own PASS, FIX AND RE-REVIEW, or NEEDS DISCUSSION -- and never auto-continues past a pause.
+description: Runs the build loop over a hand-written PLAN.md (one checkpoint block for the quick path, several in spine order for the full cycle) -- a fresh, isolated executor per task, independent script-run verification, evidence capture, status flips written only by scripts never the model, a conditional fresh inspector dispatched on load-bearing tasks only, judging exactly test self-dealing, contract match, and technicality gaming, and one exorcise simplification pass (exorcist's /exorcist:exorcise) after the last PASS, re-verified by script before it is committed. After the last PASS, convenes /review's work episode itself (the full gauntlet lane fan-out, compiled to one verdict) rather than handing off to a separate /review invocation; a FIX AND RE-REVIEW dispatches a fresh executor scoped to the blocking findings and re-convenes once before an unresolved fix cycle goes back to the human. Use when the user says /build, asks to build or implement a PLAN.md's tasks, or hands over a single checkpoint block for the quick path (no /shape or /build doc required). Reports one session verdict -- BUILT, PAUSED, or ESCALATED -- plus the convened episode's own PASS, FIX AND RE-REVIEW, or NEEDS DISCUSSION -- and never auto-continues past a pause.
 ---
 
 # /build
@@ -180,8 +180,7 @@ may appear anywhere in the block. No `Risk:` line means `LOW` — see Cadence.
    session report carries that reason beside every task's evidence. You
    never pass `--known-red` on your own judgment. Note the **base branch** the
    worktree was cut from (`--base` if you passed one, else the branch that
-   was checked out) as a branch name, never a sha — Step 3 hands it to
-   exorcise.
+   was checked out) — Step 3 hands it to exorcise.
 4. **Split the plan into task blocks**, in document order. This is your own
    judgment, not a mechanical heading-depth parser: read to each
    `### Task N — <title>` heading and stop accumulating a task's content at
@@ -676,7 +675,8 @@ continue. Only when every candidate is eliminated does the session report `PAUSE
 `ESCALATED`, with the last diagnosis. A risk-tagged pre-dispatch pause still blocks every
 candidate at once — it is the human's acknowledgment, not a candidate's failure.
 
-**Exorcise (Step 3)** runs once per survivor, in its own worktree.
+**Exorcise (Step 3)** runs once per survivor, in its own worktree, with its own
+`<scratch-path>` (a `c<k>` subdirectory) — one candidate's report is never read as another's.
 
 **Pick, mechanically, before any judge runs.** Rank the survivors by these rules in
 order, stopping at the first that separates them:
@@ -719,41 +719,49 @@ no criterion asks for does not belong in this story" is executed rather than
 judged. **A simplification never costs a fix cycle**: every branch below ends
 with the build proceeding to its verdict.
 
-1. **Check the skill listing.** Look for `exorcist:exorcise` in this
-   session's registered skill listing — never a file path.
-   **Not installed:** one line — "exorcist not installed — exorcise skipped;
-   install with `/plugin install exorcist@jacquardlabs-marketplace`." — and go
-   to the Session verdict. Never an error, never a Track note: the pass is
-   optional.
-2. **Dispatch.** State "exorcising against N tasks' intent", then launch one
+1. **Dispatch.** State "exorcising against N tasks' intent". Run
+   `rm -f <scratch-path>/exorcise-report.json` — exorcise leaves the path
+   untouched when it writes nothing, so a leftover there would read as this
+   run's — then capture a dispatch timestamp exactly as step 2.2 does, the
+   instant before launch; step 2 passes it as `--since`. Then launch one
    fresh Task-tool subagent, on step 2.2's model, whose entire prompt is exactly:
    - the intent: every task's `Do:` and `Done means:` lines, verbatim from
      the plan, in task order, then the plan's `## Amendments` block verbatim
      when one exists (human-authorized work `studious plan-amend` recorded —
      intent, not excess), and — if and only if a design doc exists
      (Step 0) — its `Proposed design` section, nothing wider;
-   - the worktree path and the base branch noted at Step 1.3;
-   - one boundary line, essentially: *"Set this branch's upstream to
-     `<base>` for the pass (`git branch --set-upstream-to=<base>`) so
-     exorcise's `@{upstream}...HEAD` scope is exactly this build, and unset
-     it after (`git branch --unset-upstream`). Run `/exorcist:exorcise`
-     with the intent above as its argument, in this worktree. Edit the
-     working tree only: never commit, never `git checkout --` or `git
-     reset`. Work in `<worktree>` exactly as given — never the Agent tool's own worktree isolation, which would land this dispatch in a fresh tree on the wrong branch (#365). Return the report exorcise prints, verbatim, and nothing else —
-     not a review of your own."*
+   - the worktree path and the base noted at Step 1.3;
+   - one boundary line, essentially: *"Run `/exorcist:exorcise --base
+     <base> --json <scratch-path>/exorcise-report.json` with the intent
+     above as its argument, in this worktree. Edit the working tree only:
+     never commit, never `git checkout --` or `git reset`. Work in
+     `<worktree>` exactly as given — never the Agent tool's own worktree isolation, which would land this dispatch in a fresh tree on the wrong branch (#365). Return nothing but
+     exorcise's own last line verbatim — its `JSON:` line, or the stop it
+     printed instead — not a review of your own."*
 
    Nothing else goes into the prompt — not `PLAN.md` in full, not any task's
    history, not this session's own conversation. The subagent runs
    exorcise's own §6 checks; that is its claim, not the verdict.
+2. **Check the report, before anything reads it.** Run
+   `studious exorcise-report --since <step 1's timestamp> <scratch-path>/exorcise-report.json`. Exit 0
+   prints the commit subject step 5 uses. Any non-zero exit — the report is
+   missing (`no exorcise report written`), older than the dispatch
+   (`exorcise report predates this dispatch`), or off contract (`exorcise
+   report off contract`), the script's line says which — is FAIL's cleanup without the
+   verify run: `git checkout -- .`, confirm `git status --porcelain` is empty,
+   one **Track** note quoting that line verbatim, and proceed to the Session
+   verdict. On `no exorcise report written` the note also quotes the line the
+   subagent returned — exorcise's own stop (validate gate failed, base
+   unresolved, empty diff) writes no file — or says it returned none.
+   Nothing is captured: an unchecked report never reaches `/review`.
 3. **Nothing cast out.** If `git status --porcelain` is empty after the
    dispatch — every hunk traced, or every finding held — there is nothing
    to verify or commit: the tree is byte-identical to the one each task's
    `verify` already passed on. Skip steps 4 and 5. Record one line for the
    session report, "exorcise: nothing to cast out — every hunk traced",
-   then write the returned report to `<scratch-path>/exorcise-report.md`
-   and capture it with step 5's exact `evidence-capture` call, exit 2
-   routed the same way — a pass that held everything is this branch too,
-   and its `## Held` section reaches `/review` only through that artifact.
+   then capture the JSON report with step 5's exact `evidence-capture` call,
+   exit 2 routed the same way — a pass that held everything is this branch
+   too, and its `held[]` reaches `/review` only through that artifact.
    Not a Track note: nothing failed.
 4. **Verify, independently.** For every task, in order, re-run step 2.5's
    exact `verify` call — same `--plan`/`--task`, same `--probe-spec` when
@@ -763,44 +771,38 @@ with the build proceeding to its verdict.
    the #44 shape again) — writing each `--out` to
    `<scratch-path>/exorcise/results-<task>.json`. Exit 2 here is the same
    usage error step 2.5 names; route it the same way.
-5. **PASS on every task.** Commit the working tree as one commit,
-   `exorcise: <concepts removed>`, the list taken from the report's
-   `Concepts removed:` line (the same line may also carry a `Concepts kept:`
-   clause, naming new symbols that survived; the commit message
-   draws from `Concepts removed:` only). You commit here on `verify`'s PASS — the same
+5. **PASS on every task.** Commit the working tree as one commit, under
+   the subject step 2 printed — `exorcise: <concepts removed>`, or the
+   applied actions by count on a pass that removed no concept.
+   You commit here on `verify`'s PASS — the same
    mechanical ground `status-flip` writes on — and the message comes from
    the report, never from a diff; this is the one commit in this loop an
    executor didn't make, and it is a commit of what a script just passed.
-   Then write the returned report to `<scratch-path>/exorcise-report.md`
-   (after the commit, so its mtime clears the freshness check) and capture
-   it:
-   `studious evidence-capture --task exorcise --repo <worktree> --artifact exorcist:report=<scratch-path>/exorcise-report.md`.
+   Then `touch` the report (after the commit, so its mtime clears the
+   freshness check) and capture it:
+   `studious evidence-capture --task exorcise --repo <worktree> --artifact exorcist:report=<scratch-path>/exorcise-report.json`.
    The label is pinned in `reference/evidence-format.md`. An exit 2
    ("evidence directory already exists") routes to step 2.7's rule, never
-   the Failure routine. The report's `## Held` section — `hold` findings
+   the Failure routine. The report's `held[]` — `hold` findings
    exorcise would not apply (trust boundary, behavior change, spec conflict)
-   — reaches `/review` the way an Inspector `CONCERN` does: quoted from the
+   — reaches `/review` the way an Inspector `CONCERN` does: rendered from the
    captured artifact into the PR body `/ship` assembles (`skills/ship/SKILL.md`
    Step 1 resolves `--task exorcise` for exactly this).
-6. **FAIL on any item.** Run `git checkout -- .` in the worktree —
-   exorcise's own documented undo — and confirm `git status --porcelain` is
+6. **FAIL on any item.** Run `git checkout -- .` in the worktree — exorcise
+   edits only the working tree, so this is its undo — and confirm `git status --porcelain` is
    empty: the tree is exactly the `BUILT` tree again. Record one **Track**
    note for the session report naming the failing task and item and the
-   report's `Concepts removed:` line, plus its `Concepts kept:` clause too when
-   the report carries one, and proceed to
+   report's `concepts_removed` and `concepts_kept`, and proceed to
    the Session verdict. No
    fix cycle, no re-dispatch, no Failure routine.
-7. **The subagent died or returned no report.** Treat as FAIL's cleanup
-   without the verify run: `git checkout -- .`, confirm clean, one Track note
-   ("exorcise dispatch died"), proceed.
 
 A branch that never went through `/build` gets no pass from this skill —
 that is `/review`'s finding or the human's own `/exorcist:exorcise`.
 
 ## Step 4 — Convene the work episode
 
-Runs once Step 3 has finished (whatever it found — a simplification landed, a Track note,
-or a skip line). `/build` now convenes `/review`'s work episode itself, on this same
+Runs once Step 3 has finished (whatever it found — a simplification landed, the
+nothing-cast-out line, or a Track note). `/build` now convenes `/review`'s work episode itself, on this same
 built diff, in this same session — the same episode a separately-invoked `/review` would
 run against it, never a lighter or shortcut version. **Convening is not judging: `/build`
 may convene the work episode as a convenience, but the verdict is always `/review`'s.
@@ -822,7 +824,7 @@ add anything to a dispatch prompt beyond what those steps already gather. Lane 1
 episode reads only what `reference/evidence-format.md` and its own resolution rules give
 it, the same as it would for any other executor:
 
-1. **Locate gauntlet** — per `reference/locate-gauntlet.md`, recording `GAUNTLET_ROOT`.
+1. **Locate gauntlet** — per that step, its stop line included.
 2. **Establish the changeset** — merge-base to `HEAD` in this worktree.
 3. **Precompute the changeset diff** — small-changeset scratch file, per that step's
    400-line threshold.
@@ -839,7 +841,7 @@ it, the same as it would for any other executor:
    episode, narrowed to `.gates.audit.blockingLanes` on re-entry.
 8. **The work episode itself** — every lane and skip rule commands/review.md names
    (1–14), launched in parallel exactly as that section specifies.
-9. **Compile** — `report.py`, the three verdict tokens (`PASS` · `FIX AND RE-REVIEW` ·
+9. **Compile** — `gauntlet report`, the three verdict tokens (`PASS` · `FIX AND RE-REVIEW` ·
    `NEEDS DISCUSSION`), per `reference/audit-compilation.md`.
 10. **Record it** — `studious episode-verdict --gate audit --verdict "<verdict>"`.
 
@@ -891,7 +893,7 @@ still-open findings to discussion) — the human's call, not this door's.
 
 | Verdict | When |
 |---|---|
-| `BUILT` | Every task in the plan reaches `PASS`, Step 3 has run (or been skipped with its line), and Step 4 closed `PASS`/`NEEDS DISCUSSION`. Report the branch/worktree, Step 3's outcome (concepts removed, the nothing-cast-out line, the Track note, or the skip line), and Step 4's episode verdict on one line each. Under `--candidates`, the branch is the one the human chose, and the report carries the candidate table. |
+| `BUILT` | Every task in the plan reaches `PASS`, Step 3 has run, and Step 4 closed `PASS`/`NEEDS DISCUSSION`. Report the branch/worktree, Step 3's outcome (concepts removed, the nothing-cast-out line, or the Track note), and Step 4's episode verdict on one line each. Under `--candidates`, the branch is the one the human chose, and the report carries the candidate table. |
 | `PAUSED` | A dirty or missing baseline stopped Setup, or a task's Failure routine resolved to `REPLAN`, or a risk-tagged task is waiting for a pre-dispatch acknowledgment, or a `verify`/`status-flip` usage error persisted after one retry, or Step 4's convened work episode hit its round cap or a convergence refusal. Resumable once the human acts. |
 | `ESCALATED` | A task's Failure routine resolved to `ESCALATE`. Terminal for this session — hand off to `/shape` in revision mode. |
 

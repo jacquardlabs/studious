@@ -19,6 +19,7 @@
   ],
   "dependencies": [
     "viva",
-    "gauntlet"
+    "gauntlet",
+    "exorcist"
   ]
 }

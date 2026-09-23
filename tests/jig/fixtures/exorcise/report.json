@@ -1,0 +1,69 @@
+{
+  "contract_version": 1,
+  "generated": "2026-09-22T18:04:11Z",
+  "branch": "studious/build-42-retry",
+  "intent": {"source": "text", "pr": null},
+  "claims": [
+    {"n": 1, "text": "sendWebhook retries a failed POST up to 3 times with backoff"},
+    {"n": 2, "text": "a webhook that exhausts its retries is recorded as failed, not dropped"},
+    {"n": 3, "text": "tests cover the retry and give-up paths in tests/test_sender.py"}
+  ],
+  "scope": {
+    "base_ref": "main",
+    "base_sha": "6a528f8c0d1e4b2f9a7c3e5d1b0a9f8e7d6c5b4a",
+    "head_sha": "c0ffee1234567890abcdef1234567890abcdef12",
+    "source": "flag",
+    "includes_worktree": true,
+    "hunks": 9
+  },
+  "lanes": {"trace": "reported", "abstraction": "reported", "threshold": "reported", "deletion": "did not report"},
+  "single_pass": false,
+  "concepts_removed": ["RetryPolicy"],
+  "concepts_kept": [{"name": "backoff_delays", "callers": 2}],
+  "applied": [
+    {
+      "lane": "abstraction", "file": "src/http/client.ts", "line": 44, "end_line": 71,
+      "title": "RetryPolicy class, 1 caller",
+      "evidence": "grep -n RetryPolicy src/ → 2 hits: the definition and sendWebhook",
+      "action": "inline", "target": "src/webhook/sender.ts:30", "concepts": ["RetryPolicy"], "hold": null,
+      "also": [], "status": "applied", "outcome": "inlined into sendWebhook; deleted the class and its import"
+    },
+    {
+      "lane": "trace", "file": "src/util/format.ts", "line": 3, "end_line": 40,
+      "title": "reformatted formatDate",
+      "evidence": "claims 1-3: formatDate is not on the webhook path; whitespace-only hunk",
+      "action": "revert", "target": null, "concepts": [], "hold": null,
+      "also": [], "status": "skipped", "outcome": "skipped: tests/test_format.ts snapshot pins the new formatting"
+    }
+  ],
+  "held": [
+    {
+      "lane": "trace", "file": "tests/test_sender.py", "line": 88, "end_line": 120,
+      "title": "give-up test for sendWebhook",
+      "evidence": "claim 3 names the give-up path; revert would remove its only test",
+      "action": "hold", "target": null, "concepts": [], "hold": "implied by intent",
+      "claim": 3, "next": "nothing; kept because claim 3 entails it", "also": []
+    },
+    {
+      "lane": "trace", "file": null, "line": null, "end_line": null,
+      "title": "give-up path never records the failure",
+      "evidence": "claim 2 → no hunk writes a failed status: grep -n 'status.*failed' src/webhook/ → 0 hits",
+      "action": "hold", "target": null, "concepts": [], "hold": "unmet claim",
+      "claim": 2, "next": "write the failed status in sendWebhook's give-up branch, or drop claim 2", "also": []
+    }
+  ],
+  "out_of_intent_files": ["src/util/format.ts"],
+  "checks": [
+    {"name": "npm test -- tests/test_sender.py", "outcome": "pass", "detail": null}
+  ],
+  "tripwires": {
+    "added": 212, "removed": 31, "changed": 243, "loc_limit": 200,
+    "files": {"changed": 5, "added": ["src/util/backoff.ts"], "deleted": []},
+    "new_exports": [{"file": "src/util/backoff.ts", "line": 1, "symbol": "backoff_delays"}],
+    "new_deps": [],
+    "warnings": ["243 lines changed (+212/-31); warn at 200"]
+  },
+  "justifications": [
+    {"warning": "243 lines changed (+212/-31); warn at 200", "note": "half the added lines are the two tests claim 3 requires"}
+  ]
+}

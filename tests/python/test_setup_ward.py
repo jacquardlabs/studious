@@ -1,9 +1,9 @@
-"""`/setup` proposes exorcist's ward and degrades to one line without it (#318, seam 1).
+"""`/setup` proposes exorcist's ward (#318, seam 1).
 
 The ward is imported into CLAUDE.md, which every executor reads, so `/setup` is the
-zero-wiring seam. Two properties are load-bearing: the step follows the propose-then-write
-posture Step 5b sets, and exorcist's absence is a note, never an error — the cctx pattern
-in `skills/ship/SKILL.md` Step 2.
+zero-wiring seam. Studious's own rules for it: the step follows the propose-then-write
+posture Step 5b sets, and a missing exorcist is an install defect pointed at
+`/studious:doctor` — exorcist is a declared dependency (#441) — never an optional skip.
 """
 
 from __future__ import annotations
@@ -33,19 +33,34 @@ def test_ward_step_proposes_before_writing() -> None:
     assert "Step 5b" in step, "cites the .gitignore step as the posture it mirrors"
 
 
-def test_ward_step_degrades_to_one_line_without_exorcist() -> None:
-    step = _step("Step 6b")
-    assert "Not installed" in step
-    assert "Never an error" in step
-    assert "exorcist@jacquardlabs-marketplace" in step, "names the install"
-
-
-def test_ward_step_checks_the_skill_listing_not_a_path() -> None:
-    step = _step("Step 6b")
-    assert "registered skill listing" in step
+def test_a_missing_exorcist_is_an_install_defect_pointed_at_doctor() -> None:
+    step = " ".join(_step("Step 6b").split())
+    assert "install defect" in step
+    assert "`/studious:doctor`'s `exorcist` row" in step, "the one stop line lives there"
+    assert "Never an error" not in step
+    assert "exorcist@jacquardlabs-marketplace" not in step, "the install line is doctor's, not restated"
     assert "CLAUDE_PLUGIN_ROOT" not in step, "another plugin's root is not resolvable here"
 
 
 def test_summary_reports_the_ward_outcome() -> None:
     step = _step("Step 7")
     assert "Ward" in step
+    assert "exorcist missing" in step
+
+
+def test_doctor_carries_the_one_exorcist_stop_line() -> None:
+    doctor = (REPO_ROOT / "commands" / "doctor.md").read_text(encoding="utf-8")
+    row = next(line for line in doctor.splitlines() if line.startswith("- **`exorcist` available**"))
+    assert "registered skill listing" in row
+    assert "/plugin install exorcist@jacquardlabs-marketplace" in row
+
+
+def test_doctor_holds_exorcist_to_the_release_that_ships_json() -> None:
+    """#441: an exorcist before 0.6.0 has no `--json`, passes the listing check, then loses
+    every /build Step 3 pass -- doctor reads the installed version the way the viva row does."""
+    doctor = (REPO_ROOT / "commands" / "doctor.md").read_text(encoding="utf-8")
+    row = next(line for line in doctor.splitlines() if line.startswith("- **`exorcist` available**"))
+    assert "the way the `viva` row resolves its install" in row
+    assert "`jacquardlabs-marketplace/exorcist/*`" in row and "`.claude-plugin/plugin.json` `version`" in row
+    assert "Older than `0.6.0`: **Important**" in row
+    assert "`no exorcise report written`" in row

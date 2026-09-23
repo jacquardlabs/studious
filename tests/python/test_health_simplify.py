@@ -1,10 +1,10 @@
-"""`/health simplify` runs exorcist's séance and degrades to one line without it (#318, seam 3).
+"""`/health simplify` runs exorcist's séance as an opt-in mode (#318, seam 3).
 
-Three properties are load-bearing: the area row invokes `/exorcist:seance` by skill name
-(never a `Task` dispatch — exorcist is not a declared dependency, so its judges are not
-a `subagent_type` here); exorcist's absence is a note, never an error — the cctx pattern
-in `skills/ship/SKILL.md` Step 2; and the door never applies a register — working one is
-a human-typed producer act, kept out of a recommend-only door.
+Studious's own rules for it: the area row invokes `/exorcist:seance` by skill name
+(never a `Task` dispatch); the mode never rides the bare sweep; a missing exorcist is an
+install defect pointed at `/studious:doctor`, not an optional skip — exorcist is a
+declared dependency (#441); and the door never applies a register — working one is a
+human-typed producer act, kept out of a recommend-only door.
 """
 
 from __future__ import annotations
@@ -28,14 +28,14 @@ def test_area_table_has_a_simplify_row_that_invokes_the_seance_skill() -> None:
 def test_simplify_is_a_mode_never_part_of_the_full_sweep() -> None:
     assert "never rides the bare sweep" in MODE_PARAGRAPH
     assert "75 minutes" in MODE_PARAGRAPH, "says why in one line"
-    assert "skip the rest of this file" in MODE_PARAGRAPH
+    assert "Skip the rest of this file" in MODE_PARAGRAPH
 
 
-def test_simplify_degrades_to_one_line_without_exorcist() -> None:
-    assert "Not installed" in MODE_PARAGRAPH
-    assert "Never an error" in MODE_PARAGRAPH
-    assert "exorcist@jacquardlabs-marketplace" in MODE_PARAGRAPH, "names the install"
-    assert "registered skill listing" in MODE_PARAGRAPH
+def test_a_missing_exorcist_is_an_install_defect_pointed_at_doctor() -> None:
+    assert "install defect" in MODE_PARAGRAPH
+    assert "`/studious:doctor`'s `exorcist` row" in MODE_PARAGRAPH, "the one stop line lives there"
+    assert "Never an error" not in MODE_PARAGRAPH, "a declared dependency's absence is not optional"
+    assert "exorcist@jacquardlabs-marketplace" not in MODE_PARAGRAPH, "the install line is doctor's, not restated"
     assert "CLAUDE_PLUGIN_ROOT" not in MODE_PARAGRAPH, "another plugin's root is not resolvable here"
 
 
@@ -47,9 +47,8 @@ def test_simplify_never_applies_a_register() -> None:
 
 
 def test_simplify_hands_exorcise_the_json_never_the_rendering() -> None:
-    # exorcise's mode test is "first token is an existing .json" (exorcist 0.4.2
-    # `commands/exorcise.md` §0); a .md path silently becomes a changeset-run intent.
-    # Approval status lives in register.json too (`reference/register.md`, `status`).
+    # exorcise's mode test is "first token is an existing .json"; a .md path silently
+    # becomes a changeset-run intent. Approval status lives in register.json too.
     for text in (SIMPLIFY_ROW, MODE_PARAGRAPH):
         for arg in re.findall(r"/exorcist:exorcise ([^`]*)", text):
             assert arg.endswith("register.json"), f"exorcise handed {arg!r}"

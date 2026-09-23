@@ -40,6 +40,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _exorcise import off_contract
 from _gitutil import git_repo_root
 from _planparse import (
     TIER_BODY_RE,
@@ -52,8 +53,6 @@ from _planparse import (
 SCRIPTS = Path(__file__).resolve().parent
 DECISIONS_RE = re.compile(r"^### Decisions[ \t]*$", re.MULTILINE)
 NEXT_H1_TO_3_RE = re.compile(r"^#{1,3}[ \t]", re.MULTILINE)
-CONCEPTS_RE = re.compile(r"^Concepts removed:.*$", re.MULTILINE)
-HELD_RE = re.compile(r"^## Held[ \t]*$", re.MULTILINE)
 
 
 class Stop(Exception):
@@ -169,15 +168,30 @@ def exorcise_block(repo: Path, branch: str, root: str | None) -> tuple[str, Path
     path = artifact(folder, "exorcist", "report")
     if path is None:
         return "", folder
-    text = path.read_text(encoding="utf-8", errors="replace")
-    m = CONCEPTS_RE.search(text)
-    lines = [m.group(0)] if m else ["(report carries no `Concepts removed:` line)"]
-    held = HELD_RE.search(text)
-    if held:
-        rest = text[held.end():]
-        nxt = re.search(r"^## ", rest, re.MULTILINE)
-        lines += ["", "## Held", rest[: nxt.start()].strip() if nxt else rest.strip()]
-    return details("Exorcise pass", "\n".join(lines)), folder
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return details("Exorcise pass", f"(exorcise report unreadable: {exc})"), folder
+    return details("Exorcise pass", "\n".join(exorcise_lines(report))), folder
+
+
+def exorcise_lines(report: object) -> list[str]:
+    """Render `exorcise --json` (exorcist#10). A shape this reader was not written
+    against is named in the block, never guessed at -- the contract is the seam."""
+    why = off_contract(report)
+    if why or not isinstance(report, dict):
+        return [f"(exorcise report {why} -- not rendered)"]
+    removed, kept, held = report["concepts_removed"], report["concepts_kept"], report["held"]
+    lines = [f"Concepts removed: {', '.join(map(str, removed)) or 'none'}"]
+    lines += [f"Concepts kept: {', '.join(k['name'] for k in kept)}"] if kept else []
+    lines += ["", "Held:"] if held else []
+    # An `unmet claim` hold has a null file: it names what the diff lacks, by claim.
+    lines += [f"- {h.get('hold')}: {h['title']} ({held_locus(h)}) -- next: {h.get('next')}" for h in held]
+    return lines
+
+
+def held_locus(hold: dict) -> str:
+    return f"{hold['file']}:{hold.get('line')}" if isinstance(hold.get("file"), str) else f"claim {hold.get('claim')}"
 
 
 def section_after(text: str, heading_re: re.Pattern[str]) -> str:

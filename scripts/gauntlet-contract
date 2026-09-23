@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""gauntlet-contract -- find gauntlet and check the findings contract it speaks (#441).
+
+    gauntlet-contract
+
+The one gauntlet discovery point every door runs before a dispatch
+(`commands/review.md`, "Locate gauntlet"). `gauntlet` on PATH is how a
+co-installed plugin is found (gauntlet's `docs/findings-contract.md`, "Consumer
+transport"). Its contract version is read from the contract itself, never from
+its install root: every invocation `gauntlet dispatch` emits carries
+`contract_version`, and a document artifact needs no repository or tree, so a
+throwaway `--document` probe reads it anywhere. Negotiation is exact match (the
+contract's own section 1), so any other version is a stop.
+
+Exit codes: 0 gauntlet found and speaks the contract studious reads (one line
+naming both on stdout). 1 a stop -- gauntlet missing, off-contract, or its probe
+unreadable -- with one `error:` line on stderr, which the door relays verbatim.
+2 usage error.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+#: The findings contract version studious's doors are written against.
+GAUNTLET_CONTRACT_VERSION = 1
+NOT_INSTALLED = (
+    "error: gauntlet is not installed, or older than the release that ships bin/gauntlet (0.16.0) -- "
+    "`/plugin install gauntlet@jacquardlabs-marketplace`, then re-run"
+)
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="gauntlet-contract", description="Find gauntlet and check the findings contract it speaks."
+    )
+    parser.add_argument("--timeout", type=float, default=60.0, help="seconds the probe may take")
+    return parser.parse_args(argv)
+
+
+def run(argv: list[str], timeout: float) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
+
+
+def probe_version(gauntlet: str, timeout: float) -> tuple[object, str]:
+    """The `contract_version` gauntlet stamps on a document invocation, or the
+    reason there is none. A missing key reads as None, never as a match."""
+    with tempfile.TemporaryDirectory() as tmp:
+        doc = Path(tmp) / "probe.md"
+        doc.write_text("# probe\n", encoding="utf-8")
+        try:
+            r = run([gauntlet, "dispatch", "--document", str(doc)], timeout)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return None, f"gauntlet dispatch did not answer ({exc.__class__.__name__})"
+    if r.returncode != 0:
+        return None, f"gauntlet dispatch exited {r.returncode}: {r.stderr.strip() or 'no stderr'}"
+    try:
+        emitted = json.loads(r.stdout)
+    except ValueError:
+        return None, "gauntlet dispatch printed no JSON"
+    first = emitted[0] if isinstance(emitted, list) and emitted else None
+    return (first.get("contract_version") if isinstance(first, dict) else None), ""
+
+
+def gauntlet_version(gauntlet: str, timeout: float) -> str:
+    try:
+        r = run([gauntlet, "--version"], timeout)
+    except (OSError, subprocess.TimeoutExpired):
+        return "unknown"
+    return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else "unknown"
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+    gauntlet = shutil.which("gauntlet")
+    if gauntlet is None:
+        print(NOT_INSTALLED, file=sys.stderr)
+        return 1
+    version, why = probe_version(gauntlet, args.timeout)
+    release = gauntlet_version(gauntlet, args.timeout)
+    if why:
+        print(f"error: gauntlet {release} contract_version unreadable -- {why}; stop", file=sys.stderr)
+        return 1
+    # bool is an int subclass; `True` must not pass as version 1 (gauntlet's own schema rule).
+    if isinstance(version, bool) or version != GAUNTLET_CONTRACT_VERSION:
+        print(
+            f"error: gauntlet {release} findings contract_version {version!r} is not "
+            f"{GAUNTLET_CONTRACT_VERSION} -- stop; update studious or gauntlet until they agree",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"gauntlet {release} at {gauntlet}: findings contract_version {version}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

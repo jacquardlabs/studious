@@ -66,10 +66,11 @@ Via the Jacquard Labs marketplace:
 /plugin install studious@jacquardlabs-marketplace
 ```
 
-That also installs the two declared dependencies: [viva](https://github.com/jacquardlabs/viva),
-which `/shape` and `/build` drive for their human sign-off rounds, and
+That also installs the three declared dependencies: [viva](https://github.com/jacquardlabs/viva),
+which `/shape` and `/build` drive for their human sign-off rounds,
 [gauntlet](https://github.com/jacquardlabs/gauntlet), whose judges `/review` and `/health`
-dispatch.
+dispatch, and [exorcist](https://github.com/jacquardlabs/exorcist), whose exorcise pass
+ends every `/build`.
 
 Then, in any project:
 
@@ -79,8 +80,8 @@ Then, in any project:
 
 This creates your context documents — PRODUCT.md and DESIGN.md, extracted from the codebase
 as it actually is — scaffolds the `docs/studious/` report directories, and wires the
-workflow into CLAUDE.md. If [exorcist](https://github.com/jacquardlabs/exorcist) is
-installed, it also offers to install the ward, so every executor builds under the same
+workflow into CLAUDE.md. It also offers to install
+[exorcist](https://github.com/jacquardlabs/exorcist)'s ward, so every executor builds under the same
 simplification rules the judges hold it to. Review PRODUCT.md first: the extraction is evidence-based, but your
 product principles and your "not building" list need your voice.
 
@@ -172,7 +173,7 @@ perform. It ships a route through both. Use it, or don't; the judges can't tell.
   by the model, and load-bearing tasks get a fresh inspector judging exactly three things:
   test self-dealing, contract match, technicality gaming. After the last task passes, an
   exorcist pass strips what no criterion asked for, the scripts re-verify, and one
-  `exorcise:` commit lands (skipped with a note when exorcist is not installed). It then
+  `exorcise:` commit lands. It then
   convenes `/review`'s work episode itself — the verdict is always `/review`'s, `/build`
   never writes one — dispatching a fresh, scoped fix executor and re-convening once on its own
   `FIX AND RE-REVIEW` before handing an unresolved fix cycle back. Reports `BUILT`,
@@ -301,7 +302,7 @@ ledger gets "no cycle data in this clone", not an error.
 | `/health readme` | User-facing docs: stale claims, broken commands, voice drift | After a release |
 | `/health prompts` | Trigger coverage, contract alignment, duplication, injection posture | Monthly |
 | `/health backlog` | Open issues that are resolved, obsolete, or duplicated | After a review cycle |
-| `/health simplify` | Exorcist's séance: standing simplification targets as a register you approve, then `/bet` or `/exorcist:exorcise` (needs exorcist installed) | Quarterly, or before a large refactor |
+| `/health simplify` | Exorcist's séance: standing simplification targets as a register you approve, then `/bet` or `/exorcist:exorcise` | Quarterly, or before a large refactor |
 | `/retro` | The cycle's own ledger: last plan checked, numbers, proposed changes, next plan | After each epic or milestone closes |
 | `/retro outcomes` | Shipped merges graded against the fixes and reverts that followed | Quarterly |
 

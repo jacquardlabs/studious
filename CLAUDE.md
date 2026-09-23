@@ -61,7 +61,7 @@ The directory layout encodes a role split (full version in `CONTRIBUTING.md`):
 - `hooks/` — shipped hook scripts + `hooks.json`. Two live hooks: a silent PostToolUse/PostToolUseFailure evidence-capture hook on `Bash` that appends verification-command records while a story is armed (`evidence-capture.sh`; format pinned in `reference/evidence-format.md`); and a silent SessionStart hook on `startup`/`resume` that surfaces a counts-only flow-position heads-up when a work file is active (`session-start.sh`).
 - `bin/studious` — the one entrypoint every door invokes (`studious <verb>`, #346). A verb naming a `scripts/` executable execs it; every other verb execs `bin/gate-ledger`, which reads/writes the per-branch gate ledger, its episodes, the per-feature `/next` work files, and the evidence log. **A rule that leaves prose lands here as a verb**; the prose then names `studious <verb>` and nothing else. Prompts keep judgment (FIX vs RESAMPLE, REPLAN vs ESCALATE, verdict compilation, the interview) and the human stops.
 - `templates/` — PRODUCT.md / DESIGN.md scaffolds created by `/setup` in the consuming project.
-- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence) and the door-run executables (`plan-lint`, `plan-drift`, `plan-amend`, `design-lint`, `verify`, `status-flip`, `build-report`, `ship-body`, `cctx-footer`, `evidence-capture`, `evidence-freshness`, `worktree-setup`, `retro-stats`), reached as `studious <name>`. Those executables are run by `/build`, `/shape`, `/ship`, and `/retro`, not by CI. The placement rule: an entrypoint goes in `bin/`; a verb a door runs is an extensionless executable in `scripts/`; a CI helper is a `*.py` there and is never dispatched (CONTRIBUTING.md, "Where the next executable goes").
+- `scripts/` — Python CI helpers (link-check, manifest validation, gate independence) and the door-run executables (`plan-lint`, `plan-drift`, `plan-amend`, `design-lint`, `verify`, `status-flip`, `build-report`, `ship-body`, `exorcise-report`, `cctx-footer`, `evidence-capture`, `evidence-freshness`, `worktree-setup`, `retro-stats`, `gauntlet-contract`), reached as `studious <name>`. Those executables are run by `/build`, `/shape`, `/ship`, `/retro`, and — `gauntlet-contract`, the one gauntlet discovery point — `/review`, `/health`, and `/doctor`, not by CI. The placement rule: an entrypoint goes in `bin/`; a verb a door runs is an extensionless executable in `scripts/`; a CI helper is a `*.py` there and is never dispatched (CONTRIBUTING.md, "Where the next executable goes").
 
 Key invariants when adding or changing prompts:
 
@@ -110,9 +110,14 @@ Decision records: `docs/initiative-altitude.md` (2026-07-07) — the brigade rep
 jig was absorbed into this plugin (#150), not added beside it. `/shape`, `/build`,
 `/ship`, and `/next` are `skills/` here like any other; their Python lives
 in `scripts/`, their unittest suite in `tests/jig/`. One manifest, one version line, one
-install. The manifest declares `dependencies: ["viva", "gauntlet"]` — `/build` and `/shape`
-stop dead without viva; `/health` dispatches nothing without gauntlet, and `/review`'s
-judge lanes are `gauntlet:*` dispatches too, live since #334 S1 shipped.
+install. The manifest declares `viva`, `gauntlet`, and `exorcist` as dependencies by name
+(#441) — `/build` and `/shape` stop dead without viva; `/health` dispatches nothing
+without gauntlet, and `/review`'s judge lanes are `gauntlet:*` dispatches too, live
+since #334 S1 shipped; `/build`'s Step 3 is exorcist's `exorcise`. No version ranges: seam
+safety is a contract-version check where studious reads each versioned payload —
+`studious gauntlet-contract` for gauntlet's findings contract, `studious exorcise-report`
+for exorcist's report — stopping with a named message on a mismatch. viva's seam has no
+version check; `/studious:doctor` checks the entrypoints studious invokes.
 
 Two plugins was considered and rejected: separate installability served an audience of
 zero while costing two version lines, two release paths, a `git-subdir` marketplace

@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""exorcise-report -- check exorcise's JSON report before /build Step 3 acts on it (#441).
+
+    exorcise-report --since <ISO-8601> <report.json>
+
+Validates the report `/exorcist:exorcise --json` wrote against the contract
+version studious reads (`scripts/_exorcise.py`, the same reader `ship-body`
+renders with), then prints the `exorcise:` commit subject Step 3 commits under:
+the report's `concepts_removed`, or -- on a pass that removed no concept but
+still applied edits (reverts, say) -- the applied actions by count. The subject
+is never a bare `exorcise: `.
+
+`--since` is the dispatch timestamp Step 3 captured the instant before it
+launched exorcise. A report whose mtime predates it was not written by this
+dispatch -- a leftover at the fixed path, or another run's -- and is refused:
+exorcise leaves the path untouched when it writes nothing, so an old file there
+would otherwise pass as this run's.
+
+The failures carry distinct labels, because they mean different things: no
+report at the path is `no exorcise report written` (exorcise's own documented
+stops -- validate gate failed, base unresolved, empty diff -- write none, so this
+is not by itself a crash); a report older than `--since` is `exorcise report
+predates this dispatch`; a report this reader was not written against, or one
+that is not JSON at all, is `exorcise report off contract`.
+
+Exit codes (DESIGN.md's exit ladder): 0 report valid, subject on stdout. 1 a
+refusal -- the report is off contract or predates `--since` -- named on stderr.
+2 usage error: bad flags, an unparseable `--since`, no report at the path, or a
+report that is not JSON.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from collections import Counter
+from datetime import datetime
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _exorcise import off_contract
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="exorcise-report", description="Check exorcise's JSON report; print the commit subject.")
+    parser.add_argument(
+        "--since", required=True, help="ISO-8601 dispatch timestamp; a report whose mtime predates it is refused"
+    )
+    parser.add_argument("report", help="the path passed to `/exorcist:exorcise --json`")
+    return parser.parse_args(argv)
+
+
+def since_epoch(since: str) -> float | None:
+    """`since` as a POSIX epoch, or None. Python 3.9's `fromisoformat` rejects a bare `Z`."""
+    try:
+        return datetime.fromisoformat(since.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def subject(report: dict) -> str:
+    removed = [str(c) for c in report["concepts_removed"]]
+    if removed:
+        return "exorcise: " + ", ".join(removed)
+    actions = Counter(str(a.get("action")) for a in report["applied"] if a.get("status") == "applied")
+    if actions:
+        return "exorcise: no concept removed; " + ", ".join(f"{action} x{n}" for action, n in sorted(actions.items()))
+    return "exorcise: no concept removed, no applied entry"
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+    path = Path(args.report)
+    floor = since_epoch(args.since)
+    if floor is None:
+        print(f"error: --since {args.since!r} is not an ISO-8601 timestamp", file=sys.stderr)
+        return 2
+    if not path.is_file():
+        print(f"error: no exorcise report at {path} -- no exorcise report written", file=sys.stderr)
+        return 2
+    if path.stat().st_mtime < floor:
+        print(
+            f"error: exorcise report at {path} is older than --since {args.since} "
+            "-- exorcise report predates this dispatch",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"error: exorcise report unreadable ({exc}) -- exorcise report off contract", file=sys.stderr)
+        return 2
+    why = off_contract(report)
+    if why:
+        print(f"error: exorcise report {why} -- exorcise report off contract", file=sys.stderr)
+        return 1
+    print(subject(report))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

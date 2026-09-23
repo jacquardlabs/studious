@@ -74,8 +74,12 @@ class TestPluginManifest(unittest.TestCase):
         # /build and /shape stop dead without viva; it went undeclared while
         # they shipped from jig's own repo — now studious's manifest must
         # declare it.
-        manifest = json.loads(PLUGIN_MANIFEST.read_text(encoding="utf-8"))
-        self.assertIn("viva", manifest.get("dependencies", []))
+        # By name, never a version range (#441): a ranged url-sourced dependency
+        # resolves against `{name}--v{version}` tags no jacquardlabs repo cuts.
+        # Seam safety is each reader's contract-version check instead.
+        deps = json.loads(PLUGIN_MANIFEST.read_text(encoding="utf-8")).get("dependencies", [])
+        self.assertIn("viva", deps)
+        self.assertTrue(all(isinstance(d, str) for d in deps), deps)
 
 
 class TestSkillsDirectory(unittest.TestCase):

@@ -43,7 +43,9 @@ class TestExitLadder(unittest.TestCase):
                 r = run([str(verb)])
                 if r.returncode == 0:
                     continue  # no required input: the verb ran (cctx-footer, retro-stats)
-                self.assertEqual(r.returncode, 2, r.stderr)
+                # gauntlet-contract takes no input either; it ran and refused (exit 1)
+                # when this environment has no gauntlet on PATH.
+                self.assertEqual(r.returncode, 1 if verb.name == "gauntlet-contract" else 2, r.stderr)
                 self.assertNotIn("Traceback", r.stderr)
                 self.assertRegex(r.stderr.lstrip().splitlines()[0], FIRST_LINE)
 

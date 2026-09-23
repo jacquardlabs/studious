@@ -25,7 +25,7 @@ Never introduce a fourth tier.
 A tier is not a self-assessment: a Critical must cite the objective anchor its lane owns — a fact
 a reader can check without re-running the reviewer's judgment. For every gauntlet judge the
 anchor is named in gauntlet's charter (`charter.md` under its `reference/` directory, "Anchors —
-what a critical must cite"), and gauntlet's `scripts/report.py` records an anchorless critical
+what a critical must cite"), and `gauntlet report` records an anchorless critical
 as `important` at ingest and names the demotion in the compiled report. **A finding labelled
 Critical that cites no anchor is recorded Important instead** — the gate door applies this before
 the ledger write, and the compiled report names the anchor that was missing. The one anchor
