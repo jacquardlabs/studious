@@ -816,6 +816,22 @@ class TestResolveCommandForMethod(unittest.TestCase):
                 "skills/build/SKILL.md",
             )
 
+    def test_a_test_file_outside_both_trees_runs_through_the_test_command(self) -> None:
+        """#451: executable and tree rules first, then `<test_command> <path>`."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            target = repo / "tests" / "test it.py"
+            target.parent.mkdir(parents=True)
+            target.write_text("def test_ok():\n    pass\n", encoding="utf-8")
+            self.assertEqual(
+                self.module.resolve_command_for_method("tests/test it.py", repo, test_command="uv run pytest"),
+                "uv run pytest 'tests/test it.py'",
+            )
+            write_method_script(repo, "tests/run")
+            self.assertEqual(
+                self.module.resolve_command_for_method("tests/run", repo, test_command="uv run pytest"), "tests/run"
+            )
+
     def test_a_path_that_does_not_exist_on_disk_is_unchanged(self) -> None:
         """The do-line fallback case (plan-lint's check_item_tier): a method
         an earlier task promises to create. Not yet resolvable -- unchanged."""
@@ -908,6 +924,74 @@ class TestVerifyPlanModeMethodPathResolutionEndToEnd(unittest.TestCase):
             result = run_script(["--plan", str(plan), "--task", "1", "--repo", str(repo)])
             self.assertEqual(result.returncode, 1)
             self.assertIn("[FAIL] item 1", result.stdout)
+
+
+class TestVerifyTestCommand(unittest.TestCase):
+    """#451: a consuming repo's own test file, outside studious's two test trees,
+    runs through that repo's own test command (`--test-command`) instead of being
+    executed as a bare path (exit 126 on every item). A throwaway git repo stands in
+    for the consuming project; stdlib unittest stands in for its runner."""
+
+    TEST_COMMAND = f"{shlex.quote(sys.executable)} -m unittest"
+
+    def _run(self, repo: Path, body: str, *extra: str, tier: str = "test-backed", path: str = "tests/test_x.py"):
+        target = repo / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(f"import unittest\n\nclass T(unittest.TestCase):\n    def test_it(self):\n        {body}\n", encoding="utf-8")
+        commit_all(repo, "add test")
+        plan = write_plan(repo.parent, plan_task(1, items=f"1. [cap] the test passes (tier: {tier} `{path}`)\n"))
+        out = repo.parent / "results.json"
+        result = run_script(["--plan", str(plan), "--task", "1", "--repo", str(repo), "--out", str(out), *extra])
+        return result, json.loads(out.read_text(encoding="utf-8"))
+
+    def _repo(self, tmp: str) -> Path:
+        repo = Path(tmp) / "consumer"
+        repo.mkdir()
+        init_repo(repo)
+        return repo
+
+    def test_a_passing_test_passes_through_the_test_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result, doc = self._run(self._repo(tmp), "self.assertTrue(True)", "--test-command", self.TEST_COMMAND)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("[PASS] item 1 (cap/test-backed)", result.stdout)
+        self.assertEqual(doc["test_command"], self.TEST_COMMAND)
+        self.assertEqual(doc["items"][0]["test_command"], self.TEST_COMMAND)
+        self.assertNotIn("interpreter", doc, "the project's own runner: no --python floor probe")
+        self.assertNotIn("interpreter", doc["items"][0])
+
+    def test_a_failing_test_fails_through_the_test_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result, _ = self._run(self._repo(tmp), "self.assertTrue(False)", "--test-command", self.TEST_COMMAND)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("[FAIL] item 1", result.stdout)
+        self.assertIn(f"command: {self.TEST_COMMAND} tests/test_x.py", result.stdout)
+        self.assertNotIn("Permission denied", result.stdout)
+
+    def test_without_the_flag_the_path_runs_bare_as_before(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result, doc = self._run(self._repo(tmp), "self.assertTrue(True)")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("command: tests/test_x.py\n", result.stdout)
+        self.assertIn("exit code: 126", result.stdout)
+        self.assertNotIn("test_command", doc)
+
+    def test_a_script_tier_item_is_never_wrapped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result, _ = self._run(
+                self._repo(tmp), "self.assertTrue(True)", "--test-command", self.TEST_COMMAND, tier="script"
+            )
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("command: tests/test_x.py\n", result.stdout)
+
+    def test_the_studious_tree_rules_still_win_over_the_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            result, doc = self._run(
+                self._repo(tmp), "self.assertTrue(True)", "--test-command", "false", path="tests/jig/test_x.py"
+            )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("interpreter", doc["items"][0])
+        self.assertNotIn("test_command", doc)
 
 
 class TestVerifyPlanModeUsageErrors(unittest.TestCase):

@@ -208,7 +208,9 @@ def interpreter_version(python: str) -> tuple[int, int] | None:
     return (int(major), int(minor)) if major.isdigit() and minor.isdigit() else None
 
 
-def resolve_command_for_method(method_path: str, repo_root: Path, python: str = sys.executable) -> str:
+def resolve_command_for_method(
+    method_path: str, repo_root: Path, python: str = sys.executable, test_command: str | None = None
+) -> str:
     """Turn a `script`/`test-backed` item's cited method path into a runnable shell
     command, mechanically -- never a guess (issue #208).
 
@@ -227,28 +229,38 @@ def resolve_command_for_method(method_path: str, repo_root: Path, python: str = 
       never a bare `python3` resolved by whatever PATH the caller had (#248), so
       results.json can say which interpreter every test-backed item ran under.
 
+    Otherwise, with `test_command` (`--test-command`, passed for `test-backed`
+    items only): `<test_command> <path>` -- a consuming project's own test file
+    run through that project's own runner, the command the human approved (#451).
+
     Anything else falls through to the path itself, unchanged -- a `test-backed`
-    item citing neither case is a plan-authoring problem for `plan-lint` to catch,
+    item citing none of these is a plan-authoring problem for `plan-lint` to catch,
     not something to rescue by guessing an interpreter.
     """
     full = repo_root / method_path
     if os.access(full, os.X_OK):
         return method_path
-    if full.suffix == ".py" and full.is_file():
-        try:
-            parts = full.resolve().relative_to(repo_root.resolve()).parts
-        except ValueError:
-            return method_path  # outside the repo: no test tree can own it
+    root = repo_root.resolve()
+    # outside the repo, no test tree can own it
+    if full.suffix == ".py" and full.is_file() and full.resolve().is_relative_to(root):
+        parts = full.resolve().relative_to(root).parts
         if parts[:2] == ("tests", "python"):
             return f"{shlex.quote(python)} -m pytest {shlex.quote(method_path)} -q"
         if parts[:2] == ("tests", "jig"):
             directory = str(PurePosixPath(*parts[:-1]))
             return f"{shlex.quote(python)} -m unittest discover -s {shlex.quote(directory)} -p {shlex.quote(parts[-1])}"
+    if test_command:
+        return f"{test_command} {shlex.quote(method_path)}"
     return method_path
 
 
 def derive_items_from_plan(
-    plan_path: Path, task_label: str, probe_spec_path: Path | None, repo_root: Path, python: str = sys.executable
+    plan_path: Path,
+    task_label: str,
+    probe_spec_path: Path | None,
+    repo_root: Path,
+    python: str = sys.executable,
+    test_command: str | None = None,
 ) -> dict:
     """Build an ITEMS_SCHEMA document mechanically from `plan_path`'s named
     task block; raises ValueError (a usage error, exit 2) on any problem —
@@ -309,9 +321,12 @@ def derive_items_from_plan(
     def derive(item: Item, tier: str, method_path: str | None) -> dict:
         if tier in COMMAND_TIERS:
             assert method_path is not None  # refused above: a command tier names its path
-            command = resolve_command_for_method(method_path, repo_root, python)
+            wrap = test_command if tier == "test-backed" else None
+            command = resolve_command_for_method(method_path, repo_root, python, wrap)
             derived = {"id": int(item.num), "kind": item.kind, "tier": tier, "command": command}
-            if command.startswith(shlex.quote(python) + " -m "):
+            if wrap and command == f"{wrap} {shlex.quote(method_path)}":
+                derived["test_command"] = wrap  # its own runner: no --python floor applies
+            elif command.startswith(shlex.quote(python) + " -m "):
                 derived["interpreter"] = python
             return derived
         entry = probe_spec[item.num]
@@ -475,6 +490,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "below-floor ambient python3 cannot fail a real item with an ImportError (#248)"
         ),
     )
+    parser.add_argument(
+        "--test-command",
+        default=None,
+        help=(
+            "the project's own test command; a test-backed item citing a file that is "
+            "neither executable nor under tests/python or tests/jig runs as "
+            "'<cmd> <path>' (#451). Without it that item runs as the bare path"
+        ),
+    )
     parser.add_argument("--out", default=None, help="path to write a JSON results document")
     return parser.parse_args(argv)
 
@@ -485,7 +509,12 @@ def main(argv: list[str]) -> int:
 
     try:
         data = derive_items_from_plan(
-            Path(args.plan), args.task, Path(args.probe_spec) if args.probe_spec else None, repo, args.python
+            Path(args.plan),
+            args.task,
+            Path(args.probe_spec) if args.probe_spec else None,
+            repo,
+            args.python,
+            args.test_command or None,
         )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -547,13 +576,16 @@ def main(argv: list[str]) -> int:
 
     if args.out:
         by_id = {item["id"]: item for item in items}
+        recorded = ("interpreter", "test_command")
         dumped = [
-            {**asdict(r), **({"interpreter": by_id[r.id]["interpreter"]} if "interpreter" in by_id.get(r.id, {}) else {})}
+            {**asdict(r), **{key: by_id[r.id][key] for key in recorded if key in by_id.get(r.id, {})}}
             for r in results
         ]
         document: dict = {"task": data.get("task"), "overall": overall, "items": dumped}
         if interpreter is not None:
             document["interpreter"] = interpreter
+        if any("test_command" in item for item in items):
+            document["test_command"] = args.test_command
         Path(args.out).write_text(json.dumps(document, indent=2), encoding="utf-8")
 
     return 0 if overall == "PASS" else 1

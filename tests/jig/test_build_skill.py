@@ -696,6 +696,27 @@ class TestSmallMode(unittest.TestCase):
         self.assertIn("then every command its `Done means:` items will run, one per line", self.section)
         self.assertIn("This run executes the commands listed above exactly as written.", self.section)
 
+    def test_a_missing_test_command_is_proposed_at_stop_1_never_written_to_claude_md(self) -> None:
+        # #451: a CLAUDE.md naming no test command is not a setup pause in small mode; the
+        # command is read from the repo's own declarations, approved at stop 1, and the
+        # run never commits it into the project (the cctx canary's executor did).
+        self.assertIn("else one read from the repo's own declarations", self.section)
+        self.assertIn("never a guessed runner", self.section)
+        self.assertIn("is never written into the repo: no `CLAUDE.md` edit", self.section)
+        self.assertIn("show the human the block, the test command and where it was read", self.section)
+        self.assertLess(self.section.index("Settle the **test command**"), self.section.index("then every command its"))
+        self.assertIn("so Step 1.1's missing-command stop never fires here", self.section)
+        self.assertNotRegex(self.section, r"(add|write|commit)\w*[^.]{0,60}to `CLAUDE\.md`")
+
+    def test_every_verify_call_carries_the_baseline_as_test_command(self) -> None:
+        # #451: one statement establishes the command (Step 1.1); every verify call passes it.
+        self.assertEqual(self.body.count("`<baseline command>` for the whole run"), 1)
+        calls = [line for line in SKILL_MD.read_text(encoding="utf-8").splitlines() if "studious verify --plan" in line]
+        self.assertTrue(calls)
+        for call in calls:
+            self.assertIn('--test-command "<baseline command>"', call)
+        self.assertIn("same `--test-command`", self.body)
+
     def test_issue_text_never_enters_a_shell_command_as_typed_text(self) -> None:
         self.assertIn("gh issue view <N> --json title,body,labels > <scratch-path>/issue.json", self.section)
         title = '"$(jq -r .title <scratch-path>/issue.json)"'
