@@ -2,6 +2,63 @@
 
 <!-- version list -->
 
+## v6.13.0 (2026-09-23)
+
+### Bug Fixes
+
+- Accept /next's SKIPPED on finish; stop small-mode re-entry past round 1
+  ([#450](https://github.com/jacquardlabs/studious/pull/450),
+  [`3d7f048`](https://github.com/jacquardlabs/studious/commit/3d7f048fe5831c4691ca3a9f1cdd4c0542656590))
+
+- Gate-ledger — work-set --init-phase never moves a phase; close work-log's finish vocabulary
+  ([#450](https://github.com/jacquardlabs/studious/pull/450),
+  [`3d7f048`](https://github.com/jacquardlabs/studious/commit/3d7f048fe5831c4691ca3a9f1cdd4c0542656590))
+
+- Keep gate-ledger's build case arm first and its comments off producer door names
+  ([#450](https://github.com/jacquardlabs/studious/pull/450),
+  [`3d7f048`](https://github.com/jacquardlabs/studious/commit/3d7f048fe5831c4691ca3a9f1cdd4c0542656590))
+
+- Key small-mode re-entry on the issue number; capture work-set's slug
+  ([#450](https://github.com/jacquardlabs/studious/pull/450),
+  [`3d7f048`](https://github.com/jacquardlabs/studious/commit/3d7f048fe5831c4691ca3a9f1cdd4c0542656590))
+
+- Small mode reaches no status-flip, including Step 2.5's parse-error path
+  ([#450](https://github.com/jacquardlabs/studious/pull/450),
+  [`3d7f048`](https://github.com/jacquardlabs/studious/commit/3d7f048fe5831c4691ca3a9f1cdd4c0542656590))
+
+- Small mode review round 1 — verdict mapping, untrusted issue body, pre-mortem skip, one
+  PR-authority statement ([#450](https://github.com/jacquardlabs/studious/pull/450),
+  [`3d7f048`](https://github.com/jacquardlabs/studious/commit/3d7f048fe5831c4691ca3a9f1cdd4c0542656590))
+
+- Small mode review round 2 — re-entry on the same PR, safe issue text, commands shown at the start
+  stop ([#450](https://github.com/jacquardlabs/studious/pull/450),
+  [`3d7f048`](https://github.com/jacquardlabs/studious/commit/3d7f048fe5831c4691ca3a9f1cdd4c0542656590))
+
+- Small mode skips status-flip, since the brief lives outside the repo
+  ([#450](https://github.com/jacquardlabs/studious/pull/450),
+  [`3d7f048`](https://github.com/jacquardlabs/studious/commit/3d7f048fe5831c4691ca3a9f1cdd4c0542656590))
+
+- State work-set's phase write as what the code does, not a guarantee it lacks
+  ([#450](https://github.com/jacquardlabs/studious/pull/450),
+  [`3d7f048`](https://github.com/jacquardlabs/studious/commit/3d7f048fe5831c4691ca3a9f1cdd4c0542656590))
+
+- Step 3's report check hands on to Step 4, not the Session verdict
+  ([#450](https://github.com/jacquardlabs/studious/pull/450),
+  [`3d7f048`](https://github.com/jacquardlabs/studious/commit/3d7f048fe5831c4691ca3a9f1cdd4c0542656590))
+
+### Documentation
+
+- CLAUDE.md — small mode's start stop is /next's confirmation
+  ([#450](https://github.com/jacquardlabs/studious/pull/450),
+  [`3d7f048`](https://github.com/jacquardlabs/studious/commit/3d7f048fe5831c4691ca3a9f1cdd4c0542656590))
+
+### Features
+
+- Small mode — /build --small, issue to PR with 2 stops
+  ([#450](https://github.com/jacquardlabs/studious/pull/450),
+  [`3d7f048`](https://github.com/jacquardlabs/studious/commit/3d7f048fe5831c4691ca3a9f1cdd4c0542656590))
+
+
 ## v6.12.0 (2026-09-23)
 
 ### Bug Fixes
