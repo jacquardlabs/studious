@@ -752,8 +752,8 @@ with the build proceeding to its verdict.
    (`exorcise report predates this dispatch`), or off contract (`exorcise
    report off contract`), the script's line says which — is FAIL's cleanup without the
    verify run: `git checkout -- .`, confirm `git status --porcelain` is empty,
-   one **Track** note quoting that line verbatim, and proceed to the Session
-   verdict. On `no exorcise report written` the note also quotes the line the
+   one **Track** note quoting that line verbatim, and proceed to Step 4.
+   On `no exorcise report written` the note also quotes the line the
    subagent returned — exorcise's own stop (validate gate failed, base
    unresolved, empty diff) writes no file — or says it returned none.
    Nothing is captured: an unchecked report never reaches `/review`.
