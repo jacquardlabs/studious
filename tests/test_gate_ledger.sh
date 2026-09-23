@@ -165,8 +165,9 @@ check "record does not create a ledger file when jq is unavailable" "no" \
 
 # --- work-set creates a slugged work file with fields and timestamps ---
 d12=$(sandbox)
-( cd "$d12" && "$LEDGER" work-set --slug "Fancy Feature!!" --title "Fancy feature" --source "issue #7" --phase decide )
+out12=$(cd "$d12" && "$LEDGER" work-set --slug "Fancy Feature!!" --title "Fancy feature" --source "issue #7" --phase decide)
 wf12="$d12/.studious/work/fancy-feature.json"
+check "work-set prints the normalized slug, and only it, on stdout (#440)" "fancy-feature" "$out12"
 check "work-set slugs the filename" "yes" "$([ -f "$wf12" ] && echo yes || echo no)"
 check "work-set stores title" "Fancy feature" "$(jq -r '.title' "$wf12")"
 check "work-set stores source" "issue #7" "$(jq -r '.source' "$wf12")"
@@ -1638,6 +1639,52 @@ check "the resolved work file is collected on the same run" "no" "$([ -f "$d346/
 check "a merged file under the scope-delta guard is kept, reading done" "done" "$(jq -r '.phase' "$d346/.studious/work/kept.json")"
 check "the resolution leaves a merge/MERGED history entry naming the default branch" "$def346" "$(jq -r '.history[-1] | select(.step == "merge" and .outcome == "MERGED") | .into' "$d346/.studious/work/kept.json")"
 check "an unmerged branch's work file stays active" "build" "$(jq -r '.phase' "$d346/.studious/work/unmerged.json")"
+
+# --- work-set --init-phase never moves a phase (#440, /build --small) ---
+d440=$(sandbox)
+( cd "$d440" && "$LEDGER" work-set --slug fresh --title "t" --init-phase build ) >/dev/null
+check "--init-phase starts a new work file at that phase" "build" "$(jq -r '.phase' "$d440/.studious/work/fresh.json")"
+( cd "$d440" && "$LEDGER" work-set --slug fresh --branch build/fresh --init-phase build ) >/dev/null; rc=$?
+check "--init-phase on a file already at that phase exits 0" "0" "$rc"
+check "--init-phase on a file already at that phase still writes the other fields" "build/fresh" "$(jq -r '.branch' "$d440/.studious/work/fresh.json")"
+( cd "$d440" && "$LEDGER" work-set --slug other --title "other story" --branch feat/other --phase design ) >/dev/null
+before440=$(cat "$d440/.studious/work/other.json")
+err440=$(cd "$d440" && "$LEDGER" work-set --slug other --title "hijack" --branch build/x --init-phase build 2>&1 1>/dev/null); rc=$?
+check "--init-phase on a file at another phase exits 2" "2" "$rc"
+contains "--init-phase names the phase it refused to move" "is at phase 'design', not 'build'" "$err440"
+check "--init-phase refusal writes nothing" "$before440" "$(cat "$d440/.studious/work/other.json")"
+( cd "$d440" && "$LEDGER" work-set --slug fresh --phase build --init-phase build ) >/dev/null 2>&1; rc=$?
+check "--phase and --init-phase together exit 2" "2" "$rc"
+
+# --- work-get --source finds a story by its issue, whatever its slug (#440) ---
+d440s=$(sandbox)
+( cd "$d440s" && "$LEDGER" work-set --slug "Old title" --source "#12" --branch build/old --init-phase build ) >/dev/null
+check "work-get --source returns the one file with that source" "old-title" \
+  "$(cd "$d440s" && "$LEDGER" work-get --source "#12" | jq -r '.slug')"
+check "work-get --source matches exactly, never a prefix" "" "$(cd "$d440s" && "$LEDGER" work-get --source "#1")"
+( cd "$d440s" && "$LEDGER" work-get --source "#99" ) >/dev/null; rc=$?
+check "work-get --source with no match exits 0" "0" "$rc"
+( cd "$d440s" && "$LEDGER" work-set --slug "New title" --source "#12" --init-phase build ) >/dev/null
+err440s=$(cd "$d440s" && "$LEDGER" work-get --source "#12" 2>&1 1>/dev/null); rc=$?
+check "work-get --source with two matches exits 2" "2" "$rc"
+contains "work-get --source names every match" "new-title" "$err440s"
+contains "work-get --source names every match (2)" "old-title" "$err440s"
+( cd "$d440s" && "$LEDGER" work-get --slug x --source "#12" ) >/dev/null 2>&1; rc=$?
+check "--slug and --source together exit 2" "2" "$rc"
+
+# --- work-log --step finish's outcome vocabulary is closed (#440) ---
+( cd "$d440" && "$LEDGER" work-log --slug fresh --step finish --outcome PR ) >/dev/null; rc=$?
+check "--step finish --outcome PR is accepted" "0" "$rc"
+check "--step finish --outcome PR lands in history" "PR" "$(jq -r '.history[-1] | select(.step == "finish") | .outcome' "$d440/.studious/work/fresh.json")"
+( cd "$d440" && "$LEDGER" work-log --slug fresh --step finish --outcome HANDED-OFF --phase "done" ) >/dev/null; rc=$?
+check "--step finish --outcome HANDED-OFF is accepted" "0" "$rc"
+before440=$(cat "$d440/.studious/work/fresh.json")
+err440=$(cd "$d440" && "$LEDGER" work-log --slug fresh --step finish --outcome OPENED 2>&1 1>/dev/null); rc=$?
+check "--step finish with an unknown outcome exits 2" "2" "$rc"
+contains "--step finish names its vocabulary" "use HANDED-OFF, PR, or SKIPPED" "$err440"
+check "--step finish refusal writes nothing" "$before440" "$(cat "$d440/.studious/work/fresh.json")"
+( cd "$d440" && "$LEDGER" work-log --slug fresh --step finish --outcome SKIPPED ) >/dev/null; rc=$?
+check "--step finish --outcome SKIPPED (/next's Skips) is accepted" "0" "$rc"
 
 echo "----"
 if [ "$fails" -eq 0 ]; then echo "all gate-ledger tests passed"; exit 0; else echo "$fails failure(s)"; exit 1; fi

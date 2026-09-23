@@ -168,7 +168,8 @@ meaningful.
 
 ## Step 3 — Task calibration
 
-3-8 tasks. Fewer than 3 means the plan is too coarse for real per-task
+3-8 tasks, on the full loop only: `/build --small` writes no `PLAN.md` and has no floor.
+Fewer than 3 means the plan is too coarse for real per-task
 verification granularity -- merge candidates, or the design itself needs to
 fragment into more than one plan; more than 8 means either the split is
 artificially fine-grained (merge) or the feature is genuinely too big for

@@ -194,7 +194,8 @@ until a plan artifact carries it again:
   **and** a gauntlet run at 0 critical findings. Nothing in this repo exercises this
   tier yet (M0's S1 gate is "driven to green," not merged); it is declared here so the
   class exists to assign, before anything needs it.
-- **human-approve** — features. `/ship` opens the PR; a code owner merges.
+- **human-approve** — features. `/ship` (or `/build --small`, on its start stop's go-ahead)
+  opens the PR; a code owner merges.
 - **never-unattended** — security, infrastructure, prompt-prose. A human is present for
   the whole story.
 

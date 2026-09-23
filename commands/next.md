@@ -22,7 +22,9 @@ involves, and stop for the user's word before running it. Propose, don't apply.
 
 **One exception:** if the previous turn's closing block already named this exact piece and
 the user's message is an advance ("next", "go", "keep going", a bare `/next`), that *is*
-the confirmation — run it without asking again.
+the confirmation — run it without asking again. The same holds when the piece is
+`/build --small`: its own start stop is the confirmation, so run it on the report rather
+than asking twice.
 
 **Never auto-advance past the piece you ran.** When it finishes — pass, fail, or handoff —
 stop with the closing block below, even when the result is a clean pass and the next step is
@@ -31,7 +33,8 @@ obvious. The user advances the flow; you never do.
 **A piece runs to its next real decision without asking (#371).** Inside a piece, never
 pause to ask "run it now?", "pick up the next task?", or "ready when you are". The stops
 are the decisions this door already names — a stop/rethink token, a Critical waiver, a
-round cap, a fork, a sign-off, the pick between `/build` candidates, the ship verdict —
+round cap, a fork, a sign-off, the pick between `/build` candidates, `/build --small`'s
+start stop, the ship verdict —
 plus `PAUSED` with a named cause.
 Everything else is a report line, not a question. Measure: human turns per story ≤
 decisions made (`studious retro-stats` counts both).
@@ -69,8 +72,9 @@ Either route to a built branch is the user's pick — `/build`, Superpowers' pla
 workflow, or hand-implemented code reaches the same work episode; no episode cares which
 route produced the branch.
 
-After piece 3 the flow is `done`. Never open the PR yourself: the PR is the user's
-(`gh pr create`; the closing block carries the verdict trail they open it on).
+After piece 3 the flow is `done`. This door never opens a PR itself. A PR opens only on
+the user's own go-ahead: `/ship`'s `PR` verdict, or `/build --small`'s start stop, which
+authorizes the PR that run opens. Merging is always the user's.
 
 No door is mandatory, only default. Tracker-placed work — an issue, a list, a milestone —
 starts at `build`; `/bet` is the first piece for a raw idea, or whenever the user asks.
@@ -157,6 +161,11 @@ anything, and correct the file when they disagree — evidence wins:
   commits instead". `bin/gate-ledger` rejects unknown build outcomes on write, so seeing one
   means a record predating that check or a hand-edited file — either way the diff is the ground
   truth, not the label.
+- **Small mode's PR** — a `step: "finish"` entry with outcome `PR` in the same `.history`
+  means `/build --small` opened the PR. With the work episode at `PASS`, the flow is `done`
+  and merging is the user's. With any other verdict the PR is a draft: phase stays `build`.
+  On `FIX AND RE-REVIEW` the next piece is `/build --small #N` again, which fixes that
+  same PR.
 
 ## Run exactly one piece
 
@@ -230,6 +239,11 @@ human signs off where an episode cannot verify mechanically.
 
 ### 2 · build
 
+- **Route is small mode** — the default for a one-issue story with no design doc: run
+  `/build --small #N`, handing over the slug. It shows the one-block brief and asks for
+  the go-ahead that also authorizes its PR; then it builds with one executor, exorcises,
+  convenes the work episode once, and opens the PR (a draft unless the episode passed).
+  The user can pick the full loop at that stop instead.
 - **Route is `/build`:** run it, handing over the work file's `source` issues as its
   arguments, the scoped title, and — when they exist — the design doc path and the
   pre-mortem register path (its items are what the work episode verifies at the end).
@@ -264,13 +278,16 @@ Then, from whichever ran:
   cap / convergence refusal) and resume action.
 - **`ESCALATED`** → phase regresses to `design`; surface the reported reason.
 - **`PASS`** (`/build`'s convened episode, or `/review` run directly) → phase `finish`;
-  the work episode is closed and the branch is judged delivered.
+  the work episode is closed and the branch is judged delivered. When small mode already
+  opened the PR, go to phase `done` instead, because piece 3 has nothing left to do.
 - **`NEEDS DISCUSSION`** → phase stays `build`; surface the concerns — the user decides how
-  to resolve them.
-- **`FIX AND RE-REVIEW`** surviving `/build`'s own one internal fix-and-reconvene, or a bare
-  `/review`'s first `FIX AND RE-REVIEW` → phase stays `build`; the next piece is fixing the
-  blocking findings (via whichever route produced the branch) then re-running — that run
-  **re-enters the same episode** for its one re-review round, narrowed to the blocking
+  to resolve them. In small mode they ride on the draft PR it already opened.
+- **`FIX AND RE-REVIEW`** surviving `/build`'s own one internal fix-and-reconvene, small
+  mode's single round, or a bare `/review`'s first `FIX AND RE-REVIEW` → phase stays
+  `build`; the next piece is fixing the blocking findings (via whichever route produced the
+  branch) then re-running. In small mode that piece is `/build --small #N` again: it fixes
+  the findings on the draft PR, re-convenes the episode once, and marks the PR ready on
+  `PASS`, never opening a second PR. That run **re-enters the same episode** for its one re-review round, narrowed to the blocking
   lanes, never a fresh review from scratch. If it reports the round cap or a convergence
   refusal instead, surface the choice named — record a terminal verdict, reopen a fresh
   episode, or take the still-open findings to discussion — and let the user make it.
@@ -301,7 +318,7 @@ Hand over and stop:
   removes the branch-local scaffolding, and ends in one of `MERGE` / `PR` / `KEEP` / `DISCARD`.
   Doing it by hand is equally fine — no episode cares which, and nothing downstream reads a
   `/ship` artifact.
-- The PR is the user's to open either way.
+- Who opens the PR follows "The flow" above. Small mode never reaches this piece.
 
 Log `work-log --step finish --outcome HANDED-OFF --phase done`.
 
@@ -331,7 +348,8 @@ Episode: round R of C — N open, M carried
 ```
 
 When the flow reaches `done` or `stopped`, the last two lines become the wrap-up instead:
-`done` points at `gh pr create`, one PR closing every issue in the work file's `source`;
+`done` points at `gh pr create`, one PR closing every issue in the work file's `source`,
+or at the PR small mode already opened;
 `stopped` states the verdict that ended it.
 
 Then stop. Do not start the next piece, do part of it "to save time," or ask whether to

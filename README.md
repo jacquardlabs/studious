@@ -138,8 +138,11 @@ appetite is a number you hold yourself.
             product acceptance: does this deliver what the bet promised?
             --candidates 2|3 builds the plan in parallel, ranks mechanically, and you
             pick between two finalists
+            --small <issue> takes one issue to a PR with no PLAN.md: one executor,
+            exorcise, the work episode once, and two stops (start and merge)
    ↓
-/ship    →  evidence table, follow-ups, build report; the PR is yours
+/ship    →  evidence table, follow-ups, build report; the PR is yours to open
+            (--small already opened its own; the merge is yours either way)
 
 /shape is off the default path: ask for it, or /build asks for it with DESIGN GAP —
 interview, drafted design doc, viva sign-off per section, then /review's design episode.
