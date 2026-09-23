@@ -2,6 +2,98 @@
 
 <!-- version list -->
 
+## v6.12.0 (2026-09-23)
+
+### Bug Fixes
+
+- /bet writes one work file at list scale and hands off by slug
+  ([#447](https://github.com/jacquardlabs/studious/pull/447),
+  [`600dfa5`](https://github.com/jacquardlabs/studious/commit/600dfa5f207947cd0dbb69c96af1677d1725e2f0))
+
+- Hold exorcist to 0.6.0 in doctor; name an old gauntlet in its stop
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+- Read exorcise held[] and concepts_kept in exorcist's contract shape
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+- Refuse a leftover exorcise report; label a missing one by what it means
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+- Render exorcise held[] unmet claims and track exorcist v0.6.0's report
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+- Test_ship_body — fresh artifact for the second capture, not the pre-commit PLAN.md
+  ([#448](https://github.com/jacquardlabs/studious/pull/448),
+  [`767a631`](https://github.com/jacquardlabs/studious/commit/767a6314b44ede654325552751b2ef63108a46ab))
+
+- Treat a missing exorcist as an install defect in /health simplify and /setup
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+### Documentation
+
+- Name gauntlet-contract and exorcise-report in doctor's python3 row
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+- Name which seams carry a contract-version check
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+- Rewrap CLAUDE.md so an issue number does not open a line
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+### Features
+
+- Check exorcise's JSON before /build Step 3 acts on it
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+- Check gauntlet's findings contract version at its one discovery point
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+- Declare exorcist ~0.6.0 and pin gauntlet ~0.17.0; delete the exorcist-absent paths
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+### Refactoring
+
+- Call gauntlet dispatch/report by command; one home for discovery
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+- Cite review.md's gauntlet discovery from health instead of restating it
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+- Declare viva, gauntlet, and exorcist by name, not by range
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+- Find gauntlet by command, read exorcise JSON
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+- Pin plugin dependency version ranges ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+- Seam contracts — command -v gauntlet, exorcise --json, contract-version checks
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+### Testing
+
+- Restore the own-behavior pins the seam refactor deleted
+  ([#449](https://github.com/jacquardlabs/studious/pull/449),
+  [`af4c7b6`](https://github.com/jacquardlabs/studious/commit/af4c7b65077384a0e5a16b83dd92e755bc419d68))
+
+
 ## v6.11.0 (2026-09-22)
 
 ### Bug Fixes
