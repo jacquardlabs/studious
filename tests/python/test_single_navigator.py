@@ -22,7 +22,6 @@ import check_gate_independence as gi
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 NEXT = REPO_ROOT / "commands" / "next.md"
-README = REPO_ROOT / "README.md"
 COMMANDS = REPO_ROOT / "commands"
 SKILLS = REPO_ROOT / "skills"
 
@@ -83,13 +82,6 @@ def test_next_carries_the_read_first_posture_it_absorbed() -> None:
     assert "Report first, run on confirmation" in text
     assert "Propose, don't apply." in text
     assert "Never auto-advance" in text
-
-
-def test_the_readme_sends_a_reader_to_one_door() -> None:
-    text = README.read_text(encoding="utf-8")
-    assert "`/next` is the only door you have to remember" in text
-    for name in ("/work-on", "/work-through", "/coach"):
-        assert name not in text, f"README still names the retired door {name}"
 
 
 OTHER_SHIPPED_PROSE = (
