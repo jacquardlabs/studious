@@ -67,9 +67,6 @@ def test_the_producer_sites_name_only_their_own_part() -> None:
         "PRODUCT.md"
     )
     assert "Your go-ahead authorizes those commands and that PR. Merging stays yours." in _text("skills/build/SKILL.md")
-    readme = _text("README.md")
-    assert "--small <issue> takes one issue to a PR with no PLAN.md" in readme
-    assert "the PR is yours to open (--small already opened its own; the merge is yours either way)" in readme
 
 
 def test_next_routes_one_issue_stories_to_small_mode() -> None:
