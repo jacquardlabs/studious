@@ -1,7 +1,0 @@
-{
-  "name": "plan",
-  "title": "Build plan",
-  "sections": ["Not-here follow-ups"],
-  "checks": ["headings-present"],
-  "default_pass": "architecture"
-}
